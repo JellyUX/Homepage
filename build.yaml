@@ -8,7 +8,7 @@ owner: "Samuellct"
 overview: "Replaces and enhances the Jellyfin home screen with configurable widgets."
 description: "A modular home screen engine for Jellyfin. Configure widgets for native content, personalized recommendations, and external sources (TMDb)."
 category: "General"
-imageUrl: "https://raw.githubusercontent.com/Samuellct/JellyUX-Homepage/main/docs/icon.png"
+imageUrl: "https://raw.githubusercontent.com/JellyUX/Homepage/main/docs/icon.png"
 artifacts:
   - "Jellyfin.Plugin.JuxHomepage.dll"
 changelog: ""

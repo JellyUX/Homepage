@@ -4,7 +4,7 @@ A modular home screen engine for Jellyfin that replaces the default home page wi
 configurable widget system.
 
 This site documents every widget and admin setting in detail. For installation instructions and a
-quick overview, see the [README](https://github.com/Samuellct/JellyUX-Homepage#readme).
+quick overview, see the [README](https://github.com/JellyUX/Homepage#readme).
 
 ## Where to start
 

@@ -16,8 +16,8 @@ Thank you for your interest in contributing. This document covers the developmen
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/Samuellct/JellyUX-Homepage.git
-   cd JellyUX-Homepage
+   git clone https://github.com/JellyUX/Homepage.git
+   cd Homepage
    ```
 
 2. Start the test Jellyfin server:

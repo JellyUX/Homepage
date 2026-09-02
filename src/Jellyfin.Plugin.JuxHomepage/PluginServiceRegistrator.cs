@@ -64,7 +64,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         {
             client.Timeout = TimeSpan.FromSeconds(90);
             client.DefaultRequestHeaders.UserAgent.ParseAdd(
-                $"JellyUX-Homepage/{Plugin.Instance?.Version.ToString() ?? "dev"} (https://github.com/Samuellct/JellyUX-Homepage)");
+                $"JellyUX-Homepage/{Plugin.Instance?.Version.ToString() ?? "dev"} (https://github.com/JellyUX/Homepage)");
         })
         // Setting the Accept-Encoding header alone does NOT make HttpClient decompress a
         // gzip/deflate response -- that requires this separate handler setting. Without it, Wikidata

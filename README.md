@@ -5,16 +5,16 @@
 </p>
 
 <p align="center">
-  <img src="https://github.com/Samuellct/JellyUX-Homepage/actions/workflows/ci.yml/badge.svg" alt="Build">
-  <img src="https://img.shields.io/github/v/release/Samuellct/JellyUX-Homepage" alt="Version">
+  <img src="https://github.com/JellyUX/Homepage/actions/workflows/ci.yml/badge.svg" alt="Build">
+  <img src="https://img.shields.io/github/v/release/JellyUX/Homepage" alt="Version">
   <img src="https://img.shields.io/badge/Jellyfin-10.11.10-orange" alt="Jellyfin">
   <img src="https://img.shields.io/badge/license-GPL--3.0-green" alt="License">
-  <a href="https://samuellct.github.io/JellyUX-Homepage/"><img src="https://img.shields.io/badge/docs-online-blue" alt="Documentation"></a>
+  <a href="https://jellyux.github.io/Homepage/"><img src="https://img.shields.io/badge/docs-online-blue" alt="Documentation"></a>
 </p>
 
 A modular home screen engine for Jellyfin that replaces the default home page with a fully configurable widget system.
 
-**[Full documentation](https://samuellct.github.io/JellyUX-Homepage/)** - a detailed page for every widget, all global settings, and troubleshooting.
+**[Full documentation](https://jellyux.github.io/Homepage/)** - a detailed page for every widget, all global settings, and troubleshooting.
 
 ---
 
@@ -30,7 +30,7 @@ A modular home screen engine for Jellyfin that replaces the default home page wi
 1. In your Jellyfin dashboard, go to **Administration > Plugins > Repositories**
 2. Click **Add** and paste the following URL:
    ```
-   https://raw.githubusercontent.com/Samuellct/JellyUX-Homepage/main/manifest.json
+   https://raw.githubusercontent.com/JellyUX/Homepage/main/manifest.json
    ```
 3. Go to **Administration > Plugins > Catalog**, find **JellyUX Homepage** and install it
 4. Restart Jellyfin
@@ -45,7 +45,7 @@ After installation, the plugin configuration page lets you:
 - Reorder widgets via drag and drop
 - Configure per-widget parameters (minimum items, source library, etc.)
 
-See the **[documentation site](https://samuellct.github.io/JellyUX-Homepage/)** for a detailed
+See the **[documentation site](https://jellyux.github.io/Homepage/)** for a detailed
 breakdown of every widget's parameters and all global settings.
 
 ---

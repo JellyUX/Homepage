@@ -1,7 +1,7 @@
 site_name: JellyUX Homepage
-site_url: https://samuellct.github.io/JellyUX-Homepage/
-repo_url: https://github.com/Samuellct/JellyUX-Homepage
-repo_name: Samuellct/JellyUX-Homepage
+site_url: https://jellyux.github.io/Homepage/
+repo_url: https://github.com/JellyUX/Homepage
+repo_name: JellyUX/Homepage
 
 theme:
   name: material
