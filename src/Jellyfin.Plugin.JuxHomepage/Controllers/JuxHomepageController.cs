@@ -474,10 +474,13 @@ public class JuxHomepageController : ControllerBase
         [FromQuery] string? lang = null,
         CancellationToken cancellationToken = default)
     {
-        if (!await IsRequestAuthorizedForUserAsync(userId).ConfigureAwait(false))
+        var resolvedUserId = await ResolveRequestUserIdAsync(userId).ConfigureAwait(false);
+        if (resolvedUserId is null)
         {
             return StatusCode(StatusCodes.Status403Forbidden);
         }
+
+        userId = resolvedUserId.Value;
 
         var descriptors = await _widgetService
             .GetWidgetsForUser(userId, page, lang, cancellationToken)
@@ -510,10 +513,13 @@ public class JuxHomepageController : ControllerBase
         [FromQuery] int limit = 20,
         CancellationToken cancellationToken = default)
     {
-        if (!await IsRequestAuthorizedForUserAsync(userId).ConfigureAwait(false))
+        var resolvedUserId = await ResolveRequestUserIdAsync(userId).ConfigureAwait(false);
+        if (resolvedUserId is null)
         {
             return StatusCode(StatusCodes.Status403Forbidden);
         }
+
+        userId = resolvedUserId.Value;
 
         var result = await _widgetService
             .GetWidgetItems(userId, widgetType, additionalData, startIndex, limit, cancellationToken)
@@ -556,10 +562,13 @@ public class JuxHomepageController : ControllerBase
         [FromQuery] int limit = 50,
         CancellationToken cancellationToken = default)
     {
-        if (!await IsRequestAuthorizedForUserAsync(userId).ConfigureAwait(false))
+        var resolvedUserId = await ResolveRequestUserIdAsync(userId).ConfigureAwait(false);
+        if (resolvedUserId is null)
         {
             return StatusCode(StatusCodes.Status403Forbidden);
         }
+
+        userId = resolvedUserId.Value;
 
         var result = _watchlistService.GetItems(userId, sortBy, sortOrder, includeItemTypes, startIndex, limit, cancellationToken);
         return Ok(result);
@@ -581,10 +590,13 @@ public class JuxHomepageController : ControllerBase
         [FromQuery] Guid userId,
         CancellationToken cancellationToken = default)
     {
-        if (!await IsRequestAuthorizedForUserAsync(userId).ConfigureAwait(false))
+        var resolvedUserId = await ResolveRequestUserIdAsync(userId).ConfigureAwait(false);
+        if (resolvedUserId is null)
         {
             return StatusCode(StatusCodes.Status403Forbidden);
         }
+
+        userId = resolvedUserId.Value;
 
         return Ok(_watchlistService.GetLikedItemIds(userId, cancellationToken));
     }
@@ -612,10 +624,13 @@ public class JuxHomepageController : ControllerBase
         [FromQuery] int limit = 50,
         CancellationToken cancellationToken = default)
     {
-        if (!await IsRequestAuthorizedForUserAsync(userId).ConfigureAwait(false))
+        var resolvedUserId = await ResolveRequestUserIdAsync(userId).ConfigureAwait(false);
+        if (resolvedUserId is null)
         {
             return StatusCode(StatusCodes.Status403Forbidden);
         }
+
+        userId = resolvedUserId.Value;
 
         var result = _seriesProgressViewService.GetItems(userId, sortBy, sortOrder, startIndex, limit, cancellationToken);
         return Ok(result);
@@ -644,10 +659,13 @@ public class JuxHomepageController : ControllerBase
         [FromQuery] int limit = 50,
         CancellationToken cancellationToken = default)
     {
-        if (!await IsRequestAuthorizedForUserAsync(userId).ConfigureAwait(false))
+        var resolvedUserId = await ResolveRequestUserIdAsync(userId).ConfigureAwait(false);
+        if (resolvedUserId is null)
         {
             return StatusCode(StatusCodes.Status403Forbidden);
         }
+
+        userId = resolvedUserId.Value;
 
         var result = _movieHistoryViewService.GetItems(userId, sortBy, sortOrder, startIndex, limit, cancellationToken);
         return Ok(result);
@@ -665,19 +683,22 @@ public class JuxHomepageController : ControllerBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<WatchingStatistics>> GetStatistics([FromQuery] Guid userId)
     {
-        if (!await IsRequestAuthorizedForUserAsync(userId).ConfigureAwait(false))
+        var resolvedUserId = await ResolveRequestUserIdAsync(userId).ConfigureAwait(false);
+        if (resolvedUserId is null)
         {
             return StatusCode(StatusCodes.Status403Forbidden);
         }
+
+        userId = resolvedUserId.Value;
 
         return Ok(_statisticsService.GetStatistics(userId));
     }
 
     /// <summary>
     /// Returns the collections (BoxSets) a single item belongs to (TODO_V3.md Phase 7.2, "Included In"
-    /// on the item detail page). Not user-scoped -- collection membership is the same for everyone, so
-    /// unlike the endpoints above this only requires <see cref="AuthorizeAttribute"/>, no per-user IDOR
-    /// check. The underlying <see cref="ICollectionsIndexCacheService"/> (built in Phase 4.3, refreshed
+    /// on the item detail page). Takes no userId: the answer is scoped to the authenticated user's own
+    /// rights (see <see cref="ICollectionsIndexCacheService.GetCollectionsFor(Guid, Jellyfin.Database.Implementations.Entities.User)"/>),
+    /// so there is nothing to forge. The underlying <see cref="ICollectionsIndexCacheService"/> (built in Phase 4.3, refreshed
     /// daily by WatchlistDailyRefreshTask) already existed before this endpoint -- this is only a thin
     /// read. If the index is stale, a best-effort background refresh is kicked off (non-blocking, using
     /// the service's own refresh lock) so a fresh install doesn't stay empty until the next scheduled
@@ -974,14 +995,16 @@ public class JuxHomepageController : ControllerBase
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Verifies that the caller is allowed to act on behalf of <paramref name="requestedUserId"/>,
-    /// preventing an authenticated user from reading another user's data by supplying an arbitrary
-    /// userId in the query string (IDOR). Administrators and server API key requests are exempt.
+    /// Resolves whose data the request reads (see <see cref="UserAccessGuard.ResolveUserId"/>): a
+    /// regular user always reads their own data, whatever userId the query string carries, and is
+    /// refused when it names someone else (IDOR); administrators may name any user.
     /// </summary>
-    private async Task<bool> IsRequestAuthorizedForUserAsync(Guid requestedUserId)
+    /// <param name="requestedUserId">The userId from the query string, or <see cref="Guid.Empty"/>.</param>
+    /// <returns>The user to read, or null when the request must be refused.</returns>
+    private async Task<Guid?> ResolveRequestUserIdAsync(Guid requestedUserId)
     {
         var authInfo = await _authContext.GetAuthorizationInfo(HttpContext).ConfigureAwait(false);
-        return UserAccessGuard.IsAuthorizedForUser(
+        return UserAccessGuard.ResolveUserId(
             requestedUserId,
             authInfo.UserId,
             authInfo.IsApiKey,

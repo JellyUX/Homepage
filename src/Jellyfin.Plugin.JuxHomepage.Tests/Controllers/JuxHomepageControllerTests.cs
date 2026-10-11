@@ -1,4 +1,6 @@
 using System.Reflection;
+using System.Security.Claims;
+using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.Controllers;
 using Jellyfin.Plugin.JuxHomepage.Library;
@@ -10,10 +12,13 @@ using Jellyfin.Plugin.JuxHomepage.TMDb.Models;
 using Jellyfin.Plugin.JuxHomepage.Watchlist;
 using Jellyfin.Plugin.JuxHomepage.Widgets;
 using Jellyfin.Plugin.JuxHomepage.Widgets.Admin;
+using MediaBrowser.Common.Api;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Net;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -21,10 +26,9 @@ using Xunit;
 
 namespace Jellyfin.Plugin.JuxHomepage.Tests.Controllers;
 
-// Covers the two highest-value gaps identified for the controller in Phase 9 of TODO_V2.md: the
-// admin widget-values guard (400/404) and the TMDb search/status endpoints. Endpoints requiring
-// HttpContext/authorization (Sections, Section) are intentionally out of scope here -- they are
-// already exercised end to end by UserAccessGuardTests plus manual testing (Phase 0).
+// Covers the admin widget-values guard (400/404), the TMDb search/status endpoints, Included In,
+// and the per-user IDOR guard of every endpoint taking a userId (discovered by reflection, so a new
+// endpoint is covered without editing this file).
 public sealed class JuxHomepageControllerTests
 {
     [Fact]
@@ -255,6 +259,105 @@ public sealed class JuxHomepageControllerTests
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         Assert.Same(visibleRefs, ok.Value);
+    }
+
+    // -------------------------------------------------------------------------
+    // Per-user endpoints (IDOR)
+    // -------------------------------------------------------------------------
+
+    private static IReadOnlyList<MethodInfo> UserScopedActions() => typeof(JuxHomepageController)
+        .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+        .Where(m => m.GetParameters().Any(p => p.Name == "userId" && p.ParameterType == typeof(Guid)))
+        .Where(m => m.GetCustomAttributes<AuthorizeAttribute>().All(a => a.Policy != Policies.RequiresElevation))
+        .ToList();
+
+    [Fact]
+    public void UserScopedActions_AreAllDiscovered()
+    {
+        // Guards against the reflection probe below silently testing nothing.
+        Assert.Equal(
+            ["GetMovieHistoryItems", "GetSection", "GetSections", "GetSeriesProgressItems", "GetStatistics", "GetWatchlistIds", "GetWatchlistItems"],
+            UserScopedActions().Select(m => m.Name).Order());
+    }
+
+    [Fact]
+    public async Task UserScopedActions_RegularUserAskingForAnotherUser_IsRefused()
+    {
+        var caller = TestMocks.DefaultUser();
+
+        foreach (var action in UserScopedActions())
+        {
+            var status = await InvokeAsUser(action, caller, requestedUserId: Guid.NewGuid());
+
+            Assert.True(status == StatusCodes.Status403Forbidden, $"{action.Name} returned {status}");
+        }
+    }
+
+    [Fact]
+    public async Task UserScopedActions_RegularUserWithoutUserId_ReadsOwnData()
+    {
+        var caller = TestMocks.DefaultUser();
+
+        foreach (var action in UserScopedActions())
+        {
+            var status = await InvokeAsUser(action, caller, requestedUserId: Guid.Empty);
+
+            Assert.True(status != StatusCodes.Status403Forbidden, $"{action.Name} refused the caller's own data");
+        }
+    }
+
+    [Fact]
+    public async Task GetWatchlistItems_RegularUserWithoutUserId_QueriesTheTokenUser()
+    {
+        var caller = TestMocks.DefaultUser();
+        var watchlistMock = new Mock<IWatchlistService>();
+        var controller = BuildUserController(caller, isAdministrator: false, watchlistServiceMock: watchlistMock);
+
+        await controller.GetWatchlistItems(Guid.Empty);
+
+        watchlistMock.Verify(
+            w => w.GetItems(caller.Id, It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    private static async Task<int?> InvokeAsUser(MethodInfo action, User caller, Guid requestedUserId)
+    {
+        var controller = BuildUserController(caller, isAdministrator: false);
+        var args = action.GetParameters()
+            .Select(p => p.Name == "userId" ? requestedUserId
+                : p.ParameterType == typeof(string) ? (p.HasDefaultValue ? p.DefaultValue : "jux.test")
+                : p.HasDefaultValue ? p.DefaultValue
+                : p.ParameterType.IsValueType ? Activator.CreateInstance(p.ParameterType) : null)
+            .ToArray();
+
+        var task = (Task)action.Invoke(controller, args)!;
+        await task;
+        var actionResult = task.GetType().GetProperty("Result")!.GetValue(task)!;
+        var result = actionResult.GetType().GetProperty("Result")!.GetValue(actionResult);
+        return (result as IStatusCodeActionResult)?.StatusCode;
+    }
+
+    private static JuxHomepageController BuildUserController(
+        User caller,
+        bool isAdministrator,
+        Mock<IWatchlistService>? watchlistServiceMock = null)
+    {
+        var authContextMock = new Mock<IAuthorizationContext>();
+        authContextMock
+            .Setup(a => a.GetAuthorizationInfo(It.IsAny<HttpContext>()))
+            .ReturnsAsync(new AuthorizationInfo { User = caller, IsApiKey = false });
+
+        var controller = BuildController(
+            userManagerMock: TestMocks.UserManagerReturning(caller),
+            watchlistServiceMock: watchlistServiceMock,
+            authContextMock: authContextMock);
+
+        var roles = isAdministrator ? new[] { new Claim(ClaimTypes.Role, "Administrator") } : [];
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity(roles, "test")) }
+        };
+        return controller;
     }
 
     // -------------------------------------------------------------------------

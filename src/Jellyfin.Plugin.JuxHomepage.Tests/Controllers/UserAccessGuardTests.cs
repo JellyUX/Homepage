@@ -5,65 +5,54 @@ namespace Jellyfin.Plugin.JuxHomepage.Tests.Controllers;
 
 public sealed class UserAccessGuardTests
 {
+    private static readonly Guid Self = Guid.NewGuid();
+    private static readonly Guid Other = Guid.NewGuid();
+
     [Fact]
-    public void IsAuthorizedForUser_RequestedUserMatchesAuthenticatedUser_ReturnsTrue()
+    public void RegularUser_OwnId_ReadsOwnData()
     {
-        var userId = Guid.NewGuid();
-
-        var result = UserAccessGuard.IsAuthorizedForUser(
-            requestedUserId: userId,
-            authenticatedUserId: userId,
-            isApiKey: false,
-            isAdministrator: false);
-
-        Assert.True(result);
+        Assert.Equal(Self, UserAccessGuard.ResolveUserId(Self, Self, isApiKey: false, isAdministrator: false));
     }
 
     [Fact]
-    public void IsAuthorizedForUser_RequestedUserDiffersFromAuthenticatedUser_ReturnsFalse()
+    public void RegularUser_NoId_ReadsOwnDataFromToken()
     {
-        var result = UserAccessGuard.IsAuthorizedForUser(
-            requestedUserId: Guid.NewGuid(),
-            authenticatedUserId: Guid.NewGuid(),
-            isApiKey: false,
-            isAdministrator: false);
-
-        Assert.False(result);
+        Assert.Equal(Self, UserAccessGuard.ResolveUserId(Guid.Empty, Self, isApiKey: false, isAdministrator: false));
     }
 
     [Fact]
-    public void IsAuthorizedForUser_Administrator_BypassesUserMatch()
+    public void RegularUser_OtherUsersId_IsRefused()
     {
-        var result = UserAccessGuard.IsAuthorizedForUser(
-            requestedUserId: Guid.NewGuid(),
-            authenticatedUserId: Guid.NewGuid(),
-            isApiKey: false,
-            isAdministrator: true);
-
-        Assert.True(result);
+        Assert.Null(UserAccessGuard.ResolveUserId(Other, Self, isApiKey: false, isAdministrator: false));
     }
 
     [Fact]
-    public void IsAuthorizedForUser_ServerApiKey_BypassesUserMatch()
+    public void Administrator_OtherUsersId_ReadsThatUser()
     {
-        var result = UserAccessGuard.IsAuthorizedForUser(
-            requestedUserId: Guid.NewGuid(),
-            authenticatedUserId: Guid.Empty,
-            isApiKey: true,
-            isAdministrator: false);
-
-        Assert.True(result);
+        Assert.Equal(Other, UserAccessGuard.ResolveUserId(Other, Self, isApiKey: false, isAdministrator: true));
     }
 
     [Fact]
-    public void IsAuthorizedForUser_RequestedUserIdIsEmpty_ReturnsFalse()
+    public void Administrator_NoId_ReadsOwnData()
     {
-        var result = UserAccessGuard.IsAuthorizedForUser(
-            requestedUserId: Guid.Empty,
-            authenticatedUserId: Guid.Empty,
-            isApiKey: false,
-            isAdministrator: false);
+        Assert.Equal(Self, UserAccessGuard.ResolveUserId(Guid.Empty, Self, isApiKey: false, isAdministrator: true));
+    }
 
-        Assert.False(result);
+    [Fact]
+    public void ServerApiKey_NamedUser_ReadsThatUser()
+    {
+        Assert.Equal(Other, UserAccessGuard.ResolveUserId(Other, Guid.Empty, isApiKey: true, isAdministrator: false));
+    }
+
+    [Fact]
+    public void ServerApiKey_NoId_IsRefused()
+    {
+        Assert.Null(UserAccessGuard.ResolveUserId(Guid.Empty, Guid.Empty, isApiKey: true, isAdministrator: false));
+    }
+
+    [Fact]
+    public void NoAuthenticatedUser_IsRefused()
+    {
+        Assert.Null(UserAccessGuard.ResolveUserId(Other, Guid.Empty, isApiKey: false, isAdministrator: false));
     }
 }
