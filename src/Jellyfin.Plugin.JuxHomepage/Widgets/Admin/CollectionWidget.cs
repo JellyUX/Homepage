@@ -45,18 +45,26 @@ public sealed class CollectionWidget : AdminWidgetBase
     protected override BaseItemKind[]? IncludeItemTypes => null;
 
     /// <inheritdoc/>
-    protected override void ApplyFilter(InternalItemsQuery query, string value)
+    protected override bool ApplyFilter(InternalItemsQuery query, string value)
     {
         if (!Guid.TryParse(value, out var collectionId))
-            return;
+        {
+            return false;
+        }
 
-        var boxSet = LibraryManager.GetItemById(collectionId) as Folder;
-        if (boxSet is null)
-            return;
+        if (LibraryManager.GetItemById(collectionId) is not Folder boxSet)
+        {
+            return false;
+        }
 
         var items = boxSet.GetLinkedChildren(query.User);
-        if (items.Count > 0)
-            query.ItemIds = items.Select(i => i.Id).ToArray();
+        if (items.Count == 0)
+        {
+            return false;
+        }
+
+        query.ItemIds = items.Select(i => i.Id).ToArray();
+        return true;
     }
 
     /// <inheritdoc/>

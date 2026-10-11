@@ -42,12 +42,15 @@ public sealed class YearWidget : AdminWidgetBase
     public override int DefaultMinItems => 4;
 
     /// <inheritdoc/>
-    protected override void ApplyFilter(InternalItemsQuery query, string value)
+    protected override bool ApplyFilter(InternalItemsQuery query, string value)
     {
-        if (int.TryParse(value, out var year))
+        if (!int.TryParse(value, out var year))
         {
-            query.Years = [year];
+            return false;
         }
+
+        query.Years = [year];
+        return true;
     }
 
     /// <inheritdoc/>

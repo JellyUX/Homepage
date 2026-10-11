@@ -33,10 +33,11 @@ public abstract class PersonWidgetBase : AdminWidgetBase
     protected abstract string PersonType { get; }
 
     /// <inheritdoc/>
-    protected override void ApplyFilter(InternalItemsQuery query, string value)
+    protected override bool ApplyFilter(InternalItemsQuery query, string value)
     {
         query.Person = value;
         query.PersonTypes = [PersonType];
+        return true;
     }
 
     /// <inheritdoc/>

@@ -84,7 +84,11 @@ public abstract class AdminWidgetBase : IWidget
     /// </summary>
     /// <param name="query">The query to modify.</param>
     /// <param name="value">The value from <c>ExtraParams["value"]</c> / <see cref="WidgetPayload.AdditionalData"/>.</param>
-    protected abstract void ApplyFilter(InternalItemsQuery query, string value);
+    /// <returns>
+    /// False when the value does not resolve to anything (deleted collection, malformed id, unknown
+    /// studio...): the section is then empty, instead of an unfiltered query over the whole library.
+    /// </returns>
+    protected abstract bool ApplyFilter(InternalItemsQuery query, string value);
 
     /// <summary>
     /// Returns the list of available values for this widget type, optionally filtered by a search term.
@@ -165,7 +169,10 @@ public abstract class AdminWidgetBase : IWidget
             query.IncludeItemTypes = IncludeItemTypes;
         }
 
-        ApplyFilter(query, value);
+        if (!ApplyFilter(query, value))
+        {
+            return Task.FromResult(WidgetResult.Empty);
+        }
 
         QueryResult<BaseItem> result = LibraryManager.GetItemsResult(query);
         var dtos = DtoService.GetBaseItemDtos(result.Items, dtoOptions, user);

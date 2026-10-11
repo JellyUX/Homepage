@@ -39,13 +39,16 @@ public sealed class StudioWidget : AdminWidgetBase
     public override int DefaultMinItems => 4;
 
     /// <inheritdoc/>
-    protected override void ApplyFilter(InternalItemsQuery query, string value)
+    protected override bool ApplyFilter(InternalItemsQuery query, string value)
     {
         var studioId = LibraryManager.GetStudioId(value);
-        if (studioId != Guid.Empty)
+        if (studioId == Guid.Empty)
         {
-            query.StudioIds = [studioId];
+            return false;
         }
+
+        query.StudioIds = [studioId];
+        return true;
     }
 
     /// <inheritdoc/>
