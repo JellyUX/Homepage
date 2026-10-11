@@ -23,6 +23,8 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
 {
     private readonly DiskJsonCache<TMDbMovie> _movieCache;
     private readonly DiskJsonCache<TMDbShow> _showCache;
+    private readonly TMDbExternalIdCache _movieExternalIds;
+    private readonly TMDbExternalIdCache _showExternalIds;
     private readonly LibraryCrossReferencer _crossReferencer;
     private readonly ITMDbApiClient _apiClient;
     private readonly Func<PluginConfiguration?> _getConfiguration;
@@ -67,6 +69,8 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
         // today/top-rated show files.
         _movieCache = new DiskJsonCache<TMDbMovie>(cacheDir, fileSystem, logger);
         _showCache = new DiskJsonCache<TMDbShow>(cacheDir, fileSystem, logger);
+        _movieExternalIds = new TMDbExternalIdCache(cacheDir, "external_ids_movies.json", fileSystem, apiClient.GetMovieExternalIdsAsync, logger);
+        _showExternalIds = new TMDbExternalIdCache(cacheDir, "external_ids_shows.json", fileSystem, apiClient.GetShowExternalIdsAsync, logger);
     }
 
     /// <inheritdoc/>
@@ -178,9 +182,10 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
             var items = DeduplicateById(await _apiClient.DiscoverMoviesAsync(filter, cancellationToken).ConfigureAwait(false));
             var matched = await _crossReferencer.CrossReferenceAsync(
                 items,
-                _apiClient.GetMovieExternalIdsAsync,
+                _movieExternalIds.GetImdbIdAsync,
                 [BaseItemKind.Movie],
                 cancellationToken).ConfigureAwait(false);
+            _movieExternalIds.Save();
             _movieCache.WriteUnlessEmpty(GetDiscoverFileName(instanceId), items);
             _logger.LogInformation(
                 "TMDb Discover cache '{InstanceId}' refreshed: {ItemCount} item(s), {MatchedCount} matched to the local library.",
@@ -272,6 +277,8 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
         {
             _movieCache.Dispose();
             _showCache.Dispose();
+            _movieExternalIds.Dispose();
+            _showExternalIds.Dispose();
             _refreshGate.Dispose();
             _disposed = true;
         }
@@ -287,9 +294,10 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
             var items = DeduplicateById(await fetch(cancellationToken).ConfigureAwait(false));
             var matched = await _crossReferencer.CrossReferenceAsync(
                 items,
-                _apiClient.GetMovieExternalIdsAsync,
+                _movieExternalIds.GetImdbIdAsync,
                 [BaseItemKind.Movie],
                 cancellationToken).ConfigureAwait(false);
+            _movieExternalIds.Save();
             _movieCache.WriteUnlessEmpty(GetFileName(type), items);
             LogRefreshOutcome(type, items.Count, matched);
         }
@@ -309,9 +317,10 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
             var items = DeduplicateById(await fetch(cancellationToken).ConfigureAwait(false));
             var matched = await _crossReferencer.CrossReferenceAsync(
                 items,
-                _apiClient.GetShowExternalIdsAsync,
+                _showExternalIds.GetImdbIdAsync,
                 [BaseItemKind.Series],
                 cancellationToken).ConfigureAwait(false);
+            _showExternalIds.Save();
             _showCache.WriteUnlessEmpty(GetFileName(type), items);
             LogRefreshOutcome(type, items.Count, matched);
         }
