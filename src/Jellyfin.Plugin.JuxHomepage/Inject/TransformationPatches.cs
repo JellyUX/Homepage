@@ -80,19 +80,22 @@ public static class TransformationPatches
         var version = Plugin.Instance?.Version?.ToString() ?? "0";
         var cacheParam = $"?v={version}";
 
-        var linkTag = $"<link rel=\"stylesheet\" href=\"/JuxHomepage/jux-homepage.css{cacheParam}\" />";
-        var uiLinkTag = $"<link rel=\"stylesheet\" href=\"/JuxHomepage/jux-ui.css{cacheParam}\" />";
-        var scriptTag = $"<script src=\"/JuxHomepage/jux-homepage.js{cacheParam}\" defer></script>";
-        var uiScriptTag = $"<script src=\"/JuxHomepage/jux-ui.js{cacheParam}\" defer></script>";
-        var tabInjectorScriptTag = $"<script src=\"/JuxHomepage/jux-tab-injector.js{cacheParam}\" defer></script>";
-        var watchlistScriptTag = $"<script src=\"/JuxHomepage/jux-watchlist.js{cacheParam}\" defer></script>";
-        var cardHooksScriptTag = $"<script src=\"/JuxHomepage/jux-card-hooks.js{cacheParam}\" defer></script>";
-        var progressScriptTag = $"<script src=\"/JuxHomepage/jux-progress.js{cacheParam}\" defer></script>";
-        var historyScriptTag = $"<script src=\"/JuxHomepage/jux-history.js{cacheParam}\" defer></script>";
-        var statisticsScriptTag = $"<script src=\"/JuxHomepage/jux-statistics.js{cacheParam}\" defer></script>";
-        var seriesFlattenScriptTag = $"<script src=\"/JuxHomepage/jux-series-flatten.js{cacheParam}\" defer></script>";
-        var collectionsScriptTag = $"<script src=\"/JuxHomepage/jux-collections.js{cacheParam}\" defer></script>";
-        var breadcrumbScriptTag = $"<script src=\"/JuxHomepage/jux-breadcrumb.js{cacheParam}\" defer></script>";
+        // Relative to index.html (served under <BaseUrl>/web/), so the assets follow a configured
+        // BaseUrl; an absolute "/JuxHomepage/" would bypass it and receive the web client's HTML.
+
+        var linkTag = $"<link rel=\"stylesheet\" href=\"../JuxHomepage/jux-homepage.css{cacheParam}\" />";
+        var uiLinkTag = $"<link rel=\"stylesheet\" href=\"../JuxHomepage/jux-ui.css{cacheParam}\" />";
+        var scriptTag = $"<script src=\"../JuxHomepage/jux-homepage.js{cacheParam}\" defer></script>";
+        var uiScriptTag = $"<script src=\"../JuxHomepage/jux-ui.js{cacheParam}\" defer></script>";
+        var tabInjectorScriptTag = $"<script src=\"../JuxHomepage/jux-tab-injector.js{cacheParam}\" defer></script>";
+        var watchlistScriptTag = $"<script src=\"../JuxHomepage/jux-watchlist.js{cacheParam}\" defer></script>";
+        var cardHooksScriptTag = $"<script src=\"../JuxHomepage/jux-card-hooks.js{cacheParam}\" defer></script>";
+        var progressScriptTag = $"<script src=\"../JuxHomepage/jux-progress.js{cacheParam}\" defer></script>";
+        var historyScriptTag = $"<script src=\"../JuxHomepage/jux-history.js{cacheParam}\" defer></script>";
+        var statisticsScriptTag = $"<script src=\"../JuxHomepage/jux-statistics.js{cacheParam}\" defer></script>";
+        var seriesFlattenScriptTag = $"<script src=\"../JuxHomepage/jux-series-flatten.js{cacheParam}\" defer></script>";
+        var collectionsScriptTag = $"<script src=\"../JuxHomepage/jux-collections.js{cacheParam}\" defer></script>";
+        var breadcrumbScriptTag = $"<script src=\"../JuxHomepage/jux-breadcrumb.js{cacheParam}\" defer></script>";
 
         // jux-ui.js must appear (in source order) before the tab-rendering scripts and jux-collections.js
         // that consume window.JuxUI -- deferred scripts execute in document order, so this ordering is

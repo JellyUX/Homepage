@@ -1,4 +1,5 @@
 using Jellyfin.Plugin.JuxHomepage.Inject;
+using Jellyfin.Plugin.JuxHomepage.Models;
 using Xunit;
 
 namespace Jellyfin.Plugin.JuxHomepage.Tests.Inject;
@@ -95,5 +96,28 @@ public sealed class TransformationPatchesTests
 
         Assert.Equal(HomeHtmlOutcome.NoMarker, outcome);
         Assert.Equal(raw, content);
+    }
+
+    [Fact]
+    public void IndexHtml_InjectedAssetUrls_AreRelativeSoTheyFollowBaseUrl()
+    {
+        var html = TransformationPatches.IndexHtml(new PatchRequestPayload { Contents = "<html><head></head><body></body></html>" });
+
+        // index.html is served under <BaseUrl>/web/, so "../JuxHomepage/" resolves to
+        // <BaseUrl>/JuxHomepage/; an absolute "/JuxHomepage/" ignores BaseUrl and receives the web
+        // client's HTML fallback instead of the asset.
+        Assert.DoesNotContain("\"/JuxHomepage/", html, StringComparison.Ordinal);
+        Assert.Equal(13, html.Split("\"../JuxHomepage/").Length - 1);
+    }
+
+    [Fact]
+    public void ConfigPage_AssetUrls_AreRelativeSoTheyFollowBaseUrl()
+    {
+        using var stream = typeof(Plugin).Assembly.GetManifestResourceStream("Jellyfin.Plugin.JuxHomepage.Web.config.html");
+        Assert.NotNull(stream);
+        using var reader = new StreamReader(stream!);
+        var page = reader.ReadToEnd();
+
+        Assert.DoesNotContain("\"/JuxHomepage/", page, StringComparison.Ordinal);
     }
 }
