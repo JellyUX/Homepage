@@ -5,7 +5,7 @@ namespace Jellyfin.Plugin.JuxHomepage.Rewards.Models;
 /// <summary>
 /// A single film/award-category pairing returned by a Wikidata SPARQL query, implementing
 /// <see cref="IExternalCacheItem"/> (TODO_V2.md Phase 7) so it can be persisted by
-/// <see cref="TMDb.DiskJsonCache{T}"/> and cross-referenced by
+/// <see cref="Caching.DiskJsonCache{T}"/> and cross-referenced by
 /// <see cref="TMDb.LibraryCrossReferencer"/> exactly like <see cref="TMDbMovie"/>/<see cref="TMDbShow"/>.
 /// <para>
 /// <see cref="Id"/> is the numeric suffix of <see cref="FilmQid"/> (e.g. "Q117085614" -&gt; 117085614)

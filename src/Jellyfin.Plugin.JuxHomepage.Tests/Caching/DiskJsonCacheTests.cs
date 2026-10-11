@@ -1,9 +1,9 @@
 using Jellyfin.Plugin.JuxHomepage.IO;
-using Jellyfin.Plugin.JuxHomepage.TMDb;
+using Jellyfin.Plugin.JuxHomepage.Caching;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
-namespace Jellyfin.Plugin.JuxHomepage.Tests.TMDb;
+namespace Jellyfin.Plugin.JuxHomepage.Tests.Caching;
 
 public sealed class DiskJsonCacheTests : IDisposable
 {

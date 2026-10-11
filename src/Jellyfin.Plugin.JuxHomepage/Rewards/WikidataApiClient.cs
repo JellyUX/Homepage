@@ -26,7 +26,7 @@ namespace Jellyfin.Plugin.JuxHomepage.Rewards;
 /// weekly refresh, see <see cref="Tasks.RewardsWeeklyRefreshTask"/>), the safest and simplest policy is
 /// to log and move on, letting the next scheduled refresh retry naturally rather than hammering the
 /// service. A failed refresh never overwrites the existing cache (see <see cref="RewardsCacheService"/>
-/// / <see cref="TMDb.DiskJsonCache{T}.WriteUnlessEmpty"/>).
+/// / <see cref="Caching.DiskJsonCache{T}.WriteUnlessEmpty"/>).
 /// </para>
 /// </summary>
 public sealed class WikidataApiClient : IWikidataApiClient

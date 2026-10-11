@@ -1,5 +1,6 @@
 using Jellyfin.Data.Enums;
 using Jellyfin.Database.Implementations.Entities;
+using Jellyfin.Plugin.JuxHomepage.Caching;
 using Jellyfin.Plugin.JuxHomepage.IO;
 using Jellyfin.Plugin.JuxHomepage.Library.Models;
 using Jellyfin.Plugin.JuxHomepage.TMDb;

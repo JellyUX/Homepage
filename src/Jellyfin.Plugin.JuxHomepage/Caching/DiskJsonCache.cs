@@ -2,18 +2,18 @@ using System.Text.Json;
 using Jellyfin.Plugin.JuxHomepage.IO;
 using Microsoft.Extensions.Logging;
 
-namespace Jellyfin.Plugin.JuxHomepage.TMDb;
+namespace Jellyfin.Plugin.JuxHomepage.Caching;
 
 /// <summary>
 /// Generic disk-backed JSON cache for a single item type, wrapping items in a
-/// <see cref="TMDbCacheEntry{T}"/> envelope. Thread-safe via a <see cref="ReaderWriterLockSlim"/>;
+/// <see cref="CacheEntry{T}"/> envelope. Thread-safe via a <see cref="ReaderWriterLockSlim"/>;
 /// writes are atomic (temp file then rename), mirroring
 /// <see cref="Configuration.UserConfigurationStore"/>'s disk-persistence pattern.
 /// <para>
-/// Extracted from <see cref="TMDbCacheService"/> (TODO_V2.md Phase 7.2) so a future second external
+/// Extracted from <see cref="TMDb.TMDbCacheService"/> (TODO_V2.md Phase 7.2) so a future second external
 /// data provider (TVDb, Trakt, OMDb) can reuse the same persistence layer without duplicating it.
 /// Keyed by an explicit file name rather than a fixed cache-type enum, so a single instance of this
-/// class can serve multiple related cache files (e.g. <see cref="TMDbCacheService"/> composes one
+/// class can serve multiple related cache files (e.g. <see cref="TMDb.TMDbCacheService"/> composes one
 /// <see cref="DiskJsonCache{T}"/> for movies -- covering both the fixed trending/top-rated/now-playing
 /// caches and the per-instance Discover caches -- and one for shows).
 /// </para>
@@ -62,7 +62,7 @@ public sealed class DiskJsonCache<T> : IDisposable
             }
 
             var json = _fileSystem.ReadAllText(path);
-            var entry = JsonSerializer.Deserialize<TMDbCacheEntry<T>>(json);
+            var entry = JsonSerializer.Deserialize<CacheEntry<T>>(json);
             return entry?.Items ?? [];
         }
         catch (Exception ex)
@@ -93,7 +93,7 @@ public sealed class DiskJsonCache<T> : IDisposable
 
         var path = Path.Combine(_directory, fileName);
         var tmpPath = path + ".tmp";
-        var entry = new TMDbCacheEntry<T> { RefreshedAtUtc = DateTime.UtcNow, Items = items };
+        var entry = new CacheEntry<T> { RefreshedAtUtc = DateTime.UtcNow, Items = items };
         var json = JsonSerializer.Serialize(entry, SerializerOptions);
 
         _lock.EnterWriteLock();
