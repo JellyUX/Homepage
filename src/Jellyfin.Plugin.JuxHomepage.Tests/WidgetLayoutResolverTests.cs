@@ -242,6 +242,10 @@ public sealed class WidgetLayoutResolverTests
                 q => q.IsFavorite != true && q.IncludeItemTypes.SequenceEqual(new[] { BaseItemKind.Series }))))
             .Returns([]);
         libraryManagerMock
+            .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(
+                q => q.IncludeItemTypes.SequenceEqual(new[] { BaseItemKind.Episode }))))
+            .Returns([]);
+        libraryManagerMock
             .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.IsFavorite == true)))
             .Returns([]);
         libraryManagerMock

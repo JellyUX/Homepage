@@ -42,6 +42,15 @@ public sealed class PersonalizedWidgetTests
         var userManagerMock = new Mock<IUserManager>();
         userManagerMock.Setup(m => m.GetUserById(It.IsAny<Guid>())).Returns(user);
 
+        // Each watched series is reached through one played episode, as ScoringService does.
+        var series = watchedSeries ?? [];
+        foreach (var s in series.Where(s => s.Id == Guid.Empty))
+        {
+            s.Id = Guid.NewGuid();
+        }
+
+        var episodes = series.Select(s => (BaseItem)new Episode { Id = Guid.NewGuid(), SeriesId = s.Id }).ToList();
+
         var libraryManagerMock = new Mock<ILibraryManager>();
         libraryManagerMock
             .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(
@@ -49,8 +58,12 @@ public sealed class PersonalizedWidgetTests
             .Returns(watched);
         libraryManagerMock
             .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(
+                q => q.IncludeItemTypes.SequenceEqual(new[] { BaseItemKind.Episode }))))
+            .Returns(episodes);
+        libraryManagerMock
+            .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(
                 q => q.IsFavorite != true && q.IncludeItemTypes.SequenceEqual(new[] { BaseItemKind.Series }))))
-            .Returns(watchedSeries ?? []);
+            .Returns((InternalItemsQuery q) => series.Where(s => q.ItemIds.Contains(s.Id)).ToList());
         libraryManagerMock
             .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.IsFavorite == true)))
             .Returns([]);
@@ -363,6 +376,10 @@ public sealed class PersonalizedWidgetTests
         libraryManagerMock
             .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(
                 q => q.IsFavorite != true && q.IncludeItemTypes.SequenceEqual(new[] { BaseItemKind.Series }))))
+            .Returns([]);
+        libraryManagerMock
+            .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(
+                q => q.IncludeItemTypes.SequenceEqual(new[] { BaseItemKind.Episode }))))
             .Returns([]);
         libraryManagerMock
             .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.IsFavorite == true)))
