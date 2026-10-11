@@ -23,7 +23,8 @@ public sealed class ScoringServiceTests
         IReadOnlyList<BaseItem> favorites,
         Func<BaseItem, IReadOnlyList<PersonInfo>> people,
         IReadOnlyList<BaseItem>? watchedSeries = null,
-        IReadOnlyDictionary<Guid, DateTime>? lastPlayed = null)
+        IReadOnlyDictionary<Guid, DateTime>? lastPlayed = null,
+        TimeProvider? timeProvider = null)
     {
         var userManagerMock = new Mock<IUserManager>();
         userManagerMock.Setup(m => m.GetUserById(It.IsAny<Guid>())).Returns(user);
@@ -80,7 +81,8 @@ public sealed class ScoringServiceTests
             userManagerMock.Object,
             libraryManagerMock.Object,
             userDataManagerMock.Object,
-            () => new PluginConfiguration());
+            () => new PluginConfiguration(),
+            timeProvider: timeProvider);
     }
 
     /// <summary>
@@ -187,15 +189,14 @@ public sealed class ScoringServiceTests
     }
 
     [Fact]
-    public void GetSnapshot_ExpiredSnapshot_ServedImmediatelyWhileRecomputing()
+    public void GetSnapshot_StaleSnapshot_ServedImmediatelyWhileRecomputing()
     {
         var counters = new ComputeCounters();
-        var clock = new ManualTimeProvider();
-        var service = BuildSlowService(TimeSpan.FromMilliseconds(500), TimeSpan.FromSeconds(5), counters, clock);
+        var service = BuildSlowService(TimeSpan.FromMilliseconds(500), TimeSpan.FromSeconds(5), counters);
         var userId = Guid.NewGuid();
         service.GetTopGenres(userId, 5);
 
-        clock.UtcNowValue += TimeSpan.FromHours(1);
+        service.MarkStale(userId);
         var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         var stale = service.GetTopGenres(userId, 5);
         stopwatch.Stop();
@@ -220,6 +221,88 @@ public sealed class ScoringServiceTests
         service.GetTopGenres(userId, 5);
 
         Assert.Equal(2, counters.Computations);
+    }
+
+    // -------------------------------------------------------------------------
+    // Daily rotation and invalidation (F-02)
+    // -------------------------------------------------------------------------
+
+    private static readonly DateTimeOffset Noon = new(2026, 10, 11, 12, 0, 0, TimeSpan.Zero);
+
+    [Fact]
+    public void GetRecentlyWatched_SameDay_SameChoiceAcrossReloadsAndRestarts()
+    {
+        var user = new User("test", "Default", "Default");
+        var items = Enumerable.Range(0, 8)
+            .Select(i => (BaseItem)new Movie { Id = Guid.NewGuid(), Name = $"Film {i}", Genres = [] })
+            .ToList();
+        var clock = new ManualTimeProvider { UtcNowValue = Noon };
+
+        var morning = BuildService(user, items, [], _ => [], timeProvider: clock).GetRecentlyWatched(user.Id, 3);
+        clock.UtcNowValue = Noon.AddHours(11);
+        var restarted = BuildService(user, items, [], _ => [], timeProvider: clock).GetRecentlyWatched(user.Id, 3);
+
+        Assert.Equal(morning.Select(r => r.Value), restarted.Select(r => r.Value));
+    }
+
+    [Fact]
+    public void GetSnapshot_DayBoundary_RecomputesAndPurgesInactiveUsers()
+    {
+        var counters = new ComputeCounters();
+        var clock = new ManualTimeProvider { UtcNowValue = Noon };
+        var service = BuildSlowService(TimeSpan.Zero, TimeSpan.FromSeconds(5), counters, clock);
+        var active = Guid.NewGuid();
+        var inactive = Guid.NewGuid();
+        service.GetTopGenres(active, 5);
+        service.GetTopGenres(inactive, 5);
+
+        clock.UtcNowValue = Noon.AddHours(11);
+        service.GetTopGenres(active, 5);
+        Assert.Equal(2, counters.Computations);
+
+        clock.UtcNowValue = Noon.AddHours(13);
+        service.GetTopGenres(active, 5);
+
+        Assert.Equal(3, counters.Computations);
+        Assert.False(service.HasSnapshotForTesting(inactive));
+    }
+
+    [Fact]
+    public void GetSnapshot_EmptyHistory_ExpiresAfterSessionTtl()
+    {
+        var clock = new ManualTimeProvider { UtcNowValue = Noon };
+        var user = new User("test", "Default", "Default");
+        var computations = 0;
+        var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock
+            .Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
+            .Returns((InternalItemsQuery q) =>
+            {
+                if (q.IncludeItemTypes.Contains(BaseItemKind.Movie) && q.IsFavorite != true)
+                {
+                    Interlocked.Increment(ref computations);
+                }
+
+                return [];
+            });
+        var userManagerMock = new Mock<IUserManager>();
+        userManagerMock.Setup(m => m.GetUserById(It.IsAny<Guid>())).Returns(user);
+        var service = new ScoringService(
+            userManagerMock.Object,
+            libraryManagerMock.Object,
+            new Mock<IUserDataManager>().Object,
+            () => new PluginConfiguration(),
+            timeProvider: clock);
+
+        service.GetTopGenres(user.Id, 5);
+        clock.UtcNowValue = Noon.AddMinutes(14);
+        service.GetTopGenres(user.Id, 5);
+        Assert.Equal(1, computations);
+
+        clock.UtcNowValue = Noon.AddMinutes(16);
+        service.GetTopGenres(user.Id, 5);
+        Thread.Sleep(200);
+        Assert.Equal(2, computations);
     }
 
     // -------------------------------------------------------------------------
@@ -387,9 +470,9 @@ public sealed class ScoringServiceTests
     [Fact]
     public void GetRecentlyWatched_IsStableWithinCachePeriod()
     {
-        // Two calls against the same ScoringService instance hit the same cached ScoreSnapshot (its
-        // ComputedAt has not changed), so the seeded shuffle must produce the exact same order both
-        // times -- content should only vary once the 15-minute cache naturally recomputes.
+        // Two calls against the same ScoringService instance hit the same cached ScoreSnapshot, so
+        // the seeded shuffle must produce the exact same order both times -- content should only
+        // vary at the day boundary or after the user finishes a title.
         var user = new User("test", "Default", "Default");
         var items = Enumerable.Range(0, 8)
             .Select(i => new Movie { Id = Guid.NewGuid(), Name = $"Film {i}", Genres = [] })

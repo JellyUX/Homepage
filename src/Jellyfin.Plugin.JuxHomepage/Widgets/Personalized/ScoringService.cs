@@ -16,9 +16,12 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets.Personalized;
 /// Analyzes a user's watch history and favorites to derive scored preferences (top genres, top
 /// actors, top directors, recently watched films/shows) consumed by personalized widgets.
 /// <para>
-/// Scoring is computed once per user and cached for the same TTL as the widget layout
-/// (<see cref="Configuration.CacheConfig.SessionTtlMinutes"/>), so scores refresh at the same
-/// cadence as the home screen.
+/// Scoring is computed once per user and day (F-02): a snapshot stays valid until the next day
+/// boundary in server time, and the Because You Watched rotation is seeded by (user, date), so
+/// reloads on the same day pick the same titles. A user without history gets an empty snapshot
+/// that expires after <see cref="Configuration.CacheConfig.SessionTtlMinutes"/> instead, so a first
+/// finished title shows up the same day. The first access of a new day purges the previous days'
+/// snapshots, including those of users who no longer visit.
 /// </para>
 /// <para>
 /// A request never waits on a recompute (F-03): an expired snapshot is served while a fresh one is
@@ -66,6 +69,7 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
     private readonly TimeSpan _firstComputeTimeout;
     private int _queuedComputes;
     private int _generation;
+    private int _lastPurgeDay;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ScoringService"/> class.
@@ -142,13 +146,13 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
 
         // Shuffle a fixed-size pool of the most recent entries -- not the full RecentlyWatched list,
         // and not scope-filtered yet -- BEFORE applying scope/limit. Seeded from (userId, the
-        // snapshot's own compute time), so the order stays stable for as long as ScoringService's own
-        // 15-minute cache entry does, and only changes once that cache naturally recomputes (TODO_V3.md
-        // Phase 9.2: "Because You Watched" rotation). Shuffling before the scope filter, rather than
-        // filtering then shuffling per scope, keeps different rows' picks consistent with each other:
-        // see the seed/pool-size remarks on RecentlyWatchedPoolSize.
+        // snapshot's day), so the order is the same all day, across recomputes and restarts, and
+        // rotates at the day boundary (TODO_V3.md Phase 9.2: "Because You Watched" rotation).
+        // HashCode.Combine is not used: it is randomized per process. Shuffling before the scope
+        // filter, rather than filtering then shuffling per scope, keeps different rows' picks
+        // consistent with each other: see the seed/pool-size remarks on RecentlyWatchedPoolSize.
         var pool = snapshot.RecentlyWatched.Take(RecentlyWatchedPoolSize).ToList();
-        var seed = HashCode.Combine(userId, snapshot.ComputedAt.Ticks);
+        var seed = unchecked((userId.GetHashCode() * 397) ^ snapshot.Day.DayNumber);
         Shuffle(pool, seed);
 
         var entries = pool.AsEnumerable();
@@ -172,6 +176,19 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
         _cache.Clear();
     }
 
+    /// <summary>
+    /// Marks the user's snapshot stale after they finished a title: it is still served, so the
+    /// request does not wait, and a fresh one is computed in the background.
+    /// </summary>
+    /// <param name="userId">The user whose snapshot to refresh.</param>
+    public void MarkStale(Guid userId)
+    {
+        if (_cache.TryGetValue(userId, out var cached) && !cached.Stale)
+        {
+            _cache.TryUpdate(userId, cached with { Stale = true }, cached);
+        }
+    }
+
     /// <inheritdoc/>
     public bool TakePendingServed(Guid userId) => _pendingServed.TryRemove(userId, out _);
 
@@ -183,17 +200,26 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
         _computeGate.Dispose();
     }
 
+    /// <summary>
+    /// Test-only seam: returns whether a snapshot of <paramref name="userId"/> is held in memory.
+    /// </summary>
+    /// <param name="userId">The user to look up.</param>
+    /// <returns>True if a snapshot is cached for the user.</returns>
+    internal bool HasSnapshotForTesting(Guid userId) => _cache.ContainsKey(userId);
+
     private DateTime UtcNow => _timeProvider.GetUtcNow().UtcDateTime;
+
+    private DateOnly Today => DateOnly.FromDateTime(_timeProvider.GetLocalNow().DateTime);
 
     private ScoreSnapshot GetSnapshot(Guid userId)
     {
-        var ttlMinutes = _getConfiguration()?.Cache?.SessionTtlMinutes ?? 15;
-        var ttl = TimeSpan.FromMinutes(ttlMinutes);
+        var today = Today;
+        PurgeIfNewDay(today);
 
         var hasCached = _cache.TryGetValue(userId, out var cached);
-        if (hasCached && UtcNow - cached!.ComputedAt < ttl)
+        if (hasCached && IsFresh(cached!, today))
         {
-            return cached;
+            return cached!;
         }
 
         var compute = StartCompute(userId);
@@ -208,7 +234,45 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
         }
 
         _pendingServed[userId] = 0;
-        return ScoreSnapshot.CreateEmpty(UtcNow);
+        return ScoreSnapshot.CreateEmpty(UtcNow, Today);
+    }
+
+    private bool IsFresh(ScoreSnapshot snapshot, DateOnly today)
+    {
+        if (snapshot.Stale)
+        {
+            return false;
+        }
+
+        if (snapshot.RecentlyWatched.Count == 0)
+        {
+            var ttl = TimeSpan.FromMinutes(_getConfiguration()?.Cache?.SessionTtlMinutes ?? 15);
+            return UtcNow - snapshot.ComputedAt < ttl;
+        }
+
+        return snapshot.Day == today;
+    }
+
+    /// <summary>
+    /// On the first access of a new day, drops every snapshot computed on an earlier day, so the
+    /// cache never holds more than one day of users.
+    /// </summary>
+    private void PurgeIfNewDay(DateOnly today)
+    {
+        var previous = Volatile.Read(ref _lastPurgeDay);
+        if (previous == today.DayNumber
+            || Interlocked.CompareExchange(ref _lastPurgeDay, today.DayNumber, previous) != previous)
+        {
+            return;
+        }
+
+        foreach (var entry in _cache)
+        {
+            if (entry.Value.Day < today)
+            {
+                _cache.TryRemove(entry);
+            }
+        }
     }
 
     private bool WaitForFirstCompute(Task<ScoreSnapshot> compute)
@@ -289,7 +353,7 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
         var user = _userManager.GetUserById(userId);
         if (user is null)
         {
-            return ScoreSnapshot.CreateEmpty(UtcNow);
+            return ScoreSnapshot.CreateEmpty(UtcNow, Today);
         }
 
         var watchedMovies = _libraryManager.GetItemList(new InternalItemsQuery(user)
@@ -314,7 +378,7 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
 
         if (watchedMovies.Count == 0 && watchedSeries.Count == 0)
         {
-            return ScoreSnapshot.CreateEmpty(UtcNow);
+            return ScoreSnapshot.CreateEmpty(UtcNow, Today);
         }
 
         // A Series has no last-played date of its own, so it is dated by its most recently played
@@ -380,7 +444,8 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
                 i.Id.ToString(),
                 i.Name,
                 i is Series ? BaseItemKind.Series : BaseItemKind.Movie)).ToList(),
-            UtcNow);
+            UtcNow,
+            Today);
     }
 
     /// <summary>
@@ -469,8 +534,15 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
         IReadOnlyList<ScoredValue> Actors,
         IReadOnlyList<ScoredValue> Directors,
         IReadOnlyList<RecentlyWatchedEntry> RecentlyWatched,
-        DateTime ComputedAt)
+        DateTime ComputedAt,
+        DateOnly Day)
     {
+        /// <summary>
+        /// Gets a value indicating whether the user finished a title since this snapshot was
+        /// computed: it is still served, but replaced in the background.
+        /// </summary>
+        public bool Stale { get; init; }
+
         /// <summary>
         /// Creates an empty snapshot stamped with the current time, so that -- unlike a single
         /// shared static instance -- it still expires normally under <see cref="GetSnapshot"/>'s TTL
@@ -478,7 +550,8 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
         /// process has been running longer than one TTL period.
         /// </summary>
         /// <param name="computedAt">The current time.</param>
+        /// <param name="day">The current day in server time.</param>
         /// <returns>A freshly stamped empty snapshot.</returns>
-        public static ScoreSnapshot CreateEmpty(DateTime computedAt) => new([], [], [], [], computedAt);
+        public static ScoreSnapshot CreateEmpty(DateTime computedAt, DateOnly day) => new([], [], [], [], computedAt, day);
     }
 }
