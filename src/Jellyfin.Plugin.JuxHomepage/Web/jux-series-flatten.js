@@ -27,20 +27,51 @@
         return;
     }
 
+    var _observer = null;
+
     window.juxSeriesFlatten = {
         init: function () {
-            var observer = new MutationObserver(function () {
-                _tryFlatten();
-            });
-            observer.observe(document.body, { childList: true, subtree: true });
-
             window.addEventListener('hashchange', function () {
-                setTimeout(_tryFlatten, 400);
+                setTimeout(_syncObserver, 400);
             });
 
-            _tryFlatten();
+            _syncObserver();
         }
     };
+
+    // One observer for this module, connected only while a detail page (#...?id=) is shown and
+    // disconnected when the user leaves it (same idiom as jux-collections.js).
+    function _syncObserver() {
+        if (!_currentDetailItemId()) {
+            if (_observer) {
+                _observer.disconnect();
+                _observer = null;
+            }
+            return;
+        }
+
+        if (!_observer) {
+            _observer = new MutationObserver(_tryFlatten);
+            _observer.observe(document.body, { childList: true, subtree: true });
+        }
+
+        _tryFlatten();
+    }
+
+    // Network results of the current detail item, one shared Promise per call, so repeated mutation
+    // batches never resend a request for the same item (see jux-collections.js). A failed request
+    // stays cached until the user opens another item.
+    var _cache = { itemId: null };
+
+    function _cached(itemId, key, request) {
+        if (_cache.itemId !== itemId) {
+            _cache = { itemId: itemId };
+        }
+        if (!_cache[key]) {
+            _cache[key] = request();
+        }
+        return _cache[key];
+    }
 
     function _resolveLang() {
         return (document.documentElement.lang || 'en').toLowerCase().indexOf('fr') === 0 ? 'fr' : 'en';
@@ -107,7 +138,9 @@
         // a genuine retry (e.g. cardBuilder becoming available later) isn't permanently blocked.
         activePage.dataset.juxFlattenPending = itemId;
 
-        window.ApiClient.getItem(userId, itemId).then(function (item) {
+        _cached(itemId, 'item', function () {
+            return window.ApiClient.getItem(userId, itemId);
+        }).then(function (item) {
             if (!_shouldFlatten(item)) {
                 // Final: an item's Type/ChildCount never changes, so there's no point re-checking on
                 // every future mutation for this same item id.
@@ -120,12 +153,12 @@
                 return;
             }
 
-            var url = window.ApiClient.getUrl('Shows/' + itemId + '/Episodes', {
-                userId: userId,
-                Fields: 'UserData,PrimaryImageAspectRatio'
-            });
-
-            return window.ApiClient.getJSON(url).then(function (result) {
+            return _cached(itemId, 'episodes', function () {
+                return window.ApiClient.getJSON(window.ApiClient.getUrl('Shows/' + itemId + '/Episodes', {
+                    userId: userId,
+                    Fields: 'UserData,PrimaryImageAspectRatio'
+                }));
+            }).then(function (result) {
                 var episodes = (result && result.Items) || [];
                 if (episodes.length === 0) {
                     return;
@@ -221,7 +254,8 @@
             _seasonTitle: _seasonTitle,
             _buildFlattenedSectionSkeleton: _buildFlattenedSectionSkeleton,
             _currentDetailItemId: _currentDetailItemId,
-            _escHtml: _escHtml
+            _escHtml: _escHtml,
+            _syncObserver: _syncObserver
         };
     }
 })();

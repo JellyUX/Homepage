@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import juxCollections from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-collections.js';
 
 const {
@@ -9,7 +9,8 @@ const {
     _storageKeys,
     _buildCollectionsSectionSkeleton,
     _currentDetailItemId,
-    _escHtml
+    _escHtml,
+    _syncObserver
 } = juxCollections;
 
 describe('_isSupportedForCollections', () => {
@@ -103,5 +104,73 @@ describe('_escHtml', () => {
     it('returns an empty string for nullish input', () => {
         expect(_escHtml(null)).toBe('');
         expect(_escHtml(undefined)).toBe('');
+    });
+});
+
+describe('detail page requests (F-09)', () => {
+    const flush = () => new Promise(resolve => setTimeout(resolve, 0));
+
+    function setUpDetailPage(itemId, item, refs) {
+        document.body.innerHTML = '<div class="libraryPage"><div class="detailPageContent"></div></div>';
+        location.hash = '#/details?id=' + itemId;
+        const api = {
+            getCurrentUserId: () => 'user1',
+            getUrl: path => path,
+            getItem: vi.fn().mockResolvedValue(item),
+            getJSON: vi.fn().mockResolvedValue(refs),
+            getItems: vi.fn().mockResolvedValue({ Items: [{ Id: 'boxset1', Type: 'BoxSet' }] })
+        };
+        window.ApiClient = api;
+        return api;
+    }
+
+    async function mutateTenTimes() {
+        const page = document.querySelector('.libraryPage');
+        for (let i = 0; i < 10; i++) {
+            page.appendChild(document.createElement('div'));
+            await flush();
+        }
+    }
+
+    afterEach(() => {
+        location.hash = '';
+        _syncObserver();
+        delete window.ApiClient;
+        delete window.JellyfinAPI;
+        document.body.innerHTML = '';
+    });
+
+    it('sends one getItem for ten mutations on a movie page, shared by Included In and the sort check', async () => {
+        const api = setUpDetailPage('aa01', { Type: 'Movie' }, []);
+        _syncObserver();
+        await mutateTenTimes();
+
+        expect(api.getItem).toHaveBeenCalledTimes(1);
+        expect(api.getJSON).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not resend Included In requests while cardBuilder is missing', async () => {
+        const api = setUpDetailPage('aa02', { Type: 'Movie' }, [{ CollectionId: 'boxset1' }]);
+        _syncObserver();
+        await mutateTenTimes();
+
+        expect(api.getItem).toHaveBeenCalledTimes(1);
+        expect(api.getJSON).toHaveBeenCalledTimes(1);
+        expect(api.getItems).toHaveBeenCalledTimes(1);
+        expect(document.querySelector('.jux-collections-section')).toBeNull();
+    });
+
+    it('stops observing once the user leaves the detail page', async () => {
+        const api = setUpDetailPage('aa03', { Type: 'Movie' }, []);
+        _syncObserver();
+        await flush();
+        location.hash = '#/home';
+        _syncObserver();
+        api.getItem.mockClear();
+
+        document.body.appendChild(document.createElement('div'));
+        await flush();
+
+        expect(api.getItem).not.toHaveBeenCalled();
     });
 });

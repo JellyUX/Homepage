@@ -36,25 +36,78 @@
         }
     };
 
+    var _observer = null;
+
     window.juxCollections = {
         init: function () {
-            var observer = new MutationObserver(function () {
-                _tryIncludedIn();
-                _tryCollectionSort();
-            });
-            observer.observe(document.body, { childList: true, subtree: true });
-
             window.addEventListener('hashchange', function () {
-                setTimeout(function () {
-                    _tryIncludedIn();
-                    _tryCollectionSort();
-                }, 400);
+                setTimeout(_syncObserver, 400);
             });
 
-            _tryIncludedIn();
-            _tryCollectionSort();
+            _syncObserver();
         }
     };
+
+    function _run() {
+        _tryIncludedIn();
+        _tryCollectionSort();
+    }
+
+    // One observer for this module, connected only while a detail page (#...?id=) is shown and
+    // disconnected when the user leaves it: on every other page this module costs nothing.
+    function _syncObserver() {
+        if (!_currentDetailItemId()) {
+            if (_observer) {
+                _observer.disconnect();
+                _observer = null;
+            }
+            return;
+        }
+
+        if (!_observer) {
+            _observer = new MutationObserver(_run);
+            _observer.observe(document.body, { childList: true, subtree: true });
+        }
+
+        _run();
+    }
+
+    // Network results of the current detail item, one shared Promise per call: however many
+    // mutation batches re-run _tryIncludedIn/_tryCollectionSort, each request is sent at most once
+    // per item. A failed request stays cached (no retry loop on every mutation) until the user
+    // opens another item.
+    var _cache = { itemId: null };
+
+    function _cached(itemId, key, request) {
+        if (_cache.itemId !== itemId) {
+            _cache = { itemId: itemId };
+        }
+        if (!_cache[key]) {
+            _cache[key] = request();
+        }
+        return _cache[key];
+    }
+
+    function _getItem(userId, itemId) {
+        return _cached(itemId, 'item', function () {
+            return window.ApiClient.getItem(userId, itemId);
+        });
+    }
+
+    function _getIncludedIn(userId, itemId) {
+        return _cached(itemId, 'includedIn', function () {
+            var url = window.ApiClient.getUrl('JuxHomepage/Collections/IncludedIn/' + itemId);
+            return window.ApiClient.getJSON(url).then(function (refs) {
+                if (!refs || refs.length === 0) {
+                    return [];
+                }
+                var ids = refs.map(function (r) { return r.CollectionId; }).join(',');
+                return window.ApiClient.getItems(userId, { Ids: ids, Fields: 'PrimaryImageAspectRatio' }).then(function (result) {
+                    return (result && result.Items) || [];
+                });
+            });
+        });
+    }
 
     function _resolveLang() {
         return (document.documentElement.lang || 'en').toLowerCase().indexOf('fr') === 0 ? 'fr' : 'en';
@@ -136,7 +189,7 @@
         // sections). Cleared on failure so a later retry isn't permanently blocked.
         activePage.dataset.juxCollectionsPending = itemId;
 
-        window.ApiClient.getItem(userId, itemId).then(function (item) {
+        _getItem(userId, itemId).then(function (item) {
             if (!_isSupportedForCollections(item)) {
                 // Final: an item's Type never changes, so there's no point re-checking on every
                 // future mutation for this same item id.
@@ -144,11 +197,9 @@
                 return;
             }
 
-            var url = window.ApiClient.getUrl('JuxHomepage/Collections/IncludedIn/' + itemId);
-            return window.ApiClient.getJSON(url).then(function (refs) {
-                if (!refs || refs.length === 0) {
-                    // Genuinely final: this item belongs to no collection. Safe to mark checked --
-                    // this can't change to a different, non-empty answer without a full cache refresh.
+            return _getIncludedIn(userId, itemId).then(function (boxSets) {
+                if (boxSets.length === 0) {
+                    // Genuinely final: this item belongs to no visible collection.
                     activePage.dataset.juxCollectionsChecked = itemId;
                     return;
                 }
@@ -157,47 +208,39 @@
                 if (!api || !api.cardBuilder) {
                     // Not final -- cardBuilder may only become available after a later Home visit
                     // this session. Deliberately does NOT set juxCollectionsChecked, so the next
-                    // MutationObserver tick/hashchange retries instead of leaving this permanently
-                    // unrendered (confirmed live: without this, a page reached via direct link before
-                    // any Home visit would never show "Included In" even after visiting Home later).
+                    // MutationObserver tick/hashchange retries (from the cached results, without a
+                    // new request) instead of leaving this permanently unrendered.
                     return;
                 }
 
-                var ids = refs.map(function (r) { return r.CollectionId; }).join(',');
-                return window.ApiClient.getItems(userId, { Ids: ids, Fields: 'PrimaryImageAspectRatio' }).then(function (result) {
-                    var boxSets = (result && result.Items) || [];
-                    activePage.dataset.juxCollectionsChecked = itemId;
-                    if (boxSets.length === 0) {
-                        return;
-                    }
+                activePage.dataset.juxCollectionsChecked = itemId;
 
-                    var section = _buildCollectionsSectionSkeleton(_labels[_resolveLang()].includedIn);
-                    var itemsContainer = section.querySelector('.itemsContainer');
-                    itemsContainer.innerHTML = api.cardBuilder.getCardsHtml({
-                        items: boxSets,
-                        // true ("overflow" shape) matches the larger card size native horizontal
-                        // scroller sections (e.g. More Like This) use on this page -- confirmed live
-                        // that `false` here rendered noticeably smaller cards than every native
-                        // section around it (portraitCard vs overflowPortraitCard).
-                        shape: api.getPortraitShape(true),
-                        showTitle: true,
-                        overlayText: false,
-                        centerText: true,
-                        lazy: true,
-                        lines: 2
-                    });
-                    _loadCardImages(itemsContainer);
-
-                    var similar = activePage.querySelector('#similarCollapsible');
-                    if (similar) {
-                        similar.parentNode.insertBefore(section, similar);
-                    } else {
-                        var detailPageContent = activePage.querySelector('.detailPageContent');
-                        if (detailPageContent) {
-                            detailPageContent.appendChild(section);
-                        }
-                    }
+                var section = _buildCollectionsSectionSkeleton(_labels[_resolveLang()].includedIn);
+                var itemsContainer = section.querySelector('.itemsContainer');
+                itemsContainer.innerHTML = api.cardBuilder.getCardsHtml({
+                    items: boxSets,
+                    // true ("overflow" shape) matches the larger card size native horizontal
+                    // scroller sections (e.g. More Like This) use on this page -- confirmed live
+                    // that `false` here rendered noticeably smaller cards than every native
+                    // section around it (portraitCard vs overflowPortraitCard).
+                    shape: api.getPortraitShape(true),
+                    showTitle: true,
+                    overlayText: false,
+                    centerText: true,
+                    lazy: true,
+                    lines: 2
                 });
+                _loadCardImages(itemsContainer);
+
+                var similar = activePage.querySelector('#similarCollapsible');
+                if (similar) {
+                    similar.parentNode.insertBefore(section, similar);
+                } else {
+                    var detailPageContent = activePage.querySelector('.detailPageContent');
+                    if (detailPageContent) {
+                        detailPageContent.appendChild(section);
+                    }
+                }
             });
         }).catch(function (err) {
             console.error('[JellyUX] Included In check failed:', err);
@@ -243,7 +286,9 @@
             return;
         }
 
-        if (activePage.querySelector('.jux-collection-sort-btn') || activePage.dataset.juxCollectionSortPending === itemId) {
+        if (activePage.querySelector('.jux-collection-sort-btn') ||
+            activePage.dataset.juxCollectionSortChecked === itemId ||
+            activePage.dataset.juxCollectionSortPending === itemId) {
             return;
         }
 
@@ -261,8 +306,10 @@
         // hasn't been created yet by a still-pending earlier call).
         activePage.dataset.juxCollectionSortPending = itemId;
 
-        window.ApiClient.getItem(userId, itemId).then(function (item) {
+        _getItem(userId, itemId).then(function (item) {
             if (!_isBoxSet(item)) {
+                // Final, same reasoning as in _tryIncludedIn: only a collection gets a sort button.
+                activePage.dataset.juxCollectionSortChecked = itemId;
                 return;
             }
 
@@ -409,7 +456,8 @@
             _storageKeys: _storageKeys,
             _buildCollectionsSectionSkeleton: _buildCollectionsSectionSkeleton,
             _currentDetailItemId: _currentDetailItemId,
-            _escHtml: _escHtml
+            _escHtml: _escHtml,
+            _syncObserver: _syncObserver
         };
     }
 })();

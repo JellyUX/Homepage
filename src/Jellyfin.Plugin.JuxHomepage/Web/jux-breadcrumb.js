@@ -33,20 +33,38 @@
         fr: { seasonFallback: 'Saison {number}' }
     };
 
+    var _observer = null;
+
     window.juxBreadcrumb = {
         init: function () {
-            var observer = new MutationObserver(function () {
-                _tryRenderBreadcrumb();
-            });
-            observer.observe(document.body, { childList: true, subtree: true });
-
             window.addEventListener('hashchange', function () {
-                setTimeout(_tryRenderBreadcrumb, 400);
+                setTimeout(_syncObserver, 400);
             });
 
-            _tryRenderBreadcrumb();
+            _syncObserver();
         }
     };
+
+    // One observer for this module, connected only while a detail page (#...?id=) is shown and
+    // disconnected when the user leaves it (same idiom as jux-collections.js). Leaving still runs
+    // one render pass, which hides the breadcrumb.
+    function _syncObserver() {
+        if (!_currentDetailItemId()) {
+            if (_observer) {
+                _observer.disconnect();
+                _observer = null;
+            }
+            _tryRenderBreadcrumb();
+            return;
+        }
+
+        if (!_observer) {
+            _observer = new MutationObserver(_tryRenderBreadcrumb);
+            _observer.observe(document.body, { childList: true, subtree: true });
+        }
+
+        _tryRenderBreadcrumb();
+    }
 
     function _resolveLang() {
         return (document.documentElement.lang || 'en').toLowerCase().indexOf('fr') === 0 ? 'fr' : 'en';
