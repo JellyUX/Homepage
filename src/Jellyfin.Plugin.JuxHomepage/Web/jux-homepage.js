@@ -114,7 +114,9 @@
             // is the intended lazy-fill-viewport behavior, not a bug. The isFirstActivation re-check
             // guards against arming it when page 0 failed and fell back to native rendering above
             // (that failure path strips the "jux-homepage-active" class).
-            if (isFirstActivation && elem.classList.contains('jux-homepage-active')) {
+            // Armed only when page 0 reported a later page: a layout that fits in one page never
+            // requests an empty one.
+            if (isFirstActivation && elem.classList.contains('jux-homepage-active') && elem.dataset.juxHasMore === 'true') {
                 _setupLazyLoader(elem, apiClient, userId, userSettings);
             }
             return result;
@@ -128,8 +130,10 @@
                 page: page,
                 lang: document.documentElement.lang || 'en'
             })
-        ).then(function (descriptors) {
-            if (!descriptors || descriptors.length === 0) {
+        ).then(function (response) {
+            elem.dataset.juxHasMore = String(_hasMorePages(response));
+            var descriptors = (response && response.Sections) || [];
+            if (descriptors.length === 0) {
                 return;
             }
 
@@ -303,21 +307,17 @@
             currentPage++;
 
             _loadPage(elem, apiClient, userId, userSettings, currentPage).then(function () {
-                elem.appendChild(sentinel);
                 loading = false;
 
-                // If the page returned no new sections, stop observing
-                var newSections = elem.querySelectorAll(
-                    '.jux-widget-section:not([data-jux-page])'
-                );
-                if (!_hasMoreSections(newSections)) {
+                // The server says whether a later page exists: stop as soon as it does not, so the
+                // end of the layout never costs an extra, empty request.
+                if (elem.dataset.juxHasMore !== 'true') {
                     finished = true;
                     observer.disconnect();
-                } else {
-                    Array.prototype.forEach.call(newSections, function (s) {
-                        s.setAttribute('data-jux-page', String(currentPage));
-                    });
+                    sentinel.remove();
+                    return;
                 }
+                elem.appendChild(sentinel);
             }).catch(function () {
                 loading = false;
             });
@@ -326,11 +326,9 @@
         observer.observe(sentinel);
     }
 
-    // Pure lazy-load pagination decision: whether the page just loaded contains at least one new
-    // section worth continuing to observe for. Extracted from _setupLazyLoader (TODO_V2.md Phase
-    // 15.3) so it's testable in isolation from the real DOM/IntersectionObserver.
-    function _hasMoreSections(newSections) {
-        return newSections.length > 0;
+    // Pure lazy-load pagination decision: whether a /Sections response announces a later page.
+    function _hasMorePages(response) {
+        return !!(response && response.HasMore);
     }
 
     // -------------------------------------------------------------------------
@@ -381,7 +379,8 @@
             _buildSeeAllHref: _buildSeeAllHref,
             _fallback: _fallback,
             _isHomePage: _isHomePage,
-            _hasMoreSections: _hasMoreSections
+            _hasMorePages: _hasMorePages,
+            _setupLazyLoader: _setupLazyLoader
         };
     }
 })();

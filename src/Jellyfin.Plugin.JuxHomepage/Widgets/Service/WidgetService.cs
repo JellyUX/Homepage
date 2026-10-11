@@ -73,8 +73,8 @@ public sealed class WidgetService
     /// language gets its own cached layout.
     /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>A page of <see cref="WidgetDescriptor"/> objects describing the home screen layout.</returns>
-    public async Task<IReadOnlyList<WidgetDescriptor>> GetWidgetsForUser(
+    /// <returns>A page of the home screen layout, and whether a later page exists.</returns>
+    public async Task<SectionsPage> GetWidgetsForUser(
         Guid userId,
         int page,
         string? lang,
@@ -148,9 +148,9 @@ public sealed class WidgetService
         }
     }
 
-    private static IReadOnlyList<WidgetDescriptor> Paginate(IReadOnlyList<WidgetDescriptor> all, int page)
+    internal static SectionsPage Paginate(IReadOnlyList<WidgetDescriptor> all, int page)
     {
         var skip = Math.Max(0, page) * PageSize;
-        return all.Skip(skip).Take(PageSize).ToList().AsReadOnly();
+        return new SectionsPage(all.Skip(skip).Take(PageSize).ToList().AsReadOnly(), skip + PageSize < all.Count);
     }
 }

@@ -464,12 +464,12 @@ public class JuxHomepageController : ControllerBase
     /// <c>document.documentElement.lang</c>. Null defaults to English.
     /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>An array of <see cref="WidgetDescriptor"/> objects.</returns>
+    /// <returns>A <see cref="SectionsPage"/>: the page's descriptors and whether a later page exists.</returns>
     [HttpGet("Sections")]
     [Authorize]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<ActionResult<IReadOnlyList<WidgetDescriptor>>> GetSections(
+    public async Task<ActionResult<SectionsPage>> GetSections(
         [FromQuery] Guid userId,
         [FromQuery] int page = 0,
         [FromQuery] string? lang = null,
@@ -483,11 +483,11 @@ public class JuxHomepageController : ControllerBase
 
         userId = resolvedUserId.Value;
 
-        var descriptors = await _widgetService
+        var sectionsPage = await _widgetService
             .GetWidgetsForUser(userId, page, lang, cancellationToken)
             .ConfigureAwait(false);
 
-        return Ok(descriptors);
+        return Ok(sectionsPage);
     }
 
     /// <summary>

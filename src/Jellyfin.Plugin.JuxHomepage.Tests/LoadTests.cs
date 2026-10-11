@@ -47,7 +47,7 @@ public sealed class LoadTests
             .Select(_ => service.GetWidgetsForUser(userId, page: 0, lang: "en", CancellationToken.None));
         var results = await Task.WhenAll(tasks);
 
-        Assert.All(results, r => Assert.Single(r));
+        Assert.All(results, r => Assert.Single(r.Sections));
         Assert.Equal(1, callCount); // still 1: every concurrent call hit the warm cache, none recomputed.
     }
 
@@ -65,7 +65,7 @@ public sealed class LoadTests
 
         // Every caller must get a correct, single-descriptor result -- no exceptions, no partial or
         // corrupted layouts -- regardless of how many times the layout was actually recomputed.
-        Assert.All(results, r => Assert.Single(r));
+        Assert.All(results, r => Assert.Single(r.Sections));
 
         // Not asserted as exactly 1: WidgetService.GetWidgetsForUser has no lock around its
         // check-cache/compute/store sequence, so a cold-cache stampede can recompute more than

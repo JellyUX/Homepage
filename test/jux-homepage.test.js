@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import juxHomepage from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-homepage.js';
 
-const { _escHtml, _buildSeeAllHref, _fallback, _isHomePage, _hasMoreSections } = juxHomepage;
+const { _escHtml, _buildSeeAllHref, _fallback, _isHomePage, _hasMorePages, _setupLazyLoader } = juxHomepage;
 
 describe('_escHtml', () => {
     it('escapes ampersands, angle brackets, and quotes', () => {
@@ -83,12 +83,49 @@ describe('_isHomePage', () => {
     });
 });
 
-describe('_hasMoreSections', () => {
-    it('returns true when at least one new section was rendered', () => {
-        expect(_hasMoreSections([{}])).toBe(true);
+describe('_hasMorePages', () => {
+    it('returns true only when the response announces a later page', () => {
+        expect(_hasMorePages({ Sections: [{}], HasMore: true })).toBe(true);
+        expect(_hasMorePages({ Sections: [{}], HasMore: false })).toBe(false);
+        expect(_hasMorePages(null)).toBe(false);
+    });
+});
+
+describe('_setupLazyLoader (F-10)', () => {
+    let intersect;
+    const originalObserver = globalThis.IntersectionObserver;
+
+    beforeEach(() => {
+        globalThis.IntersectionObserver = class {
+            constructor(callback) { intersect = () => callback([{ isIntersecting: true }]); }
+            observe() {}
+            disconnect() { intersect = () => {}; }
+        };
     });
 
-    it('returns false when no new sections were rendered', () => {
-        expect(_hasMoreSections([])).toBe(false);
+    afterEach(() => {
+        globalThis.IntersectionObserver = originalObserver;
+    });
+
+    const flush = () => new Promise(resolve => setTimeout(resolve, 0));
+
+    it('sends no further page request once a page reports HasMore false', async () => {
+        const elem = document.createElement('div');
+        elem.innerHTML = '<div class="jux-widget-section"></div>';
+        elem.dataset.juxHasMore = 'true';
+        const apiClient = {
+            getUrl: (path, query) => path + '?page=' + query.page,
+            getJSON: vi.fn().mockResolvedValue({ Sections: [], HasMore: false })
+        };
+
+        _setupLazyLoader(elem, apiClient, 'user1', {});
+        for (let i = 0; i < 3; i++) {
+            intersect();
+            await flush();
+        }
+
+        expect(apiClient.getJSON).toHaveBeenCalledTimes(1);
+        expect(apiClient.getJSON.mock.calls[0][0]).toContain('page=1');
+        expect(elem.querySelector('.jux-lazy-sentinel')).toBeNull();
     });
 });

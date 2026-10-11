@@ -32,7 +32,7 @@ public sealed class WidgetServiceTests : IDisposable
                 new WidgetConfig { WidgetType = widgetType, Enabled = true, MinItems = minItems, Order = 0 }
             ]);
 
-        var result = await service.GetWidgetsForUser(Guid.NewGuid(), page: 0, lang: "en", CancellationToken.None);
+        var result = (await service.GetWidgetsForUser(Guid.NewGuid(), page: 0, lang: "en", CancellationToken.None)).Sections;
 
         Assert.Single(result);
         Assert.Equal(widgetType, result[0].WidgetType);
@@ -52,7 +52,7 @@ public sealed class WidgetServiceTests : IDisposable
                 new WidgetConfig { WidgetType = widgetType, Enabled = true, MinItems = minItems, Order = 0 }
             ]);
 
-        var result = await service.GetWidgetsForUser(Guid.NewGuid(), page: 0, lang: "en", CancellationToken.None);
+        var result = (await service.GetWidgetsForUser(Guid.NewGuid(), page: 0, lang: "en", CancellationToken.None)).Sections;
 
         Assert.Empty(result);
     }
@@ -77,7 +77,7 @@ public sealed class WidgetServiceTests : IDisposable
                 new WidgetConfig { WidgetType = "c", Enabled = true, MinItems = 1, Order = 10 }
             ]);
 
-        var result = await service.GetWidgetsForUser(Guid.NewGuid(), page: 0, lang: "en", CancellationToken.None);
+        var result = (await service.GetWidgetsForUser(Guid.NewGuid(), page: 0, lang: "en", CancellationToken.None)).Sections;
 
         Assert.Equal(3, result.Count);
         Assert.Equal("b", result[0].WidgetType);
@@ -109,8 +109,8 @@ public sealed class WidgetServiceTests : IDisposable
         var service = BuildService(registeredWidgets: widgets, globalWidgets: configs);
         var userId = Guid.NewGuid();
 
-        var page0 = await service.GetWidgetsForUser(userId, page: 0, lang: "en", CancellationToken.None);
-        var page1 = await service.GetWidgetsForUser(userId, page: 1, lang: "en", CancellationToken.None);
+        var page0 = (await service.GetWidgetsForUser(userId, page: 0, lang: "en", CancellationToken.None)).Sections;
+        var page1 = (await service.GetWidgetsForUser(userId, page: 1, lang: "en", CancellationToken.None)).Sections;
 
         Assert.Equal(20, page0.Count);
         Assert.Equal(5, page1.Count);
@@ -153,7 +153,7 @@ public sealed class WidgetServiceTests : IDisposable
                 }
             ]);
 
-        var result = await service.GetWidgetsForUser(Guid.NewGuid(), page: 0, lang: "en", CancellationToken.None);
+        var result = (await service.GetWidgetsForUser(Guid.NewGuid(), page: 0, lang: "en", CancellationToken.None)).Sections;
 
         Assert.Equal(2, result.Count);
         Assert.Equal("Action", result[0].AdditionalData);
@@ -183,8 +183,8 @@ public sealed class WidgetServiceTests : IDisposable
             globalWidgets: [new WidgetConfig { WidgetType = widgetType, Enabled = true, MinItems = 1, Order = 0 }],
             localizationService: localization);
 
-        var resultEn = await service.GetWidgetsForUser(Guid.NewGuid(), page: 0, lang: "en", CancellationToken.None);
-        var resultFr = await service.GetWidgetsForUser(Guid.NewGuid(), page: 0, lang: "fr", CancellationToken.None);
+        var resultEn = (await service.GetWidgetsForUser(Guid.NewGuid(), page: 0, lang: "en", CancellationToken.None)).Sections;
+        var resultFr = (await service.GetWidgetsForUser(Guid.NewGuid(), page: 0, lang: "fr", CancellationToken.None)).Sections;
 
         Assert.Equal("My Media", resultEn[0].DisplayName);
         Assert.Equal("Mes médias", resultFr[0].DisplayName);
@@ -209,8 +209,8 @@ public sealed class WidgetServiceTests : IDisposable
             ],
             localizationService: localization);
 
-        var resultEn = await service.GetWidgetsForUser(Guid.NewGuid(), page: 0, lang: "en", CancellationToken.None);
-        var resultFr = await service.GetWidgetsForUser(Guid.NewGuid(), page: 0, lang: "fr", CancellationToken.None);
+        var resultEn = (await service.GetWidgetsForUser(Guid.NewGuid(), page: 0, lang: "en", CancellationToken.None)).Sections;
+        var resultFr = (await service.GetWidgetsForUser(Guid.NewGuid(), page: 0, lang: "fr", CancellationToken.None)).Sections;
 
         Assert.Equal("Ma section perso", resultEn[0].DisplayName);
         Assert.Equal("Ma section perso", resultFr[0].DisplayName);
@@ -246,7 +246,7 @@ public sealed class WidgetServiceTests : IDisposable
             registeredWidgets: [mock.Object],
             globalWidgets: [new WidgetConfig { WidgetType = widgetType, Enabled = true, MinItems = minItems, Order = 0 }]);
 
-        var result = await service.GetWidgetsForUser(Guid.NewGuid(), page: 0, lang: "en", CancellationToken.None);
+        var result = (await service.GetWidgetsForUser(Guid.NewGuid(), page: 0, lang: "en", CancellationToken.None)).Sections;
 
         Assert.Equal(widgetType, Assert.Single(result).WidgetType);
         Assert.Equal(minItems, Assert.Single(limits));
@@ -409,6 +409,26 @@ public sealed class WidgetServiceTests : IDisposable
             .Returns(new WidgetDescriptor { WidgetType = widgetType });
 
         return mock.Object;
+    }
+
+    // -------------------------------------------------------------------------
+    // HasMore (TODO_V4.md 2.3: the home lazy loader stops on it instead of fetching empty pages)
+    // -------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData(14, 0, 14, false)]
+    [InlineData(20, 0, 20, false)]
+    [InlineData(21, 0, 20, true)]
+    [InlineData(21, 1, 1, false)]
+    [InlineData(14, 1, 0, false)]
+    public void Paginate_ReportsWhetherALaterPageExists(int total, int page, int expectedCount, bool expectedHasMore)
+    {
+        var all = Enumerable.Range(0, total).Select(i => new WidgetDescriptor { WidgetType = "w" + i, Order = i }).ToList();
+
+        var result = WidgetService.Paginate(all, page);
+
+        Assert.Equal(expectedCount, result.Sections.Count);
+        Assert.Equal(expectedHasMore, result.HasMore);
     }
 
     public void Dispose() => _sessionCache.Dispose();
