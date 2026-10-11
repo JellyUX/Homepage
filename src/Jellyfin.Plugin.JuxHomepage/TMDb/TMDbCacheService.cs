@@ -13,8 +13,8 @@ namespace Jellyfin.Plugin.JuxHomepage.TMDb;
 /// Reads and refreshes the on-disk TMDb data cache under
 /// <c>DataPath/Jellyfin.Plugin.JuxHomepage/cache/tmdb/</c>. Deliberately under <c>DataPath</c> rather
 /// than <c>PluginConfigurationsPath</c> (which lives inside Jellyfin's own <c>/config/plugins</c> tree,
-/// scanned by the core <c>PluginManager</c> for candidate plugin assemblies -- see
-/// <see cref="Jellyfin.Plugin.JuxHomepage.Widgets.WidgetPackLoader"/> for the incident this avoids).
+/// scanned by the core <c>PluginManager</c> for candidate plugin assemblies: a stray DLL there once
+/// made Jellyfin disable and wipe the whole configurations tree).
 /// Mirrors <see cref="Configuration.UserConfigurationStore"/>'s disk-persistence pattern:
 /// <c>System.Text.Json</c> serialization guarded by a <see cref="ReaderWriterLockSlim"/>.
 /// </summary>

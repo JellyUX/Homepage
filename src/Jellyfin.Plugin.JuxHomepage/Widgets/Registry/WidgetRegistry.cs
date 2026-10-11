@@ -11,14 +11,6 @@ public sealed class WidgetRegistry : IWidgetRegistry
     private readonly ConcurrentDictionary<string, IWidget> _widgets =
         new(StringComparer.Ordinal);
 
-    private IReadOnlyList<WidgetPackLoadError> _loadErrors = [];
-
-    /// <inheritdoc/>
-    public IReadOnlyList<WidgetPackLoadError> LoadErrors => _loadErrors;
-
-    /// <inheritdoc/>
-    public void SetLoadErrors(IReadOnlyList<WidgetPackLoadError> errors) => _loadErrors = errors;
-
     /// <inheritdoc/>
     public void Register(IWidget widget)
     {

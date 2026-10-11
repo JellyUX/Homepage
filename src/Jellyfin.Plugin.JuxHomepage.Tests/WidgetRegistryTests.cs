@@ -59,25 +59,6 @@ public class WidgetRegistryTests
         Assert.Empty(registry.GetAll());
     }
 
-    [Fact]
-    public void LoadErrors_DefaultsToEmpty()
-    {
-        var registry = new WidgetRegistry();
-
-        Assert.Empty(registry.LoadErrors);
-    }
-
-    [Fact]
-    public void SetLoadErrors_UpdatesLoadErrors()
-    {
-        var registry = new WidgetRegistry();
-        var errors = new[] { new WidgetPackLoadError("broken.dll", "Not a valid .NET assembly.") };
-
-        registry.SetLoadErrors(errors);
-
-        Assert.Same(errors, registry.LoadErrors);
-    }
-
     private static IWidget MakeWidget(string widgetType)
     {
         var mock = new Mock<IWidget>();

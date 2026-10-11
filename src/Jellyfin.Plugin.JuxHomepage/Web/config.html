@@ -17,10 +17,6 @@
             <p id="juxWarningText" class="fieldDescription jux-admin-warning"></p>
         </div>
 
-        <div id="juxPackErrorsBanner" class="verticalSection" style="display: none;">
-            <ul id="juxPackErrorsList" class="fieldDescription jux-admin-warning"></ul>
-        </div>
-
         <form class="juxConfigForm">
 
             <div class="verticalSection">
@@ -1121,28 +1117,6 @@
                 });
             },
 
-            // Renders one list item per failed external widget-pack DLL (see WidgetPackLoader),
-            // instead of leaving that information visible only in the server logs. Hidden entirely
-            // when every pack (if any) loaded cleanly.
-            renderPackErrors: function (errors) {
-                var banner = document.getElementById('juxPackErrorsBanner');
-                var list = document.getElementById('juxPackErrorsList');
-                if (!banner || !list) { return; }
-
-                if (!errors || !errors.length) {
-                    banner.style.display = 'none';
-                    return;
-                }
-
-                var self = this;
-                var html = '';
-                errors.forEach(function (e) {
-                    html += '<li>' + self.escHtml(e.FileName) + ': ' + self.escHtml(e.Message) + '</li>';
-                });
-                list.innerHTML = html;
-                banner.style.display = '';
-            },
-
             loadConfig: function () {
                 var self = this;
                 Dashboard.showLoadingMsg();
@@ -1150,7 +1124,6 @@
                     ApiClient.getPluginConfiguration(self.PLUGIN_ID),
                     ApiClient.getJSON(ApiClient.getUrl('JuxHomepage/Widgets')),
                     ApiClient.getJSON(ApiClient.getUrl('JuxHomepage/TMDb/Status')).catch(function () { return []; }),
-                    ApiClient.getJSON(ApiClient.getUrl('JuxHomepage/Widgets/PackErrors')).catch(function () { return []; }),
                     self.loadTmdbCountries(),
                     self.loadTmdbGenres(),
                     self.loadLocalizations(),
@@ -1163,7 +1136,7 @@
                     // isConnected, populateAddSelect, renderWidgets). Falls back to the historical
                     // hardcoded indices if /meta failed to load, so a transient network error here
                     // doesn't leave every widget miscategorized.
-                    var meta = results[7];
+                    var meta = results[6];
                     var categoryNames = (meta && meta.WidgetCategories) || ['Native', 'Admin', 'Personalized', 'Connected'];
                     categoryNames.forEach(function (name, i) {
                         self._categoryIndex[name] = i;
@@ -1171,7 +1144,6 @@
 
                     self.translateStaticText();
                     self.renderTmdbStatus(results[2] || []);
-                    self.renderPackErrors(results[3] || []);
 
                     var warning = self.state.config.StartupWarning;
                     var banner = document.getElementById('juxWarningBanner');

@@ -745,20 +745,6 @@ public class JuxHomepageController : ControllerBase
     }
 
     /// <summary>
-    /// Returns the external widget-pack load failures recorded at startup (see
-    /// <see cref="WidgetPackLoader"/>), for display in the admin configuration page instead of being
-    /// visible only in the server logs.
-    /// </summary>
-    /// <returns>An array of <see cref="WidgetPackLoadError"/> objects.</returns>
-    [HttpGet("Widgets/PackErrors")]
-    [Authorize(Policy = Policies.RequiresElevation)]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    public ActionResult<IReadOnlyList<WidgetPackLoadError>> GetWidgetPackErrors()
-    {
-        return Ok(_registry.LoadErrors);
-    }
-
-    /// <summary>
     /// Returns the list of available values for an admin widget type, for use in the autocomplete
     /// picker when the administrator adds a new section.
     /// </summary>

@@ -190,25 +190,6 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             RegisterWidget<RewardsWidget>(registry, serviceProvider, logger);
             RegisterWidget<SeasonalWidget>(registry, serviceProvider, logger);
 
-            var applicationPaths = serviceProvider.GetRequiredService<IApplicationPaths>();
-
-            // Discover and register IWidget implementations from external DLLs placed in a dedicated
-            // widget-pack directory (not recursive: this must not descend into unrelated
-            // subdirectories such as cache/tmdb/). Deliberately rooted under DataPath, NOT
-            // PluginConfigurationsPath: the latter lives inside Jellyfin's own /config/plugins tree,
-            // which the core PluginManager scans recursively for *.dll files in every top-level
-            // subdirectory (including "configurations") and treats as a candidate plugin. A malformed
-            // DLL dropped here previously caused Jellyfin's core plugin manager to disable and wipe
-            // the entire "configurations" directory tree, destroying unrelated plugin data (TMDb
-            // cache, per-user overrides) -- see WidgetPackLoader for the full security posture.
-            // This allows third-party widget packs without modifying the core plugin.
-            var packDir = Path.Combine(
-                applicationPaths.DataPath,
-                "Jellyfin.Plugin.JuxHomepage",
-                "widget-packs");
-            var loadErrors = WidgetPackLoader.LoadInto(registry, serviceProvider, packDir, logger);
-            registry.SetLoadErrors(loadErrors);
-
             return registry;
         });
     }

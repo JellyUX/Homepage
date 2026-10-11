@@ -26,14 +26,6 @@ This is unrelated to JellyUX. ZestyTheme's `theme.css` intentionally hides `.btn
 login page. To use password recovery, temporarily disable the ZestyTheme custom CSS (or remove the
 button's `display: none` override locally), recover the password, then re-enable the theme.
 
-## A widget pack fails to load
-
-If an external widget pack (a third-party DLL dropped into the plugin's `widget-packs` folder) fails
-to load, a warning banner appears at the top of the admin configuration page listing the failed
-file(s) and the reason. The rest of the plugin, including all built-in widgets, keeps working normally.
-Check the failure reason in the banner (or in the Jellyfin server logs) to determine whether the pack
-targets an incompatible plugin version, or is otherwise malformed.
-
 ## TMDb requests stop working after a network outage
 
 Connected widgets rely on TMDb's public API. After 3 consecutive network-level failures (not an

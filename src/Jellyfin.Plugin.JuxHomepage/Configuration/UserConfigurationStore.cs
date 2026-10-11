@@ -11,8 +11,7 @@ namespace Jellyfin.Plugin.JuxHomepage.Configuration;
 /// Files are stored under <c>DataPath/Jellyfin.Plugin.JuxHomepage/users/{userId}.json</c>. Deliberately
 /// under <c>DataPath</c> rather than <c>PluginConfigurationsPath</c> (which lives inside Jellyfin's own
 /// <c>/config/plugins</c> tree, scanned by the core <c>PluginManager</c> for candidate plugin
-/// assemblies -- see <see cref="Jellyfin.Plugin.JuxHomepage.Widgets.WidgetPackLoader"/> for the
-/// incident this avoids).
+/// assemblies: a stray DLL there once made Jellyfin disable and wipe the whole configurations tree).
 /// All file access is protected by a <see cref="ReaderWriterLockSlim"/> to allow concurrent reads
 /// while serializing writes.
 /// </summary>

@@ -26,18 +26,4 @@ public interface IWidgetRegistry
     /// <param name="widgetType">The widget type identifier (case-sensitive).</param>
     /// <returns>The matching widget, or null if not found.</returns>
     IWidget? GetByType(string widgetType);
-
-    /// <summary>
-    /// Gets the external widget-pack load failures recorded by the most recent
-    /// <see cref="SetLoadErrors"/> call, empty if every pack (if any) loaded cleanly. Recomputed at
-    /// every startup; never persisted to the plugin configuration.
-    /// </summary>
-    IReadOnlyList<WidgetPackLoadError> LoadErrors { get; }
-
-    /// <summary>
-    /// Records the external widget-pack load failures encountered during startup discovery, for
-    /// display in the admin configuration page.
-    /// </summary>
-    /// <param name="errors">The load failures to record.</param>
-    void SetLoadErrors(IReadOnlyList<WidgetPackLoadError> errors);
 }
