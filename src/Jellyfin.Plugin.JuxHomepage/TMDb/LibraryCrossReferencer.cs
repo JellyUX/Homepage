@@ -40,8 +40,8 @@ public sealed class LibraryCrossReferencer
 
     /// <summary>
     /// Sets <see cref="IExternalCacheItem.LibraryItemId"/> on each item by looking it up in the local
-    /// library, primarily by IMDb ID (fetched via <paramref name="getExternalImdbId"/>), falling
-    /// back to a direct provider-id match when no IMDb ID is available or no match is found. Items are
+    /// library, first by the provider's own id (no network call), then by IMDb ID (fetched via
+    /// <paramref name="getExternalImdbId"/>) for items not found that way. Items are
     /// processed with bounded concurrency (both the external IMDb ID HTTP lookup and the local
     /// library query per item) -- <see cref="ILibraryManager"/> does not support matching against a
     /// list of provider id values in a single query (<c>InternalItemsQuery.HasAnyProviderId</c> is a
@@ -55,7 +55,7 @@ public sealed class LibraryCrossReferencer
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <param name="fallbackProvider">
     /// The <see cref="MetadataProvider"/> whose id matches <typeparamref name="T"/>'s own
-    /// <see cref="IExternalCacheItem.Id"/>, used as a fallback when no IMDb match is found. Defaults
+    /// <see cref="IExternalCacheItem.Id"/>, tried first, before any IMDb lookup. Defaults
     /// to <see cref="MetadataProvider.Tmdb"/> for the existing TMDb-backed callers. Pass <c>null</c>
     /// for a provider with no corresponding <see cref="MetadataProvider"/> entry (e.g. Wikidata, see
     /// TODO_V2.md Phase 14) -- falling back to <see cref="MetadataProvider.Tmdb"/> in that case would
@@ -80,26 +80,27 @@ public sealed class LibraryCrossReferencer
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                string? imdbId = null;
-                try
-                {
-                    imdbId = await getExternalImdbId(item.Id, cancellationToken).ConfigureAwait(false);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to fetch external IDs for TMDb id {TmdbId}.", item.Id);
-                }
+                // Local library first (F-07): an item carrying the provider's own id is matched
+                // without any HTTP call; the IMDb lookup only runs for the others.
+                var match = fallbackProvider is { } provider
+                    ? FindLibraryMatchId(provider, item.Id.ToString(CultureInfo.InvariantCulture), includeItemTypes)
+                    : null;
 
-                var match = string.IsNullOrEmpty(imdbId)
-                    ? null
-                    : FindLibraryMatchId(MetadataProvider.Imdb, imdbId, includeItemTypes);
-
-                if (match is null && fallbackProvider is { } provider)
+                if (match is null)
                 {
-                    match = FindLibraryMatchId(
-                        provider,
-                        item.Id.ToString(CultureInfo.InvariantCulture),
-                        includeItemTypes);
+                    string? imdbId = null;
+                    try
+                    {
+                        imdbId = await getExternalImdbId(item.Id, cancellationToken).ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to fetch external IDs for TMDb id {TmdbId}.", item.Id);
+                    }
+
+                    match = string.IsNullOrEmpty(imdbId)
+                        ? null
+                        : FindLibraryMatchId(MetadataProvider.Imdb, imdbId, includeItemTypes);
                 }
 
                 item.LibraryItemId = match;

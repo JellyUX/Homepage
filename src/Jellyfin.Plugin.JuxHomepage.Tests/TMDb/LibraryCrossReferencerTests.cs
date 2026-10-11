@@ -24,6 +24,7 @@ public sealed class LibraryCrossReferencerTests
     {
         var libraryItem = new Movie { Id = Guid.NewGuid(), Name = "Inception" };
         var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
         libraryManagerMock
             .Setup(m => m.GetItemIds(It.Is<InternalItemsQuery>(
                 q => q.HasAnyProviderId != null && q.HasAnyProviderId.ContainsKey("Imdb"))))
@@ -47,6 +48,7 @@ public sealed class LibraryCrossReferencerTests
     {
         var libraryItem = new Movie { Id = Guid.NewGuid(), Name = "Inception" };
         var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
         libraryManagerMock
             .Setup(m => m.GetItemIds(It.Is<InternalItemsQuery>(
                 q => q.HasAnyProviderId != null && q.HasAnyProviderId.ContainsKey("Tmdb")
@@ -71,6 +73,7 @@ public sealed class LibraryCrossReferencerTests
     {
         var libraryManagerMock = new Mock<ILibraryManager>();
         libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
 
         var referencer = new LibraryCrossReferencer(libraryManagerMock.Object, NullLogger.Instance);
         var items = new List<TMDbMovie> { new() { Id = 999, Title = "Unknown" } };
@@ -93,6 +96,7 @@ public sealed class LibraryCrossReferencerTests
         // fallbackProvider: null must skip the provider-id lookup entirely rather than defaulting to
         // MetadataProvider.Tmdb -- which would risk a spurious match against an unrelated item.
         var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
         libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
 
         var referencer = new LibraryCrossReferencer(libraryManagerMock.Object, NullLogger.Instance);
@@ -124,6 +128,7 @@ public sealed class LibraryCrossReferencerTests
 
         var libraryManagerMock = new Mock<ILibraryManager>();
         libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
 
         var referencer = new LibraryCrossReferencer(libraryManagerMock.Object, NullLogger.Instance);
         var items = Enumerable.Range(1, ItemCount)
@@ -154,5 +159,35 @@ public sealed class LibraryCrossReferencerTests
 
         Assert.Equal(0, matched);
         Assert.True(maxObservedInFlight <= MaxConcurrency, $"Observed {maxObservedInFlight} concurrent calls, expected at most {MaxConcurrency}.");
+    }
+
+    [Fact]
+    public async Task CrossReferenceAsync_LocalTmdbMatch_MakesNoImdbLookup()
+    {
+        // F-07: an item found locally by its TMDb id costs no HTTP call.
+        var libraryItemId = Guid.NewGuid();
+        var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
+        libraryManagerMock
+            .Setup(m => m.GetItemIds(It.Is<InternalItemsQuery>(
+                q => q.HasAnyProviderId != null && q.HasAnyProviderId.ContainsKey("Tmdb"))))
+            .Returns([libraryItemId]);
+        var lookups = 0;
+        var referencer = new LibraryCrossReferencer(libraryManagerMock.Object, NullLogger.Instance);
+        var items = new List<TMDbMovie> { new() { Id = 27205, Title = "Inception" } };
+
+        var matched = await referencer.CrossReferenceAsync(
+            items,
+            (_, _) =>
+            {
+                Interlocked.Increment(ref lookups);
+                return Task.FromResult<string?>("tt1375666");
+            },
+            [BaseItemKind.Movie],
+            CancellationToken.None);
+
+        Assert.Equal(1, matched);
+        Assert.Equal(libraryItemId, items[0].LibraryItemId);
+        Assert.Equal(0, lookups);
     }
 }

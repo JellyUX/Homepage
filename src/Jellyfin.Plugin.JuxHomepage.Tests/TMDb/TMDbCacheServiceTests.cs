@@ -60,6 +60,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
     {
         var mock = new Mock<ILibraryManager>();
         mock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
+        mock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
         return mock.Object;
     }
 
@@ -136,6 +137,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
             .ReturnsAsync("tt1375666");
 
         var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
         libraryManagerMock
             .Setup(m => m.GetItemIds(It.Is<InternalItemsQuery>(
                 q => q.HasAnyProviderId != null && q.HasAnyProviderId.ContainsKey("Imdb"))))
@@ -162,6 +164,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
             .ReturnsAsync((string?)null);
 
         var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
         libraryManagerMock
             .Setup(m => m.GetItemIds(It.Is<InternalItemsQuery>(
                 q => q.HasAnyProviderId != null && q.HasAnyProviderId.ContainsKey("Tmdb")
@@ -187,6 +190,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
             .ReturnsAsync((string?)null);
 
         var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
         libraryManagerMock
             .Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>()))
             .Returns([]);
@@ -222,6 +226,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
             .ReturnsAsync("tt32357218");
 
         var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
         libraryManagerMock
             .Setup(m => m.GetItemIds(It.Is<InternalItemsQuery>(
                 q => q.HasAnyProviderId != null && q.HasAnyProviderId.ContainsKey("Imdb"))))
@@ -255,6 +260,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
             .ReturnsAsync("tt1375666");
 
         var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
         libraryManagerMock
             .Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>()))
             .Returns([libraryItem.Id]);
@@ -310,6 +316,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
             });
 
         var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
         libraryManagerMock
             .Setup(m => m.GetItemIds(It.Is<InternalItemsQuery>(q => q.HasAnyProviderId!.ContainsKey("Imdb"))))
             .Returns((InternalItemsQuery q) =>
