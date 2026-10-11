@@ -111,10 +111,8 @@ public sealed class LoadTests
 
         Assert.All(results, r => Assert.Equal("Action", r[0].Value));
 
-        // Same caveat as the WidgetService cold-cache test above: ScoringService.GetSnapshot has no
-        // lock around its check-cache/compute/store sequence either, so this reports the observed
-        // recomputation count rather than asserting a stronger guarantee than the code provides.
-        Assert.True(callCount >= 1 && callCount <= ConcurrentCallers, $"Observed {callCount} recomputations for {ConcurrentCallers} concurrent cold-cache callers.");
+        // Single-flight (F-03): every cold caller joins the one running computation.
+        Assert.Equal(1, callCount);
     }
 
     // -------------------------------------------------------------------------
@@ -192,6 +190,10 @@ public sealed class LoadTests
         libraryManagerMock
             .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(
                 q => q.IsFavorite != true && q.IncludeItemTypes.SequenceEqual(new[] { BaseItemKind.Series }))))
+            .Returns([]);
+        libraryManagerMock
+            .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(
+                q => q.IncludeItemTypes.SequenceEqual(new[] { BaseItemKind.Episode }))))
             .Returns([]);
         libraryManagerMock
             .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.IsFavorite == true)))

@@ -304,7 +304,14 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
             return null;
         }
 
-        var created = new Lazy<Task<ScoreSnapshot>>(() => Task.Run(() => RunComputeAsync(userId)));
+        // A dedicated thread, not the thread pool: callers block on this task (WaitForFirstCompute),
+        // and under load a pool-scheduled computation would wait for a pool thread held by those
+        // very callers. The bounded queue caps how many of these threads can exist.
+        var created = new Lazy<Task<ScoreSnapshot>>(() => Task.Factory.StartNew(
+            () => RunCompute(userId),
+            CancellationToken.None,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default));
         var actual = _inFlight.GetOrAdd(userId, created);
         if (!ReferenceEquals(actual, created))
         {
@@ -314,13 +321,13 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
         return actual.Value;
     }
 
-    private async Task<ScoreSnapshot> RunComputeAsync(Guid userId)
+    private ScoreSnapshot RunCompute(Guid userId)
     {
         var generation = Volatile.Read(ref _generation);
-        var token = _shutdown.Token;
         try
         {
-            await _computeGate.WaitAsync(token).ConfigureAwait(false);
+            var token = _shutdown.Token;
+            _computeGate.Wait(token);
             try
             {
                 var snapshot = ComputeSnapshot(userId, token);
