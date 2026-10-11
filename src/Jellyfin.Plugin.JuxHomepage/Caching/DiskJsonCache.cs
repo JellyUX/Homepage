@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using Jellyfin.Plugin.JuxHomepage.IO;
 using Microsoft.Extensions.Logging;
@@ -17,6 +18,12 @@ namespace Jellyfin.Plugin.JuxHomepage.Caching;
 /// <see cref="DiskJsonCache{T}"/> for movies -- covering both the fixed trending/top-rated/now-playing
 /// caches and the per-instance Discover caches -- and one for shows).
 /// </para>
+/// <para>
+/// Reads are memoized per file (F-04): the deserialized items are kept with the file's last-write
+/// time, so a repeated read costs one timestamp check instead of reading and parsing the file. A
+/// write through this instance replaces the memo; a file changed or deleted behind its back is
+/// detected by its timestamp.
+/// </para>
 /// </summary>
 /// <typeparam name="T">The cached item type.</typeparam>
 public sealed class DiskJsonCache<T> : IDisposable
@@ -27,6 +34,7 @@ public sealed class DiskJsonCache<T> : IDisposable
     private readonly IFileSystem _fileSystem;
     private readonly ILogger _logger;
     private readonly ReaderWriterLockSlim _lock = new();
+    private readonly ConcurrentDictionary<string, Memo> _memo = new();
     private bool _disposed;
 
     /// <summary>
@@ -58,11 +66,20 @@ public sealed class DiskJsonCache<T> : IDisposable
         {
             if (!_fileSystem.FileExists(path))
             {
+                _memo.TryRemove(fileName, out _);
                 return [];
             }
 
+            var lastWrite = _fileSystem.GetLastWriteTimeUtc(path);
+            if (_memo.TryGetValue(fileName, out var memo) && memo.LastWriteUtc == lastWrite)
+            {
+                return memo.Items;
+            }
+
             var json = _fileSystem.ReadAllText(path);
-            return JsonSerializer.Deserialize<CacheEntry<T>>(json)?.Items ?? [];
+            var items = JsonSerializer.Deserialize<CacheEntry<T>>(json)?.Items ?? [];
+            _memo[fileName] = new Memo(lastWrite, items);
+            return items;
         }
         catch (Exception ex)
         {
@@ -112,6 +129,7 @@ public sealed class DiskJsonCache<T> : IDisposable
         {
             _fileSystem.WriteAllText(tmpPath, json);
             _fileSystem.Move(tmpPath, path, overwrite: true);
+            _memo[fileName] = new Memo(_fileSystem.GetLastWriteTimeUtc(path), items);
         }
         catch (Exception ex)
         {
@@ -166,6 +184,9 @@ public sealed class DiskJsonCache<T> : IDisposable
             _logger.LogWarning(ex, "Failed to clean up stray temp file {TmpPath}.", tmpPath);
         }
     }
+
+    /// <summary>The deserialized items of one file, valid while the file keeps this last-write time.</summary>
+    private sealed record Memo(DateTime LastWriteUtc, IReadOnlyList<T> Items);
 
     /// <inheritdoc/>
     public void Dispose()

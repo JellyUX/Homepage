@@ -17,6 +17,36 @@ public sealed class DiskJsonCacheTests : IDisposable
         }
     }
 
+    /// <summary>Real file system that counts file reads.</summary>
+    private sealed class CountingFileSystem : IFileSystem
+    {
+        private readonly FileSystem _inner = new();
+
+        public int ReadAllTextCalls { get; private set; }
+
+        public bool FileExists(string path) => _inner.FileExists(path);
+
+        public string ReadAllText(string path)
+        {
+            ReadAllTextCalls++;
+            return _inner.ReadAllText(path);
+        }
+
+        public void WriteAllText(string path, string contents) => _inner.WriteAllText(path, contents);
+
+        public void Move(string sourceFileName, string destFileName, bool overwrite) => _inner.Move(sourceFileName, destFileName, overwrite);
+
+        public void Delete(string path) => _inner.Delete(path);
+
+        public void CreateDirectory(string path) => _inner.CreateDirectory(path);
+
+        public bool DirectoryExists(string path) => _inner.DirectoryExists(path);
+
+        public IReadOnlyList<string> GetFiles(string path, string searchPattern, SearchOption searchOption) => _inner.GetFiles(path, searchPattern, searchOption);
+
+        public DateTime GetLastWriteTimeUtc(string path) => _inner.GetLastWriteTimeUtc(path);
+    }
+
     private DiskJsonCache<TestItem> BuildCache() =>
         new(_tempDir, new FileSystem(), NullLogger.Instance);
 
@@ -31,6 +61,35 @@ public sealed class DiskJsonCacheTests : IDisposable
 
         Assert.Empty(cache.Read("items.json"));
         Assert.False(cache.IsStale("items.json", TimeSpan.FromHours(1)));
+    }
+
+    [Fact]
+    public void Read_Twice_ReadsTheFileOnce()
+    {
+        // F-04: the second read is served from memory.
+        var fileSystem = new CountingFileSystem();
+        var writer = new DiskJsonCache<TestItem>(_tempDir, new FileSystem(), NullLogger.Instance);
+        writer.Write("items.json", [new TestItem(1, "a")]);
+        var cache = new DiskJsonCache<TestItem>(_tempDir, fileSystem, NullLogger.Instance);
+
+        cache.Read("items.json");
+        var second = cache.Read("items.json");
+
+        Assert.Equal("a", Assert.Single(second).Name);
+        Assert.Equal(1, fileSystem.ReadAllTextCalls);
+    }
+
+    [Fact]
+    public void Read_FileRewrittenByAnotherWriter_ReturnsTheNewContent()
+    {
+        var cache = BuildCache();
+        cache.Write("items.json", [new TestItem(1, "old")]);
+        cache.Read("items.json");
+
+        BuildCache().Write("items.json", [new TestItem(2, "new")]);
+        File.SetLastWriteTimeUtc(Path.Combine(_tempDir, "items.json"), DateTime.UtcNow.AddMinutes(1));
+
+        Assert.Equal("new", Assert.Single(cache.Read("items.json")).Name);
     }
 
     [Fact]
