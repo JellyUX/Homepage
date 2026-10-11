@@ -99,7 +99,7 @@ public sealed class CollectionsIndexCacheService : ICollectionsIndexCacheService
         try
         {
             var index = ComputeIndex(cancellationToken);
-            _cache.WriteUnlessEmpty(FileName, index);
+            _cache.Write(FileName, index);
             _logger.LogInformation("Collections index refreshed: {Count} item(s) with at least one collection.", index.Count);
         }
         catch (Exception ex)

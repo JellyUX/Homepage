@@ -62,8 +62,7 @@ public sealed class DiskJsonCache<T> : IDisposable
             }
 
             var json = _fileSystem.ReadAllText(path);
-            var entry = JsonSerializer.Deserialize<CacheEntry<T>>(json);
-            return entry?.Items ?? [];
+            return JsonSerializer.Deserialize<CacheEntry<T>>(json)?.Items ?? [];
         }
         catch (Exception ex)
         {
@@ -79,18 +78,30 @@ public sealed class DiskJsonCache<T> : IDisposable
     /// <summary>
     /// Writes the given items to the given file, unless the list is empty -- a valid cache is never
     /// overwritten by an empty result (e.g. a failed refresh), so the previous data remains available.
-    /// Written atomically: serialized to a temp file, then renamed into place, so a crash or restart
-    /// mid-write can never leave a partially-written cache file on disk.
+    /// For caches fed by an external source (TMDb, Wikidata), where an empty answer means a failure;
+    /// caches computed from the local library use <see cref="Write"/>, where empty is a real answer.
     /// </summary>
     /// <param name="fileName">The cache file name (not a full path).</param>
     /// <param name="items">The items to write.</param>
     public void WriteUnlessEmpty(string fileName, IReadOnlyList<T> items)
     {
-        if (items.Count == 0)
+        if (items.Count > 0)
         {
-            return;
+            Write(fileName, items);
         }
+    }
 
+    /// <summary>
+    /// Writes the given items to the given file, including an empty list (F-69): a library with no
+    /// collection or a user whose history was reset is a valid, cacheable state, and not writing it
+    /// left the cache stale forever and an outdated list on display. Written atomically: serialized
+    /// to a temp file, then renamed into place, so a crash or restart mid-write can never leave a
+    /// partially-written cache file on disk.
+    /// </summary>
+    /// <param name="fileName">The cache file name (not a full path).</param>
+    /// <param name="items">The items to write.</param>
+    public void Write(string fileName, IReadOnlyList<T> items)
+    {
         var path = Path.Combine(_directory, fileName);
         var tmpPath = path + ".tmp";
         var entry = new CacheEntry<T> { RefreshedAtUtc = DateTime.UtcNow, Items = items };

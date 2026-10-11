@@ -86,7 +86,7 @@ public sealed class SeriesProgressCacheService : ISeriesProgressCacheService, ID
                 try
                 {
                     var entries = ComputeProgress(user.Id);
-                    _cache.WriteUnlessEmpty(GetFileName(user.Id), entries);
+                    _cache.Write(GetFileName(user.Id), entries);
                     refreshed++;
                 }
                 catch (Exception ex)

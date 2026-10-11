@@ -86,7 +86,7 @@ public sealed class MovieHistoryCacheService : IMovieHistoryCacheService, IDispo
                 try
                 {
                     var entries = ComputeHistory(user.Id);
-                    _cache.WriteUnlessEmpty(GetFileName(user.Id), entries);
+                    _cache.Write(GetFileName(user.Id), entries);
                     refreshed++;
                 }
                 catch (Exception ex)

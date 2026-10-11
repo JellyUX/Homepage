@@ -21,6 +21,19 @@ public sealed class DiskJsonCacheTests : IDisposable
         new(_tempDir, new FileSystem(), NullLogger.Instance);
 
     [Fact]
+    public void Write_EmptyList_ReplacesContentAndIsNoLongerStale()
+    {
+        // F-69: an empty library answer is cached like any other.
+        var cache = BuildCache();
+        cache.Write("items.json", [new TestItem(1, "a")]);
+
+        cache.Write("items.json", []);
+
+        Assert.Empty(cache.Read("items.json"));
+        Assert.False(cache.IsStale("items.json", TimeSpan.FromHours(1)));
+    }
+
+    [Fact]
     public void Read_FileDoesNotExist_ReturnsEmpty()
     {
         var cache = BuildCache();
