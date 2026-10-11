@@ -109,6 +109,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             serviceProvider.GetRequiredService<ILibraryManager>(),
             serviceProvider.GetRequiredService<MediaBrowser.Controller.Dto.IDtoService>()));
         serviceCollection.AddHostedService<WatchlistAutoRemoveService>();
+        serviceCollection.AddHostedService<ScoringInvalidationListener>();
         serviceCollection.AddSingleton<ISeriesProgressViewService>(serviceProvider => new SeriesProgressViewService(
             serviceProvider.GetRequiredService<ISeriesProgressCacheService>(),
             serviceProvider.GetRequiredService<IUserManager>(),
