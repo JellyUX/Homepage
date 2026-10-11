@@ -22,10 +22,22 @@ public sealed class ScoringServiceTests
         IReadOnlyList<BaseItem> watched,
         IReadOnlyList<BaseItem> favorites,
         Func<BaseItem, IReadOnlyList<PersonInfo>> people,
-        IReadOnlyList<BaseItem>? watchedSeries = null)
+        IReadOnlyList<BaseItem>? watchedSeries = null,
+        IReadOnlyDictionary<Guid, DateTime>? lastPlayed = null)
     {
         var userManagerMock = new Mock<IUserManager>();
         userManagerMock.Setup(m => m.GetUserById(It.IsAny<Guid>())).Returns(user);
+
+        // Each watched series is reached through one played episode, as ComputeSnapshot does.
+        var series = watchedSeries ?? [];
+        foreach (var s in series.Where(s => s.Id == Guid.Empty))
+        {
+            s.Id = Guid.NewGuid();
+        }
+
+        var episodes = series
+            .Select(s => (BaseItem)new Episode { Id = Guid.NewGuid(), SeriesId = s.Id, Name = $"{s.Name} E1" })
+            .ToList();
 
         var libraryManagerMock = new Mock<ILibraryManager>();
         libraryManagerMock
@@ -34,8 +46,12 @@ public sealed class ScoringServiceTests
             .Returns(watched);
         libraryManagerMock
             .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(
+                q => q.IncludeItemTypes.SequenceEqual(new[] { BaseItemKind.Episode }))))
+            .Returns((InternalItemsQuery q) => episodes.Skip(q.StartIndex ?? 0).Take(q.Limit ?? int.MaxValue).ToList());
+        libraryManagerMock
+            .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(
                 q => q.IsFavorite != true && q.IncludeItemTypes.SequenceEqual(new[] { BaseItemKind.Series }))))
-            .Returns(watchedSeries ?? []);
+            .Returns((InternalItemsQuery q) => series.Where(s => q.ItemIds.Contains(s.Id)).ToList());
         libraryManagerMock
             .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.IsFavorite == true)))
             .Returns(favorites);
@@ -43,11 +59,22 @@ public sealed class ScoringServiceTests
             .Setup(m => m.GetPeople(It.IsAny<BaseItem>()))
             .Returns((BaseItem item) => people(item));
 
-        // No LastPlayedDate mocked here: ComputeSnapshot falls back to DateTime.MinValue for every
-        // item in that case, so the stable OrderByDescending preserves the movies-then-series concat
-        // order below -- fine for tests that don't specifically exercise cross-type recency ordering
-        // (see the dedicated test for that).
+        // Without a lastPlayed entry an item falls back to DateTime.MinValue, so the stable
+        // OrderByDescending keeps the movies-then-series concat order for tests that do not exercise
+        // cross-type recency. An episode's date is looked up under its series id.
         var userDataManagerMock = new Mock<IUserDataManager>();
+        if (lastPlayed is not null)
+        {
+            userDataManagerMock
+                .Setup(m => m.GetUserData(It.IsAny<User>(), It.IsAny<BaseItem>()))
+                .Returns((User _, BaseItem item) =>
+                {
+                    var key = item is Episode episode ? episode.SeriesId : item.Id;
+                    return lastPlayed.TryGetValue(key, out var date)
+                        ? new UserItemData { Key = key.ToString(), LastPlayedDate = date }
+                        : null;
+                });
+        }
 
         return new ScoringService(
             userManagerMock.Object,
@@ -312,6 +339,36 @@ public sealed class ScoringServiceTests
 
         var single = Assert.Single(result);
         Assert.Equal("A Series", single.Label);
+    }
+
+    [Fact]
+    public void GetRecentlyWatched_SeriesDatedByLatestEpisode_EntersPoolAfterTenMovies()
+    {
+        // F-67: ten movies watched, then one episode. The series must be dated by that episode and
+        // rank first; dated as MinValue it would be the 11th entry, outside the 10-entry pool.
+        var user = new User("test", "Default", "Default");
+        var start = new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc);
+        var movies = Enumerable.Range(0, 10)
+            .Select(i => (BaseItem)new Movie { Id = Guid.NewGuid(), Name = $"Film {i}", Genres = [] })
+            .ToList();
+        var series = new Series { Id = Guid.NewGuid(), Name = "A Series", Genres = [] };
+        var lastPlayed = movies
+            .Select((m, i) => (m.Id, Date: start.AddDays(i)))
+            .Append((series.Id, start.AddDays(10)))
+            .ToDictionary(p => p.Item1, p => p.Item2);
+
+        var service = BuildService(
+            user,
+            watched: movies,
+            favorites: [],
+            people: _ => [],
+            watchedSeries: [series],
+            lastPlayed: lastPlayed);
+
+        var result = service.GetRecentlyWatched(user.Id, 5, BecauseYouWatchedScope.Series);
+
+        var single = Assert.Single(result);
+        Assert.Equal(series.Id.ToString(), single.Value);
     }
 
     [Fact]

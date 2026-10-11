@@ -23,6 +23,14 @@ public sealed class ScoringService
 {
     private const int MaxWatchedScan = 500;
 
+    private const int EpisodePageSize = 500;
+
+    /// <summary>
+    /// Upper bound on played-episode pages read to find watched series, so a user with a very long
+    /// episode history of few series cannot turn one recompute into an unbounded walk.
+    /// </summary>
+    private const int MaxEpisodePages = 10;
+
     /// <summary>
     /// Size of the "recently watched" candidate pool shuffled by <see cref="GetRecentlyWatched"/>
     /// before scope-filtering (TODO_V3.md Phase 9.2). Fixed and independent of any caller's
@@ -159,33 +167,27 @@ public sealed class ScoringService
             DtoOptions = new DtoOptions { Fields = [] }
         });
 
-        // Deliberately a separate query, not merged into the movie query's IncludeItemTypes array:
-        // Jellyfin's query layer only applies "at least one episode watched" (partial-viewing)
-        // semantics to IsPlayed=true when IncludeItemTypes is exactly [Series] alone. Mixing Series
-        // into a multi-type array instead falls back to each item's own aggregate UserData.Played,
-        // which for a Series only becomes true once every episode has been watched -- silently
-        // excluding a show the user is still in the middle of, exactly the gap this fix must close.
-        var watchedSeries = _libraryManager.GetItemList(new InternalItemsQuery(user)
-        {
-            IncludeItemTypes = [BaseItemKind.Series],
-            IsPlayed = true,
-            Recursive = true,
-            OrderBy = [(ItemSortBy.DatePlayed, SortOrder.Descending)],
-            Limit = MaxWatchedScan,
-            DtoOptions = new DtoOptions { Fields = [] }
-        });
+        var seriesLastPlayed = GetWatchedSeriesLastPlayed(user);
+        var watchedSeries = seriesLastPlayed.Count == 0
+            ? []
+            : _libraryManager.GetItemList(new InternalItemsQuery(user)
+            {
+                IncludeItemTypes = [BaseItemKind.Series],
+                ItemIds = [.. seriesLastPlayed.Keys],
+                DtoOptions = new DtoOptions { Fields = [] }
+            });
 
         if (watchedMovies.Count == 0 && watchedSeries.Count == 0)
         {
             return ScoreSnapshot.CreateEmpty();
         }
 
-        // Each sub-list is already ordered by DatePlayed server-side, but the two lists can't be
-        // concatenated and trusted as one recency order -- re-sort the combined list using each
-        // item's actual last-played date so movies and series interleave correctly instead of one
-        // type always outranking the other.
+        // A Series has no last-played date of its own, so it is dated by its most recently played
+        // episode; a movie by its own user data. Without that, every series sorted after every movie.
         var watched = watchedMovies.Concat(watchedSeries)
-            .OrderByDescending(item => _userDataManager.GetUserData(user, item)?.LastPlayedDate ?? DateTime.MinValue)
+            .OrderByDescending(item => item is Series
+                ? seriesLastPlayed.GetValueOrDefault(item.Id)
+                : _userDataManager.GetUserData(user, item)?.LastPlayedDate ?? DateTime.MinValue)
             .Take(MaxWatchedScan)
             .ToList();
 
@@ -243,6 +245,54 @@ public sealed class ScoringService
                 i.Name,
                 i is Series ? BaseItemKind.Series : BaseItemKind.Movie)).ToList(),
             DateTime.UtcNow);
+    }
+
+    /// <summary>
+    /// Returns the series the user has watched at least one episode of, mapped to the last-played
+    /// date of their most recently played episode, most recent first.
+    /// <para>
+    /// Walks played episodes rather than querying <c>Series</c> with <c>IsPlayed</c>: that query
+    /// compiles to correlated <c>EXISTS</c> sub-queries that scan every non-folder row per series
+    /// candidate (F-01, ~110 s on a 3000-film library), while the episode query is served by the
+    /// <c>Type</c> and <c>UserData</c> indexes. Pages are fetched until <see cref="MaxWatchedScan"/>
+    /// distinct series are found, capped at <see cref="MaxEpisodePages"/> pages.
+    /// </para>
+    /// </summary>
+    private Dictionary<Guid, DateTime> GetWatchedSeriesLastPlayed(User user)
+    {
+        var lastPlayed = new Dictionary<Guid, DateTime>();
+
+        for (var page = 0; page < MaxEpisodePages && lastPlayed.Count < MaxWatchedScan; page++)
+        {
+            var episodes = _libraryManager.GetItemList(new InternalItemsQuery(user)
+            {
+                IncludeItemTypes = [BaseItemKind.Episode],
+                IsPlayed = true,
+                Recursive = true,
+                OrderBy = [(ItemSortBy.DatePlayed, SortOrder.Descending)],
+                StartIndex = page * EpisodePageSize,
+                Limit = EpisodePageSize,
+                DtoOptions = new DtoOptions { Fields = [] }
+            });
+
+            // Episodes arrive most recently played first, so the first one seen for a series
+            // carries that series' latest play date; later ones are skipped without a user-data read.
+            foreach (var episode in episodes.OfType<Episode>())
+            {
+                if (episode.SeriesId != Guid.Empty && !lastPlayed.ContainsKey(episode.SeriesId))
+                {
+                    lastPlayed[episode.SeriesId] =
+                        _userDataManager.GetUserData(user, episode)?.LastPlayedDate ?? DateTime.MinValue;
+                }
+            }
+
+            if (episodes.Count < EpisodePageSize)
+            {
+                break;
+            }
+        }
+
+        return lastPlayed;
     }
 
     private static IReadOnlyList<ScoredValue> Rank(Dictionary<string, double> scores) =>
