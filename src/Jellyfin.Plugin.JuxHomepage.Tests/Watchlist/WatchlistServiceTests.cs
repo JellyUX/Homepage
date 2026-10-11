@@ -149,6 +149,7 @@ public sealed class WatchlistServiceTests
 
         Assert.NotNull(capturedQuery);
         Assert.True(capturedQuery!.IsLiked);
+        Assert.Equal([BaseItemKind.Movie, BaseItemKind.Series], capturedQuery.IncludeItemTypes);
         Assert.Equal([movie.Id], ids);
     }
 }

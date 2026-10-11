@@ -73,9 +73,11 @@ public sealed class WatchlistService : IWatchlistService
             return [];
         }
 
-        // Ids only (F-06): loading entities joined every item's images and user data on each page load.
+        // Ids only, movies and series only (F-06): every page load calls this, and without a type the
+        // liked filter was evaluated on every library row (~1 s on a 3000-film library).
         return _libraryManager.GetItemIds(new InternalItemsQuery(user)
         {
+            IncludeItemTypes = [BaseItemKind.Movie, BaseItemKind.Series],
             IsLiked = true,
             Recursive = true,
             IsMissing = false

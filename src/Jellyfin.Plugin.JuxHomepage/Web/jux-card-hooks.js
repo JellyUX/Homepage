@@ -29,6 +29,11 @@
     var MENU_CONTEXT_TTL_MS = 5000;
     var _menuContext = null;
 
+    // The Watchlist tab only lists movies and series, and /Watchlist/Ids only returns those (F-06:
+    // filtering by type keeps that query on the Type index), so the toggle is offered on them only.
+    var WATCHLIST_TYPES = ['Movie', 'Series'];
+    var _itemTypes = {};
+
     window.juxCardHooks = {
         likedIds: null,
 
@@ -144,7 +149,7 @@
 
         var card = overlayEl.closest('.card');
         var itemInfo = card ? _readCardItemInfo(card) : null;
-        if (!itemInfo) {
+        if (!itemInfo || !_isWatchlistType(itemInfo.type)) {
             return;
         }
 
@@ -181,6 +186,31 @@
         return { id: id, type: card.getAttribute('data-type') };
     }
 
+    function _isWatchlistType(type) {
+        return WATCHLIST_TYPES.indexOf(type) !== -1;
+    }
+
+    /**
+     * Resolves an item's type, once per item id: the detail page URL carries only the id.
+     */
+    function _resolveItemType(itemId) {
+        if (Object.prototype.hasOwnProperty.call(_itemTypes, itemId)) {
+            return Promise.resolve(_itemTypes[itemId]);
+        }
+
+        var apiClient = window.ApiClient;
+        if (!apiClient || typeof apiClient.getItem !== 'function') {
+            return Promise.resolve(null);
+        }
+
+        return apiClient.getItem(apiClient.getCurrentUserId(), itemId).then(function (item) {
+            _itemTypes[itemId] = (item && item.Type) || null;
+            return _itemTypes[itemId];
+        }, function () {
+            return null;
+        });
+    }
+
     // -------------------------------------------------------------------------
     // Item detail page button, next to the native "Add to favorites" heart
     // -------------------------------------------------------------------------
@@ -191,13 +221,21 @@
     }
 
     function _hookDetailButton(likedIds) {
-        var heart = document.querySelector('.btnUserRating.detailButton');
-        if (!heart) {
+        var itemId = _currentDetailItemId();
+        if (!itemId || !document.querySelector('.btnUserRating.detailButton')) {
             return;
         }
 
-        var itemId = _currentDetailItemId();
-        if (!itemId) {
+        _resolveItemType(itemId).then(function (type) {
+            if (_isWatchlistType(type) && _currentDetailItemId() === itemId) {
+                _insertDetailButton(itemId, likedIds);
+            }
+        });
+    }
+
+    function _insertDetailButton(itemId, likedIds) {
+        var heart = document.querySelector('.btnUserRating.detailButton');
+        if (!heart) {
             return;
         }
 
@@ -250,7 +288,8 @@
 
             var card = trigger.closest('.card[data-id]');
             var itemId = card ? card.getAttribute('data-id') : _currentDetailItemId();
-            _menuContext = itemId ? { itemId: itemId, ts: Date.now() } : null;
+            var type = card ? card.getAttribute('data-type') : _itemTypes[itemId];
+            _menuContext = itemId && _isWatchlistType(type) ? { itemId: itemId, ts: Date.now() } : null;
         }, true);
     }
 
@@ -764,6 +803,7 @@
         module.exports = {
             _iconName: _iconName,
             _readCardItemInfo: _readCardItemInfo,
+            _isWatchlistType: _isWatchlistType,
             _currentDetailItemId: _currentDetailItemId,
             _escHtml: _escHtml,
             _infiniteScrollMediaType: _infiniteScrollMediaType,

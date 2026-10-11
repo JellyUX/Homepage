@@ -4,6 +4,7 @@ import juxCardHooks from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-card-hooks.
 const {
     _iconName,
     _readCardItemInfo,
+    _isWatchlistType,
     _currentDetailItemId,
     _escHtml,
     _infiniteScrollMediaType,
@@ -35,6 +36,19 @@ describe('_readCardItemInfo', () => {
         const card = document.querySelector('.card');
 
         expect(_readCardItemInfo(card)).toBeNull();
+    });
+});
+
+describe('_isWatchlistType', () => {
+    it('accepts movies and series, the only types the Watchlist tab lists', () => {
+        expect(_isWatchlistType('Movie')).toBe(true);
+        expect(_isWatchlistType('Series')).toBe(true);
+    });
+
+    it('rejects episodes, seasons and a missing type', () => {
+        expect(_isWatchlistType('Episode')).toBe(false);
+        expect(_isWatchlistType('Season')).toBe(false);
+        expect(_isWatchlistType(null)).toBe(false);
     });
 });
 
