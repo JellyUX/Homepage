@@ -37,8 +37,8 @@ public sealed class SeriesProgressViewServiceTests
     public void GetItems_HydratesEntriesIntoDtosPreservingCacheOrder()
     {
         var user = new User("test", "Default", "Default");
-        var seriesA = new Series { Id = Guid.NewGuid(), Name = "A" };
-        var seriesB = new Series { Id = Guid.NewGuid(), Name = "B" };
+        var seriesA = new TestSeries { Id = Guid.NewGuid(), Name = "A" };
+        var seriesB = new TestSeries { Id = Guid.NewGuid(), Name = "B" };
 
         // Cache order is B then A (most-recently-played first); GetItemList below returns them in
         // the opposite order to prove the service re-sorts by the cache's own order, not the query's.
@@ -86,8 +86,8 @@ public sealed class SeriesProgressViewServiceTests
     public void GetItems_SortByNameAscending_OrdersBySeriesName()
     {
         var user = new User("test", "Default", "Default");
-        var seriesZ = new Series { Id = Guid.NewGuid(), Name = "Z" };
-        var seriesA = new Series { Id = Guid.NewGuid(), Name = "A" };
+        var seriesZ = new TestSeries { Id = Guid.NewGuid(), Name = "Z" };
+        var seriesA = new TestSeries { Id = Guid.NewGuid(), Name = "A" };
 
         var entries = new List<SeriesProgressEntry>
         {
@@ -153,6 +153,44 @@ public sealed class SeriesProgressViewServiceTests
         var result = service.GetItems(user.Id, null, null, 0, 50, CancellationToken.None);
 
         Assert.Empty(result.Items);
+
+        // The total counts only entries that still resolve and are visible to the user.
+        Assert.Equal(0, result.TotalRecordCount);
+    }
+
+    [Fact]
+    public void GetItems_SeriesOutsideUserRights_ExcludedFromItemsAndTotal()
+    {
+        var user = new User("test", "Default", "Default");
+        var allowed = new TestSeries { Id = Guid.NewGuid(), Name = "Allowed" };
+        var hidden = new TestSeries { Id = Guid.NewGuid(), Name = "Hidden", VisibleToUser = false };
+
+        var cacheMock = new Mock<ISeriesProgressCacheService>();
+        cacheMock.Setup(m => m.GetProgress(user.Id)).Returns(
+        [
+            new() { SeriesId = hidden.Id, SeriesName = "Hidden", WatchedEpisodes = 1, TotalEpisodes = 2, LastPlayedDate = new DateTime(2026, 2, 1) },
+            new() { SeriesId = allowed.Id, SeriesName = "Allowed", WatchedEpisodes = 1, TotalEpisodes = 2, LastPlayedDate = new DateTime(2026, 1, 1) }
+        ]);
+
+        var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([allowed, hidden]);
+
+        var dtoServiceMock = new Mock<IDtoService>();
+        dtoServiceMock
+            .Setup(m => m.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
+            .Returns((IReadOnlyList<BaseItem> items, DtoOptions _, User _, BaseItem? _) =>
+                items.Select(i => new BaseItemDto { Id = i.Id, Name = i.Name }).ToList());
+
+        var service = new SeriesProgressViewService(
+            cacheMock.Object,
+            TestMocks.UserManagerReturning(user).Object,
+            libraryManagerMock.Object,
+            dtoServiceMock.Object,
+            NullLogger<SeriesProgressViewService>.Instance);
+
+        var result = service.GetItems(user.Id, null, null, 0, 50, CancellationToken.None);
+
         Assert.Equal(1, result.TotalRecordCount);
+        Assert.Equal(allowed.Id, Assert.Single(result.Items).Item.Id);
     }
 }

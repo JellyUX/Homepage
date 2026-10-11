@@ -1,4 +1,5 @@
 using Jellyfin.Data.Enums;
+using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.JuxHomepage.IO;
 using Jellyfin.Plugin.JuxHomepage.Library.Models;
 using Jellyfin.Plugin.JuxHomepage.TMDb;
@@ -59,6 +60,30 @@ public sealed class CollectionsIndexCacheService : ICollectionsIndexCacheService
     {
         var entry = _cache.Read(FileName).FirstOrDefault(m => m.ItemId == itemId);
         return entry?.Collections ?? [];
+    }
+
+    /// <inheritdoc/>
+    public IReadOnlyList<CollectionRef> GetCollectionsFor(Guid itemId, User user)
+    {
+        var collections = GetCollectionsFor(itemId);
+        if (collections.Count == 0)
+        {
+            return collections;
+        }
+
+        // The index is global, so the rights check happens here, on read: one batched lookup covers
+        // the requested item and every collection it belongs to.
+        var visibleIds = UserVisibleItems
+            .Resolve(_libraryManager, user, [itemId, .. collections.Select(c => c.CollectionId)], out _)
+            .Select(i => i.Id)
+            .ToHashSet();
+
+        if (!visibleIds.Contains(itemId))
+        {
+            return [];
+        }
+
+        return collections.Where(c => visibleIds.Contains(c.CollectionId)).ToList();
     }
 
     /// <inheritdoc/>

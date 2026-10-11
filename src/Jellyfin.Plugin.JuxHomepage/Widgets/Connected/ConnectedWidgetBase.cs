@@ -1,4 +1,5 @@
 using Jellyfin.Database.Implementations.Entities;
+using Jellyfin.Plugin.JuxHomepage.Library;
 using Jellyfin.Plugin.JuxHomepage.TMDb;
 using Jellyfin.Plugin.JuxHomepage.TMDb.Models;
 using MediaBrowser.Controller.Dto;
@@ -117,36 +118,9 @@ public abstract class ConnectedWidgetBase<T> : IWidget
             return Task.FromResult(WidgetResult.Empty);
         }
 
-        var dtoOptions = WidgetDtoOptions.Standard();
-
-        // This is an in-memory id list (already resolved by the cache's cross-referencing), not a
-        // live InternalItemsQuery, so pagination is a plain Skip/Take -- the same pattern
-        // MyMediaWidget uses over its in-memory library folder list.
-        var pageIds = libraryIds.Skip(payload.StartIndex).Take(payload.Limit).ToList();
-
-        // Resolve the page's items in a single batched query rather than one GetItemById call per
-        // id. Note: ILibraryManager.GetItemList with InternalItemsQuery.ItemIds does NOT preserve
-        // the order of the ids passed in -- absent an explicit sort it falls back to alphabetical
-        // (BaseItemRepository.ApplyOrder defaults to OrderBy(SortName)) -- so the result is
-        // re-sorted into a dictionary and re-read back out in pageIds' original order (the TMDb
-        // ranking order), rather than used as-is.
-        var itemsById = LibraryManager
-            .GetItemList(new InternalItemsQuery { ItemIds = pageIds.ToArray() })
-            .ToDictionary(i => i.Id);
-
-        var items = new List<BaseItem>(pageIds.Count);
-        var unresolvedCount = 0;
-        foreach (var id in pageIds)
-        {
-            if (itemsById.TryGetValue(id, out var item))
-            {
-                items.Add(item);
-            }
-            else
-            {
-                unresolvedCount++;
-            }
-        }
+        // Every cached id is checked against the user's rights before paginating, so the page and the
+        // total only ever reflect items this user may open (the cache itself is shared by all users).
+        var visibleItems = UserVisibleItems.Resolve(LibraryManager, user, libraryIds, out var unresolvedCount);
 
         if (unresolvedCount > 0)
         {
@@ -156,8 +130,11 @@ public abstract class ConnectedWidgetBase<T> : IWidget
                 WidgetType);
         }
 
-        var dtos = DtoService.GetBaseItemDtos(items, dtoOptions, user);
-        return Task.FromResult(new WidgetResult(dtos, libraryIds.Count));
+        // In-memory list in the TMDb ranking order, so pagination is a plain Skip/Take -- the same
+        // pattern MyMediaWidget uses over its in-memory library folder list.
+        var pageItems = visibleItems.Skip(payload.StartIndex).Take(payload.Limit).ToList();
+        var dtos = DtoService.GetBaseItemDtos(pageItems, WidgetDtoOptions.Standard(), user);
+        return Task.FromResult(new WidgetResult(dtos, visibleItems.Count));
     }
 
     /// <inheritdoc/>

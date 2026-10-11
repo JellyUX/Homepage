@@ -688,7 +688,7 @@ public class JuxHomepageController : ControllerBase
     [HttpGet("Collections/IncludedIn/{itemId}")]
     [Authorize]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public ActionResult<IReadOnlyList<CollectionRef>> GetCollectionsForItem([FromRoute] Guid itemId)
+    public async Task<ActionResult<IReadOnlyList<CollectionRef>>> GetCollectionsForItem([FromRoute] Guid itemId)
     {
         if (_collectionsIndexCacheService.IsStale() && _collectionsIndexCacheService.TryAcquireRefreshLock())
         {
@@ -705,7 +705,21 @@ public class JuxHomepageController : ControllerBase
             });
         }
 
-        return Ok(_collectionsIndexCacheService.GetCollectionsFor(itemId));
+        // A server API key is not tied to a user and keeps the global answer; any user session only
+        // sees collections (and items) its own library access and parental rules allow.
+        var authInfo = await _authContext.GetAuthorizationInfo(HttpContext).ConfigureAwait(false);
+        if (authInfo.IsApiKey)
+        {
+            return Ok(_collectionsIndexCacheService.GetCollectionsFor(itemId));
+        }
+
+        var user = _userManager.GetUserById(authInfo.UserId);
+        if (user is null)
+        {
+            return Ok(Array.Empty<CollectionRef>());
+        }
+
+        return Ok(_collectionsIndexCacheService.GetCollectionsFor(itemId, user));
     }
 
     // -------------------------------------------------------------------------

@@ -1,3 +1,4 @@
+using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.JuxHomepage.Library.Models;
 
 namespace Jellyfin.Plugin.JuxHomepage.Library;
@@ -13,6 +14,15 @@ public interface ICollectionsIndexCacheService
     /// <param name="itemId">The item to look up.</param>
     /// <returns>Every collection this item belongs to, or an empty list if none (or no refresh has completed yet).</returns>
     IReadOnlyList<CollectionRef> GetCollectionsFor(Guid itemId);
+
+    /// <summary>
+    /// Returns the collections a single item belongs to, as seen by <paramref name="user"/>: empty when
+    /// the user may not open the item itself, otherwise only the collections the user may open.
+    /// </summary>
+    /// <param name="itemId">The item to look up.</param>
+    /// <param name="user">The user the answer is returned to.</param>
+    /// <returns>The visible collections this item belongs to, or an empty list.</returns>
+    IReadOnlyList<CollectionRef> GetCollectionsFor(Guid itemId, User user);
 
     /// <summary>Returns whether the index is missing or older than the fixed refresh interval.</summary>
     /// <returns>True if the index is absent or stale; otherwise false.</returns>

@@ -1,3 +1,4 @@
+using Jellyfin.Plugin.JuxHomepage.Library;
 using Jellyfin.Plugin.JuxHomepage.Widgets;
 using MediaBrowser.Controller.Dto;
 using MediaBrowser.Controller.Entities;
@@ -54,35 +55,15 @@ public sealed class MovieHistoryViewService : IMovieHistoryViewService
 
         var entries = _movieHistoryCache.GetHistory(userId);
         var sorted = Sort(entries, sortBy, sortOrder);
-        var page = sorted.Skip(startIndex).Take(limit).ToList();
 
-        if (page.Count == 0)
-        {
-            return new WidgetResult([], entries.Count);
-        }
-
-        // Same batched-hydration + order-preservation pattern as SeriesProgressViewService /
-        // Widgets/Connected/ConnectedWidgetBase.cs -- GetItemList with ItemIds does not preserve
-        // input order.
-        var dtoOptions = WidgetDtoOptions.Standard();
-        var itemsById = _libraryManager
-            .GetItemList(new InternalItemsQuery { ItemIds = page.Select(e => e.ItemId).ToArray() })
-            .ToDictionary(i => i.Id);
-
-        var resolvedItems = new List<BaseItem>(page.Count);
-        var unresolvedCount = 0;
-
-        foreach (var entry in page)
-        {
-            if (itemsById.TryGetValue(entry.ItemId, out var item))
-            {
-                resolvedItems.Add(item);
-            }
-            else
-            {
-                unresolvedCount++;
-            }
-        }
+        // The whole history is checked against the user's current rights before paginating, so a
+        // library or parental restriction added after the cache was built hides the item and does
+        // not leak through the total either.
+        var visibleItems = UserVisibleItems.Resolve(
+            _libraryManager,
+            user,
+            sorted.Select(e => e.ItemId).ToList(),
+            out var unresolvedCount);
 
         if (unresolvedCount > 0)
         {
@@ -91,13 +72,14 @@ public sealed class MovieHistoryViewService : IMovieHistoryViewService
                 unresolvedCount);
         }
 
-        if (resolvedItems.Count == 0)
+        var page = visibleItems.Skip(startIndex).Take(limit).ToList();
+        if (page.Count == 0)
         {
-            return new WidgetResult([], entries.Count);
+            return new WidgetResult([], visibleItems.Count);
         }
 
-        var dtos = _dtoService.GetBaseItemDtos(resolvedItems, dtoOptions, user);
-        return new WidgetResult(dtos, entries.Count);
+        var dtos = _dtoService.GetBaseItemDtos(page, WidgetDtoOptions.Standard(), user);
+        return new WidgetResult(dtos, visibleItems.Count);
     }
 
     private static IReadOnlyList<Models.MovieHistoryEntry> Sort(

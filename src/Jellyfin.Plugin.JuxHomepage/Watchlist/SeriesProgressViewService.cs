@@ -1,3 +1,4 @@
+using Jellyfin.Plugin.JuxHomepage.Library;
 using Jellyfin.Plugin.JuxHomepage.Watchlist.Models;
 using Jellyfin.Plugin.JuxHomepage.Widgets;
 using MediaBrowser.Controller.Dto;
@@ -55,39 +56,14 @@ public sealed class SeriesProgressViewService : ISeriesProgressViewService
 
         var entries = _seriesProgressCache.GetProgress(userId);
         var sorted = Sort(entries, sortBy, sortOrder);
-        var page = sorted.Skip(startIndex).Take(limit).ToList();
 
-        if (page.Count == 0)
-        {
-            return new SeriesProgressResult { Items = [], TotalRecordCount = entries.Count };
-        }
-
-        // Resolve the page's items in a single batched query rather than one GetItemById call per
-        // id. Note: ILibraryManager.GetItemList with InternalItemsQuery.ItemIds does NOT preserve the
-        // order of the ids passed in, so the result is re-keyed into a dictionary and re-read back
-        // out in the cache's own sorted order, rather than used as-is (same pattern as
-        // Widgets/Connected/ConnectedWidgetBase.cs).
-        var dtoOptions = WidgetDtoOptions.Standard();
-        var itemsById = _libraryManager
-            .GetItemList(new InternalItemsQuery { ItemIds = page.Select(e => e.SeriesId).ToArray() })
-            .ToDictionary(i => i.Id);
-
-        var resolvedItems = new List<BaseItem>(page.Count);
-        var resolvedEntries = new List<SeriesProgressEntry>(page.Count);
-        var unresolvedCount = 0;
-
-        foreach (var entry in page)
-        {
-            if (itemsById.TryGetValue(entry.SeriesId, out var item))
-            {
-                resolvedItems.Add(item);
-                resolvedEntries.Add(entry);
-            }
-            else
-            {
-                unresolvedCount++;
-            }
-        }
+        // Same rights check as MovieHistoryViewService: the whole list is filtered before paginating
+        // so neither the page nor the total includes a series the user can no longer open.
+        var visibleItems = UserVisibleItems.Resolve(
+            _libraryManager,
+            user,
+            sorted.Select(e => e.SeriesId).ToList(),
+            out var unresolvedCount);
 
         if (unresolvedCount > 0)
         {
@@ -96,12 +72,15 @@ public sealed class SeriesProgressViewService : ISeriesProgressViewService
                 unresolvedCount);
         }
 
+        var entriesById = sorted.GroupBy(e => e.SeriesId).ToDictionary(g => g.Key, g => g.First());
+        var resolvedItems = visibleItems.Skip(startIndex).Take(limit).ToList();
         if (resolvedItems.Count == 0)
         {
-            return new SeriesProgressResult { Items = [], TotalRecordCount = entries.Count };
+            return new SeriesProgressResult { Items = [], TotalRecordCount = visibleItems.Count };
         }
 
-        var dtos = _dtoService.GetBaseItemDtos(resolvedItems, dtoOptions, user);
+        var resolvedEntries = resolvedItems.Select(i => entriesById[i.Id]).ToList();
+        var dtos = _dtoService.GetBaseItemDtos(resolvedItems, WidgetDtoOptions.Standard(), user);
 
         var items = new List<SeriesProgressItem>(dtos.Count);
         for (var i = 0; i < dtos.Count; i++)
@@ -119,7 +98,7 @@ public sealed class SeriesProgressViewService : ISeriesProgressViewService
             });
         }
 
-        return new SeriesProgressResult { Items = items, TotalRecordCount = entries.Count };
+        return new SeriesProgressResult { Items = items, TotalRecordCount = visibleItems.Count };
     }
 
     /// <summary>

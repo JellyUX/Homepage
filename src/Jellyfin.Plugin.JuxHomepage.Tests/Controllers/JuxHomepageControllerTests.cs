@@ -12,6 +12,7 @@ using Jellyfin.Plugin.JuxHomepage.Widgets;
 using Jellyfin.Plugin.JuxHomepage.Widgets.Admin;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Net;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -153,7 +154,7 @@ public sealed class JuxHomepageControllerTests
     }
 
     [Fact]
-    public void GetCollectionsForItem_ReturnsRefsFromCache()
+    public async Task GetCollectionsForItem_ReturnsRefsFromCache()
     {
         var itemId = Guid.NewGuid();
         var refs = new List<CollectionRef>
@@ -165,9 +166,9 @@ public sealed class JuxHomepageControllerTests
         cacheMock.Setup(c => c.IsStale()).Returns(false);
         cacheMock.Setup(c => c.GetCollectionsFor(itemId)).Returns(refs);
 
-        var controller = BuildController(collectionsIndexCacheServiceMock: cacheMock);
+        var controller = BuildController(collectionsIndexCacheServiceMock: cacheMock, authContextMock: ApiKeyAuth());
 
-        var result = controller.GetCollectionsForItem(itemId);
+        var result = await controller.GetCollectionsForItem(itemId);
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         Assert.Same(refs, ok.Value);
@@ -175,22 +176,22 @@ public sealed class JuxHomepageControllerTests
     }
 
     [Fact]
-    public void GetCollectionsForItem_EmptyWhenNoMembership()
+    public async Task GetCollectionsForItem_EmptyWhenNoMembership()
     {
         var cacheMock = new Mock<ICollectionsIndexCacheService>();
         cacheMock.Setup(c => c.IsStale()).Returns(false);
         cacheMock.Setup(c => c.GetCollectionsFor(It.IsAny<Guid>())).Returns([]);
 
-        var controller = BuildController(collectionsIndexCacheServiceMock: cacheMock);
+        var controller = BuildController(collectionsIndexCacheServiceMock: cacheMock, authContextMock: ApiKeyAuth());
 
-        var result = controller.GetCollectionsForItem(Guid.NewGuid());
+        var result = await controller.GetCollectionsForItem(Guid.NewGuid());
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         Assert.Empty(Assert.IsAssignableFrom<IReadOnlyList<CollectionRef>>(ok.Value));
     }
 
     [Fact]
-    public void GetCollectionsForItem_StaleIndex_AttemptsBackgroundRefresh()
+    public async Task GetCollectionsForItem_StaleIndex_AttemptsBackgroundRefresh()
     {
         var cacheMock = new Mock<ICollectionsIndexCacheService>();
         cacheMock.Setup(c => c.IsStale()).Returns(true);
@@ -198,9 +199,9 @@ public sealed class JuxHomepageControllerTests
         cacheMock.Setup(c => c.RunRefreshLockedAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         cacheMock.Setup(c => c.GetCollectionsFor(It.IsAny<Guid>())).Returns([]);
 
-        var controller = BuildController(collectionsIndexCacheServiceMock: cacheMock);
+        var controller = BuildController(collectionsIndexCacheServiceMock: cacheMock, authContextMock: ApiKeyAuth());
 
-        var result = controller.GetCollectionsForItem(Guid.NewGuid());
+        var result = await controller.GetCollectionsForItem(Guid.NewGuid());
 
         // The background refresh is fire-and-forget (Task.Run) -- what matters here is that the
         // endpoint never blocks on it and still returns the current (possibly stale) data immediately.
@@ -209,25 +210,64 @@ public sealed class JuxHomepageControllerTests
     }
 
     [Fact]
-    public void GetCollectionsForItem_StaleButLockHeld_DoesNotStartSecondRefresh()
+    public async Task GetCollectionsForItem_StaleButLockHeld_DoesNotStartSecondRefresh()
     {
         var cacheMock = new Mock<ICollectionsIndexCacheService>();
         cacheMock.Setup(c => c.IsStale()).Returns(true);
         cacheMock.Setup(c => c.TryAcquireRefreshLock()).Returns(false);
         cacheMock.Setup(c => c.GetCollectionsFor(It.IsAny<Guid>())).Returns([]);
 
-        var controller = BuildController(collectionsIndexCacheServiceMock: cacheMock);
+        var controller = BuildController(collectionsIndexCacheServiceMock: cacheMock, authContextMock: ApiKeyAuth());
 
-        var result = controller.GetCollectionsForItem(Guid.NewGuid());
+        var result = await controller.GetCollectionsForItem(Guid.NewGuid());
 
         Assert.IsType<OkObjectResult>(result.Result);
         cacheMock.Verify(c => c.TryAcquireRefreshLock(), Times.Once);
         cacheMock.Verify(c => c.RunRefreshLockedAsync(It.IsAny<CancellationToken>()), Times.Never);
     }
 
+    [Fact]
+    public async Task GetCollectionsForItem_UserSession_ReturnsTheUserScopedAnswer()
+    {
+        var user = TestMocks.DefaultUser();
+        var itemId = Guid.NewGuid();
+        var visibleRefs = new List<CollectionRef>
+        {
+            new() { CollectionId = Guid.NewGuid(), CollectionName = "Visible" }
+        };
+
+        var cacheMock = new Mock<ICollectionsIndexCacheService>();
+        cacheMock.Setup(c => c.IsStale()).Returns(false);
+        cacheMock.Setup(c => c.GetCollectionsFor(itemId)).Returns([.. visibleRefs, new CollectionRef { CollectionId = Guid.NewGuid(), CollectionName = "Hidden" }]);
+        cacheMock.Setup(c => c.GetCollectionsFor(itemId, user)).Returns(visibleRefs);
+
+        var authContextMock = new Mock<IAuthorizationContext>();
+        authContextMock
+            .Setup(a => a.GetAuthorizationInfo(It.IsAny<HttpContext>()))
+            .ReturnsAsync(new AuthorizationInfo { User = user, IsApiKey = false });
+
+        var controller = BuildController(
+            userManagerMock: TestMocks.UserManagerReturning(user),
+            collectionsIndexCacheServiceMock: cacheMock,
+            authContextMock: authContextMock);
+
+        var result = await controller.GetCollectionsForItem(itemId);
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Same(visibleRefs, ok.Value);
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    private static Mock<IAuthorizationContext> ApiKeyAuth()
+    {
+        var mock = new Mock<IAuthorizationContext>();
+        mock.Setup(a => a.GetAuthorizationInfo(It.IsAny<HttpContext>()))
+            .ReturnsAsync(new AuthorizationInfo { IsApiKey = true });
+        return mock;
+    }
 
     private static JuxHomepageController BuildController(
         Mock<IWidgetRegistry>? registryMock = null,
@@ -239,6 +279,7 @@ public sealed class JuxHomepageControllerTests
         Mock<IMovieHistoryViewService>? movieHistoryViewServiceMock = null,
         Mock<IStatisticsService>? statisticsServiceMock = null,
         Mock<ICollectionsIndexCacheService>? collectionsIndexCacheServiceMock = null,
+        Mock<IAuthorizationContext>? authContextMock = null,
         ILogger<JuxHomepageController>? logger = null)
     {
         var registry = new WidgetRegistry();
@@ -268,7 +309,7 @@ public sealed class JuxHomepageControllerTests
             (movieHistoryViewServiceMock ?? new Mock<IMovieHistoryViewService>()).Object,
             (statisticsServiceMock ?? new Mock<IStatisticsService>()).Object,
             (collectionsIndexCacheServiceMock ?? new Mock<ICollectionsIndexCacheService>()).Object,
-            Mock.Of<IAuthorizationContext>(),
+            (authContextMock ?? new Mock<IAuthorizationContext>()).Object,
             logger ?? NullLogger<JuxHomepageController>.Instance);
     }
 }

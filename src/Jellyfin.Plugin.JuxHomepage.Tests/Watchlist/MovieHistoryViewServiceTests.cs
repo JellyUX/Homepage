@@ -37,8 +37,8 @@ public sealed class MovieHistoryViewServiceTests
     public void GetItems_HydratesEntriesIntoDtosPreservingCacheOrder()
     {
         var user = new User("test", "Default", "Default");
-        var movieA = new Movie { Id = Guid.NewGuid(), Name = "A" };
-        var movieB = new Movie { Id = Guid.NewGuid(), Name = "B" };
+        var movieA = new TestMovie { Id = Guid.NewGuid(), Name = "A" };
+        var movieB = new TestMovie { Id = Guid.NewGuid(), Name = "B" };
 
         var entries = new List<MovieHistoryEntry>
         {
@@ -79,8 +79,8 @@ public sealed class MovieHistoryViewServiceTests
     public void GetItems_SortByNameAscending_OrdersByName()
     {
         var user = new User("test", "Default", "Default");
-        var movieZ = new Movie { Id = Guid.NewGuid(), Name = "Z" };
-        var movieA = new Movie { Id = Guid.NewGuid(), Name = "A" };
+        var movieZ = new TestMovie { Id = Guid.NewGuid(), Name = "Z" };
+        var movieA = new TestMovie { Id = Guid.NewGuid(), Name = "A" };
 
         var entries = new List<MovieHistoryEntry>
         {
@@ -141,6 +141,44 @@ public sealed class MovieHistoryViewServiceTests
         var result = service.GetItems(user.Id, null, null, 0, 50, CancellationToken.None);
 
         Assert.Empty(result.Items);
+
+        // The total counts only entries that still resolve and are visible to the user.
+        Assert.Equal(0, result.TotalRecordCount);
+    }
+
+    [Fact]
+    public void GetItems_ItemOutsideUserRights_ExcludedFromItemsAndTotal()
+    {
+        var user = new User("test", "Default", "Default");
+        var allowed = new TestMovie { Id = Guid.NewGuid(), Name = "Allowed" };
+        var hidden = new TestMovie { Id = Guid.NewGuid(), Name = "Hidden", VisibleToUser = false };
+
+        var cacheMock = new Mock<IMovieHistoryCacheService>();
+        cacheMock.Setup(m => m.GetHistory(user.Id)).Returns(
+        [
+            new() { ItemId = hidden.Id, Name = "Hidden", LastPlayedDate = new DateTime(2026, 2, 1) },
+            new() { ItemId = allowed.Id, Name = "Allowed", LastPlayedDate = new DateTime(2026, 1, 1) }
+        ]);
+
+        var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([allowed, hidden]);
+
+        var dtoServiceMock = new Mock<IDtoService>();
+        dtoServiceMock
+            .Setup(m => m.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
+            .Returns((IReadOnlyList<BaseItem> items, DtoOptions _, User _, BaseItem? _) =>
+                items.Select(i => new BaseItemDto { Id = i.Id, Name = i.Name }).ToList());
+
+        var service = new MovieHistoryViewService(
+            cacheMock.Object,
+            TestMocks.UserManagerReturning(user).Object,
+            libraryManagerMock.Object,
+            dtoServiceMock.Object,
+            NullLogger<MovieHistoryViewService>.Instance);
+
+        var result = service.GetItems(user.Id, null, null, 0, 50, CancellationToken.None);
+
         Assert.Equal(1, result.TotalRecordCount);
+        Assert.Equal(allowed.Id, Assert.Single(result.Items).Id);
     }
 }

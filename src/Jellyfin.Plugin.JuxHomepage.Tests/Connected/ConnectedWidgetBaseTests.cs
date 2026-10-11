@@ -120,8 +120,8 @@ public sealed class ConnectedWidgetBaseTests
         var user = TestMocks.DefaultUser();
         var matchedId1 = Guid.NewGuid();
         var matchedId2 = Guid.NewGuid();
-        var libraryItem1 = new Movie { Id = matchedId1, Name = "Owned 1" };
-        var libraryItem2 = new Movie { Id = matchedId2, Name = "Owned 2" };
+        var libraryItem1 = new TestMovie { Id = matchedId1, Name = "Owned 1" };
+        var libraryItem2 = new TestMovie { Id = matchedId2, Name = "Owned 2" };
 
         var userManagerMock = new Mock<IUserManager>();
         userManagerMock.Setup(m => m.GetUserById(It.IsAny<Guid>())).Returns(user);
@@ -199,9 +199,9 @@ public sealed class ConnectedWidgetBaseTests
             new WidgetPayload { UserId = Guid.NewGuid(), Limit = 20 },
             CancellationToken.None);
 
-        // TotalRecordCount still counts the cached match (self-corrects on next daily refresh);
-        // the actually-resolved item list passed to the DTO service is empty.
-        Assert.Equal(1, result.TotalRecordCount);
+        // The total counts only items that resolve and are visible to the user, so a cached match
+        // whose library item was deleted is excluded from both the page and the total.
+        Assert.Equal(0, result.TotalRecordCount);
         Assert.NotNull(capturedItems);
         Assert.Empty(capturedItems!);
 
@@ -235,7 +235,7 @@ public sealed class ConnectedWidgetBaseTests
         libraryManagerMock
             .Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
             .Returns<InternalItemsQuery>(q => q.ItemIds
-                .Select(id => (BaseItem)new Movie { Id = id, Name = id.ToString() })
+                .Select(id => (BaseItem)new TestMovie { Id = id, Name = id.ToString() })
                 .Reverse()
                 .ToList());
 
@@ -262,5 +262,42 @@ public sealed class ConnectedWidgetBaseTests
         Assert.Equal(2, capturedItems!.Count);
         Assert.Equal(ids[2], capturedItems[0].Id);
         Assert.Equal(ids[3], capturedItems[1].Id);
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_ItemOutsideUserRights_ExcludedFromItemsAndTotal()
+    {
+        var user = TestMocks.DefaultUser();
+        var allowed = new TestMovie { Id = Guid.NewGuid(), Name = "Allowed" };
+        var hidden = new TestMovie { Id = Guid.NewGuid(), Name = "Other library", VisibleToUser = false };
+
+        var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([allowed, hidden]);
+
+        IReadOnlyList<BaseItem>? capturedItems = null;
+        var dtoServiceMock = new Mock<IDtoService>();
+        dtoServiceMock
+            .Setup(m => m.GetBaseItemDtos(
+                It.IsAny<IReadOnlyList<BaseItem>>(),
+                It.IsAny<DtoOptions>(),
+                It.IsAny<User>(),
+                It.IsAny<BaseItem>()))
+            .Callback<IReadOnlyList<BaseItem>, DtoOptions, User, BaseItem>((items, _, _, _) => capturedItems = items)
+            .Returns([]);
+
+        var cachedMovies = new List<TMDbMovie>
+        {
+            new() { Id = 1, Title = "Other library", LibraryItemId = hidden.Id },
+            new() { Id = 2, Title = "Allowed", LibraryItemId = allowed.Id }
+        };
+
+        var widget = BuildWidget(cachedMovies, TestMocks.UserManagerReturning(user), libraryManagerMock, dtoServiceMock);
+
+        var result = await widget.GetItemsAsync(
+            new WidgetPayload { UserId = user.Id, StartIndex = 0, Limit = 20 },
+            CancellationToken.None);
+
+        Assert.Equal(1, result.TotalRecordCount);
+        Assert.Equal(allowed.Id, Assert.Single(capturedItems!).Id);
     }
 }

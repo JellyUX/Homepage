@@ -110,4 +110,42 @@ public sealed class CollectionsIndexCacheServiceTests : IDisposable
             Directory.Delete(_tempDir, recursive: true);
         }
     }
+
+    [Fact]
+    public async Task GetCollectionsFor_User_HidesInvisibleCollectionsAndInvisibleItems()
+    {
+        var user = TestMocks.DefaultUser();
+        var visibleMovie = new TestMovie { Id = Guid.NewGuid(), Name = "Visible" };
+        var hiddenMovie = new TestMovie { Id = Guid.NewGuid(), Name = "Hidden", VisibleToUser = false };
+        var visibleSet = new TestBoxSet { Id = Guid.NewGuid(), Name = "Visible set" };
+        var hiddenSet = new TestBoxSet { Id = Guid.NewGuid(), Name = "Hidden set", VisibleToUser = false };
+        visibleSet.LinkedChildren = [new LinkedChild { ItemId = visibleMovie.Id }, new LinkedChild { ItemId = hiddenMovie.Id }];
+        hiddenSet.LinkedChildren = [new LinkedChild { ItemId = visibleMovie.Id }];
+
+        var byId = new Dictionary<Guid, BaseItem>
+        {
+            [visibleMovie.Id] = visibleMovie,
+            [hiddenMovie.Id] = hiddenMovie,
+            [visibleSet.Id] = visibleSet,
+            [hiddenSet.Id] = hiddenSet
+        };
+
+        var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock
+            .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.IncludeItemTypes.Contains(BaseItemKind.BoxSet))))
+            .Returns([visibleSet, hiddenSet]);
+        libraryManagerMock
+            .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.ItemIds.Length > 0)))
+            .Returns<InternalItemsQuery>(q => q.ItemIds.Where(byId.ContainsKey).Select(id => byId[id]).ToList());
+        libraryManagerMock.Setup(m => m.GetItemById(It.IsAny<Guid>())).Returns<Guid>(id => byId.GetValueOrDefault(id));
+
+        BaseItem.LibraryManager = libraryManagerMock.Object;
+
+        var service = BuildService(libraryManagerMock.Object);
+        await service.RefreshAsync(CancellationToken.None);
+
+        Assert.Equal(2, service.GetCollectionsFor(visibleMovie.Id).Count);
+        Assert.Equal(visibleSet.Id, Assert.Single(service.GetCollectionsFor(visibleMovie.Id, user)).CollectionId);
+        Assert.Empty(service.GetCollectionsFor(hiddenMovie.Id, user));
+    }
 }
