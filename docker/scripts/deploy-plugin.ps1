@@ -25,8 +25,19 @@ if ($installedDirs.Count -eq 1) {
     $pluginOutputDir = Join-Path $pluginsDir $PluginName
 }
 
+# Stamp the assembly with the installed folder's version (meta.json), so the dashboard shows the same
+# version as the folder instead of the csproj placeholder.
+$versionArgs = @()
+$metaPath = Join-Path $pluginOutputDir "meta.json"
+if (Test-Path $metaPath) {
+    $installedVersion = (Get-Content $metaPath -Raw | ConvertFrom-Json).version
+    if ($installedVersion) {
+        $versionArgs = @("-p:Version=$installedVersion", "-p:AssemblyVersion=$installedVersion", "-p:FileVersion=$installedVersion")
+    }
+}
+
 Write-Host "Building $PluginName ($Configuration)..."
-dotnet build "$repoRoot\src\$PluginName\$PluginName.csproj" -c $Configuration
+dotnet build "$repoRoot\src\$PluginName\$PluginName.csproj" -c $Configuration @versionArgs
 if ($LASTEXITCODE -ne 0) { Write-Error "Build failed."; exit 1 }
 
 Write-Host "Deploying to $pluginOutputDir..."
