@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text.RegularExpressions;
+using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.IO;
 using Jellyfin.Plugin.JuxHomepage.Models;
 using Microsoft.Extensions.Logging;
@@ -37,6 +38,21 @@ internal enum HomeHtmlOutcome
 }
 
 /// <summary>
+/// One client asset served under /JuxHomepage/ and referenced from index.html.
+/// </summary>
+/// <param name="FileName">The asset file name.</param>
+/// <param name="IsStylesheet">True for a CSS link in the head, false for a deferred script.</param>
+/// <param name="Module">The module switch that enables the asset, or null for a core asset.</param>
+/// <param name="IsJuxUi">True for the shared jux-ui assets, loaded only when a consumer is.</param>
+/// <param name="UsesJuxUi">True when the asset consumes <c>window.JuxUI</c>.</param>
+internal sealed record ClientAsset(
+    string FileName,
+    bool IsStylesheet,
+    Func<ModulesConfig, bool>? Module,
+    bool IsJuxUi = false,
+    bool UsesJuxUi = false);
+
+/// <summary>
 /// Static transformation callbacks invoked by the FileTransformation plugin via reflection.
 /// Each method receives a <see cref="PatchRequestPayload"/> and returns the transformed content.
 /// </summary>
@@ -69,43 +85,87 @@ public static class TransformationPatches
     // stay in the same order as the buttons created by jux-tab-injector.js (data-index 2..5).
     private static readonly string[] HomeTabIds = ["jux-tab-watchlist", "jux-tab-progress", "jux-tab-history", "jux-tab-statistics"];
 
+    // Every client asset index.html can reference, in document order: deferred scripts execute in
+    // this order, so jux-ui.js must stay before the scripts that consume window.JuxUI. Module null
+    // marks the core assets, loaded whenever the plugin is enabled; jux-ui is loaded only when an
+    // active asset declares UsesJuxUi.
+    private static readonly ClientAsset[] ClientAssets =
+    [
+        new("jux-homepage.css", IsStylesheet: true, Module: null),
+        new("jux-ui.css", IsStylesheet: true, Module: null, IsJuxUi: true),
+        new("jux-homepage.js", IsStylesheet: false, Module: null),
+        new("jux-ui.js", IsStylesheet: false, Module: null, IsJuxUi: true),
+        new("jux-tab-injector.js", IsStylesheet: false, Module: m => m.Tabs),
+        new("jux-watchlist.js", IsStylesheet: false, Module: m => m.Tabs, UsesJuxUi: true),
+        new("jux-card-hooks.js", IsStylesheet: false, Module: m => m.CardEnhancements),
+        new("jux-progress.js", IsStylesheet: false, Module: m => m.Tabs, UsesJuxUi: true),
+        new("jux-history.js", IsStylesheet: false, Module: m => m.Tabs, UsesJuxUi: true),
+        new("jux-statistics.js", IsStylesheet: false, Module: m => m.Tabs, UsesJuxUi: true),
+        new("jux-series-flatten.js", IsStylesheet: false, Module: m => m.SeriesFlatten),
+        new("jux-collections.js", IsStylesheet: false, Module: m => m.Collections, UsesJuxUi: true),
+        new("jux-breadcrumb.js", IsStylesheet: false, Module: m => m.Breadcrumb),
+    ];
+
     /// <summary>
-    /// Injects the JellyUX CSS link and JS script tags into Jellyfin's index.html.
+    /// Injects the CSS link and JS script tags of the enabled JellyUX modules into Jellyfin's
+    /// index.html, or nothing when the plugin is disabled.
     /// Called by FileTransformation via reflection - must remain public and static.
     /// </summary>
     /// <param name="content">Payload containing the raw index.html contents.</param>
     /// <returns>Transformed HTML with JUX resources injected.</returns>
     public static string IndexHtml(PatchRequestPayload content)
     {
+        var config = Plugin.Instance?.Configuration ?? new PluginConfiguration();
         var version = Plugin.Instance?.Version?.ToString() ?? "0";
-        var cacheParam = $"?v={version}";
+        return InjectClientAssets(content.Contents ?? string.Empty, config, version);
+    }
+
+    /// <summary>
+    /// Pure injection logic behind <see cref="IndexHtml"/>.
+    /// </summary>
+    /// <param name="html">The raw index.html contents.</param>
+    /// <param name="config">The plugin configuration that decides which modules are injected.</param>
+    /// <param name="cacheKey">The value of the <c>?v=</c> cache-busting parameter.</param>
+    /// <returns>The HTML with the active assets injected, unchanged when the plugin is disabled.</returns>
+    internal static string InjectClientAssets(string html, PluginConfiguration config, string cacheKey)
+    {
+        var assets = ActiveClientAssets(config);
+        if (assets.Count == 0)
+        {
+            return html;
+        }
 
         // Relative to index.html (served under <BaseUrl>/web/), so the assets follow a configured
         // BaseUrl; an absolute "/JuxHomepage/" would bypass it and receive the web client's HTML.
+        var cacheParam = $"?v={cacheKey}";
+        var links = assets
+            .Where(a => a.IsStylesheet)
+            .Select(a => $"<link rel=\"stylesheet\" href=\"../JuxHomepage/{a.FileName}{cacheParam}\" />\n");
+        var scripts = assets
+            .Where(a => !a.IsStylesheet)
+            .Select(a => $"<script src=\"../JuxHomepage/{a.FileName}{cacheParam}\" defer></script>\n");
 
-        var linkTag = $"<link rel=\"stylesheet\" href=\"../JuxHomepage/jux-homepage.css{cacheParam}\" />";
-        var uiLinkTag = $"<link rel=\"stylesheet\" href=\"../JuxHomepage/jux-ui.css{cacheParam}\" />";
-        var scriptTag = $"<script src=\"../JuxHomepage/jux-homepage.js{cacheParam}\" defer></script>";
-        var uiScriptTag = $"<script src=\"../JuxHomepage/jux-ui.js{cacheParam}\" defer></script>";
-        var tabInjectorScriptTag = $"<script src=\"../JuxHomepage/jux-tab-injector.js{cacheParam}\" defer></script>";
-        var watchlistScriptTag = $"<script src=\"../JuxHomepage/jux-watchlist.js{cacheParam}\" defer></script>";
-        var cardHooksScriptTag = $"<script src=\"../JuxHomepage/jux-card-hooks.js{cacheParam}\" defer></script>";
-        var progressScriptTag = $"<script src=\"../JuxHomepage/jux-progress.js{cacheParam}\" defer></script>";
-        var historyScriptTag = $"<script src=\"../JuxHomepage/jux-history.js{cacheParam}\" defer></script>";
-        var statisticsScriptTag = $"<script src=\"../JuxHomepage/jux-statistics.js{cacheParam}\" defer></script>";
-        var seriesFlattenScriptTag = $"<script src=\"../JuxHomepage/jux-series-flatten.js{cacheParam}\" defer></script>";
-        var collectionsScriptTag = $"<script src=\"../JuxHomepage/jux-collections.js{cacheParam}\" defer></script>";
-        var breadcrumbScriptTag = $"<script src=\"../JuxHomepage/jux-breadcrumb.js{cacheParam}\" defer></script>";
+        return html
+            .Replace("</head>", $"{string.Concat(links)}</head>", StringComparison.OrdinalIgnoreCase)
+            .Replace("</body>", $"{string.Concat(scripts)}</body>", StringComparison.OrdinalIgnoreCase);
+    }
 
-        // jux-ui.js must appear (in source order) before the tab-rendering scripts and jux-collections.js
-        // that consume window.JuxUI -- deferred scripts execute in document order, so this ordering is
-        // what guarantees JuxUI exists by the time those scripts run their own top-level init().
-        return (content.Contents ?? string.Empty)
-            .Replace("</head>", $"{linkTag}\n{uiLinkTag}\n</head>", StringComparison.OrdinalIgnoreCase)
-            .Replace(
-                "</body>",
-                $"{scriptTag}\n{uiScriptTag}\n{tabInjectorScriptTag}\n{watchlistScriptTag}\n{cardHooksScriptTag}\n{progressScriptTag}\n{historyScriptTag}\n{statisticsScriptTag}\n{seriesFlattenScriptTag}\n{collectionsScriptTag}\n{breadcrumbScriptTag}\n</body>",
-                StringComparison.OrdinalIgnoreCase);
+    /// <summary>
+    /// Resolves which client assets the configuration activates, in document order.
+    /// </summary>
+    /// <param name="config">The plugin configuration.</param>
+    /// <returns>The active assets; empty when the plugin is disabled.</returns>
+    internal static IReadOnlyList<ClientAsset> ActiveClientAssets(PluginConfiguration config)
+    {
+        if (!config.Enabled)
+        {
+            return [];
+        }
+
+        var modules = config.Modules ?? new ModulesConfig();
+        var active = ClientAssets.Where(a => !a.IsJuxUi && (a.Module is null || a.Module(modules))).ToList();
+        var needsJuxUi = active.Any(a => a.UsesJuxUi);
+        return ClientAssets.Where(a => active.Contains(a) || (a.IsJuxUi && needsJuxUi)).ToList();
     }
 
     /// <summary>
@@ -119,8 +179,18 @@ public static class TransformationPatches
     public static string HomeHtmlChunk(PatchRequestPayload content)
     {
         var raw = content.Contents ?? string.Empty;
-        return TryPatchHomeHtmlChunk(raw).Content;
+        var config = Plugin.Instance?.Configuration ?? new PluginConfiguration();
+        return TabsActive(config) ? TryPatchHomeHtmlChunk(raw).Content : raw;
     }
+
+    /// <summary>
+    /// Whether the home tab panes are spliced in: only when the plugin and its tabs module are on,
+    /// so the home page holds no empty <c>#jux-tab-*</c> pane without the script that fills it.
+    /// </summary>
+    /// <param name="config">The plugin configuration.</param>
+    /// <returns>True when the home-html chunk must be patched.</returns>
+    internal static bool TabsActive(PluginConfiguration config) =>
+        config.Enabled && (config.Modules ?? new ModulesConfig()).Tabs;
 
     /// <summary>
     /// Pure splicing logic, decoupled from reflection: attempts to insert the JellyUX tab content

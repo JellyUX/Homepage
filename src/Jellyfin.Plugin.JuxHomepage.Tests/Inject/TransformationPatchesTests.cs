@@ -1,3 +1,4 @@
+using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.Inject;
 using Jellyfin.Plugin.JuxHomepage.Models;
 using Xunit;
@@ -119,5 +120,83 @@ public sealed class TransformationPatchesTests
         var page = reader.ReadToEnd();
 
         Assert.DoesNotContain("\"/JuxHomepage/", page, StringComparison.Ordinal);
+    }
+
+    private const string EmptyIndex = "<html><head></head><body></body></html>";
+
+    private static readonly string[] AllAssetsInOrder =
+    [
+        "jux-homepage.css", "jux-ui.css", "jux-homepage.js", "jux-ui.js", "jux-tab-injector.js",
+        "jux-watchlist.js", "jux-card-hooks.js", "jux-progress.js", "jux-history.js", "jux-statistics.js",
+        "jux-series-flatten.js", "jux-collections.js", "jux-breadcrumb.js",
+    ];
+
+    // Each module switch, and the assets that consume window.JuxUI.
+    public static TheoryData<string> ModuleSwitches => new() { "Tabs", "CardEnhancements", "SeriesFlatten", "Collections", "Breadcrumb" };
+
+    private static readonly string[] JuxUiConsumers = ["jux-watchlist.js", "jux-progress.js", "jux-history.js", "jux-statistics.js", "jux-collections.js"];
+
+    private static PluginConfiguration ConfigWithout(params string[] switches)
+    {
+        var config = new PluginConfiguration();
+        foreach (var name in switches)
+        {
+            typeof(ModulesConfig).GetProperty(name)!.SetValue(config.Modules, false);
+        }
+
+        return config;
+    }
+
+    private static List<string> InjectedAssets(string html) =>
+        html.Split("../JuxHomepage/").Skip(1).Select(part => part.Split('?')[0]).ToList();
+
+    [Fact]
+    public void InjectClientAssets_AllModulesOn_InjectsEveryAssetInDocumentOrder()
+    {
+        var html = TransformationPatches.InjectClientAssets(EmptyIndex, new PluginConfiguration(), "k");
+
+        Assert.Equal(AllAssetsInOrder, InjectedAssets(html));
+    }
+
+    [Fact]
+    public void InjectClientAssets_PluginDisabled_LeavesIndexUnchanged()
+    {
+        var config = new PluginConfiguration { Enabled = false };
+
+        Assert.Equal(EmptyIndex, TransformationPatches.InjectClientAssets(EmptyIndex, config, "k"));
+    }
+
+    [Theory]
+    [MemberData(nameof(ModuleSwitches))]
+    public void InjectClientAssets_OneModuleOff_KeepsTheOrderOfTheOthersAndJuxUiForItsConsumers(string module)
+    {
+        var assets = InjectedAssets(TransformationPatches.InjectClientAssets(EmptyIndex, ConfigWithout(module), "k"));
+
+        var expectedOrder = AllAssetsInOrder.Where(assets.Contains).ToList();
+        Assert.Equal(expectedOrder, assets);
+        Assert.True(assets.Count < AllAssetsInOrder.Length);
+        if (assets.Any(JuxUiConsumers.Contains))
+        {
+            Assert.Contains("jux-ui.js", assets);
+            Assert.True(assets.IndexOf("jux-ui.js") < assets.FindIndex(JuxUiConsumers.Contains));
+        }
+    }
+
+    [Fact]
+    public void InjectClientAssets_TabsAndCollectionsOff_DropsJuxUi()
+    {
+        var assets = InjectedAssets(TransformationPatches.InjectClientAssets(EmptyIndex, ConfigWithout("Tabs", "Collections"), "k"));
+
+        Assert.DoesNotContain("jux-ui.js", assets);
+        Assert.DoesNotContain("jux-ui.css", assets);
+        Assert.Equal(["jux-homepage.css", "jux-homepage.js", "jux-card-hooks.js", "jux-series-flatten.js", "jux-breadcrumb.js"], assets);
+    }
+
+    [Fact]
+    public void TabsActive_PluginOrTabsModuleOff_SkipsTheHomeTabPanes()
+    {
+        Assert.True(TransformationPatches.TabsActive(new PluginConfiguration()));
+        Assert.False(TransformationPatches.TabsActive(new PluginConfiguration { Enabled = false }));
+        Assert.False(TransformationPatches.TabsActive(ConfigWithout("Tabs")));
     }
 }
