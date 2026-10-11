@@ -11,7 +11,7 @@
             {
                 "version": "2.9.0.0",
                 "changelog": "### Features\n\n* complete V3 feature set ([a368dcc](https://github.com/JellyUX/Homepage/commit/a368dccc1e2249111a8f7ab367afeade65629188))",
-                "targetAbi": "10.11.0.0",
+                "targetAbi": "10.11.9.0",
                 "sourceUrl": "https://github.com/JellyUX/Homepage/releases/download/v2.9.0/jellyux-homepage_2.9.0.0.zip",
                 "checksum": "91bb0e3044b1da78b8a4bc689a1c0410",
                 "timestamp": "2026-07-26T13:08:03Z"
@@ -19,7 +19,7 @@
             {
                 "version": "2.8.0.0",
                 "changelog": "### Features\n\n* add Recently Added Episodes widget ([1bf3f94](https://github.com/JellyUX/Homepage/commit/1bf3f9479cd5ccb3705f4ed5217d18f5c6325fbd))",
-                "targetAbi": "10.11.0.0",
+                "targetAbi": "10.11.9.0",
                 "sourceUrl": "https://github.com/JellyUX/Homepage/releases/download/v2.8.0/jellyux-homepage_2.8.0.0.zip",
                 "checksum": "05f8759cc78093ab52e5d8fb7f8a819f",
                 "timestamp": "2026-07-26T12:51:22Z"
@@ -27,7 +27,7 @@
             {
                 "version": "2.7.0.0",
                 "changelog": "### Features\n\n* add randomized selection to Because You Watched sections ([775144b](https://github.com/JellyUX/Homepage/commit/775144b9aeb90b2bc1a78134faac35e9ff4b96c4))\n* add seasonal home screen widget with presets ([02e89db](https://github.com/JellyUX/Homepage/commit/02e89db4916b17b384595bea69cba6308425ab5d))",
-                "targetAbi": "10.11.0.0",
+                "targetAbi": "10.11.9.0",
                 "sourceUrl": "https://github.com/JellyUX/Homepage/releases/download/v2.7.0/jellyux-homepage_2.7.0.0.zip",
                 "checksum": "52e8673864ecd100e386ffb10dfa7c55",
                 "timestamp": "2026-07-26T09:59:33Z"
@@ -35,7 +35,7 @@
             {
                 "version": "2.6.1.0",
                 "changelog": "### Bug Fixes\n\n* remove unreliable JellyUX tab shortcuts feature ([7b4ca82](https://github.com/JellyUX/Homepage/commit/7b4ca820304416a72184d3d882b3b05cb29a639f))",
-                "targetAbi": "10.11.0.0",
+                "targetAbi": "10.11.9.0",
                 "sourceUrl": "https://github.com/JellyUX/Homepage/releases/download/v2.6.1/jellyux-homepage_2.6.1.0.zip",
                 "checksum": "e9af8acf0a34735770e5e273da60ab87",
                 "timestamp": "2026-07-25T22:16:06Z"
@@ -43,7 +43,7 @@
             {
                 "version": "2.6.0.0",
                 "changelog": "### Features\n\n* add breadcrumb navigation ([104ff7f](https://github.com/JellyUX/Homepage/commit/104ff7f9c08e456952e9f75896a0f56863ef3e8e)), closes [#moviesTab](https://github.com/JellyUX/Homepage/issues/moviesTab)\n* add JellyUX tab shortcuts to the navigation drawer ([b21259b](https://github.com/JellyUX/Homepage/commit/b21259b4c91fdaa56e7a04fec354389b169429b6))",
-                "targetAbi": "10.11.0.0",
+                "targetAbi": "10.11.9.0",
                 "sourceUrl": "https://github.com/JellyUX/Homepage/releases/download/v2.6.0/jellyux-homepage_2.6.0.0.zip",
                 "checksum": "d518240e43672f243eb84a666bfeb5bb",
                 "timestamp": "2026-07-25T20:10:22Z"
@@ -51,7 +51,7 @@
             {
                 "version": "2.5.3.0",
                 "changelog": "### Bug Fixes\n\n* correct library infinite scroll after in-app navigation to the page ([c7247f7](https://github.com/JellyUX/Homepage/commit/c7247f7c0a82376baea01dd25c948264f198cf43))\n* stamp the real release version onto the compiled assembly ([0858533](https://github.com/JellyUX/Homepage/commit/08585331b723e7cb36622dd1612674ae5aed4f01))",
-                "targetAbi": "10.11.0.0",
+                "targetAbi": "10.11.9.0",
                 "sourceUrl": "https://github.com/JellyUX/Homepage/releases/download/v2.5.3/jellyux-homepage_2.5.3.0.zip",
                 "checksum": "6e83ac97cc003e96608ecd1d5bb2fb5c",
                 "timestamp": "2026-07-23T20:48:18Z"
@@ -59,7 +59,7 @@
             {
                 "version": "2.5.2.0",
                 "changelog": "### Bug Fixes\n\n* align injected scroller cards with native sections via no-padding ([c45680c](https://github.com/JellyUX/Homepage/commit/c45680c130ab38f38376c82749ed06ee8419bc08))\n* don't hide native pagination on library pages until cardBuilder is ready ([5cb56d7](https://github.com/JellyUX/Homepage/commit/5cb56d79971cad21b0345b1ecfc1139496472c36))",
-                "targetAbi": "10.11.0.0",
+                "targetAbi": "10.11.9.0",
                 "sourceUrl": "https://github.com/JellyUX/Homepage/releases/download/v2.5.2/jellyux-homepage_2.5.2.0.zip",
                 "checksum": "82f2252479d3b78c605e2e0ef7aaab80",
                 "timestamp": "2026-07-23T16:26:46Z"
@@ -67,7 +67,7 @@
             {
                 "version": "2.5.1.0",
                 "changelog": "### Bug Fixes\n\n* match native section sizing for flattened seasons and Included In ([a6ea5a8](https://github.com/JellyUX/Homepage/commit/a6ea5a835a488af6fa9bc0d71a93c10060d29ac7))\n* trigger library infinite scroll well before the literal page bottom ([50d7f89](https://github.com/JellyUX/Homepage/commit/50d7f89389dac99e2828978ec85e374762c2354b))",
-                "targetAbi": "10.11.0.0",
+                "targetAbi": "10.11.9.0",
                 "sourceUrl": "https://github.com/JellyUX/Homepage/releases/download/v2.5.1/jellyux-homepage_2.5.1.0.zip",
                 "checksum": "a9deb0adfd6e5b594fcd5ab1d24f438a",
                 "timestamp": "2026-07-23T15:04:27Z"
@@ -75,7 +75,7 @@
             {
                 "version": "2.5.0.0",
                 "changelog": "### Features\n\n* add infinite scroll to library pages and fix eager lazy-load fetch ([c4e5f35](https://github.com/JellyUX/Homepage/commit/c4e5f35533de504f0694457c72bc9b2e28bb1912))\n* flatten single-season shows and show episodes on the series page ([908fc7d](https://github.com/JellyUX/Homepage/commit/908fc7dc8340171eb471a1453c5dc7ad42fa0155)), closes [#listChildrenCollapsible](https://github.com/JellyUX/Homepage/issues/listChildrenCollapsible) [#childrenCollapsible](https://github.com/JellyUX/Homepage/issues/childrenCollapsible)\n* show parent collections on the details page and add collection sorting ([b62ee90](https://github.com/JellyUX/Homepage/commit/b62ee908703e3a1c49f9909eb584ed940be9b09b))\n\n### Bug Fixes\n\n* prevent duplicate sections and a resort race in Phase 7.1/7.2 scripts ([48123b7](https://github.com/JellyUX/Homepage/commit/48123b7e0a79a53535cee6b198f8ca76e75a8071))\n* resolve BoxSet member resolution in the collections index ([0f3fe8f](https://github.com/JellyUX/Homepage/commit/0f3fe8ff60e5ee8728e42cc7f28457058baa6e5d))",
-                "targetAbi": "10.11.0.0",
+                "targetAbi": "10.11.9.0",
                 "sourceUrl": "https://github.com/JellyUX/Homepage/releases/download/v2.5.0/jellyux-homepage_2.5.0.0.zip",
                 "checksum": "fb902855a87e6193f783e3d5f8da148c",
                 "timestamp": "2026-07-22T21:56:00Z"
@@ -83,7 +83,7 @@
             {
                 "version": "2.4.1.0",
                 "changelog": "### Bug Fixes\n\n* repair broken native-style sort dialog and center empty-state messages ([6cdc1aa](https://github.com/JellyUX/Homepage/commit/6cdc1aaf53def5e3cf19f914fc0027cb55c97139))",
-                "targetAbi": "10.11.0.0",
+                "targetAbi": "10.11.9.0",
                 "sourceUrl": "https://github.com/JellyUX/Homepage/releases/download/v2.4.1/jellyux-homepage_2.4.1.0.zip",
                 "checksum": "f8cc4210a829dbabc0884ed32ff2289a",
                 "timestamp": "2026-07-22T17:21:20Z"
@@ -91,7 +91,7 @@
             {
                 "version": "2.4.0.0",
                 "changelog": "### Features\n\n* add native Watchlist widget to the home screen ([cf0d211](https://github.com/JellyUX/Homepage/commit/cf0d211d56639be9980c34d2e9500b3982a939bf))\n* add Series Progress, Movie History, and Statistics views ([cbb9f09](https://github.com/JellyUX/Homepage/commit/cbb9f09b7343c5c33f16cc5a3d0b83addd190a07))\n* add shared UI helpers (empty state, loading spinner, progress bar, stat card, native sort dialog) ([0308376](https://github.com/JellyUX/Homepage/commit/0308376e8fec0a1e2a74fb14bec5ddd25fdb3946))\n* replace inline-styled controls with native-style sort dialogs and visual polish across all tabs ([1a96ce4](https://github.com/JellyUX/Homepage/commit/1a96ce463bc207c785e0bcd14fc571f64b9a046d)), closes [#00a4dc](https://github.com/JellyUX/Homepage/issues/00a4dc) [#00a4dc](https://github.com/JellyUX/Homepage/issues/00a4dc)\n\n### Bug Fixes\n\n* switch to IUserManager.GetUsers()/GetUsersIds() and align SDK versions ([7b70732](https://github.com/JellyUX/Homepage/commit/7b707326b77aa531dd169a8d2b6ada955d612047))",
-                "targetAbi": "10.11.0.0",
+                "targetAbi": "10.11.9.0",
                 "sourceUrl": "https://github.com/JellyUX/Homepage/releases/download/v2.4.0/jellyux-homepage_2.4.0.0.zip",
                 "checksum": "2b580e75c3dc27ea5ee1edb381b30c40",
                 "timestamp": "2026-07-22T15:25:03Z"

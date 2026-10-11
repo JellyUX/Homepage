@@ -40,9 +40,24 @@ jobs:
       - name: Run Vitest
         run: npm test
 
+  build-min-abi:
+    name: Build against the minimum Jellyfin ABI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 9.0.x
+
+      # Must match build.yaml targetAbi: a server at that version has to load the plugin, so the
+      # code may only use Jellyfin APIs that already exist there.
+      - name: Build against Jellyfin 10.11.9
+        run: dotnet build src/Jellyfin.Plugin.JuxHomepage/Jellyfin.Plugin.JuxHomepage.csproj --configuration Release -p:JellyfinVersion=10.11.9
+
   release:
     name: Release
-    needs: build-test
+    needs: [build-test, build-min-abi]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:

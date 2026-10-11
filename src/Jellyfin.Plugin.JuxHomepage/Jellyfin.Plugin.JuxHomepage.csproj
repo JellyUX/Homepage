@@ -12,6 +12,9 @@
     <RepositoryType>GitHub</RepositoryType>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <!-- SDK the plugin compiles against. CI also builds with the declared minimum (build.yaml
+         targetAbi) by overriding it: -p:JellyfinVersion=10.11.9 -->
+    <JellyfinVersion Condition="'$(JellyfinVersion)' == ''">10.11.10</JellyfinVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -40,9 +43,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Jellyfin.Controller" Version="10.11.10" />
-    <PackageReference Include="Jellyfin.Model" Version="10.11.10" />
-    <PackageReference Include="Jellyfin.Extensions" Version="10.11.10" />
+    <PackageReference Include="Jellyfin.Controller" Version="$(JellyfinVersion)" />
+    <PackageReference Include="Jellyfin.Model" Version="$(JellyfinVersion)" />
+    <PackageReference Include="Jellyfin.Extensions" Version="$(JellyfinVersion)" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.0" />
   </ItemGroup>
