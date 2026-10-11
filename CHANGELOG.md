@@ -1,3 +1,29 @@
+## [2.9.2](https://github.com/JellyUX/Homepage/compare/v2.9.1...v2.9.2) (2026-10-11)
+
+### Bug Fixes
+
+* cache empty results of library-computed caches ([a4efdf7](https://github.com/JellyUX/Homepage/commit/a4efdf78e6bb5b571d525462119cb5f6fb27135d))
+* clear scoring snapshots when the configuration is saved ([f2e8cea](https://github.com/JellyUX/Homepage/commit/f2e8cea0529b7c3d1abc433c5cfe6bfbdf01b26b))
+* compute series progress from watched series only ([e321f36](https://github.com/JellyUX/Homepage/commit/e321f368055cbd28b91367e1c2457339d9236a07))
+* describe what the session cache TTL actually controls ([66385cc](https://github.com/JellyUX/Homepage/commit/66385cc42ba99fadf0ef456a11130bb6433fe46d))
+* expire cached home layouts a fixed time after they are built ([02de283](https://github.com/JellyUX/Homepage/commit/02de283cc7345f5d1746cb0296887b3cadfa0a60))
+* find watched series through played episodes and date them by the latest one ([b91e9ff](https://github.com/JellyUX/Homepage/commit/b91e9ff225c022e9799309ae82bbd7dbfe64c192))
+* keep each user's scoring snapshot for the whole day ([72cebad](https://github.com/JellyUX/Homepage/commit/72cebad95a88378b52c45e79035b034998da6821))
+* keep parsed disk caches in memory between reads ([6373939](https://github.com/JellyUX/Homepage/commit/6373939cf08e1e2ba76904a96bee24743b923c22))
+* keep the watchlist to movies and series and stop its page-load scan ([43fbb17](https://github.com/JellyUX/Homepage/commit/43fbb1794e299310a0b8dc72e22213258f9ca95a))
+* keep TMDb to IMDb id mappings on disk ([16b9e57](https://github.com/JellyUX/Homepage/commit/16b9e5711b6ce9997a5da5778e8aeca10ce7136c))
+* load ids or image-less entities where nothing else is read ([f9db7d1](https://github.com/JellyUX/Homepage/commit/f9db7d14bbd839b264878f128018a44ba7a35397))
+* match TMDb items on the local library before asking TMDb ([26e048b](https://github.com/JellyUX/Homepage/commit/26e048b1170a03a964cabbcce137d475724d80c9))
+* never block the home page on a scoring recompute ([7c3519f](https://github.com/JellyUX/Homepage/commit/7c3519f2868043b7a33e32dca0a86f48b3033efe))
+* put the detail watchlist button on the visible page ([827a4d2](https://github.com/JellyUX/Homepage/commit/827a4d26442016acc3fa31112951535a31ffff93))
+* read people of the 100 most recent titles only when scoring ([c4d0c34](https://github.com/JellyUX/Homepage/commit/c4d0c34cc0615eb66672ec12445405a696fdb15e))
+* refresh a user's scoring after they finish or mark a title played ([9b5bd61](https://github.com/JellyUX/Homepage/commit/9b5bd61a90f7fc9885f4f6f5151ebde6b706df64))
+* refresh stale TMDb caches after the server has started ([2e3f31a](https://github.com/JellyUX/Homepage/commit/2e3f31a339ce68089d2e508f63aa5e7e80e8e74c))
+* refresh the collections index when a collection changes ([2fa1f75](https://github.com/JellyUX/Homepage/commit/2fa1f75534c197cb2e2d44cdd530c26782e60a4b))
+* run scoring computations on dedicated threads ([a30e36e](https://github.com/JellyUX/Homepage/commit/a30e36ea12d054ffc30d2e4c0c0a028567e2749d))
+* score a user's first access from 25 titles, then all 100 in the background ([a0190eb](https://github.com/JellyUX/Homepage/commit/a0190eb885ffdf4f6e39e4fed486ed9c9c44bb08))
+* stop counting every match for home sections ([5f88ec3](https://github.com/JellyUX/Homepage/commit/5f88ec37f8eedb8eebb02364204ba22bc2a40eb3))
+
 ## [2.9.1](https://github.com/JellyUX/Homepage/compare/v2.9.0...v2.9.1) (2026-10-11)
 
 ### Bug Fixes
