@@ -61,18 +61,7 @@ public sealed class WidgetLayoutResolver
         var userConfig = _userConfigStore.GetUserConfiguration(userId);
         var overrides = userConfig?.WidgetOverrides ?? [];
 
-        // Merge: apply user override when global config allows it
-        var effectiveConfigs = globalConfig
-            .Select(g =>
-            {
-                if (!g.AllowUserOverride)
-                {
-                    return g;
-                }
-
-                var userOverride = Array.Find(overrides, o => o.WidgetType == g.WidgetType);
-                return userOverride ?? g;
-            })
+        var effectiveConfigs = MergeOverrides(globalConfig, overrides)
             .Where(c => c.Enabled)
             .OrderBy(c => c.Order)
             .ToList();
@@ -99,6 +88,46 @@ public sealed class WidgetLayoutResolver
             .OrderBy(d => d.Order)
             .ToList()
             .AsReadOnly();
+    }
+
+    /// <summary>
+    /// Replaces each global row that allows it with the user's override for that same row. Several
+    /// rows can share a widget type, so an override is paired with one row only: by instance id
+    /// (a GUID in <c>ExtraParams["value"]</c>, as Discover, Rewards and Seasonal rows carry) when the
+    /// row has one, otherwise by rank within the type (k-th row by <see cref="WidgetConfig.Order"/>
+    /// takes the k-th override of that type). Each override is used at most once.
+    /// </summary>
+    /// <param name="globalRows">The global widget rows.</param>
+    /// <param name="overrides">The user's override rows.</param>
+    /// <returns>The effective rows, one per global row.</returns>
+    private static IEnumerable<WidgetConfig> MergeOverrides(WidgetConfig[] globalRows, WidgetConfig[] overrides)
+    {
+        var unused = overrides.ToList();
+        foreach (var row in globalRows.OrderBy(g => g.Order))
+        {
+            if (!row.AllowUserOverride)
+            {
+                yield return row;
+                continue;
+            }
+
+            var instanceId = InstanceId(row);
+            var match = unused.FirstOrDefault(o => o.WidgetType == row.WidgetType && InstanceId(o) == instanceId);
+            if (match is null)
+            {
+                yield return row;
+                continue;
+            }
+
+            unused.Remove(match);
+            yield return match;
+        }
+    }
+
+    private static Guid? InstanceId(WidgetConfig row)
+    {
+        var value = row.ExtraParams.FirstOrDefault(p => p.Key == "value")?.Value;
+        return Guid.TryParse(value, out var id) ? id : null;
     }
 
     /// <summary>

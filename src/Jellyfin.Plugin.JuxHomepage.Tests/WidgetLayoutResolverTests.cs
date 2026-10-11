@@ -162,6 +162,56 @@ public sealed class WidgetLayoutResolverTests
         Assert.Equal(["Action", "Drama"], genres);
     }
 
+    [Fact]
+    public async Task BuildDescriptors_TwoRowsOfTheSameType_OverrideAppliesToOneRowByRank()
+    {
+        var registry = new WidgetRegistry();
+        registry.Register(MakeWidget("jux.test.widget", totalRecordCount: 10));
+
+        var first = new WidgetConfig { WidgetType = "jux.test.widget", CustomDisplayName = "Row 1", Order = 10, AllowUserOverride = true, Enabled = true, MinItems = 1 };
+        var second = new WidgetConfig { WidgetType = "jux.test.widget", CustomDisplayName = "Row 2", Order = 20, AllowUserOverride = true, Enabled = true, MinItems = 1 };
+        var userOverride = new WidgetConfig { WidgetType = "jux.test.widget", CustomDisplayName = "Mine", Order = 10, AllowUserOverride = true, Enabled = true, MinItems = 1 };
+
+        var descriptors = await BuildResolverWithOverrides(registry, [first, second], [userOverride])
+            .BuildDescriptors(Guid.NewGuid(), lang: null, CancellationToken.None);
+
+        Assert.Equal(["Mine", "Row 2"], descriptors.Select(d => d.DisplayName));
+    }
+
+    [Fact]
+    public async Task BuildDescriptors_InstanceRows_OverrideMatchedByInstanceValue()
+    {
+        var registry = new WidgetRegistry();
+        registry.Register(MakeWidget("jux.test.widget", totalRecordCount: 10));
+
+        // Instance rows (Discover, Rewards, Seasonal) carry a GUID instance id in ExtraParams["value"].
+        var idA = Guid.NewGuid().ToString();
+        var idB = Guid.NewGuid().ToString();
+        var a = new WidgetConfig { WidgetType = "jux.test.widget", CustomDisplayName = "A", Order = 10, AllowUserOverride = true, Enabled = true, MinItems = 1, ExtraParams = [new WidgetExtraParam { Key = "value", Value = idA }] };
+        var b = new WidgetConfig { WidgetType = "jux.test.widget", CustomDisplayName = "B", Order = 20, AllowUserOverride = true, Enabled = true, MinItems = 1, ExtraParams = [new WidgetExtraParam { Key = "value", Value = idB }] };
+        var overrideB = new WidgetConfig { WidgetType = "jux.test.widget", CustomDisplayName = "Mine B", Order = 20, AllowUserOverride = true, Enabled = true, MinItems = 1, ExtraParams = [new WidgetExtraParam { Key = "value", Value = idB }] };
+
+        var descriptors = await BuildResolverWithOverrides(registry, [a, b], [overrideB])
+            .BuildDescriptors(Guid.NewGuid(), lang: null, CancellationToken.None);
+
+        Assert.Equal(["A", "Mine B"], descriptors.Select(d => d.DisplayName));
+    }
+
+    private static WidgetLayoutResolver BuildResolverWithOverrides(IWidgetRegistry registry, WidgetConfig[] widgets, WidgetConfig[] overrides)
+    {
+        var userConfigStoreMock = new Mock<IUserConfigurationStore>();
+        userConfigStoreMock
+            .Setup(s => s.GetUserConfiguration(It.IsAny<Guid>()))
+            .Returns(new UserConfiguration { WidgetOverrides = overrides });
+
+        return new WidgetLayoutResolver(
+            registry,
+            userConfigStoreMock.Object,
+            new LocalizationService(new Dictionary<string, IReadOnlyDictionary<string, string>>()),
+            () => new PluginConfiguration { Widgets = widgets },
+            NullLogger<WidgetLayoutResolver>.Instance);
+    }
+
     private static WidgetLayoutResolver BuildResolver(IWidgetRegistry registry, WidgetConfig[] widgets)
     {
         var userConfigStoreMock = new Mock<IUserConfigurationStore>();
