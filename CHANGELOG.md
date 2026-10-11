@@ -1,3 +1,18 @@
+## [2.10.0](https://github.com/JellyUX/Homepage/compare/v2.9.2...v2.10.0) (2026-10-11)
+
+### Features
+
+* add a switch for each JellyUX client module ([acb9bd0](https://github.com/JellyUX/Homepage/commit/acb9bd0627d7c5e562a169150b59f9e4fb2b6965))
+
+### Bug Fixes
+
+* cap the progress bar at 50 episode chunks ([72cc730](https://github.com/JellyUX/Homepage/commit/72cc73031f3c31c740c4ebee19b25aa21fe2cbcf))
+* inject only the scripts of enabled modules ([3472b5a](https://github.com/JellyUX/Homepage/commit/3472b5ace6a352b40c16062bd268e9ff134b26e9))
+* load tab card images only when they come into view ([ebe8f03](https://github.com/JellyUX/Homepage/commit/ebe8f031668ee1e899d0d3527ae60b67c2fbbc41))
+* serve client assets as immutable under a content hash ([759aae1](https://github.com/JellyUX/Homepage/commit/759aae1fb272d3adda3fd6684aba6325228a0c1b))
+* stop detail-page modules from refetching on every DOM change ([2ce7624](https://github.com/JellyUX/Homepage/commit/2ce7624b7cd6a2fb1311170183ebd11634344354))
+* stop the home lazy loader at the last page of sections ([b018ba2](https://github.com/JellyUX/Homepage/commit/b018ba29b56d910901a33cd8e8b38355d9e1d224))
+
 ## [2.9.2](https://github.com/JellyUX/Homepage/compare/v2.9.1...v2.9.2) (2026-10-11)
 
 ### Bug Fixes
