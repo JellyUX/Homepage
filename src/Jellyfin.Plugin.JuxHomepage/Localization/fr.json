@@ -44,7 +44,7 @@
   "admin.apikeys.tmdb.error": "Format de clé TMDb invalide. Attendu : 32 caractères hexadécimaux, un jeton bearer v4, ou laisser vide.",
   "admin.cache.title": "Cache",
   "admin.cache.sessionttl.label": "Durée du cache de session (minutes)",
-  "admin.cache.sessionttl.help": "Durée pendant laquelle la mise en page des widgets de la page d'accueil est mise en cache par utilisateur. Réduire pour voir les changements de configuration plus rapidement ; augmenter pour réduire la charge serveur.",
+  "admin.cache.sessionttl.help": "Durée pendant laquelle la mise en page de l'accueil d'un utilisateur est conservée avant d'être reconstruite, comptée depuis sa construction. Enregistrer cette page applique les changements tout de suite. Les choix personnalisés sont recalculés une fois par jour et après la fin d'un titre, pas selon cette durée.",
   "admin.cache.tmdbrefresh.label": "Intervalle de rafraîchissement TMDb (heures)",
   "admin.cache.tmdbrefresh.help": "Fréquence de rafraîchissement des données TMDb. Augmenter pour réduire les appels API externes ; diminuer pour un contenu plus récent.",
   "admin.tmdbcache.title": "Cache TMDb",

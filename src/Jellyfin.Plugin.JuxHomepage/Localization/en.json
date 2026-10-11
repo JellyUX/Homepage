@@ -44,7 +44,7 @@
   "admin.apikeys.tmdb.error": "Invalid TMDb key format. Expected: 32 hexadecimal characters, a v4 bearer token, or leave empty.",
   "admin.cache.title": "Cache",
   "admin.cache.sessionttl.label": "Session cache TTL (minutes)",
-  "admin.cache.sessionttl.help": "How long the home screen widget layout is cached per user. Reduce to see configuration changes more quickly; increase to lower server load.",
+  "admin.cache.sessionttl.help": "How long a user's home screen layout is kept before it is rebuilt, counted from when it was built. Saving this page applies changes at once. Personalized picks are recomputed once a day and after a title is finished, not on this schedule.",
   "admin.cache.tmdbrefresh.label": "TMDb refresh interval (hours)",
   "admin.cache.tmdbrefresh.help": "How often TMDb data is refreshed. Increase to reduce external API calls; decrease for fresher content.",
   "admin.tmdbcache.title": "TMDb Cache",
