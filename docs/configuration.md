@@ -2,6 +2,20 @@
 
 All settings below are found in **Administration > Plugins > JellyUX Homepage**.
 
+## Modules
+
+Each switch below turns one client module on or off. All are on by default. A disabled module is not
+loaded at all: its script is left out of the web client, so it costs nothing on any page. Changes
+apply at the next page reload. Unchecking **Enable JellyUX Homepage** leaves out every JellyUX script.
+
+| Switch | What it adds |
+|---|---|
+| Home tabs | Watchlist, Progress, History and Statistics tabs on the home screen. |
+| Card watchlist button and infinite scroll | Watchlist button on movie and series cards, and infinite scrolling on library pages. |
+| Single-season series | The episodes of a single-season series shown directly on its page. |
+| Collections | "Included In" section on detail pages, and sort controls on collection pages. |
+| Breadcrumb | Library breadcrumb in the header of detail pages. |
+
 ## Common per-widget parameters
 
 Every widget section shares this set of fields, no matter its category:
