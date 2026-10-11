@@ -1,6 +1,7 @@
 using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.Widgets;
 using Jellyfin.Plugin.JuxHomepage.Widgets.Connected;
+using Jellyfin.Plugin.JuxHomepage.Widgets.Native;
 using Jellyfin.Plugin.JuxHomepage.Widgets.Personalized;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Plugins;
@@ -94,6 +95,14 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
     /// <param name="config">The configuration to migrate in place.</param>
     internal static void MigrateConfiguration(PluginConfiguration config)
     {
+        // A fresh install (default instance, never saved) is seeded before the tiers run: the
+        // append-if-missing tiers below would otherwise make the array non-empty and leave the
+        // install with only the rows they add instead of the full default layout.
+        if (config.SchemaVersion < 2 && config.Widgets.Length == 0)
+        {
+            config.Widgets = [.. NativeWidgetDefaults.Build(), .. SeasonalWidgetDefaults.Build()];
+        }
+
         if (config.SchemaVersion < 2)
         {
             config.Widgets = ExplodePersonalizedFanOut(config.Widgets);

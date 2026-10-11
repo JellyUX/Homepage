@@ -1,7 +1,5 @@
 using Jellyfin.Plugin.JuxHomepage.IO;
 using Jellyfin.Plugin.JuxHomepage.TMDb;
-using Jellyfin.Plugin.JuxHomepage.Widgets.Connected;
-using Jellyfin.Plugin.JuxHomepage.Widgets.Native;
 using MediaBrowser.Common.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -55,8 +53,6 @@ public sealed class StartupService : IHostedService
     /// <inheritdoc/>
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        SeedDefaultWidgetConfiguration();
-
         RegisterFileTransformationsIfAvailable();
 
         // Best-effort, not awaited: FileTransformation registration above must never be delayed
@@ -144,25 +140,6 @@ public sealed class StartupService : IHostedService
         TMDbCacheType.AiringToday => _tmdbCacheService.RefreshAiringTodayAsync(cancellationToken),
         _ => Task.CompletedTask
     };
-
-    private void SeedDefaultWidgetConfiguration()
-    {
-        if (Plugin.Instance is null)
-        {
-            return;
-        }
-
-        if (Plugin.Instance.Configuration.Widgets.Length > 0)
-        {
-            return;
-        }
-
-        Plugin.Instance.Configuration.Widgets = [.. NativeWidgetDefaults.Build(), .. SeasonalWidgetDefaults.Build()];
-        Plugin.Instance.SaveConfiguration();
-        _logger.LogInformation(
-            "Seeded default configuration with {Count} native widgets.",
-            Plugin.Instance.Configuration.Widgets.Length);
-    }
 
     private void RegisterIndexHtmlTransformation()
     {

@@ -211,6 +211,11 @@
                 return desc && (desc.Category === this._categoryIndex.Connected || desc.Category === 'Connected');
             },
 
+            isNative: function (widgetType) {
+                var desc = this.getDescriptor(widgetType);
+                return desc && (desc.Category === this._categoryIndex.Native || desc.Category === 'Native');
+            },
+
             DISCOVER_MOVIES_TYPE: 'jux.connected.discover-movies',
 
             isDiscover: function (widgetType) {
@@ -717,6 +722,7 @@
                         var idx = parseInt(btn.getAttribute('data-index'), 10);
                         self.readDomIntoState();
                         self.state.sortedWidgets.splice(idx, 1);
+                        self.populateAddSelect();
                         self.renderWidgets();
                     });
                 });
@@ -952,8 +958,12 @@
                 var sel = document.getElementById('juxAddWidgetType');
                 if (!sel) { return; }
                 var html = '<option value="">' + self.escHtml(self.t('admin.addsection.type.placeholder')) + '</option>';
+                // Native sections are single-instance: offered only when absent, so an install that
+                // lost them (or an admin who removed one) can add them back without duplicates.
+                var presentTypes = (self.state.sortedWidgets || []).map(function (w) { return w.WidgetType; });
                 self.state.descriptors.forEach(function (d) {
-                    if (self.isAdmin(d.WidgetType) || self.isPersonalized(d.WidgetType) || self.isConnected(d.WidgetType)) {
+                    var missingNative = self.isNative(d.WidgetType) && presentTypes.indexOf(d.WidgetType) === -1;
+                    if (missingNative || self.isAdmin(d.WidgetType) || self.isPersonalized(d.WidgetType) || self.isConnected(d.WidgetType)) {
                         html += '<option value="' + self.escHtml(d.WidgetType) + '">' + self.escHtml(self.translatedWidgetName(d.WidgetType, d)) + '</option>';
                     }
                 });
@@ -1323,6 +1333,7 @@
                             var desc = self.getDescriptor(widgetType);
                             var isPers = self.isPersonalized(widgetType);
                             var isConn = self.isConnected(widgetType);
+                            var isNat = self.isNative(widgetType);
                             var isDisc = self.isDiscover(widgetType);
                             var isRew = self.isRewards(widgetType);
                             var isSeas = self.isSeasonal(widgetType);
@@ -1370,12 +1381,12 @@
                                 MinItems: desc ? desc.MinItems : 4,
                                 MaxItems: 20,
                                 ViewMode: desc ? (desc.ViewMode || 'Portrait') : 'Portrait',
-                                AllowUserOverride: false,
+                                AllowUserOverride: isNat,
                                 MinInstances: 1,
-                                MaxInstances: isPers ? 1 : (isConn ? 1 : 5),
+                                MaxInstances: (isPers || isConn || isNat) ? 1 : 5,
                                 ExtraParams: extraParams
                             });
-                            sel.value = '';
+                            self.populateAddSelect();
                             self.renderWidgets();
                         });
                     }

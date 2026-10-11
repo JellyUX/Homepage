@@ -319,4 +319,25 @@ public sealed class PluginValidationTests
         Assert.False(episodesWidget.Enabled);
     }
 
+    [Fact]
+    public void LoadChain_FreshInstall_SeedsAllSevenNativeWidgetsEnabled()
+    {
+        // Same order as the Plugin constructor: a fresh install starts from the default instance.
+        var config = new PluginConfiguration();
+
+        Plugin.MigrateConfiguration(config);
+        Plugin.ValidateConfiguration(config);
+
+        var nativeTypes = Widgets.Native.NativeWidgetDefaults.Build().Select(w => w.WidgetType).ToArray();
+        Assert.Equal(7, nativeTypes.Length);
+        foreach (var type in nativeTypes)
+        {
+            var row = Assert.Single(config.Widgets, w => w.WidgetType == type);
+            Assert.True(row.Enabled, type);
+        }
+
+        Assert.Equal(
+            Widgets.Connected.SeasonalWidgetDefaults.Build().Length,
+            config.Widgets.Count(w => w.WidgetType == "jux.connected.seasonal"));
+    }
 }
