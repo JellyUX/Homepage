@@ -13,7 +13,7 @@ namespace Jellyfin.Plugin.JuxHomepage.Inject;
 /// <see cref="PluginServiceRegistrator"/> (not auto-discovered -- unlike an <c>IScheduledTask</c>,
 /// an <see cref="IHostedService"/> does not show up in Dashboard &gt; Scheduled Tasks).
 /// </summary>
-public sealed class StartupService : IHostedService
+public sealed class StartupService : IHostedService, IDisposable
 {
     private static readonly TMDbCacheType[] TMDbCacheTypes =
     [
@@ -27,6 +27,9 @@ public sealed class StartupService : IHostedService
     private readonly FileTransformationDetector _detector;
     private readonly ITMDbCacheService _tmdbCacheService;
     private readonly IFileSystem _fileSystem;
+    private readonly IHostApplicationLifetime _lifetime;
+    private readonly CancellationTokenSource _stopping = new();
+    private CancellationTokenRegistration _startedRegistration;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="StartupService"/> class.
@@ -36,18 +39,21 @@ public sealed class StartupService : IHostedService
     /// <param name="detector">FileTransformation reflection bridge.</param>
     /// <param name="tmdbCacheService">TMDb cache service, used to refresh a missing/stale cache immediately.</param>
     /// <param name="fileSystem">File system abstraction, used to locate and read the loadSections chunk.</param>
+    /// <param name="lifetime">Host lifetime, used to defer the TMDb refresh until the server has started.</param>
     public StartupService(
         IApplicationPaths applicationPaths,
         ILogger<StartupService> logger,
         FileTransformationDetector detector,
         ITMDbCacheService tmdbCacheService,
-        IFileSystem fileSystem)
+        IFileSystem fileSystem,
+        IHostApplicationLifetime lifetime)
     {
         _applicationPaths = applicationPaths;
         _logger = logger;
         _detector = detector;
         _tmdbCacheService = tmdbCacheService;
         _fileSystem = fileSystem;
+        _lifetime = lifetime;
     }
 
     /// <inheritdoc/>
@@ -55,19 +61,30 @@ public sealed class StartupService : IHostedService
     {
         RegisterFileTransformationsIfAvailable();
 
-        // Best-effort, not awaited: FileTransformation registration above must never be delayed
-        // behind a slow or unreachable TMDb refresh. Previously this refresh was awaited first, so an
-        // unreachable TMDb (see the Phase 3.2 circuit breaker) could leave the home page unpatched --
-        // falling back to native rendering -- for longer than necessary after a restart.
-        // RefreshStaleTMDbCacheAsync already wraps its own body in try/catch and logs failures, so
-        // discarding the task here is safe.
-        _ = RefreshStaleTMDbCacheAsync(CancellationToken.None);
+        // Best-effort, not awaited, and only once the server has started (F-07): run during the boot,
+        // its ~80 HTTP calls per list competed with Jellyfin's own startup. FileTransformation
+        // registration above must never wait for it. The shutdown token stops it with the server.
+        // RefreshStaleTMDbCacheAsync wraps its own body in try/catch and logs failures, so
+        // discarding the task is safe.
+        _startedRegistration = _lifetime.ApplicationStarted.Register(
+            () => _ = RefreshStaleTMDbCacheAsync(_stopping.Token));
 
         return Task.CompletedTask;
     }
 
     /// <inheritdoc/>
-    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        _stopping.Cancel();
+        return Task.CompletedTask;
+    }
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        _startedRegistration.Dispose();
+        _stopping.Dispose();
+    }
 
     private void RegisterFileTransformationsIfAvailable()
     {
