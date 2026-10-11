@@ -15,6 +15,7 @@ namespace Jellyfin.Plugin.JuxHomepage.Tests.Admin;
 /// unknown studio...) must return nothing, never fall through to an unfiltered query over the whole
 /// library (with a full COUNT on top).
 /// </summary>
+[Collection(BaseItemStaticCollection.Name)]
 public sealed class AdminUnresolvedValueTests
 {
     private static Mock<ILibraryManager> LibraryReturningEverything()

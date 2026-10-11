@@ -11,6 +11,7 @@ using Xunit;
 
 namespace Jellyfin.Plugin.JuxHomepage.Tests.Library;
 
+[Collection(BaseItemStaticCollection.Name)]
 public sealed class CollectionsIndexCacheServiceTests : IDisposable
 {
     private readonly string _tempDir = Path.Combine(Path.GetTempPath(), "jux-collections-index-tests-" + Guid.NewGuid());
