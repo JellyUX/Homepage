@@ -230,15 +230,16 @@ public sealed class WidgetLayoutResolver
         var additionalData = selfIdentifies ? instanceDescriptor.AdditionalData : instanceConfig.AdditionalData;
         var displayName = selfIdentifies ? instanceDescriptor.DisplayName : instanceConfig.DisplayName;
 
-        // Fetch a small probe to determine the total record count for MinItems filtering.
-        // Widgets must set TotalRecordCount to the full count regardless of the Limit.
+        // Probe exactly MinItems items for MinItems filtering (F-05): counting every match cost a
+        // second query per section. Widgets that skip the count report the page size as their total,
+        // so the decision takes whichever of the two is larger.
         var payload = new WidgetPayload
         {
             UserId = userId,
             AdditionalData = additionalData,
             ExtraParams = instanceConfig.ExtraParams,
             StartIndex = 0,
-            Limit = 1
+            Limit = Math.Max(1, config.MinItems)
         };
 
         WidgetResult result;
@@ -256,12 +257,13 @@ public sealed class WidgetLayoutResolver
             return null;
         }
 
-        if (result.TotalRecordCount < config.MinItems)
+        var found = Math.Max(result.TotalRecordCount, result.Items.Count);
+        if (found < config.MinItems)
         {
             _logger.LogDebug(
                 "Widget '{WidgetType}' has {Count} items (MinItems={Min}) for user {UserId} - excluded from layout.",
                 config.WidgetType,
-                result.TotalRecordCount,
+                found,
                 config.MinItems,
                 userId);
             return null;

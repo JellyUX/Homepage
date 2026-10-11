@@ -25,6 +25,10 @@ public interface IWatchlistService
     /// </param>
     /// <param name="startIndex">Zero-based start index for pagination.</param>
     /// <param name="limit">Maximum number of items to return.</param>
+    /// <param name="includeTotalRecordCount">
+    /// Whether to run the extra count query. When false, the result reports the page size as its
+    /// total (F-05): the home section and its MinItems probe never need the full count.
+    /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The page of items and the total matching record count.</returns>
     WidgetResult GetItems(
@@ -34,6 +38,7 @@ public interface IWatchlistService
         string? includeItemTypes,
         int startIndex,
         int limit,
+        bool includeTotalRecordCount,
         CancellationToken cancellationToken);
 
     /// <summary>

@@ -173,7 +173,7 @@ public abstract class PersonalizedWidgetBase : IWidget
             IncludeItemTypes = IncludeItemTypes,
             Recursive = true,
             IsMissing = false,
-            EnableTotalRecordCount = true,
+            EnableTotalRecordCount = false,
             StartIndex = payload.StartIndex,
             Limit = payload.Limit,
             DtoOptions = dtoOptions
@@ -188,7 +188,7 @@ public abstract class PersonalizedWidgetBase : IWidget
 
         QueryResult<BaseItem> result = LibraryManager.GetItemsResult(query);
         var dtos = DtoService.GetBaseItemDtos(result.Items, dtoOptions, user);
-        return Task.FromResult(new WidgetResult(dtos, result.TotalRecordCount));
+        return Task.FromResult(new WidgetResult(dtos, dtos.Count));
     }
 
     /// <inheritdoc/>

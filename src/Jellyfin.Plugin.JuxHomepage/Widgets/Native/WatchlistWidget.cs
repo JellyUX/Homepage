@@ -58,6 +58,7 @@ public sealed class WatchlistWidget : NativeWidgetBase
             includeItemTypes: null,
             payload.StartIndex,
             payload.Limit,
+            includeTotalRecordCount: false,
             cancellationToken);
 
         return Task.FromResult(result);

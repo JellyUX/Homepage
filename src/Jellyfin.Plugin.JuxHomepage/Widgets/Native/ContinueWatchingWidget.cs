@@ -62,13 +62,13 @@ public sealed class ContinueWatchingWidget : NativeWidgetBase
             MediaTypes = [MediaType.Video],
             IsVirtualItem = false,
             CollapseBoxSetItems = false,
-            EnableTotalRecordCount = true,
+            EnableTotalRecordCount = false,
             StartIndex = payload.StartIndex,
             Limit = payload.Limit,
             DtoOptions = dtoOptions
         });
 
         var dtos = DtoService.GetBaseItemDtos(result.Items, dtoOptions, user);
-        return Task.FromResult(new WidgetResult(dtos, result.TotalRecordCount));
+        return Task.FromResult(new WidgetResult(dtos, dtos.Count));
     }
 }

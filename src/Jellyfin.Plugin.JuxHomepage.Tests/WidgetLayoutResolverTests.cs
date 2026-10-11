@@ -8,6 +8,7 @@ using MediaBrowser.Controller.Dto;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Model.Dto;
 using MediaBrowser.Model.Querying;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -265,7 +266,8 @@ public sealed class WidgetLayoutResolverTests
                 It.IsAny<DtoOptions>(),
                 It.IsAny<User>(),
                 It.IsAny<BaseItem>()))
-            .Returns([]);
+            .Returns((IReadOnlyList<BaseItem> items, DtoOptions _, User _, BaseItem _) =>
+                items.Select(i => new BaseItemDto { Id = i.Id }).ToList());
 
         var scoringService = new ScoringService(
             userManagerMock.Object,

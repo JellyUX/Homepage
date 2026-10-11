@@ -220,6 +220,38 @@ public sealed class WidgetServiceTests : IDisposable
     // GetWidgetItems
     // -------------------------------------------------------------------------
 
+    [Fact]
+    public async Task GetWidgetsForUser_ProbeAsksMinItemsAndCountsItemsWithoutTotal()
+    {
+        // F-05: the probe reads MinItems items and decides from what came back; a widget that skips
+        // the count query reports the page size as its total.
+        const string widgetType = "page-size-total";
+        const int minItems = 4;
+        var limits = new List<int>();
+        var mock = new Mock<IWidget>();
+        mock.Setup(w => w.WidgetType).Returns(widgetType);
+        mock.Setup(w => w.DefaultDisplayName).Returns(widgetType);
+        mock.Setup(w => w.Resolve(It.IsAny<Guid>(), It.IsAny<WidgetInstanceConfig>(), It.IsAny<int>()))
+            .Returns(() => mock.Object);
+        mock.Setup(w => w.GetItemsAsync(It.IsAny<WidgetPayload>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((WidgetPayload p, CancellationToken _) =>
+            {
+                limits.Add(p.Limit);
+                var items = Enumerable.Range(0, p.Limit).Select(_ => new BaseItemDto()).ToList();
+                return new WidgetResult(items, items.Count);
+            });
+        mock.Setup(w => w.GetDescriptor()).Returns(new WidgetDescriptor { WidgetType = widgetType });
+
+        var service = BuildService(
+            registeredWidgets: [mock.Object],
+            globalWidgets: [new WidgetConfig { WidgetType = widgetType, Enabled = true, MinItems = minItems, Order = 0 }]);
+
+        var result = await service.GetWidgetsForUser(Guid.NewGuid(), page: 0, lang: "en", CancellationToken.None);
+
+        Assert.Equal(widgetType, Assert.Single(result).WidgetType);
+        Assert.Equal(minItems, Assert.Single(limits));
+    }
+
     // -------------------------------------------------------------------------
     // Session cache and pending personalization (F-03)
     // -------------------------------------------------------------------------

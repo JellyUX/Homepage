@@ -23,7 +23,10 @@ public sealed class WidgetResult
     /// <summary>Gets the page of items for this result.</summary>
     public IReadOnlyList<BaseItemDto> Items { get; }
 
-    /// <summary>Gets the total number of matching records before pagination.</summary>
+    /// <summary>
+    /// Gets the total number of matching records before pagination, or the page size for widgets
+    /// that skip the count query (F-05): no home section reads the full total.
+    /// </summary>
     public int TotalRecordCount { get; }
 
     /// <summary>Gets an empty result with no items and a count of zero.</summary>

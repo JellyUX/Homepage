@@ -234,7 +234,7 @@ public sealed class NativeWidgetTests
     {
         var watchlistServiceMock = new Mock<IWatchlistService>();
         watchlistServiceMock
-            .Setup(m => m.GetItems(It.IsAny<Guid>(), null, null, null, It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Setup(m => m.GetItems(It.IsAny<Guid>(), null, null, null, It.IsAny<int>(), It.IsAny<int>(), false, It.IsAny<CancellationToken>()))
             .Returns(new Widgets.WidgetResult([], 3));
 
         var widget = new WatchlistWidget(
@@ -250,7 +250,7 @@ public sealed class NativeWidgetTests
 
         Assert.Equal(3, result.TotalRecordCount);
         watchlistServiceMock.Verify(
-            m => m.GetItems(userId, null, null, null, 0, 20, It.IsAny<CancellationToken>()),
+            m => m.GetItems(userId, null, null, null, 0, 20, false, It.IsAny<CancellationToken>()),
             Times.Once);
     }
 

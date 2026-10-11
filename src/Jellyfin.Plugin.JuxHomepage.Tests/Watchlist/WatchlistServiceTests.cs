@@ -26,7 +26,7 @@ public sealed class WatchlistServiceTests
             new Mock<ILibraryManager>().Object,
             new Mock<IDtoService>().Object);
 
-        var result = service.GetItems(Guid.NewGuid(), null, null, null, 0, 50, CancellationToken.None);
+        var result = service.GetItems(Guid.NewGuid(), null, null, null, 0, 50, true, CancellationToken.None);
 
         Assert.Empty(result.Items);
         Assert.Equal(0, result.TotalRecordCount);
@@ -59,7 +59,7 @@ public sealed class WatchlistServiceTests
 
         var service = new WatchlistService(userManagerMock.Object, libraryManagerMock.Object, dtoServiceMock.Object);
 
-        var result = service.GetItems(user.Id, null, null, null, 0, 50, CancellationToken.None);
+        var result = service.GetItems(user.Id, null, null, null, 0, 50, true, CancellationToken.None);
 
         Assert.NotNull(capturedQuery);
         Assert.True(capturedQuery!.IsLiked);
@@ -93,7 +93,7 @@ public sealed class WatchlistServiceTests
 
         var service = new WatchlistService(userManagerMock.Object, libraryManagerMock.Object, dtoServiceMock.Object);
 
-        service.GetItems(user.Id, null, null, requested, 0, 50, CancellationToken.None);
+        service.GetItems(user.Id, null, null, requested, 0, 50, true, CancellationToken.None);
 
         Assert.NotNull(capturedQuery);
         Assert.Equal([expected], capturedQuery!.IncludeItemTypes);
@@ -120,7 +120,7 @@ public sealed class WatchlistServiceTests
 
         var service = new WatchlistService(userManagerMock.Object, libraryManagerMock.Object, dtoServiceMock.Object);
 
-        service.GetItems(user.Id, "Name", "Ascending", null, 0, 50, CancellationToken.None);
+        service.GetItems(user.Id, "Name", "Ascending", null, 0, 50, true, CancellationToken.None);
 
         Assert.NotNull(capturedQuery);
         Assert.Equal(ItemSortBy.SortName, capturedQuery!.OrderBy[0].Item1);

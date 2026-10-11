@@ -570,7 +570,7 @@ public class JuxHomepageController : ControllerBase
 
         userId = resolvedUserId.Value;
 
-        var result = _watchlistService.GetItems(userId, sortBy, sortOrder, includeItemTypes, startIndex, limit, cancellationToken);
+        var result = _watchlistService.GetItems(userId, sortBy, sortOrder, includeItemTypes, startIndex, limit, includeTotalRecordCount: true, cancellationToken);
         return Ok(result);
     }
 

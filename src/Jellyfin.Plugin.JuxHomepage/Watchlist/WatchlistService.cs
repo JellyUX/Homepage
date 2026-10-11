@@ -36,6 +36,7 @@ public sealed class WatchlistService : IWatchlistService
         string? includeItemTypes,
         int startIndex,
         int limit,
+        bool includeTotalRecordCount,
         CancellationToken cancellationToken)
     {
         var user = _userManager.GetUserById(userId);
@@ -50,7 +51,7 @@ public sealed class WatchlistService : IWatchlistService
             IsLiked = true,
             Recursive = true,
             IsMissing = false,
-            EnableTotalRecordCount = true,
+            EnableTotalRecordCount = includeTotalRecordCount,
             IncludeItemTypes = ResolveIncludeItemTypes(includeItemTypes),
             OrderBy = [(ResolveSortBy(sortBy), ResolveSortOrder(sortOrder))],
             StartIndex = startIndex,
@@ -60,7 +61,7 @@ public sealed class WatchlistService : IWatchlistService
 
         var result = _libraryManager.GetItemsResult(query);
         var dtos = _dtoService.GetBaseItemDtos(result.Items, dtoOptions, user);
-        return new WidgetResult(dtos, result.TotalRecordCount);
+        return new WidgetResult(dtos, includeTotalRecordCount ? result.TotalRecordCount : dtos.Count);
     }
 
     /// <inheritdoc/>

@@ -63,11 +63,11 @@ public sealed class NextUpWidget : NativeWidgetBase
                 User = user,
                 Limit = payload.Limit,
                 StartIndex = payload.StartIndex,
-                EnableTotalRecordCount = true
+                EnableTotalRecordCount = false
             },
             dtoOptions);
 
         var dtos = DtoService.GetBaseItemDtos(result.Items, dtoOptions, user);
-        return Task.FromResult(new WidgetResult(dtos, result.TotalRecordCount));
+        return Task.FromResult(new WidgetResult(dtos, dtos.Count));
     }
 }

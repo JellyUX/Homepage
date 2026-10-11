@@ -98,7 +98,7 @@ public sealed class SeasonalWidget : IWidget
         {
             Recursive = true,
             IsMissing = false,
-            EnableTotalRecordCount = true,
+            EnableTotalRecordCount = false,
             IncludeItemTypes = [BaseItemKind.Movie, BaseItemKind.Series],
             StartIndex = payload.StartIndex,
             Limit = payload.Limit,
@@ -117,7 +117,7 @@ public sealed class SeasonalWidget : IWidget
 
         QueryResult<BaseItem> result = _libraryManager.GetItemsResult(query);
         var dtos = _dtoService.GetBaseItemDtos(result.Items, dtoOptions, user);
-        return Task.FromResult(new WidgetResult(dtos, result.TotalRecordCount));
+        return Task.FromResult(new WidgetResult(dtos, dtos.Count));
     }
 
     /// <inheritdoc/>
