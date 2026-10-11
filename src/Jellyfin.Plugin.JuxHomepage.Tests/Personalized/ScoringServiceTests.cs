@@ -41,6 +41,7 @@ public sealed class ScoringServiceTests
             .ToList();
 
         var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
         libraryManagerMock
             .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(
                 q => q.IsFavorite != true && q.IncludeItemTypes.Contains(BaseItemKind.Movie))))
@@ -54,8 +55,8 @@ public sealed class ScoringServiceTests
                 q => q.IsFavorite != true && q.IncludeItemTypes.SequenceEqual(new[] { BaseItemKind.Series }))))
             .Returns((InternalItemsQuery q) => series.Where(s => q.ItemIds.Contains(s.Id)).ToList());
         libraryManagerMock
-            .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.IsFavorite == true)))
-            .Returns(favorites);
+            .Setup(m => m.GetItemIds(It.Is<InternalItemsQuery>(q => q.IsFavorite == true)))
+            .Returns(favorites.Select(f => f.Id).ToList());
         libraryManagerMock
             .Setup(m => m.GetPeople(It.IsAny<BaseItem>()))
             .Returns((BaseItem item) => people(item));
@@ -102,6 +103,7 @@ public sealed class ScoringServiceTests
 
         var genreMovie = new Movie { Id = Guid.NewGuid(), Name = "Film", Genres = ["Drama"] };
         var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
         libraryManagerMock
             .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(
                 q => q.IsFavorite != true && q.IncludeItemTypes.Contains(BaseItemKind.Movie))))
@@ -274,6 +276,7 @@ public sealed class ScoringServiceTests
         var user = new User("test", "Default", "Default");
         var computations = 0;
         var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
         libraryManagerMock
             .Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
             .Returns((InternalItemsQuery q) =>

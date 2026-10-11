@@ -234,6 +234,7 @@ public sealed class WidgetLayoutResolverTests
         userManagerMock.Setup(m => m.GetUserById(It.IsAny<Guid>())).Returns(user);
 
         var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
         libraryManagerMock
             .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(
                 q => q.IsFavorite != true && q.IncludeItemTypes.Contains(BaseItemKind.Movie))))

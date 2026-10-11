@@ -370,7 +370,7 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
             Recursive = true,
             OrderBy = [(ItemSortBy.DatePlayed, SortOrder.Descending)],
             Limit = MaxWatchedScan,
-            DtoOptions = new DtoOptions { Fields = [] }
+            DtoOptions = new DtoOptions { Fields = [], EnableImages = false }
         });
 
         var seriesLastPlayed = GetWatchedSeriesLastPlayed(user, cancellationToken);
@@ -380,7 +380,7 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
             {
                 IncludeItemTypes = [BaseItemKind.Series],
                 ItemIds = [.. seriesLastPlayed.Keys],
-                DtoOptions = new DtoOptions { Fields = [] }
+                DtoOptions = new DtoOptions { Fields = [], EnableImages = false }
             });
 
         if (watchedMovies.Count == 0 && watchedSeries.Count == 0)
@@ -397,14 +397,13 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
             .Take(MaxWatchedScan)
             .ToList();
 
-        var favoriteIds = _libraryManager.GetItemList(new InternalItemsQuery(user)
+        var favoriteIds = _libraryManager.GetItemIds(new InternalItemsQuery(user)
         {
             IncludeItemTypes = [BaseItemKind.Movie, BaseItemKind.Series],
             IsFavorite = true,
             Recursive = true,
-            Limit = MaxWatchedScan,
-            DtoOptions = new DtoOptions { Fields = [] }
-        }).Select(i => i.Id).ToHashSet();
+            Limit = MaxWatchedScan
+        }).ToHashSet();
 
         var genreScores = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
         var actorScores = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
@@ -481,7 +480,7 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
                 OrderBy = [(ItemSortBy.DatePlayed, SortOrder.Descending)],
                 StartIndex = page * EpisodePageSize,
                 Limit = EpisodePageSize,
-                DtoOptions = new DtoOptions { Fields = [] }
+                DtoOptions = new DtoOptions { Fields = [], EnableImages = false }
             });
 
             // Episodes arrive most recently played first, so the first one seen for a series

@@ -25,6 +25,7 @@ public sealed class ScoringInvalidationListenerTests
         userManagerMock.Setup(m => m.GetUserById(It.IsAny<Guid>())).Returns(_user);
 
         var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
         libraryManagerMock
             .Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
             .Returns((InternalItemsQuery q) =>

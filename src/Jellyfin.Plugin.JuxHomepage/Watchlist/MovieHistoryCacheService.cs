@@ -148,7 +148,7 @@ public sealed class MovieHistoryCacheService : IMovieHistoryCacheService, IDispo
             IsPlayed = true,
             Recursive = true,
             OrderBy = [(ItemSortBy.DatePlayed, SortOrder.Descending)],
-            DtoOptions = new MediaBrowser.Controller.Dto.DtoOptions { Fields = [] }
+            DtoOptions = new MediaBrowser.Controller.Dto.DtoOptions { Fields = [], EnableImages = false }
         });
 
         return movies

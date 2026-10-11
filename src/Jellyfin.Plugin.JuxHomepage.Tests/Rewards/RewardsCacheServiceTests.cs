@@ -47,9 +47,9 @@ public sealed class RewardsCacheServiceTests : IDisposable
 
         var libraryManagerMock = new Mock<ILibraryManager>();
         libraryManagerMock
-            .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(
+            .Setup(m => m.GetItemIds(It.Is<InternalItemsQuery>(
                 q => q.HasAnyProviderId != null && q.HasAnyProviderId.ContainsKey("Imdb"))))
-            .Returns([libraryItem]);
+            .Returns([libraryItem.Id]);
 
         var apiClientMock = new Mock<IWikidataApiClient>();
         apiClientMock
@@ -81,7 +81,7 @@ public sealed class RewardsCacheServiceTests : IDisposable
         var instanceId = Guid.NewGuid().ToString();
 
         var libraryManagerMock = new Mock<ILibraryManager>();
-        libraryManagerMock.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([]);
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
 
         var apiClientMock = new Mock<IWikidataApiClient>();
         apiClientMock
@@ -94,9 +94,9 @@ public sealed class RewardsCacheServiceTests : IDisposable
 
         await service.RefreshInstanceAsync(instanceId, new RewardsFilter { CategoryQid = "Q102427" }, CancellationToken.None);
 
-        // GetItemList must never have been queried with a Tmdb provider id lookup for this item.
+        // GetItemIds must never have been queried with a Tmdb provider id lookup for this item.
         libraryManagerMock.Verify(
-            m => m.GetItemList(It.Is<InternalItemsQuery>(
+            m => m.GetItemIds(It.Is<InternalItemsQuery>(
                 q => q.HasAnyProviderId != null && q.HasAnyProviderId.ContainsKey("Tmdb"))),
             Times.Never);
     }
@@ -111,8 +111,8 @@ public sealed class RewardsCacheServiceTests : IDisposable
         var instanceId = Guid.NewGuid().ToString();
         var libraryManagerMock = new Mock<ILibraryManager>();
         libraryManagerMock
-            .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.HasAnyProviderId != null)))
-            .Returns([new Movie { Id = Guid.NewGuid(), Name = "Existing" }]);
+            .Setup(m => m.GetItemIds(It.Is<InternalItemsQuery>(q => q.HasAnyProviderId != null)))
+            .Returns([Guid.NewGuid()]);
 
         var apiClientMock = new Mock<IWikidataApiClient>();
         apiClientMock
@@ -141,7 +141,7 @@ public sealed class RewardsCacheServiceTests : IDisposable
     {
         var instanceId = Guid.NewGuid().ToString();
         var libraryManagerMock = new Mock<ILibraryManager>();
-        libraryManagerMock.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([]);
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
 
         var apiClientMock = new Mock<IWikidataApiClient>();
         apiClientMock

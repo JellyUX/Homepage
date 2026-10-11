@@ -73,15 +73,13 @@ public sealed class WatchlistService : IWatchlistService
             return [];
         }
 
-        var result = _libraryManager.GetItemList(new InternalItemsQuery(user)
+        // Ids only (F-06): loading entities joined every item's images and user data on each page load.
+        return _libraryManager.GetItemIds(new InternalItemsQuery(user)
         {
             IsLiked = true,
             Recursive = true,
-            IsMissing = false,
-            DtoOptions = new DtoOptions { Fields = [] }
+            IsMissing = false
         });
-
-        return result.Select(item => item.Id).ToList();
     }
 
     /// <summary>

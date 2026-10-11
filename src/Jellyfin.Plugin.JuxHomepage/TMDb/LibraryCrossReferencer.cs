@@ -45,7 +45,7 @@ public sealed class LibraryCrossReferencer
     /// processed with bounded concurrency (both the external IMDb ID HTTP lookup and the local
     /// library query per item) -- <see cref="ILibraryManager"/> does not support matching against a
     /// list of provider id values in a single query (<c>InternalItemsQuery.HasAnyProviderId</c> is a
-    /// dictionary, one exact value per provider key), so <see cref="FindLibraryMatch"/> itself cannot
+    /// dictionary, one exact value per provider key), so <see cref="FindLibraryMatchId"/> itself cannot
     /// be batched across items; parallelizing the per-item pipeline is the available alternative.
     /// </summary>
     /// <typeparam name="T">The external cache item type.</typeparam>
@@ -90,19 +90,19 @@ public sealed class LibraryCrossReferencer
                     _logger.LogWarning(ex, "Failed to fetch external IDs for TMDb id {TmdbId}.", item.Id);
                 }
 
-                BaseItem? match = string.IsNullOrEmpty(imdbId)
+                var match = string.IsNullOrEmpty(imdbId)
                     ? null
-                    : FindLibraryMatch(MetadataProvider.Imdb, imdbId, includeItemTypes);
+                    : FindLibraryMatchId(MetadataProvider.Imdb, imdbId, includeItemTypes);
 
                 if (match is null && fallbackProvider is { } provider)
                 {
-                    match = FindLibraryMatch(
+                    match = FindLibraryMatchId(
                         provider,
                         item.Id.ToString(CultureInfo.InvariantCulture),
                         includeItemTypes);
                 }
 
-                item.LibraryItemId = match?.Id;
+                item.LibraryItemId = match;
                 return match is not null;
             }
             finally
@@ -117,9 +117,9 @@ public sealed class LibraryCrossReferencer
         return matched;
     }
 
-    private BaseItem? FindLibraryMatch(MetadataProvider provider, string value, BaseItemKind[] includeItemTypes)
+    private Guid? FindLibraryMatchId(MetadataProvider provider, string value, BaseItemKind[] includeItemTypes)
     {
-        var result = _libraryManager.GetItemList(new InternalItemsQuery
+        var result = _libraryManager.GetItemIds(new InternalItemsQuery
         {
             HasAnyProviderId = new Dictionary<string, string> { [provider.ToString()] = value },
             IncludeItemTypes = includeItemTypes,

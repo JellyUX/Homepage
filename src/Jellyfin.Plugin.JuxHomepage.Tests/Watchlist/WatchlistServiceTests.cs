@@ -139,9 +139,9 @@ public sealed class WatchlistServiceTests
         InternalItemsQuery? capturedQuery = null;
         var libraryManagerMock = new Mock<ILibraryManager>();
         libraryManagerMock
-            .Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
+            .Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>()))
             .Callback<InternalItemsQuery>(q => capturedQuery = q)
-            .Returns([movie]);
+            .Returns([movie.Id]);
 
         var service = new WatchlistService(userManagerMock.Object, libraryManagerMock.Object, new Mock<IDtoService>().Object);
 

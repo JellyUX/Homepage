@@ -59,7 +59,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
     private static ILibraryManager NoMatchLibraryManager()
     {
         var mock = new Mock<ILibraryManager>();
-        mock.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([]);
+        mock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
         return mock.Object;
     }
 
@@ -137,9 +137,9 @@ public sealed class TMDbCacheServiceTests : IDisposable
 
         var libraryManagerMock = new Mock<ILibraryManager>();
         libraryManagerMock
-            .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(
+            .Setup(m => m.GetItemIds(It.Is<InternalItemsQuery>(
                 q => q.HasAnyProviderId != null && q.HasAnyProviderId.ContainsKey("Imdb"))))
-            .Returns([libraryItem]);
+            .Returns([libraryItem.Id]);
 
         var service = BuildService(apiClientMock.Object, libraryManagerMock.Object);
 
@@ -163,10 +163,10 @@ public sealed class TMDbCacheServiceTests : IDisposable
 
         var libraryManagerMock = new Mock<ILibraryManager>();
         libraryManagerMock
-            .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(
+            .Setup(m => m.GetItemIds(It.Is<InternalItemsQuery>(
                 q => q.HasAnyProviderId != null && q.HasAnyProviderId.ContainsKey("Tmdb")
                      && q.HasAnyProviderId["Tmdb"] == "27205")))
-            .Returns([libraryItem]);
+            .Returns([libraryItem.Id]);
 
         var service = BuildService(apiClientMock.Object, libraryManagerMock.Object);
 
@@ -188,7 +188,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
 
         var libraryManagerMock = new Mock<ILibraryManager>();
         libraryManagerMock
-            .Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
+            .Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>()))
             .Returns([]);
 
         var service = BuildService(apiClientMock.Object, libraryManagerMock.Object);
@@ -223,9 +223,9 @@ public sealed class TMDbCacheServiceTests : IDisposable
 
         var libraryManagerMock = new Mock<ILibraryManager>();
         libraryManagerMock
-            .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(
+            .Setup(m => m.GetItemIds(It.Is<InternalItemsQuery>(
                 q => q.HasAnyProviderId != null && q.HasAnyProviderId.ContainsKey("Imdb"))))
-            .Returns([libraryItem]);
+            .Returns([libraryItem.Id]);
 
         var service = BuildService(apiClientMock.Object, libraryManagerMock.Object);
 
@@ -256,8 +256,8 @@ public sealed class TMDbCacheServiceTests : IDisposable
 
         var libraryManagerMock = new Mock<ILibraryManager>();
         libraryManagerMock
-            .Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
-            .Returns([libraryItem]);
+            .Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>()))
+            .Returns([libraryItem.Id]);
 
         var service = BuildService(apiClientMock.Object, libraryManagerMock.Object);
 
@@ -311,15 +311,15 @@ public sealed class TMDbCacheServiceTests : IDisposable
 
         var libraryManagerMock = new Mock<ILibraryManager>();
         libraryManagerMock
-            .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.HasAnyProviderId!.ContainsKey("Imdb"))))
+            .Setup(m => m.GetItemIds(It.Is<InternalItemsQuery>(q => q.HasAnyProviderId!.ContainsKey("Imdb"))))
             .Returns((InternalItemsQuery q) =>
             {
                 var imdbId = q.HasAnyProviderId!["Imdb"];
                 var tmdbId = int.Parse(imdbId.Substring(2), CultureInfo.InvariantCulture);
-                return libraryItemsByTmdbId.TryGetValue(tmdbId, out var item) ? [item] : [];
+                return libraryItemsByTmdbId.TryGetValue(tmdbId, out var item) ? [item.Id] : [];
             });
         libraryManagerMock
-            .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.HasAnyProviderId!.ContainsKey("Tmdb"))))
+            .Setup(m => m.GetItemIds(It.Is<InternalItemsQuery>(q => q.HasAnyProviderId!.ContainsKey("Tmdb"))))
             .Returns([]);
 
         var service = BuildService(apiClientMock.Object, libraryManagerMock.Object);
