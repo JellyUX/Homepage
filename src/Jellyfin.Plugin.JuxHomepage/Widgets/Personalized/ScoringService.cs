@@ -40,6 +40,13 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
     private const int EpisodePageSize = 500;
 
     /// <summary>
+    /// Number of most recent titles whose people (actors, directors) are read. Jellyfin has no
+    /// batch people lookup, so each title costs one query (~3.8 ms each on a host copy of a
+    /// 3000-film library: 1.9 s for 500 titles, F-06); genres still use the whole history.
+    /// </summary>
+    private const int MaxPeopleScan = 100;
+
+    /// <summary>
     /// Upper bound on played-episode pages read to find watched series, so a user with a very long
     /// episode history of few series cannot turn one recompute into an unbounded walk.
     /// </summary>
@@ -427,6 +434,11 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
             foreach (var genre in item.Genres)
             {
                 genreScores[genre] = genreScores.GetValueOrDefault(genre) + weight;
+            }
+
+            if (i >= MaxPeopleScan)
+            {
+                continue;
             }
 
             foreach (var person in _libraryManager.GetPeople(item))

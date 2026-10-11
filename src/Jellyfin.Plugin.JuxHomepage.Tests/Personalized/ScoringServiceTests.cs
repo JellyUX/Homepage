@@ -430,6 +430,31 @@ public sealed class ScoringServiceTests
     }
 
     [Fact]
+    public void GetTopActors_FiveHundredTitles_ReadsPeopleOfTheHundredMostRecentOnly()
+    {
+        // F-06: one people query per title, bounded; genres still count every title.
+        var user = new User("test", "Default", "Default");
+        var items = Enumerable.Range(0, 500)
+            .Select(i => (BaseItem)new Movie { Id = Guid.NewGuid(), Name = $"Film {i}", Genres = ["Drama"] })
+            .ToList();
+        var peopleReads = 0;
+
+        var service = BuildService(
+            user,
+            watched: items,
+            favorites: [],
+            people: _ =>
+            {
+                Interlocked.Increment(ref peopleReads);
+                return [Actor("Someone")];
+            });
+
+        Assert.Equal("Someone", Assert.Single(service.GetTopActors(user.Id, 5)).Value);
+        Assert.Equal(100, peopleReads);
+        Assert.Equal("Drama", Assert.Single(service.GetTopGenres(user.Id, 5)).Value);
+    }
+
+    [Fact]
     public void GetTopDirectors_ExcludesActorsFromDirectorTally()
     {
         var user = new User("test", "Default", "Default");
