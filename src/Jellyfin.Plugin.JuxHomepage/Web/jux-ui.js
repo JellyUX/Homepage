@@ -40,8 +40,58 @@
         hideLoading: hideLoading,
         buildProgressBar: buildProgressBar,
         buildStatCard: buildStatCard,
-        openSortDialog: openSortDialog
+        openSortDialog: openSortDialog,
+        observeCardImages: observeCardImages
     };
+
+    // -------------------------------------------------------------------------
+    // Deferred card images (TODO_V4.md 2.3, F-10)
+    // -------------------------------------------------------------------------
+
+    // cardBuilder.getCardsHtml emits ".cardImageContainer.lazy[data-src]", but a JUX tab's plain
+    // <div> container never gets Jellyfin's native lazy loading, so the image has to be applied by
+    // hand. Each image is applied when its card comes near the viewport, instead of all at once on
+    // every tab click. One observer per container: re-rendering a container drops the observer of
+    // its previous, now detached cards.
+    var _imageObservers = typeof WeakMap === 'function' ? new WeakMap() : null;
+
+    function _applyCardImage(el) {
+        var src = el.getAttribute('data-src');
+        if (!src) { return; }
+        el.style.backgroundImage = 'url(\'' + src + '\')';
+        el.classList.remove('lazy');
+        el.classList.add('lazy-image-fadein-fast');
+    }
+
+    function observeCardImages(container) {
+        if (!container) {
+            return;
+        }
+
+        var lazyImages = container.querySelectorAll('.cardImageContainer.lazy[data-src]');
+        if (typeof IntersectionObserver === 'undefined' || !_imageObservers) {
+            Array.prototype.forEach.call(lazyImages, _applyCardImage);
+            return;
+        }
+
+        var previous = _imageObservers.get(container);
+        if (previous) {
+            previous.disconnect();
+        }
+
+        var observer = new IntersectionObserver(function (entries) {
+            entries.forEach(function (entry) {
+                if (entry.isIntersecting) {
+                    observer.unobserve(entry.target);
+                    _applyCardImage(entry.target);
+                }
+            });
+        }, { rootMargin: '300px' });
+        _imageObservers.set(container, observer);
+        Array.prototype.forEach.call(lazyImages, function (el) {
+            observer.observe(el);
+        });
+    }
 
     // -------------------------------------------------------------------------
     // Empty state
@@ -274,6 +324,7 @@
             showEmpty: showEmpty,
             buildProgressBar: buildProgressBar,
             buildStatCard: buildStatCard,
+            observeCardImages: observeCardImages,
             _escHtml: _escHtml,
             _buildRadio: _buildRadio,
             _buildRadioGroup: _buildRadioGroup

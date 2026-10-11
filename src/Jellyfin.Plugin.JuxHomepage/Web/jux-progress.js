@@ -8,8 +8,8 @@
 //
 // Same conventions as jux-watchlist.js: loaded as a plain <script src>, click listener delegated on
 // `document` (the tab bar/button is recreated on every view mount), rendered via
-// window.JellyfinAPI.cardBuilder.getCardsHtml + the same manual _loadCardImages workaround (a plain
-// <div> pane never gets Jellyfin's native lazy-image loading).
+// window.JellyfinAPI.cardBuilder.getCardsHtml + JuxUI.observeCardImages (a plain <div>
+// pane never gets Jellyfin's native lazy-image loading).
 //
 // Each row is a series -- not just a BaseItemDto, but a { Item, WatchedEpisodes, TotalEpisodes,
 // LastEpisodeName, ... } object (see Watchlist/SeriesProgressViewService.cs), so after cardBuilder
@@ -186,21 +186,10 @@
             lines: 2
         });
 
-        _loadCardImages(itemsContainer);
+        if (window.JuxUI) {
+            window.JuxUI.observeCardImages(itemsContainer);
+        }
         _decorateCards(itemsContainer, rows, lang);
-    }
-
-    // See jux-watchlist.js -- a plain <div> container never gets Jellyfin's native lazy-image
-    // loading, so the background image has to be applied manually.
-    function _loadCardImages(container) {
-        var lazyImages = container.querySelectorAll('.cardImageContainer.lazy[data-src]');
-        Array.prototype.forEach.call(lazyImages, function (el) {
-            var src = el.getAttribute('data-src');
-            if (!src) { return; }
-            el.style.backgroundImage = 'url(\'' + src + '\')';
-            el.classList.remove('lazy');
-            el.classList.add('lazy-image-fadein-fast');
-        });
     }
 
     // Adds a visual progress bar, a progress line ("3/10 episodes", "Last: S01E04 - Name"), and a

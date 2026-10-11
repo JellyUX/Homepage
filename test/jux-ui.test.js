@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import juxUi from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-ui.js';
 
-const { showEmpty, buildProgressBar, buildStatCard, _escHtml, _buildRadio, _buildRadioGroup } = juxUi;
+const { showEmpty, buildProgressBar, buildStatCard, observeCardImages, _escHtml, _buildRadio, _buildRadioGroup } = juxUi;
 
 describe('_escHtml', () => {
     it('escapes HTML special characters', () => {
@@ -124,5 +124,65 @@ describe('_buildRadioGroup', () => {
         expect(inputs.length).toBe(2);
         expect(inputs[0].checked).toBe(false);
         expect(inputs[1].checked).toBe(true);
+    });
+});
+
+describe('observeCardImages (F-10)', () => {
+    const originalObserver = globalThis.IntersectionObserver;
+    let observers = [];
+
+    afterEach(() => {
+        globalThis.IntersectionObserver = originalObserver;
+        observers = [];
+    });
+
+    function installObserver() {
+        globalThis.IntersectionObserver = class {
+            constructor(callback) { this.callback = callback; this.targets = []; this.disconnected = false; observers.push(this); }
+            observe(el) { this.targets.push(el); }
+            unobserve(el) { this.targets = this.targets.filter(t => t !== el); }
+            disconnect() { this.disconnected = true; this.targets = []; }
+        };
+    }
+
+    function cards(count) {
+        const container = document.createElement('div');
+        container.innerHTML = Array.from({ length: count }, (_, i) =>
+            '<div class="cardImageContainer lazy" data-src="/Items/' + i + '/Images/Primary"></div>').join('');
+        return container;
+    }
+
+    it('applies only the images of cards that come into view', () => {
+        installObserver();
+        const container = cards(100);
+
+        observeCardImages(container);
+        const visible = observers[0].targets.slice(0, 10);
+        observers[0].callback(visible.map(target => ({ target, isIntersecting: true })));
+
+        expect(container.querySelectorAll('.cardImageContainer:not(.lazy)').length).toBe(10);
+        expect(visible[0].style.backgroundImage).toContain('/Items/0/Images/Primary');
+        expect(observers[0].targets.length).toBe(90);
+    });
+
+    it('drops the observer of the previous render of the same container', () => {
+        installObserver();
+        const container = cards(3);
+
+        observeCardImages(container);
+        container.innerHTML = cards(2).innerHTML;
+        observeCardImages(container);
+
+        expect(observers[0].disconnected).toBe(true);
+        expect(observers[1].targets.length).toBe(2);
+    });
+
+    it('applies every image at once without IntersectionObserver', () => {
+        globalThis.IntersectionObserver = undefined;
+        const container = cards(3);
+
+        observeCardImages(container);
+
+        expect(container.querySelectorAll('.cardImageContainer.lazy').length).toBe(0);
     });
 });

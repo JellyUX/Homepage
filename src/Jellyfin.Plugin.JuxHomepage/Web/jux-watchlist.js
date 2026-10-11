@@ -223,25 +223,9 @@
             lines: 2
         });
 
-        _loadCardImages(itemsContainer);
-    }
-
-    // cardBuilder.getCardsHtml always emits ".cardImageContainer.lazy[data-src]" regardless of the
-    // `lazy` option -- actual loading normally happens through Jellyfin's native
-    // "emby-itemscontainer" custom element (see jux-homepage.js's `.resume({refresh:true})` call),
-    // which this tab's plain <div> container never gets. Confirmed live on jellyux-test: without
-    // this, cards render with a placeholder icon and no cover art, even though the data-src URL is
-    // present and valid. Applying it directly is a simple, self-contained fix that doesn't depend on
-    // any internal Jellyfin lazy-loading module.
-    function _loadCardImages(container) {
-        var lazyImages = container.querySelectorAll('.cardImageContainer.lazy[data-src]');
-        Array.prototype.forEach.call(lazyImages, function (el) {
-            var src = el.getAttribute('data-src');
-            if (!src) { return; }
-            el.style.backgroundImage = 'url(\'' + src + '\')';
-            el.classList.remove('lazy');
-            el.classList.add('lazy-image-fadein-fast');
-        });
+        if (window.JuxUI) {
+            window.JuxUI.observeCardImages(itemsContainer);
+        }
     }
 
     function _escHtml(str) {

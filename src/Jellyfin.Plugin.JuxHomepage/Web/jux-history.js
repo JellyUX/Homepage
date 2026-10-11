@@ -6,8 +6,7 @@
 // spinner, and an icon-based empty state.
 //
 // Same conventions as jux-watchlist.js/jux-progress.js: click listener delegated on `document`,
-// rendered via window.JellyfinAPI.cardBuilder.getCardsHtml + the same manual _loadCardImages
-// workaround.
+// rendered via window.JellyfinAPI.cardBuilder.getCardsHtml + JuxUI.observeCardImages.
 //
 // Unlike Series Progress, each row here is a plain BaseItemDto (see
 // Watchlist/MovieHistoryViewService.cs -- history rows need no extra per-item fields, the last-played
@@ -183,21 +182,10 @@
             lines: 2
         });
 
-        _loadCardImages(itemsContainer);
+        if (window.JuxUI) {
+            window.JuxUI.observeCardImages(itemsContainer);
+        }
         _decorateCards(itemsContainer, items, lang);
-    }
-
-    // See jux-watchlist.js -- a plain <div> container never gets Jellyfin's native lazy-image
-    // loading, so the background image has to be applied manually.
-    function _loadCardImages(container) {
-        var lazyImages = container.querySelectorAll('.cardImageContainer.lazy[data-src]');
-        Array.prototype.forEach.call(lazyImages, function (el) {
-            var src = el.getAttribute('data-src');
-            if (!src) { return; }
-            el.style.backgroundImage = 'url(\'' + src + '\')';
-            el.classList.remove('lazy');
-            el.classList.add('lazy-image-fadein-fast');
-        });
     }
 
     function _decorateCards(container, items, lang) {
