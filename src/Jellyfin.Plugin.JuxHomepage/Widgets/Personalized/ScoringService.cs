@@ -47,6 +47,13 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
     private const int MaxPeopleScan = 100;
 
     /// <summary>
+    /// People scan of a user's very first computation, which a request may wait on (2 s at most):
+    /// ~650 ms for 25 titles on a 40-people-per-film copy (1.7). The full <see cref="MaxPeopleScan"/>
+    /// computation follows in the background at once and replaces it.
+    /// </summary>
+    private const int InitialPeopleScan = 25;
+
+    /// <summary>
     /// Upper bound on played-episode pages read to find watched series, so a user with a very long
     /// episode history of few series cannot turn one recompute into an unbounded walk.
     /// </summary>
@@ -246,7 +253,7 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
 
     private bool IsFresh(ScoreSnapshot snapshot, DateOnly today)
     {
-        if (snapshot.Stale)
+        if (snapshot.Stale || snapshot.Partial)
         {
             return false;
         }
@@ -314,8 +321,9 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
         // A dedicated thread, not the thread pool: callers block on this task (WaitForFirstCompute),
         // and under load a pool-scheduled computation would wait for a pool thread held by those
         // very callers. The bounded queue caps how many of these threads can exist.
+        var peopleScan = _cache.ContainsKey(userId) ? MaxPeopleScan : InitialPeopleScan;
         var created = new Lazy<Task<ScoreSnapshot>>(() => Task.Factory.StartNew(
-            () => RunCompute(userId),
+            () => RunCompute(userId, peopleScan),
             CancellationToken.None,
             TaskCreationOptions.LongRunning,
             TaskScheduler.Default));
@@ -328,8 +336,23 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
         return actual.Value;
     }
 
-    private ScoreSnapshot RunCompute(Guid userId)
+    private ScoreSnapshot RunCompute(Guid userId, int peopleScan)
     {
+        var snapshot = RunComputeOnce(userId, peopleScan, out var stored);
+
+        // A partial first snapshot is followed at once by the full one, now that this computation
+        // has left the in-flight table; meanwhile the partial snapshot is served.
+        if (stored && snapshot.Partial)
+        {
+            StartCompute(userId);
+        }
+
+        return snapshot;
+    }
+
+    private ScoreSnapshot RunComputeOnce(Guid userId, int peopleScan, out bool stored)
+    {
+        stored = false;
         var generation = Volatile.Read(ref _generation);
         try
         {
@@ -337,10 +360,11 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
             _computeGate.Wait(token);
             try
             {
-                var snapshot = ComputeSnapshot(userId, token);
+                var snapshot = ComputeSnapshot(userId, peopleScan, token);
                 if (generation == Volatile.Read(ref _generation))
                 {
                     _cache[userId] = snapshot;
+                    stored = true;
                 }
 
                 return snapshot;
@@ -362,7 +386,7 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
         }
     }
 
-    private ScoreSnapshot ComputeSnapshot(Guid userId, CancellationToken cancellationToken)
+    private ScoreSnapshot ComputeSnapshot(Guid userId, int peopleScan, CancellationToken cancellationToken)
     {
         var user = _userManager.GetUserById(userId);
         if (user is null)
@@ -436,7 +460,7 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
                 genreScores[genre] = genreScores.GetValueOrDefault(genre) + weight;
             }
 
-            if (i >= MaxPeopleScan)
+            if (i >= peopleScan)
             {
                 continue;
             }
@@ -463,7 +487,10 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
                 i.Name,
                 i is Series ? BaseItemKind.Series : BaseItemKind.Movie)).ToList(),
             UtcNow,
-            Today);
+            Today)
+        {
+            Partial = peopleScan < MaxPeopleScan && watched.Count > peopleScan
+        };
     }
 
     /// <summary>
@@ -560,6 +587,12 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
         /// computed: it is still served, but replaced in the background.
         /// </summary>
         public bool Stale { get; init; }
+
+        /// <summary>
+        /// Gets a value indicating whether people were read from the most recent titles only
+        /// (<see cref="InitialPeopleScan"/>): served while the full computation runs.
+        /// </summary>
+        public bool Partial { get; init; }
 
         /// <summary>
         /// Creates an empty snapshot stamped with the current time, so that -- unlike a single

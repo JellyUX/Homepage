@@ -430,9 +430,10 @@ public sealed class ScoringServiceTests
     }
 
     [Fact]
-    public void GetTopActors_FiveHundredTitles_ReadsPeopleOfTheHundredMostRecentOnly()
+    public void GetTopActors_FiveHundredTitles_FirstAccessReads25ThenTheFull100InTheBackground()
     {
-        // F-06: one people query per title, bounded; genres still count every title.
+        // F-06 / 1.7: one people query per title, bounded; the first access reads 25 titles so it
+        // answers fast, the full 100-title computation follows at once; genres count every title.
         var user = new User("test", "Default", "Default");
         var items = Enumerable.Range(0, 500)
             .Select(i => (BaseItem)new Movie { Id = Guid.NewGuid(), Name = $"Film {i}", Genres = ["Drama"] })
@@ -450,8 +451,15 @@ public sealed class ScoringServiceTests
             });
 
         Assert.Equal("Someone", Assert.Single(service.GetTopActors(user.Id, 5)).Value);
-        Assert.Equal(100, peopleReads);
+        Assert.True(peopleReads >= 25, $"read {peopleReads}");
+
+        SpinWait.SpinUntil(() => Volatile.Read(ref peopleReads) >= 125, TimeSpan.FromSeconds(5));
+        Thread.Sleep(100);
+        Assert.Equal(125, peopleReads);
+
         Assert.Equal("Drama", Assert.Single(service.GetTopGenres(user.Id, 5)).Value);
+        Thread.Sleep(100);
+        Assert.Equal(125, peopleReads);
     }
 
     [Fact]
