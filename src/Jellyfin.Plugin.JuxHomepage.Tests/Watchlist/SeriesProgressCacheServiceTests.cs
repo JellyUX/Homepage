@@ -145,6 +145,60 @@ public sealed class SeriesProgressCacheServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task RefreshAllAsync_LoadsEpisodesOfWatchedSeriesOnly()
+    {
+        // F-06: only series with a played episode have their episodes read.
+        var user = new User("test", "Default", "Default");
+        var watchedSeries = Guid.NewGuid();
+        var played = new Episode { Id = Guid.NewGuid(), Name = "E1", SeriesId = watchedSeries, SeriesName = "Watched" };
+        var queries = new List<InternalItemsQuery>();
+
+        var userManagerMock = new Mock<IUserManager>();
+        userManagerMock.Setup(m => m.GetUsers()).Returns([user]);
+        userManagerMock.Setup(m => m.GetUserById(user.Id)).Returns(user);
+
+        var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock
+            .Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
+            .Callback<InternalItemsQuery>(queries.Add)
+            .Returns([played]);
+
+        var userDataManagerMock = new Mock<IUserDataManager>();
+        userDataManagerMock.Setup(m => m.GetUserData(user, played)).Returns(new UserItemData { Key = "k1", Played = true });
+
+        var service = BuildService(userManagerMock.Object, libraryManagerMock.Object, userDataManagerMock.Object);
+
+        await service.RefreshAllAsync(CancellationToken.None);
+
+        Assert.Equal(2, queries.Count);
+        Assert.True(queries[0].IsPlayed);
+        Assert.Equal([watchedSeries], queries[1].AncestorIds);
+        Assert.Equal(1, Assert.Single(service.GetProgress(user.Id)).WatchedEpisodes);
+    }
+
+    [Fact]
+    public async Task RefreshAllAsync_NothingPlayed_ReadsNoEpisodeList()
+    {
+        var user = new User("test", "Default", "Default");
+        var queries = new List<InternalItemsQuery>();
+        var userManagerMock = new Mock<IUserManager>();
+        userManagerMock.Setup(m => m.GetUsers()).Returns([user]);
+        userManagerMock.Setup(m => m.GetUserById(user.Id)).Returns(user);
+        var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock
+            .Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
+            .Callback<InternalItemsQuery>(queries.Add)
+            .Returns([]);
+
+        var service = BuildService(userManagerMock.Object, libraryManagerMock.Object, new Mock<IUserDataManager>().Object);
+
+        await service.RefreshAllAsync(CancellationToken.None);
+
+        Assert.True(Assert.Single(queries).IsPlayed);
+        Assert.Empty(service.GetProgress(user.Id));
+    }
+
+    [Fact]
     public void IsStale_NoRefreshYet_ReturnsTrue()
     {
         var service = BuildService(

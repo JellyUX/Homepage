@@ -143,12 +143,36 @@ public sealed class SeriesProgressCacheService : ISeriesProgressCacheService, ID
             return [];
         }
 
+        // Only the episodes of series with at least one played episode (F-06): reading every
+        // episode of the library for every user scaled with users x episodes, while the result
+        // drops unwatched series anyway. Images are never read here.
+        var noImages = new MediaBrowser.Controller.Dto.DtoOptions { Fields = [], EnableImages = false };
+        var watchedSeriesIds = _libraryManager.GetItemList(new InternalItemsQuery(user)
+            {
+                IncludeItemTypes = [BaseItemKind.Episode],
+                IsPlayed = true,
+                Recursive = true,
+                IsVirtualItem = false,
+                DtoOptions = noImages
+            })
+            .OfType<Episode>()
+            .Select(episode => episode.SeriesId)
+            .Where(seriesId => seriesId != Guid.Empty)
+            .Distinct()
+            .ToArray();
+
+        if (watchedSeriesIds.Length == 0)
+        {
+            return [];
+        }
+
         var episodes = _libraryManager.GetItemList(new InternalItemsQuery(user)
         {
             IncludeItemTypes = [BaseItemKind.Episode],
+            AncestorIds = watchedSeriesIds,
             Recursive = true,
             IsVirtualItem = false,
-            DtoOptions = new MediaBrowser.Controller.Dto.DtoOptions { Fields = [] }
+            DtoOptions = noImages
         });
 
         var bySeries = new Dictionary<Guid, (string Name, int Watched, int Total, DateTime? LastPlayed, Episode? LastEpisode)>();
