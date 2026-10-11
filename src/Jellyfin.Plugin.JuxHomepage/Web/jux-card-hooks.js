@@ -220,9 +220,15 @@
         return match ? match[1] : null;
     }
 
+    // Jellyfin keeps previously visited detail pages in the DOM, hidden: only the visible page's
+    // heart belongs to the current item.
+    function _currentDetailHeart() {
+        return document.querySelector('.page:not(.hide) .btnUserRating.detailButton');
+    }
+
     function _hookDetailButton(likedIds) {
         var itemId = _currentDetailItemId();
-        if (!itemId || !document.querySelector('.btnUserRating.detailButton')) {
+        if (!itemId || !_currentDetailHeart()) {
             return;
         }
 
@@ -234,7 +240,7 @@
     }
 
     function _insertDetailButton(itemId, likedIds) {
-        var heart = document.querySelector('.btnUserRating.detailButton');
+        var heart = _currentDetailHeart();
         if (!heart) {
             return;
         }
