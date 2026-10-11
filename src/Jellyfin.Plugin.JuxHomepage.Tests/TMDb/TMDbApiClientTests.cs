@@ -396,15 +396,6 @@ public sealed class TMDbApiClientTests
             timeProvider);
     }
 
-    // Minimal TimeProvider test double: TimeProvider.GetUtcNow() is virtual precisely so it can be
-    // overridden like this for deterministic tests, without a real delay or an external package.
-    private sealed class ManualTimeProvider : TimeProvider
-    {
-        public DateTimeOffset UtcNowValue { get; set; } = DateTimeOffset.UtcNow;
-
-        public override DateTimeOffset GetUtcNow() => UtcNowValue;
-    }
-
     private static HttpResponseMessage JsonResponse<T>(T payload) =>
         new(HttpStatusCode.OK) { Content = JsonContent.Create(payload) };
 
