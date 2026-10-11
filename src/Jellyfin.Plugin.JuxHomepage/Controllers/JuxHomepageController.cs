@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Reflection;
 using Jellyfin.Plugin.JuxHomepage.Configuration;
+using Jellyfin.Plugin.JuxHomepage.Inject;
 using Jellyfin.Plugin.JuxHomepage.Library;
 using Jellyfin.Plugin.JuxHomepage.Library.Models;
 using Jellyfin.Plugin.JuxHomepage.Localization;
@@ -121,7 +122,7 @@ public class JuxHomepageController : ControllerBase
             return NotFound();
         }
 
-        SetCacheHeaders(Response);
+        SetCacheHeaders(Request, Response);
         return File(stream, "application/javascript");
     }
 
@@ -144,7 +145,7 @@ public class JuxHomepageController : ControllerBase
             return NotFound();
         }
 
-        SetCacheHeaders(Response);
+        SetCacheHeaders(Request, Response);
         return File(stream, "application/javascript");
     }
 
@@ -166,7 +167,7 @@ public class JuxHomepageController : ControllerBase
             return NotFound();
         }
 
-        SetCacheHeaders(Response);
+        SetCacheHeaders(Request, Response);
         return File(stream, "text/css");
     }
 
@@ -188,7 +189,7 @@ public class JuxHomepageController : ControllerBase
             return NotFound();
         }
 
-        SetCacheHeaders(Response);
+        SetCacheHeaders(Request, Response);
         return File(stream, "application/javascript");
     }
 
@@ -210,7 +211,7 @@ public class JuxHomepageController : ControllerBase
             return NotFound();
         }
 
-        SetCacheHeaders(Response);
+        SetCacheHeaders(Request, Response);
         return File(stream, "application/javascript");
     }
 
@@ -232,7 +233,7 @@ public class JuxHomepageController : ControllerBase
             return NotFound();
         }
 
-        SetCacheHeaders(Response);
+        SetCacheHeaders(Request, Response);
         return File(stream, "application/javascript");
     }
 
@@ -254,7 +255,7 @@ public class JuxHomepageController : ControllerBase
             return NotFound();
         }
 
-        SetCacheHeaders(Response);
+        SetCacheHeaders(Request, Response);
         return File(stream, "application/javascript");
     }
 
@@ -276,7 +277,7 @@ public class JuxHomepageController : ControllerBase
             return NotFound();
         }
 
-        SetCacheHeaders(Response);
+        SetCacheHeaders(Request, Response);
         return File(stream, "application/javascript");
     }
 
@@ -298,7 +299,7 @@ public class JuxHomepageController : ControllerBase
             return NotFound();
         }
 
-        SetCacheHeaders(Response);
+        SetCacheHeaders(Request, Response);
         return File(stream, "application/javascript");
     }
 
@@ -320,7 +321,7 @@ public class JuxHomepageController : ControllerBase
             return NotFound();
         }
 
-        SetCacheHeaders(Response);
+        SetCacheHeaders(Request, Response);
         return File(stream, "application/javascript");
     }
 
@@ -342,7 +343,7 @@ public class JuxHomepageController : ControllerBase
             return NotFound();
         }
 
-        SetCacheHeaders(Response);
+        SetCacheHeaders(Request, Response);
         return File(stream, "application/javascript");
     }
 
@@ -364,7 +365,7 @@ public class JuxHomepageController : ControllerBase
             return NotFound();
         }
 
-        SetCacheHeaders(Response);
+        SetCacheHeaders(Request, Response);
         return File(stream, "application/javascript");
     }
 
@@ -386,7 +387,7 @@ public class JuxHomepageController : ControllerBase
             return NotFound();
         }
 
-        SetCacheHeaders(Response);
+        SetCacheHeaders(Request, Response);
         return File(stream, "text/css");
     }
 
@@ -409,7 +410,7 @@ public class JuxHomepageController : ControllerBase
             return NotFound();
         }
 
-        SetCacheHeaders(Response);
+        SetCacheHeaders(Request, Response);
         return File(stream, "text/css");
     }
 
@@ -1020,9 +1021,9 @@ public class JuxHomepageController : ControllerBase
         return name is null ? null : PluginAssembly.GetManifestResourceStream(name);
     }
 
-    private static void SetCacheHeaders(HttpResponse response)
+    private static void SetCacheHeaders(HttpRequest request, HttpResponse response)
     {
-        response.Headers.CacheControl = "public, max-age=3600";
+        response.Headers.CacheControl = ClientAssetVersion.CacheControlFor(request.Query["v"], ClientAssetVersion.Current);
     }
 
     private static async Task<IReadOnlyList<AdminWidgetValue>> SearchTMDbAsync(

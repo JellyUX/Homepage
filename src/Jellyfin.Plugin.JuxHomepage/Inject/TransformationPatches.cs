@@ -116,8 +116,7 @@ public static class TransformationPatches
     public static string IndexHtml(PatchRequestPayload content)
     {
         var config = Plugin.Instance?.Configuration ?? new PluginConfiguration();
-        var version = Plugin.Instance?.Version?.ToString() ?? "0";
-        return InjectClientAssets(content.Contents ?? string.Empty, config, version);
+        return InjectClientAssets(content.Contents ?? string.Empty, config, ClientAssetVersion.Current);
     }
 
     /// <summary>
