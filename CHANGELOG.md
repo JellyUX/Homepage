@@ -1,3 +1,16 @@
+## [2.9.1](https://github.com/JellyUX/Homepage/compare/v2.9.0...v2.9.1) (2026-10-11)
+
+### Bug Fixes
+
+* apply user library rights to cached-id sections ([ab495c9](https://github.com/JellyUX/Homepage/commit/ab495c9199b42fef2480915095fcf3c9a420d62d))
+* derive the userId of per-user endpoints from the caller's token ([d98e430](https://github.com/JellyUX/Homepage/commit/d98e430e941d27e0b70129a6c76bf504ce0bc415))
+* give user configuration files their own schema version ([ff8f342](https://github.com/JellyUX/Homepage/commit/ff8f34204f6f1856baffe7f6933151feba1963b7))
+* load plugin assets relative to the server BaseUrl ([561da80](https://github.com/JellyUX/Homepage/commit/561da80925caee6147df0cb92b3150ab821aec1c))
+* pair each user override with a single home row ([153607f](https://github.com/JellyUX/Homepage/commit/153607f6e4d182e736a726ed16f6658efd318c0d))
+* remove the external widget-pack DLL loader ([84b9ffa](https://github.com/JellyUX/Homepage/commit/84b9ffa7b0b2e8c7713eacbf930b18d9f09ba3bf))
+* return an empty section when an admin widget value does not resolve ([0cf280a](https://github.com/JellyUX/Homepage/commit/0cf280a0433f6eafabbd8b5a23753a560b645b84))
+* seed all native widgets on a fresh install ([8b400b6](https://github.com/JellyUX/Homepage/commit/8b400b63ec9ba2f167dc4bbe916893be83e0facc))
+
 ## [2.9.0](https://github.com/JellyUX/Homepage/compare/v2.8.0...v2.9.0) (2026-07-26)
 
 ### Features
