@@ -37,7 +37,7 @@
   "admin.page.title": "JellyUX Homepage",
   "admin.general.title": "Général",
   "admin.general.enable.label": "Activer JellyUX Homepage",
-  "admin.general.enable.help": "Afficher les widgets JellyUX sur la page d'accueil. Désactiver pour revenir à la page d'accueil native de Jellyfin.",
+  "admin.general.enable.help": "Afficher les widgets JellyUX sur la page d'accueil. Désactiver pour revenir à la page d'accueil native de Jellyfin. Pour couper JellyUX, utilisez toujours cet interrupteur, jamais Désactiver sur le plugin dans le tableau de bord de Jellyfin : Jellyfin 10.11 supprime alors le plugin au redémarrage suivant.",
   "admin.apikeys.title": "Clés API",
   "admin.apikeys.tmdb.label": "Clé API TMDb",
   "admin.apikeys.tmdb.help": "Requise pour les widgets Connectés utilisant The Movie Database. Laisser vide si non utilisée. Formats acceptés : clé hexadécimale de 32 caractères (v3), ou jeton bearer v4 commençant par \"ey\".",

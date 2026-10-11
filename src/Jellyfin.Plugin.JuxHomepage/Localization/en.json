@@ -37,7 +37,7 @@
   "admin.page.title": "JellyUX Homepage",
   "admin.general.title": "General",
   "admin.general.enable.label": "Enable JellyUX Homepage",
-  "admin.general.enable.help": "Show JellyUX widgets on the home screen. Disable to revert to the native Jellyfin home screen.",
+  "admin.general.enable.help": "Show JellyUX widgets on the home screen. Disable to revert to the native Jellyfin home screen. To turn JellyUX off, always use this switch, never Disable on the plugin in the Jellyfin dashboard: Jellyfin 10.11 then deletes the plugin at the next restart.",
   "admin.apikeys.title": "API Keys",
   "admin.apikeys.tmdb.label": "TMDb API Key",
   "admin.apikeys.tmdb.help": "Required for Connected widgets that use The Movie Database. Leave empty if not needed. Accepted formats: 32-character hexadecimal key (v3), or v4 bearer token starting with \"ey\".",

@@ -118,6 +118,14 @@ JellyUX Homepage is built to coexist cleanly with other popular Jellyfin customi
 
 ## Troubleshooting
 
+**Turning JellyUX off**
+
+Uncheck **Enable JellyUX Homepage** at the top of the plugin's configuration page: the native home
+screen comes back immediately. Never use **Disable** on the plugin in **Administration > Plugins**:
+on Jellyfin 10.11 a disabled plugin is deleted at the next restart (Jellyfin issue
+[#15897](https://github.com/jellyfin/jellyfin/issues/15897), fixed in 12.0 by
+[#17521](https://github.com/jellyfin/jellyfin/pull/17521) and not backported to 10.11).
+
 **Plugin becomes unreachable (HTTP 500) after an update**
 
 A simple Jellyfin restart may not be enough after updating the plugin - do a full restart of the
