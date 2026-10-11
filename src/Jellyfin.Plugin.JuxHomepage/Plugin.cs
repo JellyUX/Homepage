@@ -22,6 +22,13 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
     private const int CurrentSchemaVersion = 7;
 
     /// <summary>
+    /// The current per-user configuration schema version, tracked separately from
+    /// <see cref="CurrentSchemaVersion"/>. Starts at 8, above the plugin constant (7) that earlier
+    /// versions stamped on user files, so no existing file reads as newer than it is.
+    /// </summary>
+    private const int CurrentUserSchemaVersion = 8;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="Plugin"/> class.
     /// </summary>
     /// <param name="applicationPaths">Application paths.</param>
@@ -95,6 +102,9 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
     /// <param name="config">The configuration to migrate in place.</param>
     internal static void MigrateConfiguration(PluginConfiguration config)
     {
+        // A hand-edited or partial XML file can deserialize the array as null.
+        config.Widgets ??= [];
+
         // A fresh install (default instance, never saved) is seeded before the tiers run: the
         // append-if-missing tiers below would otherwise make the array non-empty and leave the
         // install with only the rows they add instead of the full default layout.
@@ -147,13 +157,17 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
     /// <param name="config">The user configuration to migrate in place.</param>
     internal static void MigrateUserConfiguration(UserConfiguration config)
     {
+        // "WidgetOverrides": null in a user's JSON file deserializes as null despite the initializer.
+        config.WidgetOverrides ??= [];
+
         if (config.SchemaVersion < 2)
         {
             config.WidgetOverrides = ExplodePersonalizedFanOut(config.WidgetOverrides);
         }
 
-        // See MigrateConfiguration for the chain-extension pattern to follow for future tiers.
-        config.SchemaVersion = CurrentSchemaVersion;
+        // See MigrateConfiguration for the chain-extension pattern to follow for future tiers; user
+        // tiers are numbered against CurrentUserSchemaVersion, the next one being 9.
+        config.SchemaVersion = CurrentUserSchemaVersion;
     }
 
     /// <summary>
