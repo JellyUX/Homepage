@@ -16,7 +16,7 @@ public sealed class ReadmeWidgetTableSyncTests
     [Fact]
     public void RegisteredWidgetCount_MatchesReadmeWidgetTableRowCount()
     {
-        var repoRoot = FindRepoRoot();
+        var repoRoot = RepoPaths.Root();
 
         var registrarSource = File.ReadAllText(Path.Combine(
             repoRoot, "src", "Jellyfin.Plugin.JuxHomepage", "PluginServiceRegistrator.cs"));
@@ -31,7 +31,7 @@ public sealed class ReadmeWidgetTableSyncTests
     [Fact]
     public void WidgetDocsPageCount_MatchesRegisteredWidgetCount()
     {
-        var repoRoot = FindRepoRoot();
+        var repoRoot = RepoPaths.Root();
 
         var registrarSource = File.ReadAllText(Path.Combine(
             repoRoot, "src", "Jellyfin.Plugin.JuxHomepage", "PluginServiceRegistrator.cs"));
@@ -46,7 +46,7 @@ public sealed class ReadmeWidgetTableSyncTests
     [Fact]
     public void ReadmeWidgetCountSentence_MatchesReadmeWidgetTableRowCount()
     {
-        var repoRoot = FindRepoRoot();
+        var repoRoot = RepoPaths.Root();
         var readme = File.ReadAllText(Path.Combine(repoRoot, "README.md"));
 
         var tableRowCount = CountWidgetTableRows(readme);
@@ -78,22 +78,5 @@ public sealed class ReadmeWidgetTableSyncTests
         }
 
         return rowCount;
-    }
-
-    private static string FindRepoRoot()
-    {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "JellyUX-Homepage.sln")))
-        {
-            dir = dir.Parent;
-        }
-
-        if (dir is null)
-        {
-            throw new InvalidOperationException(
-                "Could not locate the repo root (JellyUX-Homepage.sln) from " + AppContext.BaseDirectory);
-        }
-
-        return dir.FullName;
     }
 }
