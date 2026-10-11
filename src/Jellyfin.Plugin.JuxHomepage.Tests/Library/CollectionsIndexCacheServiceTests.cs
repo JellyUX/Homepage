@@ -16,7 +16,7 @@ public sealed class CollectionsIndexCacheServiceTests : IDisposable
 {
     private readonly string _tempDir = Path.Combine(Path.GetTempPath(), "jux-collections-index-tests-" + Guid.NewGuid());
 
-    private CollectionsIndexCacheService BuildService(ILibraryManager libraryManager)
+    private CollectionsIndexCacheService BuildService(ILibraryManager libraryManager, TimeSpan? invalidationDelay = null)
     {
         var applicationPathsMock = new Mock<IApplicationPaths>();
         applicationPathsMock.Setup(p => p.DataPath).Returns(_tempDir);
@@ -25,7 +25,44 @@ public sealed class CollectionsIndexCacheServiceTests : IDisposable
             applicationPathsMock.Object,
             new FileSystem(),
             libraryManager,
-            NullLogger<CollectionsIndexCacheService>.Instance);
+            NullLogger<CollectionsIndexCacheService>.Instance,
+            invalidationDelay);
+    }
+
+    [Fact]
+    public async Task RefreshAsync_NoCollection_IndexIsNoLongerStale()
+    {
+        // F-69: without any collection, the empty index is written, so IncludedIn stops relaunching
+        // ComputeIndex on every detail page.
+        var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([]);
+        var service = BuildService(libraryManagerMock.Object);
+
+        await service.RefreshAsync(CancellationToken.None);
+
+        Assert.False(service.IsStale());
+    }
+
+    [Fact]
+    public async Task Invalidate_MarksStaleThenRefreshesInTheBackground()
+    {
+        // F-66: a collection change refreshes the index shortly after, without waiting 24 hours.
+        var computations = 0;
+        var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock
+            .Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
+            .Callback(() => Interlocked.Increment(ref computations))
+            .Returns([]);
+        var service = BuildService(libraryManagerMock.Object, TimeSpan.FromMilliseconds(50));
+        await service.RefreshAsync(CancellationToken.None);
+
+        service.Invalidate();
+        service.Invalidate();
+        Assert.True(service.IsStale());
+
+        await Task.Delay(500);
+        Assert.Equal(2, computations);
+        Assert.False(service.IsStale());
     }
 
     [Fact]

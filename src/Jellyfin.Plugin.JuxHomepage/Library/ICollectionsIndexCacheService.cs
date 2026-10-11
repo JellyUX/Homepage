@@ -24,9 +24,18 @@ public interface ICollectionsIndexCacheService
     /// <returns>The visible collections this item belongs to, or an empty list.</returns>
     IReadOnlyList<CollectionRef> GetCollectionsFor(Guid itemId, User user);
 
-    /// <summary>Returns whether the index is missing or older than the fixed refresh interval.</summary>
+    /// <summary>
+    /// Returns whether the index is missing, older than the fixed refresh interval, or invalidated
+    /// by a collection change since its last refresh started.
+    /// </summary>
     /// <returns>True if the index is absent or stale; otherwise false.</returns>
     bool IsStale();
+
+    /// <summary>
+    /// Marks the index stale after a collection was created, changed or deleted (F-66), and
+    /// schedules a background refresh shortly after, so a burst of changes is refreshed once.
+    /// </summary>
+    void Invalidate();
 
     /// <summary>
     /// Refreshes the whole index from the current state of the library. Atomically reserves the

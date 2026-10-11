@@ -24,11 +24,15 @@ public sealed class CollectionsIndexCacheService : ICollectionsIndexCacheService
 {
     private const string FileName = "collections-index.json";
     private static readonly TimeSpan Ttl = TimeSpan.FromHours(24);
+    private static readonly TimeSpan DefaultInvalidationDelay = TimeSpan.FromSeconds(2);
 
     private readonly DiskJsonCache<CollectionMembership> _cache;
     private readonly ILibraryManager _libraryManager;
     private readonly ILogger<CollectionsIndexCacheService> _logger;
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
+    private readonly Timer _invalidationTimer;
+    private readonly TimeSpan _invalidationDelay;
+    private volatile bool _invalidated;
     private bool _disposed;
 
     /// <summary>
@@ -38,14 +42,20 @@ public sealed class CollectionsIndexCacheService : ICollectionsIndexCacheService
     /// <param name="fileSystem">File system abstraction, for testability.</param>
     /// <param name="libraryManager">Jellyfin library manager, used to enumerate collections and their members.</param>
     /// <param name="logger">Logger.</param>
+    /// <param name="invalidationDelay">
+    /// Delay between the last <see cref="Invalidate"/> call and the background refresh. Defaults to 2 seconds.
+    /// </param>
     public CollectionsIndexCacheService(
         IApplicationPaths applicationPaths,
         IFileSystem fileSystem,
         ILibraryManager libraryManager,
-        ILogger<CollectionsIndexCacheService> logger)
+        ILogger<CollectionsIndexCacheService> logger,
+        TimeSpan? invalidationDelay = null)
     {
         _libraryManager = libraryManager;
         _logger = logger;
+        _invalidationDelay = invalidationDelay ?? DefaultInvalidationDelay;
+        _invalidationTimer = new Timer(_ => _ = RefreshAsync(CancellationToken.None), null, Timeout.Infinite, Timeout.Infinite);
 
         var cacheDir = Path.Combine(
             applicationPaths.DataPath,
@@ -88,7 +98,14 @@ public sealed class CollectionsIndexCacheService : ICollectionsIndexCacheService
     }
 
     /// <inheritdoc/>
-    public bool IsStale() => _cache.IsStale(FileName, Ttl);
+    public bool IsStale() => _invalidated || _cache.IsStale(FileName, Ttl);
+
+    /// <inheritdoc/>
+    public void Invalidate()
+    {
+        _invalidated = true;
+        _invalidationTimer.Change(_invalidationDelay, Timeout.InfiniteTimeSpan);
+    }
 
     /// <inheritdoc/>
     public bool TryAcquireRefreshLock() => _refreshGate.Wait(0);
@@ -96,6 +113,9 @@ public sealed class CollectionsIndexCacheService : ICollectionsIndexCacheService
     /// <inheritdoc/>
     public Task RunRefreshLockedAsync(CancellationToken cancellationToken)
     {
+        // Cleared before computing, so a collection change during the computation marks the index
+        // stale again instead of being lost.
+        _invalidated = false;
         try
         {
             var index = ComputeIndex(cancellationToken);
@@ -104,6 +124,7 @@ public sealed class CollectionsIndexCacheService : ICollectionsIndexCacheService
         }
         catch (Exception ex)
         {
+            _invalidated = true;
             _logger.LogError(ex, "Failed to refresh collections index.");
         }
         finally
@@ -132,6 +153,7 @@ public sealed class CollectionsIndexCacheService : ICollectionsIndexCacheService
     {
         if (!_disposed)
         {
+            _invalidationTimer.Dispose();
             _cache.Dispose();
             _refreshGate.Dispose();
             _disposed = true;
