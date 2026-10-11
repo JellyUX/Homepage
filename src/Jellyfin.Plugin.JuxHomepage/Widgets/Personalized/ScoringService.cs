@@ -7,6 +7,8 @@ using MediaBrowser.Controller.Dto;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Jellyfin.Plugin.JuxHomepage.Widgets.Personalized;
 
@@ -18,9 +20,18 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets.Personalized;
 /// (<see cref="Configuration.CacheConfig.SessionTtlMinutes"/>), so scores refresh at the same
 /// cadence as the home screen.
 /// </para>
+/// <para>
+/// A request never waits on a recompute (F-03): an expired snapshot is served while a fresh one is
+/// computed in the background, concurrent requests of one user share a single computation, and at
+/// most one computation runs at a time for the whole server, behind a bounded queue. Only a user's
+/// very first access waits, and at most <c>firstComputeTimeout</c>; past it an empty result is
+/// served and the layout built from it is not cached (<see cref="IPersonalizationState"/>).
+/// </para>
 /// </summary>
-public sealed class ScoringService
+public sealed class ScoringService : IPersonalizationState, IDisposable
 {
+    private const int MaxQueuedComputes = 8;
+
     private const int MaxWatchedScan = 500;
 
     private const int EpisodePageSize = 500;
@@ -46,6 +57,15 @@ public sealed class ScoringService
     private readonly IUserDataManager _userDataManager;
     private readonly Func<PluginConfiguration?> _getConfiguration;
     private readonly ConcurrentDictionary<Guid, ScoreSnapshot> _cache = new();
+    private readonly ConcurrentDictionary<Guid, Lazy<Task<ScoreSnapshot>>> _inFlight = new();
+    private readonly ConcurrentDictionary<Guid, byte> _pendingServed = new();
+    private readonly SemaphoreSlim _computeGate = new(1, 1);
+    private readonly CancellationTokenSource _shutdown = new();
+    private readonly ILogger<ScoringService> _logger;
+    private readonly TimeProvider _timeProvider;
+    private readonly TimeSpan _firstComputeTimeout;
+    private int _queuedComputes;
+    private int _generation;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ScoringService"/> class.
@@ -61,16 +81,27 @@ public sealed class ScoringService
     /// Factory that returns the current plugin configuration, used to read the cache TTL.
     /// Defaults to <c>Plugin.Instance?.Configuration</c> in production.
     /// </param>
+    /// <param name="logger">Logger for background computation failures. Defaults to a null logger.</param>
+    /// <param name="timeProvider">Time source for snapshot expiry. Defaults to <see cref="TimeProvider.System"/>.</param>
+    /// <param name="firstComputeTimeout">
+    /// How long a user's first access waits for their first snapshot. Defaults to 2 seconds.
+    /// </param>
     public ScoringService(
         IUserManager userManager,
         ILibraryManager libraryManager,
         IUserDataManager userDataManager,
-        Func<PluginConfiguration?> getConfiguration)
+        Func<PluginConfiguration?> getConfiguration,
+        ILogger<ScoringService>? logger = null,
+        TimeProvider? timeProvider = null,
+        TimeSpan? firstComputeTimeout = null)
     {
         _userManager = userManager;
         _libraryManager = libraryManager;
         _userDataManager = userDataManager;
         _getConfiguration = getConfiguration;
+        _logger = logger ?? NullLogger<ScoringService>.Instance;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+        _firstComputeTimeout = firstComputeTimeout ?? TimeSpan.FromSeconds(2);
     }
 
     /// <summary>Returns the user's top genres by watch history, ranked highest-scored first.</summary>
@@ -131,30 +162,134 @@ public sealed class ScoringService
         return entries.Take(limit).Select(e => new ScoredValue(e.Value, e.Label)).ToList().AsReadOnly();
     }
 
-    /// <summary>Clears all cached scoring snapshots, forcing recomputation on next access.</summary>
-    public void Clear() => _cache.Clear();
+    /// <summary>
+    /// Clears all cached scoring snapshots, forcing recomputation on next access. A computation
+    /// already running when this is called does not store its result.
+    /// </summary>
+    public void Clear()
+    {
+        Interlocked.Increment(ref _generation);
+        _cache.Clear();
+    }
+
+    /// <inheritdoc/>
+    public bool TakePendingServed(Guid userId) => _pendingServed.TryRemove(userId, out _);
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        _shutdown.Cancel();
+        _shutdown.Dispose();
+        _computeGate.Dispose();
+    }
+
+    private DateTime UtcNow => _timeProvider.GetUtcNow().UtcDateTime;
 
     private ScoreSnapshot GetSnapshot(Guid userId)
     {
         var ttlMinutes = _getConfiguration()?.Cache?.SessionTtlMinutes ?? 15;
         var ttl = TimeSpan.FromMinutes(ttlMinutes);
 
-        if (_cache.TryGetValue(userId, out var cached) && DateTime.UtcNow - cached.ComputedAt < ttl)
+        var hasCached = _cache.TryGetValue(userId, out var cached);
+        if (hasCached && UtcNow - cached!.ComputedAt < ttl)
         {
             return cached;
         }
 
-        var snapshot = ComputeSnapshot(userId);
-        _cache[userId] = snapshot;
-        return snapshot;
+        var compute = StartCompute(userId);
+        if (hasCached)
+        {
+            return cached!;
+        }
+
+        if (compute is not null && WaitForFirstCompute(compute))
+        {
+            return compute.Result;
+        }
+
+        _pendingServed[userId] = 0;
+        return ScoreSnapshot.CreateEmpty(UtcNow);
     }
 
-    private ScoreSnapshot ComputeSnapshot(Guid userId)
+    private bool WaitForFirstCompute(Task<ScoreSnapshot> compute)
+    {
+        try
+        {
+            return compute.Wait(_firstComputeTimeout) && compute.IsCompletedSuccessfully;
+        }
+        catch (AggregateException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Returns the user's running computation, or starts one. Returns null when the queue is full:
+    /// the caller then serves what it has, and a later request retries.
+    /// </summary>
+    private Task<ScoreSnapshot>? StartCompute(Guid userId)
+    {
+        if (_inFlight.TryGetValue(userId, out var running))
+        {
+            return running.Value;
+        }
+
+        if (Interlocked.Increment(ref _queuedComputes) > MaxQueuedComputes)
+        {
+            Interlocked.Decrement(ref _queuedComputes);
+            return null;
+        }
+
+        var created = new Lazy<Task<ScoreSnapshot>>(() => Task.Run(() => RunComputeAsync(userId)));
+        var actual = _inFlight.GetOrAdd(userId, created);
+        if (!ReferenceEquals(actual, created))
+        {
+            Interlocked.Decrement(ref _queuedComputes);
+        }
+
+        return actual.Value;
+    }
+
+    private async Task<ScoreSnapshot> RunComputeAsync(Guid userId)
+    {
+        var generation = Volatile.Read(ref _generation);
+        var token = _shutdown.Token;
+        try
+        {
+            await _computeGate.WaitAsync(token).ConfigureAwait(false);
+            try
+            {
+                var snapshot = ComputeSnapshot(userId, token);
+                if (generation == Volatile.Read(ref _generation))
+                {
+                    _cache[userId] = snapshot;
+                }
+
+                return snapshot;
+            }
+            finally
+            {
+                _computeGate.Release();
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException and not ObjectDisposedException)
+        {
+            _logger.LogError(ex, "Scoring computation failed for user {UserId}", userId);
+            throw;
+        }
+        finally
+        {
+            _inFlight.TryRemove(userId, out _);
+            Interlocked.Decrement(ref _queuedComputes);
+        }
+    }
+
+    private ScoreSnapshot ComputeSnapshot(Guid userId, CancellationToken cancellationToken)
     {
         var user = _userManager.GetUserById(userId);
         if (user is null)
         {
-            return ScoreSnapshot.CreateEmpty();
+            return ScoreSnapshot.CreateEmpty(UtcNow);
         }
 
         var watchedMovies = _libraryManager.GetItemList(new InternalItemsQuery(user)
@@ -167,7 +302,7 @@ public sealed class ScoringService
             DtoOptions = new DtoOptions { Fields = [] }
         });
 
-        var seriesLastPlayed = GetWatchedSeriesLastPlayed(user);
+        var seriesLastPlayed = GetWatchedSeriesLastPlayed(user, cancellationToken);
         var watchedSeries = seriesLastPlayed.Count == 0
             ? []
             : _libraryManager.GetItemList(new InternalItemsQuery(user)
@@ -179,7 +314,7 @@ public sealed class ScoringService
 
         if (watchedMovies.Count == 0 && watchedSeries.Count == 0)
         {
-            return ScoreSnapshot.CreateEmpty();
+            return ScoreSnapshot.CreateEmpty(UtcNow);
         }
 
         // A Series has no last-played date of its own, so it is dated by its most recently played
@@ -206,6 +341,7 @@ public sealed class ScoringService
 
         for (var i = 0; i < watched.Count; i++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var item = watched[i];
 
             // Earlier position in the DatePlayed-descending list means more recently watched;
@@ -244,7 +380,7 @@ public sealed class ScoringService
                 i.Id.ToString(),
                 i.Name,
                 i is Series ? BaseItemKind.Series : BaseItemKind.Movie)).ToList(),
-            DateTime.UtcNow);
+            UtcNow);
     }
 
     /// <summary>
@@ -258,12 +394,13 @@ public sealed class ScoringService
     /// distinct series are found, capped at <see cref="MaxEpisodePages"/> pages.
     /// </para>
     /// </summary>
-    private Dictionary<Guid, DateTime> GetWatchedSeriesLastPlayed(User user)
+    private Dictionary<Guid, DateTime> GetWatchedSeriesLastPlayed(User user, CancellationToken cancellationToken)
     {
         var lastPlayed = new Dictionary<Guid, DateTime>();
 
         for (var page = 0; page < MaxEpisodePages && lastPlayed.Count < MaxWatchedScan; page++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var episodes = _libraryManager.GetItemList(new InternalItemsQuery(user)
             {
                 IncludeItemTypes = [BaseItemKind.Episode],
@@ -340,7 +477,8 @@ public sealed class ScoringService
         /// check instead of appearing permanently stale (and thus always recomputed) the moment the
         /// process has been running longer than one TTL period.
         /// </summary>
+        /// <param name="computedAt">The current time.</param>
         /// <returns>A freshly stamped empty snapshot.</returns>
-        public static ScoreSnapshot CreateEmpty() => new([], [], [], [], DateTime.UtcNow);
+        public static ScoreSnapshot CreateEmpty(DateTime computedAt) => new([], [], [], [], computedAt);
     }
 }

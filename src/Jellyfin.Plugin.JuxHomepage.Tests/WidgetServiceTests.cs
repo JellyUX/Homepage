@@ -1,6 +1,7 @@
 using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.Localization;
 using Jellyfin.Plugin.JuxHomepage.Widgets;
+using Jellyfin.Plugin.JuxHomepage.Widgets.Personalized;
 using MediaBrowser.Model.Dto;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -219,6 +220,31 @@ public sealed class WidgetServiceTests : IDisposable
     // GetWidgetItems
     // -------------------------------------------------------------------------
 
+    // -------------------------------------------------------------------------
+    // Session cache and pending personalization (F-03)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task GetWidgetsForUser_PendingPersonalizationServed_LayoutNotCachedUntilReady()
+    {
+        const string widgetType = "any-widget";
+        var userId = Guid.NewGuid();
+        var pendingState = new Mock<IPersonalizationState>();
+        pendingState.SetupSequence(s => s.TakePendingServed(userId)).Returns(true).Returns(false);
+
+        var service = BuildService(
+            registeredWidgets: [MakeWidget(widgetType, totalRecordCount: 10)],
+            globalWidgets: [new WidgetConfig { WidgetType = widgetType, Enabled = true, MinItems = 1, Order = 0 }],
+            personalizationState: pendingState.Object);
+        var ttl = TimeSpan.FromMinutes(15);
+
+        await service.GetWidgetsForUser(userId, page: 0, lang: "en", CancellationToken.None);
+        Assert.False(_sessionCache.TryGet(userId, "en", ttl, out _));
+
+        await service.GetWidgetsForUser(userId, page: 0, lang: "en", CancellationToken.None);
+        Assert.True(_sessionCache.TryGet(userId, "en", ttl, out _));
+    }
+
     [Fact]
     public async Task GetWidgetItems_KnownWidget_ReturnsResult()
     {
@@ -301,7 +327,8 @@ public sealed class WidgetServiceTests : IDisposable
     private WidgetService BuildService(
         IWidget[] registeredWidgets,
         WidgetConfig[] globalWidgets,
-        ILocalizationService? localizationService = null)
+        ILocalizationService? localizationService = null,
+        IPersonalizationState? personalizationState = null)
     {
         var registry = new WidgetRegistry();
         foreach (var w in registeredWidgets)
@@ -327,7 +354,8 @@ public sealed class WidgetServiceTests : IDisposable
             _sessionCache,
             layoutResolver,
             () => config,
-            NullLogger<WidgetService>.Instance);
+            NullLogger<WidgetService>.Instance,
+            personalizationState);
     }
 
     private static IWidget MakeWidget(string widgetType, int totalRecordCount)

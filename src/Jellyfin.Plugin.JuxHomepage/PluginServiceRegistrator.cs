@@ -128,7 +128,8 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             serviceProvider.GetRequiredService<IUserManager>(),
             serviceProvider.GetRequiredService<ILibraryManager>(),
             serviceProvider.GetRequiredService<IUserDataManager>(),
-            () => Plugin.Instance?.Configuration));
+            () => Plugin.Instance?.Configuration,
+            serviceProvider.GetRequiredService<ILogger<ScoringService>>()));
         serviceCollection.AddSingleton<WidgetLayoutResolver>(serviceProvider => new WidgetLayoutResolver(
             serviceProvider.GetRequiredService<IWidgetRegistry>(),
             serviceProvider.GetRequiredService<IUserConfigurationStore>(),
@@ -140,7 +141,8 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             serviceProvider.GetRequiredService<SessionCache>(),
             serviceProvider.GetRequiredService<WidgetLayoutResolver>(),
             () => Plugin.Instance?.Configuration,
-            serviceProvider.GetRequiredService<ILogger<WidgetService>>()));
+            serviceProvider.GetRequiredService<ILogger<WidgetService>>(),
+            serviceProvider.GetRequiredService<ScoringService>()));
 
         serviceCollection.AddSingleton<IWidgetRegistry>(serviceProvider =>
         {

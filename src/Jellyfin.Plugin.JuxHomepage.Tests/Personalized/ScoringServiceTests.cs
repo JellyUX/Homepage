@@ -83,6 +83,145 @@ public sealed class ScoringServiceTests
             () => new PluginConfiguration());
     }
 
+    /// <summary>
+    /// Builds a service whose computation blocks for <paramref name="computeDelay"/> in the watched
+    /// movies query, and records how many computations ran and the peak number running at once.
+    /// </summary>
+    private static ScoringService BuildSlowService(
+        TimeSpan computeDelay,
+        TimeSpan firstComputeTimeout,
+        ComputeCounters counters,
+        TimeProvider? timeProvider = null)
+    {
+        var userManagerMock = new Mock<IUserManager>();
+        userManagerMock
+            .Setup(m => m.GetUserById(It.IsAny<Guid>()))
+            .Returns(() => new User("test", "Default", "Default"));
+
+        var genreMovie = new Movie { Id = Guid.NewGuid(), Name = "Film", Genres = ["Drama"] };
+        var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock
+            .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(
+                q => q.IsFavorite != true && q.IncludeItemTypes.Contains(BaseItemKind.Movie))))
+            .Returns(() =>
+            {
+                Interlocked.Increment(ref counters.Computations);
+                var running = Interlocked.Increment(ref counters.Running);
+                lock (counters)
+                {
+                    counters.PeakRunning = Math.Max(counters.PeakRunning, running);
+                }
+
+                Thread.Sleep(computeDelay);
+                Interlocked.Decrement(ref counters.Running);
+                return [genreMovie];
+            });
+        libraryManagerMock
+            .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(
+                q => q.IsFavorite == true || !q.IncludeItemTypes.Contains(BaseItemKind.Movie))))
+            .Returns([]);
+        libraryManagerMock.Setup(m => m.GetPeople(It.IsAny<BaseItem>())).Returns([]);
+
+        return new ScoringService(
+            userManagerMock.Object,
+            libraryManagerMock.Object,
+            new Mock<IUserDataManager>().Object,
+            () => new PluginConfiguration(),
+            timeProvider: timeProvider,
+            firstComputeTimeout: firstComputeTimeout);
+    }
+
+    // -------------------------------------------------------------------------
+    // Single-flight, stale-while-revalidate, global bound (F-03)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task GetSnapshot_TwoSimultaneousCallsOfOneUser_ComputeOnce()
+    {
+        var counters = new ComputeCounters();
+        var service = BuildSlowService(TimeSpan.FromMilliseconds(300), TimeSpan.FromSeconds(5), counters);
+        var userId = Guid.NewGuid();
+
+        var results = await Task.WhenAll(
+            Task.Run(() => service.GetTopGenres(userId, 5)),
+            Task.Run(() => service.GetTopGenres(userId, 5)));
+
+        Assert.Equal(1, counters.Computations);
+        Assert.All(results, r => Assert.Equal("Drama", Assert.Single(r).Value));
+    }
+
+    [Fact]
+    public async Task GetSnapshot_TenUsersFirstAccess_AtMostOneConcurrentComputeAndBoundedWait()
+    {
+        var counters = new ComputeCounters();
+        var timeout = TimeSpan.FromMilliseconds(500);
+        var service = BuildSlowService(TimeSpan.FromMilliseconds(300), timeout, counters);
+
+        var elapsed = await Task.WhenAll(Enumerable.Range(0, 10).Select(_ => Task.Run(() =>
+        {
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            service.GetTopGenres(Guid.NewGuid(), 5);
+            return stopwatch.Elapsed;
+        })));
+
+        Assert.Equal(1, counters.PeakRunning);
+        Assert.All(elapsed, e => Assert.True(e < timeout + TimeSpan.FromMilliseconds(400), $"waited {e}"));
+    }
+
+    [Fact]
+    public void GetSnapshot_FirstComputeTimesOut_ServesEmptyAndFlagsPending()
+    {
+        var counters = new ComputeCounters();
+        var service = BuildSlowService(TimeSpan.FromMilliseconds(600), TimeSpan.FromMilliseconds(100), counters);
+        var userId = Guid.NewGuid();
+
+        var first = service.GetTopGenres(userId, 5);
+
+        Assert.Empty(first);
+        Assert.True(service.TakePendingServed(userId));
+        Assert.False(service.TakePendingServed(userId));
+
+        Thread.Sleep(800);
+        Assert.Equal("Drama", Assert.Single(service.GetTopGenres(userId, 5)).Value);
+        Assert.False(service.TakePendingServed(userId));
+    }
+
+    [Fact]
+    public void GetSnapshot_ExpiredSnapshot_ServedImmediatelyWhileRecomputing()
+    {
+        var counters = new ComputeCounters();
+        var clock = new ManualTimeProvider();
+        var service = BuildSlowService(TimeSpan.FromMilliseconds(500), TimeSpan.FromSeconds(5), counters, clock);
+        var userId = Guid.NewGuid();
+        service.GetTopGenres(userId, 5);
+
+        clock.UtcNowValue += TimeSpan.FromHours(1);
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var stale = service.GetTopGenres(userId, 5);
+        stopwatch.Stop();
+
+        Assert.Equal("Drama", Assert.Single(stale).Value);
+        Assert.True(stopwatch.ElapsedMilliseconds < 50, $"waited {stopwatch.ElapsedMilliseconds} ms");
+        Assert.False(service.TakePendingServed(userId));
+        Thread.Sleep(800);
+        Assert.Equal(2, counters.Computations);
+    }
+
+    [Fact]
+    public void Clear_DuringComputation_DoesNotStoreTheOldResult()
+    {
+        var counters = new ComputeCounters();
+        var service = BuildSlowService(TimeSpan.FromMilliseconds(300), TimeSpan.FromMilliseconds(50), counters);
+        var userId = Guid.NewGuid();
+
+        service.GetTopGenres(userId, 5);
+        service.Clear();
+        Thread.Sleep(500);
+        service.GetTopGenres(userId, 5);
+
+        Assert.Equal(2, counters.Computations);
+    }
+
     // -------------------------------------------------------------------------
     // GetTopGenres
     // -------------------------------------------------------------------------
@@ -388,5 +527,12 @@ public sealed class ScoringServiceTests
         var result = service.GetRecentlyWatched(user.Id, 5, BecauseYouWatchedScope.Both);
 
         Assert.Equal(2, result.Count);
+    }
+
+    private sealed class ComputeCounters
+    {
+        public int Computations;
+        public int Running;
+        public int PeakRunning;
     }
 }

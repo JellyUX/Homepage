@@ -1,4 +1,5 @@
 using Jellyfin.Plugin.JuxHomepage.Configuration;
+using Jellyfin.Plugin.JuxHomepage.Widgets.Personalized;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.JuxHomepage.Widgets;
@@ -26,6 +27,7 @@ public sealed class WidgetService
     private readonly WidgetLayoutResolver _layoutResolver;
     private readonly Func<PluginConfiguration?> _getConfiguration;
     private readonly ILogger<WidgetService> _logger;
+    private readonly IPersonalizationState? _personalizationState;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WidgetService"/> class.
@@ -38,18 +40,24 @@ public sealed class WidgetService
     /// Defaults to <c>Plugin.Instance?.Configuration</c> in production.
     /// </param>
     /// <param name="logger">Logger.</param>
+    /// <param name="personalizationState">
+    /// Reports a layout built before the user's first scoring finished, which is then not cached so
+    /// the personalized sections appear on the next load. Null disables the check.
+    /// </param>
     public WidgetService(
         IWidgetRegistry registry,
         SessionCache sessionCache,
         WidgetLayoutResolver layoutResolver,
         Func<PluginConfiguration?> getConfiguration,
-        ILogger<WidgetService> logger)
+        ILogger<WidgetService> logger,
+        IPersonalizationState? personalizationState = null)
     {
         _registry = registry;
         _sessionCache = sessionCache;
         _layoutResolver = layoutResolver;
         _getConfiguration = getConfiguration;
         _logger = logger;
+        _personalizationState = personalizationState;
     }
 
     /// <summary>
@@ -81,7 +89,10 @@ public sealed class WidgetService
         }
 
         var descriptors = await _layoutResolver.BuildDescriptors(userId, lang, cancellationToken).ConfigureAwait(false);
-        _sessionCache.Set(userId, lang, descriptors);
+        if (_personalizationState?.TakePendingServed(userId) != true)
+        {
+            _sessionCache.Set(userId, lang, descriptors);
+        }
 
         return Paginate(descriptors, page);
     }
