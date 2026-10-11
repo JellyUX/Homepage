@@ -150,6 +150,17 @@
     transform: scaleY(1.6);
 }
 
+/* Above 50 episodes: one fill at the watched percentage instead of one chunk per episode. */
+.jux-progress-bar-continuous {
+    display: block;
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.jux-progress-fill {
+    height: 100%;
+    background: var(--jf-palette-primary-main, #00a4dc);
+}
+
 .jux-progress-complete-badge {
     display: inline-block;
     font-size: 0.75em;

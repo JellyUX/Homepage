@@ -142,6 +142,10 @@
     // createBinaryProgressBar pattern)
     // -------------------------------------------------------------------------
 
+    // Above this many episodes, one chunk per episode would cost one DOM node each: the bar becomes a
+    // single fill at the watched percentage (TODO_V4.md 2.3, F-10).
+    var MAX_PROGRESS_CHUNKS = 50;
+
     function buildProgressBar(watched, total) {
         watched = Math.max(0, watched || 0);
         total = Math.max(0, total || 0);
@@ -151,12 +155,19 @@
         }
 
         var chunks = '';
-        for (var i = 0; i < total; i++) {
-            chunks += '<div class="jux-progress-chunk ' + (i < watched ? 'watched' : 'unwatched') + '"></div>';
+        if (total > MAX_PROGRESS_CHUNKS) {
+            var percent = Math.min(100, Math.round(watched / total * 1000) / 10);
+            chunks = '<div class="jux-progress-fill" style="width:' + percent + '%"></div>';
+        } else {
+            for (var i = 0; i < total; i++) {
+                chunks += '<div class="jux-progress-chunk ' + (i < watched ? 'watched' : 'unwatched') + '"></div>';
+            }
         }
 
         var completed = watched >= total;
-        var barClass = 'jux-progress-bar' + (completed ? ' jux-progress-bar-completed' : '');
+        var barClass = 'jux-progress-bar' +
+            (total > MAX_PROGRESS_CHUNKS ? ' jux-progress-bar-continuous' : '') +
+            (completed ? ' jux-progress-bar-completed' : '');
 
         return '<div class="' + barClass + '" role="progressbar" aria-valuenow="' + watched + '" aria-valuemin="0" aria-valuemax="' + total + '">' +
             chunks +

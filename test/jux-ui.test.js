@@ -127,6 +127,27 @@ describe('_buildRadioGroup', () => {
     });
 });
 
+describe('buildProgressBar bound (F-10)', () => {
+    const nodeCount = html => {
+        const host = document.createElement('div');
+        host.innerHTML = html;
+        return host.querySelector('.jux-progress-bar').getElementsByTagName('*').length;
+    };
+
+    it('keeps one chunk per episode up to 50 episodes', () => {
+        expect(nodeCount(buildProgressBar(10, 50))).toBe(50);
+    });
+
+    it('renders a single fill at the watched percentage above 50 episodes', () => {
+        const html = buildProgressBar(250, 1000);
+
+        expect(nodeCount(html)).toBe(1);
+        expect(html).toContain('jux-progress-bar-continuous');
+        expect(html).toContain('width:25%');
+        expect(html).toContain('aria-valuemax="1000"');
+    });
+});
+
 describe('observeCardImages (F-10)', () => {
     const originalObserver = globalThis.IntersectionObserver;
     let observers = [];
