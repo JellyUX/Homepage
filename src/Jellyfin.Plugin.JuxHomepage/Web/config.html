@@ -35,6 +35,66 @@
             </div>
 
             <div class="verticalSection">
+                <h3 class="sectionTitle" data-i18n="admin.modules.title">Modules</h3>
+                <div class="fieldDescription" data-i18n="admin.modules.help">A disabled module is not loaded at all. Changes apply after a page reload.</div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="emby-checkbox-label">
+                        <input type="checkbox" id="chkModuleTabs" class="emby-checkbox jux-admin-module" data-module="Tabs" />
+                        <span class="checkboxLabel" data-i18n="admin.modules.tabs.label">Home tabs</span>
+                        <span class="checkboxOutline">
+                            <span class="material-icons checkboxIcon checkboxIcon-checked check" aria-hidden="true"></span>
+                            <span class="material-icons checkboxIcon checkboxIcon-unchecked " aria-hidden="true"></span>
+                        </span>
+                    </label>
+                    <div class="fieldDescription" data-i18n="admin.modules.tabs.help">Watchlist, Progress, History and Statistics tabs on the home screen.</div>
+                </div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="emby-checkbox-label">
+                        <input type="checkbox" id="chkModuleCardEnhancements" class="emby-checkbox jux-admin-module" data-module="CardEnhancements" />
+                        <span class="checkboxLabel" data-i18n="admin.modules.cards.label">Card watchlist button and infinite scroll</span>
+                        <span class="checkboxOutline">
+                            <span class="material-icons checkboxIcon checkboxIcon-checked check" aria-hidden="true"></span>
+                            <span class="material-icons checkboxIcon checkboxIcon-unchecked " aria-hidden="true"></span>
+                        </span>
+                    </label>
+                    <div class="fieldDescription" data-i18n="admin.modules.cards.help">Watchlist button on movie and series cards, and infinite scrolling on library pages.</div>
+                </div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="emby-checkbox-label">
+                        <input type="checkbox" id="chkModuleSeriesFlatten" class="emby-checkbox jux-admin-module" data-module="SeriesFlatten" />
+                        <span class="checkboxLabel" data-i18n="admin.modules.seriesflatten.label">Single-season series</span>
+                        <span class="checkboxOutline">
+                            <span class="material-icons checkboxIcon checkboxIcon-checked check" aria-hidden="true"></span>
+                            <span class="material-icons checkboxIcon checkboxIcon-unchecked " aria-hidden="true"></span>
+                        </span>
+                    </label>
+                    <div class="fieldDescription" data-i18n="admin.modules.seriesflatten.help">Show the episodes of a single-season series directly on its page.</div>
+                </div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="emby-checkbox-label">
+                        <input type="checkbox" id="chkModuleCollections" class="emby-checkbox jux-admin-module" data-module="Collections" />
+                        <span class="checkboxLabel" data-i18n="admin.modules.collections.label">Collections</span>
+                        <span class="checkboxOutline">
+                            <span class="material-icons checkboxIcon checkboxIcon-checked check" aria-hidden="true"></span>
+                            <span class="material-icons checkboxIcon checkboxIcon-unchecked " aria-hidden="true"></span>
+                        </span>
+                    </label>
+                    <div class="fieldDescription" data-i18n="admin.modules.collections.help">"Included In" section on detail pages, and sort controls on collection pages.</div>
+                </div>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="emby-checkbox-label">
+                        <input type="checkbox" id="chkModuleBreadcrumb" class="emby-checkbox jux-admin-module" data-module="Breadcrumb" />
+                        <span class="checkboxLabel" data-i18n="admin.modules.breadcrumb.label">Breadcrumb</span>
+                        <span class="checkboxOutline">
+                            <span class="material-icons checkboxIcon checkboxIcon-checked check" aria-hidden="true"></span>
+                            <span class="material-icons checkboxIcon checkboxIcon-unchecked " aria-hidden="true"></span>
+                        </span>
+                    </label>
+                    <div class="fieldDescription" data-i18n="admin.modules.breadcrumb.help">Library breadcrumb in the header of detail pages.</div>
+                </div>
+            </div>
+
+            <div class="verticalSection">
                 <h3 class="sectionTitle" data-i18n="admin.apikeys.title">API Keys</h3>
                 <div class="inputContainer">
                     <label class="inputLabel inputLabelUnfocused" for="txtTMDb" data-i18n="admin.apikeys.tmdb.label">TMDb API Key</label>
@@ -1156,6 +1216,10 @@
                     }
 
                     document.getElementById('chkEnabled').checked = !!self.state.config.Enabled;
+                    var modules = self.state.config.Modules || {};
+                    document.querySelectorAll('.jux-admin-module').forEach(function (el) {
+                        el.checked = modules[el.getAttribute('data-module')] !== false;
+                    });
                     document.getElementById('txtTMDb').value = (self.state.config.ApiKeys && self.state.config.ApiKeys.TMDb) || '';
                     document.getElementById('numSessionTtl').value = (self.state.config.Cache && self.state.config.Cache.SessionTtlMinutes) || 15;
                     document.getElementById('numTMDbRefresh').value = (self.state.config.Cache && self.state.config.Cache.TMDbRefreshIntervalHours) || 24;
@@ -1226,6 +1290,10 @@
 
                 ApiClient.getPluginConfiguration(self.PLUGIN_ID).then(function (config) {
                     config.Enabled = document.getElementById('chkEnabled').checked;
+                    if (!config.Modules) { config.Modules = {}; }
+                    document.querySelectorAll('.jux-admin-module').forEach(function (el) {
+                        config.Modules[el.getAttribute('data-module')] = el.checked;
+                    });
                     if (!config.ApiKeys) { config.ApiKeys = {}; }
                     config.ApiKeys.TMDb = tmdbVal || null;
                     if (!config.Cache) { config.Cache = {}; }

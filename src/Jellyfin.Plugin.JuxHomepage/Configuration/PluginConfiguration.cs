@@ -27,6 +27,9 @@ public class PluginConfiguration : BasePluginConfiguration
     /// </summary>
     public WidgetConfig[] Widgets { get; set; } = [];
 
+    /// <summary>Gets or sets the per-module switches for the client scripts.</summary>
+    public ModulesConfig Modules { get; set; } = new();
+
     /// <summary>Gets or sets the API keys for external data sources.</summary>
     public ApiKeysConfig ApiKeys { get; set; } = new();
 

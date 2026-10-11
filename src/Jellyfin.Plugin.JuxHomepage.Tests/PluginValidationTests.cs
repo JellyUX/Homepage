@@ -1,3 +1,5 @@
+using System.IO;
+using System.Xml.Serialization;
 using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.Widgets;
 using Xunit;
@@ -106,12 +108,12 @@ public sealed class PluginValidationTests
     [Fact]
     public void MigrateConfiguration_NoOpForCurrentSchemaVersion_DoesNotThrow()
     {
-        var config = new PluginConfiguration { SchemaVersion = 7 };
+        var config = new PluginConfiguration { SchemaVersion = 8 };
 
         var exception = Record.Exception(() => Plugin.MigrateConfiguration(config));
 
         Assert.Null(exception);
-        Assert.Equal(7, config.SchemaVersion);
+        Assert.Equal(8, config.SchemaVersion);
         Assert.Empty(config.Widgets);
     }
 
@@ -140,7 +142,7 @@ public sealed class PluginValidationTests
         // seasonal presets), and V6->V7 (append Recently Added Episodes) thresholds, all four
         // migrations apply in order -- the fan-out first (3 rows), then the Watchlist widget row (4),
         // then the four seasonal preset rows (8), then the Recently Added Episodes row (9 total).
-        Assert.Equal(7, config.SchemaVersion);
+        Assert.Equal(8, config.SchemaVersion);
         Assert.Equal(9, config.Widgets.Length);
 
         Assert.Equal("jux.personalized.favorite-genre", config.Widgets[0].WidgetType);
@@ -177,7 +179,7 @@ public sealed class PluginValidationTests
 
         Plugin.MigrateConfiguration(config);
 
-        Assert.Equal(7, config.SchemaVersion);
+        Assert.Equal(8, config.SchemaVersion);
 
         // The original row passes through the V1->V2 fan-out untouched (not Personalized), then the
         // V2->V3 migration appends the new native Watchlist widget row, then V5->V6 appends the four
@@ -201,7 +203,7 @@ public sealed class PluginValidationTests
 
         Plugin.MigrateConfiguration(config);
 
-        Assert.Equal(7, config.SchemaVersion);
+        Assert.Equal(8, config.SchemaVersion);
         Assert.Equal(7, config.Widgets.Length);
         var watchlistWidget = config.Widgets.Single(w => w.WidgetType == "jux.native.watchlist");
         Assert.True(watchlistWidget.Enabled);
@@ -225,7 +227,7 @@ public sealed class PluginValidationTests
 
         Plugin.MigrateConfiguration(config);
 
-        Assert.Equal(7, config.SchemaVersion);
+        Assert.Equal(8, config.SchemaVersion);
         Assert.Equal(7, config.Widgets.Length);
         var watchlistWidget = config.Widgets.Single(w => w.WidgetType == "jux.native.watchlist");
 
@@ -250,7 +252,7 @@ public sealed class PluginValidationTests
 
         // Starting at SchemaVersion 6, the seasonal presets are already present (no duplication), but
         // the V6->V7 migration still fires and appends the new Recently Added Episodes row.
-        Assert.Equal(7, config.SchemaVersion);
+        Assert.Equal(8, config.SchemaVersion);
         Assert.Equal(5, config.Widgets.Length);
         Assert.Equal(4, config.Widgets.Count(w => w.WidgetType == "jux.connected.seasonal"));
         Assert.Contains(config.Widgets, w => w.WidgetType == "jux.native.recently-added-episodes");
@@ -267,7 +269,7 @@ public sealed class PluginValidationTests
 
         Plugin.MigrateConfiguration(config);
 
-        Assert.Equal(7, config.SchemaVersion);
+        Assert.Equal(8, config.SchemaVersion);
         Assert.Equal(6, config.Widgets.Length);
         Assert.Equal(4, config.Widgets.Count(w => w.WidgetType == "jux.connected.seasonal"));
         Assert.All(
@@ -287,7 +289,7 @@ public sealed class PluginValidationTests
 
         Plugin.MigrateConfiguration(config);
 
-        Assert.Equal(7, config.SchemaVersion);
+        Assert.Equal(8, config.SchemaVersion);
         Assert.Equal(2, config.Widgets.Length);
         var episodesWidget = config.Widgets.Single(w => w.WidgetType == "jux.native.recently-added-episodes");
         Assert.True(episodesWidget.Enabled);
@@ -309,7 +311,7 @@ public sealed class PluginValidationTests
 
         Plugin.MigrateConfiguration(config);
 
-        Assert.Equal(7, config.SchemaVersion);
+        Assert.Equal(8, config.SchemaVersion);
         Assert.Equal(2, config.Widgets.Length);
         var episodesWidget = config.Widgets.Single(w => w.WidgetType == "jux.native.recently-added-episodes");
 
@@ -339,5 +341,47 @@ public sealed class PluginValidationTests
         Assert.Equal(
             Widgets.Connected.SeasonalWidgetDefaults.Build().Length,
             config.Widgets.Count(w => w.WidgetType == "jux.connected.seasonal"));
+    }
+
+    [Fact]
+    public void MigrateConfiguration_V7WithNilModules_EnablesEveryModule()
+    {
+        var config = new PluginConfiguration { SchemaVersion = 7, Modules = null! };
+
+        Plugin.MigrateConfiguration(config);
+
+        Assert.Equal(8, config.SchemaVersion);
+        Assert.True(config.Modules.Tabs);
+        Assert.True(config.Modules.CardEnhancements);
+        Assert.True(config.Modules.SeriesFlatten);
+        Assert.True(config.Modules.Collections);
+        Assert.True(config.Modules.Breadcrumb);
+    }
+
+    [Fact]
+    public void Deserialize_V7XmlWithoutModulesElement_EnablesEveryModule()
+    {
+        const string Xml = "<?xml version=\"1.0\"?><PluginConfiguration><Enabled>true</Enabled><SchemaVersion>7</SchemaVersion></PluginConfiguration>";
+
+        var config = (PluginConfiguration)new XmlSerializer(typeof(PluginConfiguration)).Deserialize(new StringReader(Xml))!;
+        Plugin.MigrateConfiguration(config);
+
+        Assert.True(config.Modules.Tabs);
+        Assert.True(config.Modules.CardEnhancements);
+        Assert.True(config.Modules.SeriesFlatten);
+        Assert.True(config.Modules.Collections);
+        Assert.True(config.Modules.Breadcrumb);
+    }
+
+    [Fact]
+    public void Deserialize_PartialModulesElement_KeepsTheDefaultsOfMissingSwitches()
+    {
+        const string Xml = "<?xml version=\"1.0\"?><PluginConfiguration><SchemaVersion>8</SchemaVersion><Modules><Tabs>false</Tabs></Modules></PluginConfiguration>";
+
+        var config = (PluginConfiguration)new XmlSerializer(typeof(PluginConfiguration)).Deserialize(new StringReader(Xml))!;
+        Plugin.ValidateConfiguration(config);
+
+        Assert.False(config.Modules.Tabs);
+        Assert.True(config.Modules.Collections);
     }
 }

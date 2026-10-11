@@ -19,7 +19,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
     /// The current configuration schema version. See the "Configuration Schema Versioning" section
     /// in CLAUDE.md for the migration policy.
     /// </summary>
-    private const int CurrentSchemaVersion = 7;
+    private const int CurrentSchemaVersion = 8;
 
     /// <summary>
     /// The current per-user configuration schema version, tracked separately from
@@ -139,6 +139,13 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
         if (config.SchemaVersion < 7)
         {
             config.Widgets = AppendRecentlyAddedEpisodesWidgetIfMissing(config.Widgets);
+        }
+
+        // A missing <Modules> element deserializes to the all-enabled default; an empty or partial
+        // one keeps the defaults of its missing switches. Only an explicit nil needs handling.
+        if (config.SchemaVersion < 8)
+        {
+            config.Modules ??= new ModulesConfig();
         }
 
         // Add future migrations here as additional `if (config.SchemaVersion < N) { ... }` blocks,
@@ -328,6 +335,9 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
     /// <param name="config">The configuration to validate in place.</param>
     internal static void ValidateConfiguration(PluginConfiguration config)
     {
+        // A hand-edited XML file can carry a nil <Modules> on an already migrated configuration.
+        config.Modules ??= new ModulesConfig();
+
         // Clamp cache values to valid ranges.
         if (config.Cache is not null)
         {
