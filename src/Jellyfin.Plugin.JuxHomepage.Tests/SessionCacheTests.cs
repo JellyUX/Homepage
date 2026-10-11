@@ -148,5 +148,29 @@ public sealed class SessionCacheTests : IDisposable
         Assert.NotNull(result);
     }
 
+    // -------------------------------------------------------------------------
+    // Absolute TTL (F-02)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public void TryGet_ReadEveryMinute_DoesNotExtendPastTtl()
+    {
+        var clock = new ManualTimeProvider();
+        using var cache = new SessionCache(clock);
+        var userId = Guid.NewGuid();
+        var ttl = TimeSpan.FromMinutes(15);
+        cache.Set(userId, "en", [new WidgetDescriptor { WidgetType = "w1" }]);
+
+        var hits = new List<bool>();
+        for (var minute = 1; minute <= 20; minute++)
+        {
+            clock.UtcNowValue += TimeSpan.FromMinutes(1);
+            hits.Add(cache.TryGet(userId, "en", ttl, out _));
+        }
+
+        Assert.All(hits.Take(14), Assert.True);
+        Assert.All(hits.Skip(14), Assert.False);
+    }
+
     public void Dispose() => _cache.Dispose();
 }

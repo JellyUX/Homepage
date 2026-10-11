@@ -7,8 +7,10 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets;
 /// Thread-safe per-user session cache for the home screen widget layout.
 /// Caches the list of <see cref="WidgetDescriptor"/> that passed MinItems filtering so that
 /// <see cref="WidgetService.GetWidgetsForUser"/> avoids re-querying every widget on each page load.
-/// Entries expire after a configurable TTL (see <see cref="CacheConfig.SessionTtlMinutes"/>).
-/// A background timer garbage-collects entries that have not been accessed in over an hour.
+/// Entries expire a fixed TTL after they were built (see <see cref="CacheConfig.SessionTtlMinutes"/>):
+/// reading an entry does not extend it (F-02), so a page reloaded every minute still gets a fresh
+/// layout once the TTL has passed. A background timer garbage-collects entries that have not been
+/// accessed in over an hour.
 /// </summary>
 public sealed class SessionCache : IDisposable
 {
@@ -17,13 +19,16 @@ public sealed class SessionCache : IDisposable
 
     private readonly ConcurrentDictionary<(Guid UserId, string Lang), SessionData> _cache = new();
     private readonly Timer _cleanupTimer;
+    private readonly TimeProvider _timeProvider;
     private bool _disposed;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SessionCache"/> class.
     /// </summary>
-    public SessionCache()
+    /// <param name="timeProvider">Time source for entry expiry. Defaults to <see cref="TimeProvider.System"/>.</param>
+    public SessionCache(TimeProvider? timeProvider = null)
     {
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _cleanupTimer = new Timer(
             _ => Cleanup(),
             null,
@@ -33,19 +38,20 @@ public sealed class SessionCache : IDisposable
 
     /// <summary>
     /// Attempts to retrieve a cached descriptor list for the given user and language.
-    /// Updates <see cref="SessionData.LastAccessed"/> on a cache hit to extend the entry's life.
+    /// A hit updates <see cref="SessionData.LastAccessed"/> for garbage collection, never the expiry.
     /// </summary>
     /// <param name="userId">The user whose layout to retrieve.</param>
     /// <param name="lang">The language the cached layout's display names were translated for.</param>
-    /// <param name="ttl">The maximum age of an entry before it is considered stale.</param>
+    /// <param name="ttl">The maximum age of an entry, counted from when it was built.</param>
     /// <param name="descriptors">The cached descriptors, or null on a miss.</param>
     /// <returns>True if a valid cached entry was found; otherwise false.</returns>
     public bool TryGet(Guid userId, string? lang, TimeSpan ttl, out IReadOnlyList<WidgetDescriptor>? descriptors)
     {
+        var now = UtcNow;
         if (_cache.TryGetValue((userId, NormalizeKey(lang)), out var data) &&
-            DateTime.UtcNow - data.LastAccessed < ttl)
+            now - data.CreatedAt < ttl)
         {
-            data.LastAccessed = DateTime.UtcNow;
+            data.LastAccessed = now;
             descriptors = data.Descriptors;
             return true;
         }
@@ -62,9 +68,11 @@ public sealed class SessionCache : IDisposable
     /// <param name="descriptors">The ordered list of descriptors that passed MinItems filtering.</param>
     public void Set(Guid userId, string? lang, IReadOnlyList<WidgetDescriptor> descriptors)
     {
+        var now = UtcNow;
         _cache[(userId, NormalizeKey(lang))] = new SessionData
         {
-            LastAccessed = DateTime.UtcNow,
+            CreatedAt = now,
+            LastAccessed = now,
             Descriptors = descriptors
         };
     }
@@ -107,9 +115,11 @@ public sealed class SessionCache : IDisposable
         }
     }
 
+    private DateTime UtcNow => _timeProvider.GetUtcNow().UtcDateTime;
+
     private void Cleanup()
     {
-        var cutoff = DateTime.UtcNow - TimeSpan.FromMinutes(GarbageCollectAfterMinutes);
+        var cutoff = UtcNow - TimeSpan.FromMinutes(GarbageCollectAfterMinutes);
         foreach (var key in _cache.Keys.ToList())
         {
             if (_cache.TryGetValue(key, out var data) && data.LastAccessed < cutoff)
