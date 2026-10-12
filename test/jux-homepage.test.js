@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import juxHomepage from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-homepage.js';
 
-const { _buildSeeAllHref, _fallback, _isHomePage, _hasMorePages, _setupLazyLoader, _chunkState, _repairStaleChunks, _armChunkGuard, _guardFetchData, _guardGetItemsHtml } = juxHomepage;
+const { _buildSeeAllHref, _fallback, _isHomePage, _hasMorePages, _setupLazyLoader, _chunkState, _repairStaleChunks, _armChunkGuard, _guardFetchData, _guardGetItemsHtml, _renderHome } = juxHomepage;
 
 describe('_buildSeeAllHref', () => {
     it('resolves a known route to its Jellyfin hash URL', () => {
@@ -368,5 +368,55 @@ describe('failed home section (F-40)', () => {
         const getItemsHtml = _guardGetItemsHtml((items) => 'cards:' + items.length);
 
         expect(getItemsHtml((await fetchData()).Items)).toBe('cards:1');
+    });
+});
+
+describe('first render (F-41)', () => {
+    const originalHook = window.JUXHomepage.originalLoadSections;
+
+    afterEach(() => {
+        window.JUXHomepage.originalLoadSections = originalHook;
+    });
+
+    function apiClient(response) {
+        let resolve;
+        const pending = new Promise((r) => { resolve = r; });
+        return {
+            client: {
+                getCurrentUserId: () => 'u1',
+                getUrl: (route) => route,
+                getJSON: vi.fn(() => pending)
+            },
+            answer: (value) => { resolve(value); return pending.then(() => new Promise((r) => setTimeout(r, 0))); },
+            response
+        };
+    }
+
+    it('shows grey placeholders before the first request answers, then replaces them', async () => {
+        const elem = document.createElement('div');
+        const api = apiClient();
+
+        _renderHome({}, elem, api.client, {}, {});
+
+        expect(elem.querySelectorAll('.jux-skeleton .jux-skeleton-section')).toHaveLength(3);
+        expect(elem.querySelectorAll('.jux-skeleton .card.overflowBackdropCard')).toHaveLength(24);
+        await api.answer({ Sections: [], HasMore: false, Enabled: true });
+        expect(elem.querySelector('.jux-skeleton')).toBeNull();
+        expect(api.client.getJSON).toHaveBeenCalledTimes(1);
+        expect(api.client.getJSON.mock.calls[0][0]).toBe('JuxHomepage/Sections');
+    });
+
+    it('hands the home screen back to Jellyfin when Sections says the plugin is disabled', async () => {
+        const elem = document.createElement('div');
+        const api = apiClient();
+        const native = vi.fn();
+        window.JUXHomepage.originalLoadSections = native;
+
+        _renderHome({}, elem, api.client, {}, {});
+        await api.answer({ Sections: [], HasMore: false, Enabled: false });
+
+        expect(native).toHaveBeenCalledTimes(1);
+        expect(elem.querySelector('.jux-skeleton')).toBeNull();
+        expect(elem.classList.contains('jux-homepage-active')).toBe(false);
     });
 });

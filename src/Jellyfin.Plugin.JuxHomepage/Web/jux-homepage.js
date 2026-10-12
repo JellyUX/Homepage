@@ -29,15 +29,7 @@
                 return _fallback(self, elem, apiClient, user, userSettings);
             }
 
-            return _fetchMeta(apiClient).then(function (meta) {
-                if (!meta || !meta.Enabled) {
-                    return _fallback(self, elem, apiClient, user, userSettings);
-                }
-                return _renderHome(self, elem, apiClient, user, userSettings);
-            }).catch(function (err) {
-                console.error('[JellyUX] meta fetch failed, falling back:', err);
-                return _fallback(self, elem, apiClient, user, userSettings);
-            });
+            return _renderHome(self, elem, apiClient, user, userSettings);
         }
     };
 
@@ -76,11 +68,41 @@
     }
 
     // -------------------------------------------------------------------------
-    // Meta check
+    // Skeleton (TODO_V4.md 5.3, F-41)
     // -------------------------------------------------------------------------
 
-    function _fetchMeta(apiClient) {
-        return apiClient.getJSON(apiClient.getUrl('JuxHomepage/meta'));
+    // Grey placeholders shown before the first request, in place of the native spinner, until the
+    // first page of sections arrives. Built from Jellyfin's own card classes, so each placeholder has
+    // the size of a real backdrop card at every screen width (measured on 8096: 359 px at 1920 px).
+    var SKELETON_SECTIONS = 3;
+    var SKELETON_CARDS = 8;
+
+    function _skeletonHtml() {
+        var card =
+            '<div class="card overflowBackdropCard">' +
+            '<div class="cardBox cardBox-bottompadded">' +
+            '<div class="cardScalable">' +
+            '<div class="cardPadder cardPadder-overflowBackdrop"></div>' +
+            '<div class="cardImageContainer jux-skeleton-block"></div>' +
+            '</div>' +
+            '<div class="cardText jux-skeleton-text"><div class="jux-skeleton-bar"></div></div>' +
+            '</div>' +
+            '</div>';
+        var section =
+            '<div class="verticalSection jux-skeleton-section">' +
+            '<div class="sectionTitleContainer sectionTitleContainer-cards padded-left">' +
+            '<div class="jux-skeleton-bar jux-skeleton-title"></div>' +
+            '</div>' +
+            '<div class="jux-skeleton-row padded-left">' + new Array(SKELETON_CARDS + 1).join(card) + '</div>' +
+            '</div>';
+        return '<div class="jux-skeleton" aria-busy="true">' + new Array(SKELETON_SECTIONS + 1).join(section) + '</div>';
+    }
+
+    function _clearSkeleton(elem) {
+        var skeleton = elem.querySelector('.jux-skeleton');
+        if (skeleton) {
+            skeleton.remove();
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -92,7 +114,7 @@
         var isFirstActivation = !elem.classList.contains('jux-homepage-active');
 
         if (isFirstActivation) {
-            elem.innerHTML = '';
+            elem.innerHTML = _skeletonHtml();
             elem.classList.add('homeSectionsContainer', 'jux-homepage-active');
         }
 
@@ -129,6 +151,13 @@
                 lang: document.documentElement.lang || 'en'
             })
         ).then(function (response) {
+            _clearSkeleton(elem);
+            // The plugin was disabled after this page loaded: the layout comes back empty with
+            // Enabled = false, and the first page hands the home screen back to Jellyfin.
+            if (response && response.Enabled === false) {
+                elem.dataset.juxHasMore = 'false';
+                return typeof onFirstPageFailure === 'function' ? onFirstPageFailure() : undefined;
+            }
             elem.dataset.juxHasMore = String(_hasMorePages(response));
             var descriptors = (response && response.Sections) || [];
             if (descriptors.length === 0) {
@@ -151,6 +180,7 @@
             });
         }).catch(function (err) {
             console.error('[JellyUX] Sections fetch failed (page ' + page + '):', err);
+            _clearSkeleton(elem);
             if (typeof onFirstPageFailure === 'function') {
                 return onFirstPageFailure();
             }
@@ -570,6 +600,8 @@
             _hasMorePages: _hasMorePages,
             _setupLazyLoader: _setupLazyLoader,
             _buildSection: _buildSection,
+            _renderHome: _renderHome,
+            _skeletonHtml: _skeletonHtml,
             _makeFetchData: _makeFetchData,
             _guardFetchData: _guardFetchData,
             _guardGetItemsHtml: _guardGetItemsHtml,

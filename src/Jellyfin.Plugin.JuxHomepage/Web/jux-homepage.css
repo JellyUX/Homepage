@@ -152,3 +152,49 @@
 .jux-error-state-compact .jux-error-retry {
     margin: 0;
 }
+
+/* -------------------------------------------------------------------------
+ * Skeleton (TODO_V4.md 5.3, F-41): grey placeholders sized by Jellyfin's own
+ * card classes, shown until the first page of sections arrives.
+ * ------------------------------------------------------------------------- */
+
+.jux-skeleton-row {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow: hidden;
+}
+
+.jux-skeleton-block,
+.jux-skeleton-bar {
+    background: rgb(var(--jf-palette-text-primaryChannel) / 0.08);
+    animation: jux-skeleton-pulse 1.6s ease-in-out infinite;
+}
+
+.jux-skeleton-bar {
+    height: 0.9em;
+    border-radius: 0.25em;
+}
+
+.jux-skeleton-title {
+    width: 12em;
+    height: 1.3em;
+    margin: 0.6em 0;
+}
+
+.jux-skeleton-text .jux-skeleton-bar {
+    width: 60%;
+    margin: 0.5em auto 0;
+}
+
+@keyframes jux-skeleton-pulse {
+    50% {
+        opacity: 0.5;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .jux-skeleton-block,
+    .jux-skeleton-bar {
+        animation: none;
+    }
+}

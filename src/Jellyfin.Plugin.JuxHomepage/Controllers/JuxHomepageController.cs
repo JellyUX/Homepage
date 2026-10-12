@@ -520,6 +520,11 @@ public class JuxHomepageController : ControllerBase
 
         userId = resolvedUserId.Value;
 
+        if (!(Plugin.Instance?.Configuration ?? new PluginConfiguration()).Enabled)
+        {
+            return Ok(new SectionsPage([], HasMore: false, Enabled: false));
+        }
+
         var sectionsPage = await _widgetService
             .GetWidgetsForUser(userId, page, lang, cancellationToken)
             .ConfigureAwait(false);
