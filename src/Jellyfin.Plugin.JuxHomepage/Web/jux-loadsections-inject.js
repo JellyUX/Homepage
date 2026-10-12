@@ -13,7 +13,10 @@
 // The function is spliced as:
 //   ,loadSections:<fragment>,originalLoadSections:
 // so this.originalLoadSections is the native implementation.
+// window.JuxLoadSectionsPatched tells jux-homepage.js that the patched chunk, not a cached native
+// copy, rendered the home page (TODO_V4.md 4.2, F-13).
 function(e, t, r, o, page) {
+    window.JuxLoadSectionsPatched = true;
     try {
         if (!window.JellyfinAPI) {
             window.JellyfinAPI = {

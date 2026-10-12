@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import juxHomepage from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-homepage.js';
 
-const { _escHtml, _buildSeeAllHref, _fallback, _isHomePage, _hasMorePages, _setupLazyLoader } = juxHomepage;
+const { _escHtml, _buildSeeAllHref, _fallback, _isHomePage, _hasMorePages, _setupLazyLoader, _chunkState, _repairStaleChunks, _armChunkGuard } = juxHomepage;
 
 describe('_escHtml', () => {
     it('escapes ampersands, angle brackets, and quotes', () => {
@@ -147,5 +147,177 @@ describe('_buildSection (F-11)', () => {
         const sections = [...elem.querySelectorAll('.jux-widget-section')];
         expect(sections.map((s) => s.classList.contains('jux-widget-jux-native-next-up'))).toEqual([true, false]);
         expect(sections.map((s) => s.style.order)).toEqual(['', '']);
+    });
+});
+
+// A window stand-in for the stale chunk guard: session storage, resource timing, fetch and reload
+// are the only browser services it touches.
+function fakeWindow({ storage = new Map(), noStorage = false, resources = [], patched = false, tabs = false } = {}) {
+    const sessionStorage = noStorage
+        ? { getItem() { throw new Error('denied'); }, setItem() { throw new Error('denied'); }, removeItem() { throw new Error('denied'); } }
+        : {
+            getItem: (k) => (storage.has(k) ? storage.get(k) : null),
+            setItem: (k, v) => storage.set(k, v),
+            removeItem: (k) => storage.delete(k)
+        };
+    return {
+        storage,
+        sessionStorage,
+        performance: { getEntriesByType: () => resources },
+        fetch: vi.fn(() => Promise.resolve({ ok: true })),
+        location: { reload: vi.fn() },
+        setInterval: (fn, ms) => setInterval(fn, ms),
+        clearInterval: (id) => clearInterval(id),
+        JuxLoadSectionsPatched: patched || undefined,
+        juxTabInjector: tabs ? {} : undefined
+    };
+}
+
+function renderHomeView({ sections = 0, juxPanes = true } = {}) {
+    const items = '<div class="verticalSection"></div>'.repeat(sections);
+    document.body.innerHTML = '<div class="page homePage" id="indexPage">'
+        + `<div class="tabContent"><div class="sections">${items}</div></div>`
+        + '<div class="tabContent" id="favoritesTab"><div class="sections"></div></div>'
+        + (juxPanes ? '<div class="tabContent" id="jux-tab-watchlist"></div>' : '')
+        + '</div>';
+}
+
+describe('_chunkState', () => {
+    afterEach(() => {
+        document.body.innerHTML = '';
+    });
+
+    it('is undecided away from the home page', () => {
+        document.body.innerHTML = '<div class="page" id="moviesPage"></div>';
+
+        expect(_chunkState(fakeWindow(), document)).toBeNull();
+    });
+
+    it('is undecided while the home sections are not rendered yet', () => {
+        renderHomeView();
+
+        expect(_chunkState(fakeWindow(), document)).toBeNull();
+    });
+
+    it('is ok once the patched loadSections has run', () => {
+        renderHomeView({ sections: 3 });
+
+        expect(_chunkState(fakeWindow({ patched: true }), document)).toBe('ok');
+    });
+
+    it('is stale when the home sections were rendered without the patched loadSections', () => {
+        renderHomeView({ sections: 3 });
+
+        expect(_chunkState(fakeWindow(), document)).toBe('stale');
+    });
+
+    it('is stale when the Tabs module is on and the home view has no JellyUX pane', () => {
+        renderHomeView({ juxPanes: false });
+
+        expect(_chunkState(fakeWindow({ patched: true, tabs: true }), document)).toBe('stale');
+    });
+
+    it('ignores the missing JellyUX panes when the Tabs module is off', () => {
+        renderHomeView({ sections: 3, juxPanes: false });
+
+        expect(_chunkState(fakeWindow({ patched: true }), document)).toBe('ok');
+    });
+});
+
+describe('_repairStaleChunks', () => {
+    afterEach(() => {
+        document.body.innerHTML = '';
+    });
+
+    it('refetches the chunks served from cache, then reloads once', async () => {
+        const win = fakeWindow({
+            resources: [
+                { name: 'http://h/web/home-html.abc.chunk.js', transferSize: 0 },
+                { name: 'http://h/web/42.def.chunk.js?x=1', transferSize: 0 },
+                { name: 'http://h/web/7.aaa.chunk.js', transferSize: 1800 },
+                { name: 'http://h/JuxHomepage/jux-ui.js?v=1', transferSize: 0 }
+            ]
+        });
+
+        const outcome = await _repairStaleChunks(win, document);
+
+        expect(outcome).toBe('reload');
+        expect(win.fetch.mock.calls).toEqual([
+            ['http://h/web/home-html.abc.chunk.js', { cache: 'reload' }],
+            ['http://h/web/42.def.chunk.js?x=1', { cache: 'reload' }]
+        ]);
+        expect(win.location.reload).toHaveBeenCalledTimes(1);
+        expect(document.getElementById('jux-chunk-notice').querySelector('button')).toBeNull();
+    });
+
+    it('does not reload a second time in the same session and shows a persistent message', async () => {
+        const win = fakeWindow({ resources: [{ name: 'http://h/web/home-html.abc.chunk.js', transferSize: 0 }] });
+        await _repairStaleChunks(win, document);
+
+        const outcome = await _repairStaleChunks(win, document);
+
+        expect(outcome).toBe('notice');
+        expect(win.location.reload).toHaveBeenCalledTimes(1);
+        expect(win.fetch).toHaveBeenCalledTimes(1);
+        const notice = document.getElementById('jux-chunk-notice');
+        expect(notice.textContent).toContain('CDN');
+        notice.querySelector('button').click();
+        expect(document.getElementById('jux-chunk-notice')).toBeNull();
+    });
+
+    it('never reloads without session storage to guard the loop', async () => {
+        const win = fakeWindow({ noStorage: true });
+
+        const outcome = await _repairStaleChunks(win, document);
+
+        expect(outcome).toBe('notice');
+        expect(win.location.reload).not.toHaveBeenCalled();
+    });
+});
+
+describe('_armChunkGuard', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+        document.body.innerHTML = '';
+    });
+
+    it('clears the reload flag once the patched chunks render the home page', () => {
+        const win = fakeWindow({ patched: true });
+        win.storage.set('jux-chunk-reload', '1');
+        renderHomeView({ sections: 2 });
+
+        _armChunkGuard(win, document);
+        vi.advanceTimersByTime(1000);
+
+        expect(win.storage.has('jux-chunk-reload')).toBe(false);
+        expect(win.location.reload).not.toHaveBeenCalled();
+    });
+
+    it('repairs only once when the home page stays native', async () => {
+        const win = fakeWindow();
+        renderHomeView({ sections: 2 });
+
+        _armChunkGuard(win, document);
+        await vi.advanceTimersByTimeAsync(5000);
+
+        expect(win.location.reload).toHaveBeenCalledTimes(1);
+    });
+
+    it('waits for the home page, then stops after its first decision', async () => {
+        const win = fakeWindow();
+        document.body.innerHTML = '<div class="page" id="moviesPage"></div>';
+
+        _armChunkGuard(win, document);
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(win.location.reload).not.toHaveBeenCalled();
+
+        renderHomeView({ sections: 2 });
+        await vi.advanceTimersByTimeAsync(5000);
+
+        expect(win.location.reload).toHaveBeenCalledTimes(1);
     });
 });

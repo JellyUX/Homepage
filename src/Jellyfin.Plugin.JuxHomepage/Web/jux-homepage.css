@@ -56,3 +56,36 @@
         background-position: 0 12em, 2em 25em, -5em 18em;
     }
 }
+
+/* Stale chunk notice (jux-homepage.js, TODO_V4.md 4.2) */
+.jux-chunk-notice {
+    position: fixed;
+    left: 50%;
+    bottom: 1.5em;
+    transform: translateX(-50%);
+    z-index: 1000;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75em;
+    box-sizing: border-box;
+    max-width: min(40em, calc(100vw - 2em));
+    padding: 0.75em 1em;
+    border-radius: 0.5em;
+    background: var(--jf-palette-background-default);
+    color: rgb(var(--jf-palette-text-primaryChannel));
+    box-shadow: 0 0.25em 1em rgb(var(--jf-palette-common-backgroundChannel) / 0.5);
+    font-size: 0.9em;
+    line-height: 1.4;
+}
+
+.jux-chunk-notice-close {
+    flex: none;
+    border: 0;
+    padding: 0 0.25em;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 1.3em;
+    line-height: 1;
+    cursor: pointer;
+}

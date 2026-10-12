@@ -363,6 +363,126 @@
             .replace(/"/g, '&quot;');
     }
 
+    // -------------------------------------------------------------------------
+    // Stale chunk guard (TODO_V4.md 4.2, F-13)
+    // -------------------------------------------------------------------------
+
+    // A chunk fetched before JellyUX was installed only carries Last-Modified, so the browser may
+    // keep serving that native copy from its heuristic cache; Ctrl+Shift+R does not refetch it
+    // because it is loaded dynamically. Only fetch(url, { cache: 'reload' }) replaces it (E8-04).
+    // The guard does that once per browser session, then reloads; if the home page is still native
+    // after that reload, an intermediate cache (CDN, proxy) serves it and a message says so.
+    var CHUNK_RELOAD_KEY = 'jux-chunk-reload';
+    var CHUNK_GUARD_INTERVAL_MS = 1000;
+    var CHUNK_GUARD_MAX_TICKS = 300;
+
+    // 'ok' once the patched chunks are seen at work, 'stale' when the home page was rendered by a
+    // native chunk, null while the home page is not there or not rendered yet.
+    function _chunkState(win, doc) {
+        var view = doc.getElementById('indexPage');
+        if (!view) {
+            return null;
+        }
+
+        if (win.juxTabInjector && !doc.getElementById('jux-tab-watchlist')) {
+            return 'stale';
+        }
+
+        if (win.JuxLoadSectionsPatched === true) {
+            return 'ok';
+        }
+
+        var sections = view.querySelector('.tabContent .sections');
+        return sections && sections.children.length > 0 ? 'stale' : null;
+    }
+
+    function _readSession(win, key) {
+        try {
+            return win.sessionStorage.getItem(key);
+        } catch (e) {
+            return undefined;
+        }
+    }
+
+    function _cachedChunkUrls(win) {
+        var entries = win.performance && win.performance.getEntriesByType
+            ? win.performance.getEntriesByType('resource')
+            : [];
+        return entries
+            .filter(function (entry) { return /\.chunk\.js(\?|$)/.test(entry.name) && entry.transferSize === 0; })
+            .map(function (entry) { return entry.name; });
+    }
+
+    function _showChunkNotice(doc, key, persistent) {
+        var fr = (doc.documentElement.lang || '').toLowerCase().indexOf('fr') === 0;
+        var texts = {
+            reloading: fr
+                ? 'JellyUX : mise à jour des fichiers en cache, rechargement de la page.'
+                : 'JellyUX: updating cached files, reloading the page.',
+            stale: fr
+                ? 'JellyUX ne peut pas afficher son accueil : un cache entre ce navigateur et le serveur (CDN ou proxy) sert encore une ancienne copie de la page. L\'administrateur du serveur doit le purger.'
+                : 'JellyUX cannot show its home page: a cache between this browser and the server (CDN or proxy) still serves an old copy of the page. The server administrator should purge it.'
+        };
+
+        var notice = doc.getElementById('jux-chunk-notice');
+        if (!notice) {
+            notice = doc.createElement('div');
+            notice.id = 'jux-chunk-notice';
+            notice.className = 'jux-chunk-notice';
+            notice.setAttribute('role', 'status');
+            doc.body.appendChild(notice);
+        }
+
+        notice.textContent = texts[key];
+        if (persistent) {
+            var close = doc.createElement('button');
+            close.type = 'button';
+            close.className = 'jux-chunk-notice-close';
+            close.setAttribute('aria-label', fr ? 'Fermer' : 'Close');
+            close.textContent = '×';
+            close.addEventListener('click', function () { notice.remove(); });
+            notice.appendChild(close);
+        }
+    }
+
+    // Returns what was done: 'reload' (cached chunks refetched, page reloaded) or 'notice' (already
+    // reloaded once this session, or no session storage to guard a reload loop with).
+    function _repairStaleChunks(win, doc) {
+        var flag = _readSession(win, CHUNK_RELOAD_KEY);
+        if (flag !== null) {
+            _showChunkNotice(doc, 'stale', true);
+            return Promise.resolve('notice');
+        }
+
+        win.sessionStorage.setItem(CHUNK_RELOAD_KEY, '1');
+        _showChunkNotice(doc, 'reloading', false);
+        var refetches = _cachedChunkUrls(win).map(function (url) {
+            return win.fetch(url, { cache: 'reload' }).catch(function () { return null; });
+        });
+        return Promise.all(refetches).then(function () {
+            win.location.reload();
+            return 'reload';
+        });
+    }
+
+    function _armChunkGuard(win, doc) {
+        var ticks = 0;
+        var timer = win.setInterval(function () {
+            ticks++;
+            var state = _chunkState(win, doc);
+            if (state === 'ok') {
+                try { win.sessionStorage.removeItem(CHUNK_RELOAD_KEY); } catch (e) { /* no storage, nothing to clear */ }
+            } else if (state === 'stale') {
+                _repairStaleChunks(win, doc);
+            }
+
+            if (state !== null || ticks >= CHUNK_GUARD_MAX_TICKS) {
+                win.clearInterval(timer);
+            }
+        }, CHUNK_GUARD_INTERVAL_MS);
+        return timer;
+    }
+
     // Guarded UMD-lite export (TODO_V2.md Phase 15.3): `module` is undefined in a browser, so this
     // branch never executes in production -- zero behavior change there. It lets a Node-based test
     // runner (Vitest) `require()`/`import` this file and exercise its pure functions directly,
@@ -378,7 +498,12 @@
             _isHomePage: _isHomePage,
             _hasMorePages: _hasMorePages,
             _setupLazyLoader: _setupLazyLoader,
-            _buildSection: _buildSection
+            _buildSection: _buildSection,
+            _chunkState: _chunkState,
+            _repairStaleChunks: _repairStaleChunks,
+            _armChunkGuard: _armChunkGuard
         };
+    } else {
+        _armChunkGuard(window, document);
     }
 })();
