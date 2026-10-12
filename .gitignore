@@ -27,6 +27,7 @@
 !ci/
 !ci/static-checks.mjs
 !ci/duplication-baseline.json
+!ci/coverage-summary.mjs
 !e2e/
 !e2e/setup.mjs
 !e2e/helpers.mjs

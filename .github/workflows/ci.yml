@@ -28,7 +28,7 @@ jobs:
         run: dotnet build --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test --no-build --configuration Release --filter "Category!=RequiresDocker"
+        run: dotnet test --no-build --configuration Release --filter "Category!=RequiresDocker" --collect:"XPlat Code Coverage" --results-directory coverage/cs
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -38,7 +38,16 @@ jobs:
         run: npm ci
 
       - name: Run Vitest
-        run: npm test
+        run: npx vitest run --coverage
+
+      - name: Summarize coverage
+        run: node ci/coverage-summary.mjs "$(find coverage/cs -name coverage.cobertura.xml | head -1)" coverage/js/coverage-summary.json >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage
+          path: coverage
+          retention-days: 14
 
   build-newest-abi:
     name: Build against the newest validated Jellyfin

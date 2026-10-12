@@ -7,6 +7,13 @@ export default defineConfig({
     test: {
         environment: 'jsdom',
         // e2e/ holds the Playwright browser tests (npx playwright test -c e2e).
-        exclude: [...configDefaults.exclude, 'e2e/**']
+        exclude: [...configDefaults.exclude, 'e2e/**'],
+        // npx vitest run --coverage; summarized in CI by ci/coverage-summary.mjs, no threshold.
+        coverage: {
+            provider: 'v8',
+            include: ['src/Jellyfin.Plugin.JuxHomepage/Web/*.js'],
+            reporter: ['text-summary', 'json-summary', 'html'],
+            reportsDirectory: 'coverage/js'
+        }
     }
 });
