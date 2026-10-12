@@ -111,32 +111,31 @@
 
     function _renderHome(self, elem, apiClient, user, userSettings) {
         var userId = apiClient.getCurrentUserId();
-        var isFirstActivation = !elem.classList.contains('jux-homepage-active');
 
-        if (isFirstActivation) {
-            elem.innerHTML = _skeletonHtml();
-            elem.classList.add('homeSectionsContainer', 'jux-homepage-active');
-        }
+        // Jellyfin calls loadSections once per mount, on a new container or on one it has just
+        // emptied (destroySections), so every call starts from a blank container.
+        elem.innerHTML = _skeletonHtml();
+        elem.classList.add('homeSectionsContainer', 'jux-homepage-active');
 
-        // Only the very first page load falls back to native rendering on failure: at that point
+        // Only the first page load falls back to native rendering on failure: at that point
         // nothing has been rendered yet, so a permanently blank home screen would otherwise result.
         // Later lazy-loaded pages (see _setupLazyLoader) intentionally do NOT fall back -- by then
         // JUX has already rendered a working layout, and swapping to native mid-page would break it.
-        return _loadPage(elem, apiClient, userId, userSettings, 0, isFirstActivation ? function () {
+        return _loadPage(elem, apiClient, userId, userSettings, 0, function () {
             elem.classList.remove('jux-homepage-active', 'homeSectionsContainer');
             return _fallback(self, elem, apiClient, user, userSettings);
-        } : undefined).then(function (result) {
+        }).then(function (result) {
             // TODO_V3.md Phase 7.3 fix: the lazy loader used to be armed above, before this first page
             // had actually rendered anything -- on a short layout its sentinel sat in a still-empty
             // container and intersected almost immediately, firing page=1 in a near-simultaneous race
             // with page=0. Arming it only here, after page 0 has resolved, removes that race; a short
             // (but non-empty) first page still correctly triggering an immediate page=1 fill afterward
-            // is the intended lazy-fill-viewport behavior, not a bug. The isFirstActivation re-check
-            // guards against arming it when page 0 failed and fell back to native rendering above
-            // (that failure path strips the "jux-homepage-active" class).
+            // is the intended lazy-fill-viewport behavior, not a bug. The class check guards against
+            // arming it when page 0 failed and fell back to native rendering above (that failure path
+            // strips the "jux-homepage-active" class).
             // Armed only when page 0 reported a later page: a layout that fits in one page never
             // requests an empty one.
-            if (isFirstActivation && elem.classList.contains('jux-homepage-active') && elem.dataset.juxHasMore === 'true') {
+            if (elem.classList.contains('jux-homepage-active') && elem.dataset.juxHasMore === 'true') {
                 _setupLazyLoader(elem, apiClient, userId, userSettings);
             }
             return result;

@@ -419,4 +419,18 @@ describe('first render (F-41)', () => {
         expect(elem.querySelector('.jux-skeleton')).toBeNull();
         expect(elem.classList.contains('jux-homepage-active')).toBe(false);
     });
+
+    it('treats a container emptied and reused by the native home tab like a new one', async () => {
+        const elem = document.createElement('div');
+        elem.classList.add('homeSectionsContainer', 'jux-homepage-active');
+        const api = apiClient();
+        const native = vi.fn();
+        window.JUXHomepage.originalLoadSections = native;
+
+        _renderHome({}, elem, api.client, {}, {});
+
+        expect(elem.querySelector('.jux-skeleton')).not.toBeNull();
+        await api.answer({ Sections: [], HasMore: false, Enabled: false });
+        expect(native).toHaveBeenCalledTimes(1);
+    });
 });
