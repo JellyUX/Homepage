@@ -19,8 +19,9 @@ internal enum LoadSectionsOutcome
     Patched,
 
     /// <summary>
-    /// The marker is present but the minified module self-reference ("var X=") could not be resolved -
-    /// indicates a Jellyfin Web bundle drift. The content is returned unchanged (safe native fallback).
+    /// The marker is present but an expected minified token is missing from the module that defines
+    /// loadSections: the module self-reference ("var X="), the cardBuilder binding or its ".default"
+    /// read. Indicates a Jellyfin Web bundle drift. The content is returned unchanged (native fallback).
     /// </summary>
     HookNotFound
 }
@@ -67,6 +68,16 @@ public static class TransformationPatches
 
     private static readonly Regex LastVarRegex =
         new Regex(@"var\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=", RegexOptions.Compiled);
+
+    // A webpack module definition inside a chunk: "56213:function(e,t,r){" or "56213:(e,t,r)=>{".
+    private static readonly Regex ModuleStartRegex =
+        new Regex(@"(?<![\w$])\d+:(?:function\(\w+,\w+,\w+\)\{|\(\w+,\w+,\w+\)=>\{)", RegexOptions.Compiled);
+
+    private static readonly Regex CardBuilderDeclarationRegex =
+        new Regex($@"(?:\bvar\s+|,){Regex.Escape(HookCardBuilder)}\s*=", RegexOptions.Compiled);
+
+    private static readonly Regex CardBuilderReadRegex =
+        new Regex($@"(?<![\w$.]){Regex.Escape(HookCardBuilder)}\.default\b", RegexOptions.Compiled);
 
     private const string InjectResourceSuffix = "Web.jux-loadsections-inject.js";
 
@@ -281,12 +292,91 @@ public static class TransformationPatches
 
         var thisHook = matches[^1].Groups[1].Value.Trim();
 
+        // The fragment reads {{cardbuilder}}.default: the name must be bound, and read that way, in the
+        // module that defines loadSections, or the splice would reference an unrelated variable.
+        var module = LoadSectionsModule(raw);
+        if (!CardBuilderDeclarationRegex.IsMatch(module) || !CardBuilderReadRegex.IsMatch(module))
+        {
+            return (raw, LoadSectionsOutcome.HookNotFound);
+        }
+
         var fragment = fragmentTemplate
             .Replace("{{cardbuilder}}", HookCardBuilder, StringComparison.Ordinal)
             .Replace("{{this_hook}}", thisHook, StringComparison.Ordinal);
 
         var patched = raw.Replace(",loadSections:", $",loadSections:{fragment},originalLoadSections:", StringComparison.Ordinal);
         return (patched, LoadSectionsOutcome.Patched);
+    }
+
+    /// <summary>
+    /// Returns the webpack module that contains the first ",loadSections:" marker, or the whole chunk
+    /// when module boundaries cannot be found.
+    /// </summary>
+    /// <param name="raw">The chunk.js contents, known to contain the marker.</param>
+    /// <returns>The module source text.</returns>
+    private static string LoadSectionsModule(string raw)
+    {
+        var marker = raw.IndexOf(",loadSections:", StringComparison.Ordinal);
+        var starts = ModuleStartRegex.Matches(raw);
+        var start = starts.LastOrDefault(m => m.Index < marker)?.Index ?? 0;
+        var end = starts.FirstOrDefault(m => m.Index > marker)?.Index ?? raw.Length;
+        return raw[start..end];
+    }
+
+    /// <summary>
+    /// Checks the home-html chunk(s) for the anchor the tab panes are spliced after, and logs the
+    /// outcome: without it the tabs module falls back to native rendering (no JellyUX tab panes).
+    /// </summary>
+    /// <param name="webPath">Path to the Jellyfin web directory.</param>
+    /// <param name="fileSystem">File system abstraction, for testability.</param>
+    /// <param name="logger">Logger for reporting results.</param>
+    /// <returns>True when at least one home-html chunk holds the anchor.</returns>
+    public static bool CheckHomeHtmlChunks(string webPath, IFileSystem fileSystem, ILogger logger)
+    {
+        if (!fileSystem.DirectoryExists(webPath))
+        {
+            return false;
+        }
+
+        var chunks = fileSystem.GetFiles(webPath, "home-html.*.chunk.js", SearchOption.AllDirectories);
+        if (chunks.Count == 0)
+        {
+            logger.LogWarning(
+                "No home-html chunk found in {WebPath}: the JellyUX tab panes cannot be spliced in. "
+                + "See CLAUDE.md 'Jellyfin Update Procedure'.",
+                webPath);
+            return false;
+        }
+
+        var found = false;
+        foreach (var chunk in chunks)
+        {
+            string content;
+            try
+            {
+                content = fileSystem.ReadAllText(chunk);
+            }
+            catch (IOException ex)
+            {
+                logger.LogWarning(ex, "Could not read chunk file: {File}", chunk);
+                continue;
+            }
+
+            if (TryPatchHomeHtmlChunk(content).Outcome == HomeHtmlOutcome.Patched)
+            {
+                found = true;
+                logger.LogInformation("Found home-html tab anchor in {FileName}.", Path.GetFileName(chunk));
+            }
+            else
+            {
+                logger.LogWarning(
+                    "Chunk {FileName} does not contain the home-html tab anchor: the JellyUX tab panes "
+                    + "fall back to native rendering. See CLAUDE.md 'Jellyfin Update Procedure'.",
+                    Path.GetFileName(chunk));
+            }
+        }
+
+        return found;
     }
 
     /// <summary>

@@ -1,6 +1,9 @@
 using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.Inject;
+using Jellyfin.Plugin.JuxHomepage.IO;
 using Jellyfin.Plugin.JuxHomepage.Models;
+using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using Xunit;
 
 namespace Jellyfin.Plugin.JuxHomepage.Tests.Inject;
@@ -18,7 +21,7 @@ public sealed class TransformationPatchesTests
     [Fact]
     public void TryPatchLoadSections_ValidChunkWithHook_SplicesFragmentAndReplacesTokens()
     {
-        const string raw = "var u={default:1};var n={A:1};,loadSections:function(){},other:2";
+        const string raw = "var u=r(1);var n={A:function(){return u.default}};,loadSections:function(){},other:2";
 
         var (content, outcome) = TransformationPatches.TryPatchLoadSections(raw, FragmentTemplate);
 
@@ -54,6 +57,67 @@ public sealed class TransformationPatchesTests
 
         Assert.Equal(LoadSectionsOutcome.HookNotFound, outcome);
         Assert.Equal(raw, content);
+    }
+
+    [Theory]
+    // cardBuilder never bound: the fragment would read an unrelated or undefined "u".
+    [InlineData("var x=r(1);var n={A:function(){return x.default}};,loadSections:function(){},o:2")]
+    // Bound but never read through .default: the export shape changed.
+    [InlineData("var u=r(1);var n={A:function(){return u.Ay}};,loadSections:function(){},o:2")]
+    // Bound and read only in another module of the chunk, not in the one defining loadSections.
+    [InlineData("1:function(e,t,r){var u=r(1);u.default.x()},2:function(e,t,r){var n=r(3);var x={a:1,loadSections:function(){}}}")]
+    public void TryPatchLoadSections_CardBuilderTokenMissingFromModule_ReturnsHookNotFoundAndContentUnchanged(string raw)
+    {
+        var (content, outcome) = TransformationPatches.TryPatchLoadSections(raw, FragmentTemplate);
+
+        Assert.Equal(LoadSectionsOutcome.HookNotFound, outcome);
+        Assert.Equal(raw, content);
+    }
+
+    [Fact]
+    public void TryPatchLoadSections_CardBuilderBoundInTheLoadSectionsModule_Patches()
+    {
+        const string raw = "1:function(e,t,r){var x=r(9)},56213:function(e,t,r){var n=r(4),u=r(24468);function h(){return u.default.getCardsHtml()}var x={a:1,loadSections:function(){}}}";
+
+        var (_, outcome) = TransformationPatches.TryPatchLoadSections(raw, FragmentTemplate);
+
+        Assert.Equal(LoadSectionsOutcome.Patched, outcome);
+    }
+
+    [Fact]
+    public void CheckHomeHtmlChunks_AnchorPresent_ReturnsTrue()
+    {
+        var fileSystem = HomeHtmlFileSystem("x" + HomeHtmlAnchor + "y");
+
+        Assert.True(TransformationPatches.CheckHomeHtmlChunks("/web", fileSystem, NullLogger.Instance));
+    }
+
+    [Fact]
+    public void CheckHomeHtmlChunks_AnchorMissing_ReturnsFalse()
+    {
+        var fileSystem = HomeHtmlFileSystem("id=\"favoritesTab\" data-index=\"1\"><div class=\"sections\"></div></div>");
+
+        Assert.False(TransformationPatches.CheckHomeHtmlChunks("/web", fileSystem, NullLogger.Instance));
+    }
+
+    [Fact]
+    public void CheckHomeHtmlChunks_NoHomeHtmlChunk_ReturnsFalse()
+    {
+        var fileSystem = new Mock<IFileSystem>();
+        fileSystem.Setup(f => f.DirectoryExists("/web")).Returns(true);
+        fileSystem.Setup(f => f.GetFiles("/web", "home-html.*.chunk.js", SearchOption.AllDirectories)).Returns([]);
+
+        Assert.False(TransformationPatches.CheckHomeHtmlChunks("/web", fileSystem.Object, NullLogger.Instance));
+    }
+
+    private static IFileSystem HomeHtmlFileSystem(string content)
+    {
+        var fileSystem = new Mock<IFileSystem>();
+        fileSystem.Setup(f => f.DirectoryExists("/web")).Returns(true);
+        fileSystem.Setup(f => f.GetFiles("/web", "home-html.*.chunk.js", SearchOption.AllDirectories))
+            .Returns(["/web/home-html.abc.chunk.js"]);
+        fileSystem.Setup(f => f.ReadAllText("/web/home-html.abc.chunk.js")).Returns(content);
+        return fileSystem.Object;
     }
 
     // -------------------------------------------------------------------------

@@ -182,6 +182,8 @@ public sealed class StartupService : IHostedService, IDisposable
     /// </summary>
     private void RegisterHomeHtmlTransformation()
     {
+        TransformationPatches.CheckHomeHtmlChunks(_applicationPaths.WebPath, _fileSystem, _logger);
+
         var payload = new JObject
         {
             ["id"] = Guid.NewGuid().ToString(),
@@ -265,8 +267,9 @@ public sealed class StartupService : IHostedService, IDisposable
         if (outcome == LoadSectionsOutcome.HookNotFound)
         {
             _logger.LogWarning(
-                "Chunk {FileName} contains ',loadSections:' but the minified hook could not be resolved. "
-                + "Jellyfin Web may have drifted; the home page will fall back to native rendering. "
+                "Chunk {FileName} contains ',loadSections:' but an expected minified token (module "
+                + "self-reference, cardBuilder binding or its .default read) is missing. Jellyfin Web may "
+                + "have drifted; the home page will fall back to native rendering. "
                 + "See CLAUDE.md 'Jellyfin Update Procedure'.",
                 fileName);
         }
