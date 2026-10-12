@@ -9,6 +9,14 @@
         "imageUrl": "https://raw.githubusercontent.com/JellyUX/Homepage/main/docs/icon.png",
         "versions": [
             {
+                "version": "2.11.0.0",
+                "changelog": "### Features\n\n* warn administrators when Custom Tabs is installed alongside JellyUX ([f127165](https://github.com/JellyUX/Homepage/commit/f1271658f4589901c16f6bd74ba7fa38107cff1b))\n\n### Bug Fixes\n\n* number JellyUX tabs after their real pane position in the home view ([8380064](https://github.com/JellyUX/Homepage/commit/83800646fe5a474e2073e8896448f92f40a53712))\n* read the native home sections from the native Jellyfin routes ([a293fd3](https://github.com/JellyUX/Homepage/commit/a293fd3dfc056815709a5938eddbc25944a6caf7))\n* reload once when the browser serves a cached native home chunk ([bb39e6a](https://github.com/JellyUX/Homepage/commit/bb39e6a2f8cc4cd77e3d882c8e2341419275e9fa))",
+                "targetAbi": "10.11.9.0",
+                "sourceUrl": "https://github.com/JellyUX/Homepage/releases/download/v2.11.0/jellyux-homepage_2.11.0.0.zip",
+                "checksum": "8ddca03ccdfc57591d75b8745c7ab0d8",
+                "timestamp": "2026-10-12T16:52:09Z"
+            },
+            {
                 "version": "2.10.1.0",
                 "changelog": "### Bug Fixes\n\n* build the plugin against the minimum supported Jellyfin ([bb3d47a](https://github.com/JellyUX/Homepage/commit/bb3d47a23b3a4344bf9b35786d3227a4cf4eef21))\n* drop the CSS order set on home sections ([8cf0d7e](https://github.com/JellyUX/Homepage/commit/8cf0d7e8240b9a80842388806a80635998f567f3))\n* fall back to native rendering when a patched chunk token is missing ([c6df508](https://github.com/JellyUX/Homepage/commit/c6df50818c6cf6ad9d7562badbcab883a99aee7a))",
                 "targetAbi": "10.11.9.0",

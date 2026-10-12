@@ -1,3 +1,15 @@
+## [2.11.0](https://github.com/JellyUX/Homepage/compare/v2.10.1...v2.11.0) (2026-10-12)
+
+### Features
+
+* warn administrators when Custom Tabs is installed alongside JellyUX ([f127165](https://github.com/JellyUX/Homepage/commit/f1271658f4589901c16f6bd74ba7fa38107cff1b))
+
+### Bug Fixes
+
+* number JellyUX tabs after their real pane position in the home view ([8380064](https://github.com/JellyUX/Homepage/commit/83800646fe5a474e2073e8896448f92f40a53712))
+* read the native home sections from the native Jellyfin routes ([a293fd3](https://github.com/JellyUX/Homepage/commit/a293fd3dfc056815709a5938eddbc25944a6caf7))
+* reload once when the browser serves a cached native home chunk ([bb39e6a](https://github.com/JellyUX/Homepage/commit/bb39e6a2f8cc4cd77e3d882c8e2341419275e9fa))
+
 ## [2.10.1](https://github.com/JellyUX/Homepage/compare/v2.10.0...v2.10.1) (2026-10-12)
 
 ### Bug Fixes
