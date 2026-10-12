@@ -53,6 +53,13 @@ resume automatically once the 5-minute window elapses and TMDb is reachable agai
 
 ## Sections don't appear even after clearing the browser cache and using incognito mode
 
+JellyUX first repairs the browser side by itself: when the home page is rendered by a native copy of
+the patched chunks (typically a chunk the browser cached before the plugin was installed), it
+refetches the cached chunks, bypassing the browser cache, and reloads the page once, with a short
+"updating cached files" message. If the home page is still native after that reload, the message
+"a cache between this browser and the server (CDN or proxy) still serves an old copy" stays on screen:
+the stale copy then comes from outside the browser, as described below.
+
 If the home page still shows native Jellyfin sections after installing or updating JellyUX, and this
 persists even in a private/incognito window or after fully clearing browser data, the cause is
 probably **not** the browser at all: a CDN or a caching reverse proxy in front of your Jellyfin server
