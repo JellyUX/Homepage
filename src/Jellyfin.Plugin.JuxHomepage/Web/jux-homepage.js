@@ -303,7 +303,7 @@
                 var params = {
                     userId: userId,
                     startIndex: 0,
-                    limit: 20,
+                    limit: descriptor.MaxItems || 20,
                     fields: 'PrimaryImageAspectRatio,DateCreated',
                     imageTypeLimit: 1,
                     enableImageTypes: 'Primary,Thumb,Backdrop',
@@ -322,7 +322,7 @@
                     userId: userId,
                     additionalData: descriptor.AdditionalData || undefined,
                     startIndex: 0,
-                    limit: 20
+                    limit: descriptor.MaxItems || 20
                 })
             );
         };

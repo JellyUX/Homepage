@@ -25,6 +25,15 @@ public interface ILocalizationService
     string Translate(string key, string? lang, string? value = null);
 
     /// <summary>
+    /// Normalizes a raw language tag (e.g. "fr-FR", "FR", null) to the short code of a loaded
+    /// dictionary (e.g. "fr"), or English for null, empty, or unknown values, so a request can never
+    /// create a cache entry per arbitrary tag (TODO_V4.md 5.5, F-21).
+    /// </summary>
+    /// <param name="lang">The raw language tag.</param>
+    /// <returns>The short code of a loaded language.</returns>
+    string NormalizeLanguage(string? lang);
+
+    /// <summary>
     /// Returns the full flat key-to-string dictionary for a language, for the admin config page to
     /// translate its own UI client-side. English is used as a base, with keys of the requested
     /// language overlaid on top when present.

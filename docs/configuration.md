@@ -24,7 +24,7 @@ Every widget section shares this set of fields, no matter its category:
 |---|---|
 | Enabled | Toggles the section on or off without removing it. |
 | Min items | Section is hidden if fewer items than this are available. |
-| Max items | Maximum number of items fetched per section. |
+| Max items | Maximum number of items fetched per section, at most 100. |
 | View mode | Card shape: Landscape, Portrait, or Square. |
 | Name | Custom display name shown instead of the widget's default title. Not available for Personalized widgets, whose section names are generated per user (e.g. "Because you watched ..."). |
 

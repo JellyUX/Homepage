@@ -416,6 +416,33 @@ public sealed class JuxHomepageControllerTests
             Times.Once);
     }
 
+    [Fact]
+    public async Task GetWatchlistItems_OutOfRangePaging_IsBounded()
+    {
+        var caller = TestMocks.DefaultUser();
+        var watchlistMock = new Mock<IWatchlistService>();
+        var controller = BuildUserController(caller, isAdministrator: false, watchlistServiceMock: watchlistMock);
+
+        await controller.GetWatchlistItems(Guid.Empty, startIndex: -3, limit: 100000);
+
+        watchlistMock.Verify(
+            w => w.GetItems(caller.Id, It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), 0, WidgetConfig.MaxItemsCeiling, It.IsAny<bool>(), It.IsAny<CancellationToken>()),
+            Times.Once);
+    }
+
+    [Fact]
+    public async Task GetSections_UnknownLanguage_SharesTheEnglishCacheEntry()
+    {
+        var caller = TestMocks.DefaultUser();
+        using var sessionCache = new SessionCache();
+        var controller = BuildUserController(caller, isAdministrator: false, sessionCache: sessionCache);
+
+        await controller.GetSections(Guid.Empty, lang: "zz");
+
+        Assert.True(sessionCache.TryGet(caller.Id, "en", TimeSpan.FromMinutes(5), out _));
+        Assert.False(sessionCache.TryGet(caller.Id, "zz", TimeSpan.FromMinutes(5), out _));
+    }
+
     private static async Task<int?> InvokeAsUser(MethodInfo action, User caller, Guid requestedUserId)
     {
         var controller = BuildUserController(caller, isAdministrator: false);
@@ -436,7 +463,8 @@ public sealed class JuxHomepageControllerTests
     private static JuxHomepageController BuildUserController(
         User caller,
         bool isAdministrator,
-        Mock<IWatchlistService>? watchlistServiceMock = null)
+        Mock<IWatchlistService>? watchlistServiceMock = null,
+        SessionCache? sessionCache = null)
     {
         var authContextMock = new Mock<IAuthorizationContext>();
         authContextMock
@@ -446,7 +474,8 @@ public sealed class JuxHomepageControllerTests
         var controller = BuildController(
             userManagerMock: TestMocks.UserManagerReturning(caller),
             watchlistServiceMock: watchlistServiceMock,
-            authContextMock: authContextMock);
+            authContextMock: authContextMock,
+            sessionCache: sessionCache);
 
         var roles = isAdministrator ? new[] { new Claim(ClaimTypes.Role, "Administrator") } : [];
         controller.ControllerContext = new ControllerContext
@@ -479,12 +508,13 @@ public sealed class JuxHomepageControllerTests
         Mock<IStatisticsService>? statisticsServiceMock = null,
         Mock<ICollectionsIndexCacheService>? collectionsIndexCacheServiceMock = null,
         Mock<IAuthorizationContext>? authContextMock = null,
-        ILogger<JuxHomepageController>? logger = null)
+        ILogger<JuxHomepageController>? logger = null,
+        SessionCache? sessionCache = null)
     {
         var registry = new WidgetRegistry();
         var widgetService = new WidgetService(
             registry,
-            new SessionCache(),
+            sessionCache ?? new SessionCache(),
             new WidgetLayoutResolver(
                 registry,
                 Mock.Of<IUserConfigurationStore>(),

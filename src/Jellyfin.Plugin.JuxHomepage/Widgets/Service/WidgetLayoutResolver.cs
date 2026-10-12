@@ -289,6 +289,7 @@ public sealed class WidgetLayoutResolver
             AdditionalData = additionalData,
             Order = config.Order,
             MinItems = config.MinItems,
+            MaxItems = Math.Clamp(config.MaxItems, 1, WidgetConfig.MaxItemsCeiling),
             Theme = theme
         };
     }

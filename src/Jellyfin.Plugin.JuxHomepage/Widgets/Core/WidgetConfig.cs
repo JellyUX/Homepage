@@ -26,6 +26,12 @@ public sealed class WidgetConfig
     /// <summary>Gets or sets the minimum number of items required to display the widget.</summary>
     public int MinItems { get; set; } = 4;
 
+    /// <summary>
+    /// The highest <see cref="MaxItems"/> and the highest item count any request returns: a
+    /// <c>limit</c> of 100000 would otherwise return the whole library (TODO_V4.md 5.5, F-21).
+    /// </summary>
+    public const int MaxItemsCeiling = 100;
+
     /// <summary>Gets or sets the maximum number of items to return per request.</summary>
     public int MaxItems { get; set; } = 20;
 

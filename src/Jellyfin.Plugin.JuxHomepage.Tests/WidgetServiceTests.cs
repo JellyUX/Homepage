@@ -432,4 +432,27 @@ public sealed class WidgetServiceTests : IDisposable
     }
 
     public void Dispose() => _sessionCache.Dispose();
+
+    [Theory]
+    [InlineData(100000, 0, 7, 0)]
+    [InlineData(0, -5, 1, 0)]
+    [InlineData(5, 3, 5, 3)]
+    public async Task GetWidgetItems_BoundsLimitByMaxItemsAndStartIndexAtZero(int limit, int startIndex, int expectedLimit, int expectedStart)
+    {
+        const string widgetType = "jux.test.bounded";
+        WidgetPayload? captured = null;
+        var mock = new Mock<IWidget>();
+        mock.Setup(w => w.WidgetType).Returns(widgetType);
+        mock.Setup(w => w.GetItemsAsync(It.IsAny<WidgetPayload>(), It.IsAny<CancellationToken>()))
+            .Callback<WidgetPayload, CancellationToken>((payload, _) => captured = payload)
+            .ReturnsAsync(new WidgetResult([], 0));
+        var service = BuildService(
+            registeredWidgets: [mock.Object],
+            globalWidgets: [new WidgetConfig { WidgetType = widgetType, Enabled = true, MaxItems = 7 }]);
+
+        await service.GetWidgetItems(Guid.NewGuid(), widgetType, additionalData: null, startIndex, limit, CancellationToken.None);
+
+        Assert.Equal(expectedLimit, captured!.Limit);
+        Assert.Equal(expectedStart, captured.StartIndex);
+    }
 }

@@ -302,4 +302,26 @@ public sealed class WidgetLayoutResolverTests
         mock.Setup(w => w.GetDescriptor()).Returns(new WidgetDescriptor { WidgetType = widgetType });
         return mock.Object;
     }
+
+    [Theory]
+    [InlineData(7, 7)]
+    [InlineData(500, WidgetConfig.MaxItemsCeiling)]
+    public async Task BuildDescriptors_CarriesMaxItemsUpToTheCeiling(int configured, int expected)
+    {
+        var registry = new WidgetRegistry();
+        registry.Register(MakeWidget("jux.test.widget", totalRecordCount: 10));
+        var resolver = new WidgetLayoutResolver(
+            registry,
+            Mock.Of<IUserConfigurationStore>(),
+            new LocalizationService(new Dictionary<string, IReadOnlyDictionary<string, string>>()),
+            () => new PluginConfiguration
+            {
+                Widgets = [new WidgetConfig { WidgetType = "jux.test.widget", Enabled = true, MinItems = 1, MaxItems = configured }]
+            },
+            NullLogger<WidgetLayoutResolver>.Instance);
+
+        var descriptors = await resolver.BuildDescriptors(Guid.NewGuid(), lang: null, CancellationToken.None);
+
+        Assert.Equal(expected, Assert.Single(descriptors).MaxItems);
+    }
 }

@@ -154,4 +154,21 @@ public sealed class LocalizationServiceTests
 
         Assert.Equal("My Media", dict["jux.native.my-media"]);
     }
+
+    [Theory]
+    [InlineData("zz", "en")]
+    [InlineData("ZZ-yy", "en")]
+    [InlineData(null, "en")]
+    [InlineData("fr-FR", "fr")]
+    [InlineData("FR", "fr")]
+    public void NormalizeLanguage_ReturnsALoadedLanguage(string? lang, string expected)
+    {
+        var service = new LocalizationService(new Dictionary<string, IReadOnlyDictionary<string, string>>
+        {
+            ["en"] = new Dictionary<string, string>(),
+            ["fr"] = new Dictionary<string, string>()
+        });
+
+        Assert.Equal(expected, service.NormalizeLanguage(lang));
+    }
 }

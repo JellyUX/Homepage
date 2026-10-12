@@ -37,6 +37,12 @@ public sealed class WidgetDescriptor
     public int MinItems { get; set; }
 
     /// <summary>
+    /// Gets or sets the number of items the client requests for this section: the configured
+    /// <see cref="WidgetConfig.MaxItems"/>, at most <see cref="WidgetConfig.MaxItemsCeiling"/>.
+    /// </summary>
+    public int MaxItems { get; set; } = 20;
+
+    /// <summary>
     /// Gets or sets an optional visual theme identifier for this instance (e.g. <c>halloween</c>,
     /// <c>christmas</c>, <c>valentines</c>, <c>newyear</c>). Populated generically by
     /// <see cref="WidgetLayoutResolver"/> from a widget instance's <c>ExtraParams["theme"]</c> when

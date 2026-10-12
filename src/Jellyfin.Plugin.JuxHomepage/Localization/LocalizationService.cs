@@ -87,11 +87,8 @@ public sealed class LocalizationService : ILocalizationService
         return merged;
     }
 
-    /// <summary>
-    /// Normalizes a raw language tag (e.g. "fr-FR", "FR", null) to a short lowercase code (e.g.
-    /// "fr"). Falls back to <see cref="DefaultLanguage"/> for null, empty, or unrecognized values.
-    /// </summary>
-    private string NormalizeLanguage(string? lang)
+    /// <inheritdoc />
+    public string NormalizeLanguage(string? lang)
     {
         if (string.IsNullOrWhiteSpace(lang))
         {

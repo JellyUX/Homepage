@@ -384,4 +384,17 @@ public sealed class PluginValidationTests
         Assert.False(config.Modules.Tabs);
         Assert.True(config.Modules.Collections);
     }
+
+    [Fact]
+    public void ValidateConfiguration_CapsMaxItemsAtTheCeiling()
+    {
+        var config = new PluginConfiguration
+        {
+            Widgets = [new WidgetConfig { WidgetType = "jux.admin.genre", MinItems = 4, MaxItems = 100000 }]
+        };
+
+        Plugin.ValidateConfiguration(config);
+
+        Assert.Equal(WidgetConfig.MaxItemsCeiling, config.Widgets[0].MaxItems);
+    }
 }

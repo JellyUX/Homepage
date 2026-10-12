@@ -128,12 +128,15 @@ public sealed class WidgetService
         var configRow = _layoutResolver.ResolveConfigRow(widgetType, additionalData);
         var extra = configRow?.GetExtraParamsDictionary();
 
+        // A section never returns more than its configured MaxItems (TODO_V4.md 5.5, F-21).
+        var maxItems = Math.Clamp(configRow?.MaxItems ?? WidgetConfig.MaxItemsCeiling, 1, WidgetConfig.MaxItemsCeiling);
+
         var payload = new WidgetPayload
         {
             UserId = userId,
             AdditionalData = additionalData,
-            StartIndex = startIndex,
-            Limit = limit,
+            StartIndex = Math.Max(0, startIndex),
+            Limit = Math.Clamp(limit, 1, maxItems),
             ExtraParams = extra
         };
 

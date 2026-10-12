@@ -349,7 +349,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
         foreach (var widget in config.Widgets)
         {
             widget.MinItems = Math.Max(0, widget.MinItems);
-            widget.MaxItems = Math.Max(1, widget.MaxItems);
+            widget.MaxItems = Math.Clamp(widget.MaxItems, 1, WidgetConfig.MaxItemsCeiling);
             if (widget.MinItems > widget.MaxItems)
             {
                 widget.MinItems = widget.MaxItems;

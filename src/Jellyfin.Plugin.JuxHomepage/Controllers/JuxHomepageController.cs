@@ -526,7 +526,7 @@ public class JuxHomepageController : ControllerBase
         }
 
         var sectionsPage = await _widgetService
-            .GetWidgetsForUser(userId, page, lang, cancellationToken)
+            .GetWidgetsForUser(userId, page, _localizationService.NormalizeLanguage(lang), cancellationToken)
             .ConfigureAwait(false);
 
         return Ok(sectionsPage);
@@ -576,6 +576,12 @@ public class JuxHomepageController : ControllerBase
         return Ok(result);
     }
 
+    // Bounds a tab page (TODO_V4.md 5.5, F-21): a negative start reads from the first row, and a
+    // limit stays between 1 and WidgetConfig.MaxItemsCeiling, so no request can return the whole
+    // library.
+    private static (int StartIndex, int Limit) BoundPage(int startIndex, int limit) =>
+        (Math.Max(0, startIndex), Math.Clamp(limit, 1, WidgetConfig.MaxItemsCeiling));
+
     // -------------------------------------------------------------------------
     // Watchlist (authenticated user)
     // -------------------------------------------------------------------------
@@ -613,6 +619,7 @@ public class JuxHomepageController : ControllerBase
 
         userId = resolvedUserId.Value;
 
+        (startIndex, limit) = BoundPage(startIndex, limit);
         var result = _watchlistService.GetItems(userId, sortBy, sortOrder, includeItemTypes, startIndex, limit, includeTotalRecordCount: true, cancellationToken);
         return Ok(result);
     }
@@ -675,6 +682,7 @@ public class JuxHomepageController : ControllerBase
 
         userId = resolvedUserId.Value;
 
+        (startIndex, limit) = BoundPage(startIndex, limit);
         var result = _seriesProgressViewService.GetItems(userId, sortBy, sortOrder, startIndex, limit, cancellationToken);
         return Ok(result);
     }
@@ -710,6 +718,7 @@ public class JuxHomepageController : ControllerBase
 
         userId = resolvedUserId.Value;
 
+        (startIndex, limit) = BoundPage(startIndex, limit);
         var result = _movieHistoryViewService.GetItems(userId, sortBy, sortOrder, startIndex, limit, cancellationToken);
         return Ok(result);
     }
