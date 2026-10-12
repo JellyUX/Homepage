@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import juxCardHooks from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-card-hooks.js';
 
 const {
@@ -9,7 +9,8 @@ const {
     _infiniteScrollMediaType,
     _parseSortSettings,
     _buildItemsQuery,
-    _hasMoreItems
+    _hasMoreItems,
+    _syncSession
 } = juxCardHooks;
 
 describe('_iconName', () => {
@@ -172,5 +173,73 @@ describe('_hasMoreItems', () => {
     it('returns false once startIndex reaches the total record count', () => {
         expect(_hasMoreItems(250, 250)).toBe(false);
         expect(_hasMoreItems(300, 250)).toBe(false);
+    });
+});
+
+describe('_syncSession (F-51)', () => {
+    const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+    afterEach(() => {
+        delete window.ApiClient;
+    });
+
+    function client(answers) {
+        let userId = null;
+        return {
+            setUser: (id) => { userId = id; },
+            getCurrentUserId: () => userId,
+            getUrl: (route, query) => route + '?userId=' + query.userId,
+            getJSON: vi.fn((url) => answers[url.split('userId=')[1]])
+        };
+    }
+
+    it('waits for a signed-in user, then loads the ids of that user once', async () => {
+        const api = client({ alice: Promise.resolve(['m1']) });
+        window.ApiClient = api;
+        const state = { likedIds: new Set(), userId: null };
+
+        _syncSession(state);
+        expect(api.getJSON).not.toHaveBeenCalled();
+
+        api.setUser('alice');
+        _syncSession(state);
+        _syncSession(state);
+        await flush();
+
+        expect(api.getJSON).toHaveBeenCalledTimes(1);
+        expect([...state.likedIds]).toEqual(['m1']);
+    });
+
+    it('empties the set at once for another user and drops a late answer for the previous one', async () => {
+        let answerAlice;
+        const api = client({ alice: new Promise((r) => { answerAlice = r; }), bob: Promise.resolve(['s9']) });
+        window.ApiClient = api;
+        const state = { likedIds: new Set(['old']), userId: null };
+
+        api.setUser('alice');
+        _syncSession(state);
+        expect(state.likedIds.size).toBe(0);
+        api.setUser('bob');
+        _syncSession(state);
+        answerAlice(['m1']);
+        await flush();
+
+        expect(state.userId).toBe('bob');
+        expect([...state.likedIds]).toEqual(['s9']);
+    });
+
+    it('retries on the next view after a failed load', async () => {
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const api = client({ alice: Promise.reject(new Error('slow')) });
+        window.ApiClient = api;
+        const state = { likedIds: new Set(), userId: null };
+
+        api.setUser('alice');
+        _syncSession(state);
+        await flush();
+        _syncSession(state);
+
+        expect(api.getJSON).toHaveBeenCalledTimes(2);
+        errorSpy.mockRestore();
     });
 });

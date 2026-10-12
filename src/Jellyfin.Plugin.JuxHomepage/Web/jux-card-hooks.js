@@ -36,6 +36,9 @@
 
     window.juxCardHooks = {
         likedIds: null,
+        // The user the liked ids belong to: the set is never shown to anyone else (TODO_V4.md 5.4,
+        // F-51).
+        userId: null,
 
         init: function () {
             var self = this;
@@ -48,42 +51,39 @@
             _watchNavigation(self);
             _tryInitLibraryInfiniteScroll();
 
-            // Preloads the full liked-id set in one call (TODO_V3.md Phase 5.2's confirmed design:
-            // pre-fetch once at load rather than a per-card request). Confirmed live on
-            // jellyux-test that on a fresh page load this can resolve to an empty set if
-            // ApiClient's user session isn't hydrated yet at the moment this script runs -- _waitForUserId
-            // retries instead of giving up immediately, and _resyncAllButtons below repairs any
-            // button that was already rendered (with the wrong icon) before the real data arrived.
-            _loadLikedIds().then(function (ids) {
-                ids.forEach(function (id) { self.likedIds.add(id); });
-                _resyncAllButtons(self.likedIds);
-            }).catch(function (err) {
-                console.error('[JellyUX] Failed to preload watchlist ids:', err);
-            });
+            // The liked ids are preloaded in one call (TODO_V3.md Phase 5.2) for the signed-in user,
+            // at load and again on every view shown: a slow sign-in that leaves no user at load, or a
+            // sign-out followed by another account, reloads them on the first view of the new user.
+            document.addEventListener('viewshow', function () { _syncSession(self); });
+            _syncSession(self);
         }
     };
 
-    function _waitForUserId(attemptsLeft) {
-        attemptsLeft = attemptsLeft === undefined ? 25 : attemptsLeft;
+    // Loads the liked ids of the signed-in user when they differ from the user the set belongs to.
+    // The set is emptied at once, so the previous user's ids never mark another user's cards, and a
+    // late answer for a user who has since left is dropped.
+    function _syncSession(state) {
         var userId = window.ApiClient && window.ApiClient.getCurrentUserId();
-        if (userId) {
-            return Promise.resolve(userId);
+        if (!userId || userId === state.userId) {
+            return;
         }
-        if (attemptsLeft <= 0) {
-            return Promise.resolve(null);
-        }
-        return new Promise(function (resolve) {
-            setTimeout(function () { resolve(_waitForUserId(attemptsLeft - 1)); }, 300);
-        });
-    }
 
-    function _loadLikedIds() {
-        return _waitForUserId().then(function (userId) {
-            if (!userId || !window.ApiClient) {
-                return new Set();
+        state.userId = userId;
+        state.likedIds.clear();
+        _resyncAllButtons(state.likedIds);
+
+        var url = window.ApiClient.getUrl('JuxHomepage/Watchlist/Ids', { userId: userId });
+        window.ApiClient.getJSON(url).then(function (ids) {
+            if (state.userId !== userId) {
+                return;
             }
-            var url = window.ApiClient.getUrl('JuxHomepage/Watchlist/Ids', { userId: userId });
-            return window.ApiClient.getJSON(url).then(function (ids) { return new Set(ids || []); });
+            (ids || []).forEach(function (id) { state.likedIds.add(id); });
+            _resyncAllButtons(state.likedIds);
+        }).catch(function (err) {
+            console.error('[JellyUX] Failed to preload watchlist ids:', err);
+            if (state.userId === userId) {
+                state.userId = null;
+            }
         });
     }
 
@@ -427,8 +427,8 @@
         Array.prototype.forEach.call(matches, function (el) { _applyIconState(el, isLiked, lang); });
     }
 
-    // Repairs any button that rendered before the preloaded liked-id set finished loading (see
-    // the race documented on window.juxCardHooks.init above).
+    // Repairs any button that rendered before the liked-id set of the current user finished loading
+    // (see _syncSession).
     function _resyncAllButtons(likedIds) {
         var lang = window.JuxCore.resolveLang();
         var all = document.querySelectorAll('[data-jux-item-id]');
@@ -788,7 +788,8 @@
             _infiniteScrollMediaType: _infiniteScrollMediaType,
             _parseSortSettings: _parseSortSettings,
             _buildItemsQuery: _buildItemsQuery,
-            _hasMoreItems: _hasMoreItems
+            _hasMoreItems: _hasMoreItems,
+            _syncSession: _syncSession
         };
     }
 })();
