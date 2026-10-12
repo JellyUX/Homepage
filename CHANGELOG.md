@@ -1,3 +1,11 @@
+## [2.10.1](https://github.com/JellyUX/Homepage/compare/v2.10.0...v2.10.1) (2026-10-12)
+
+### Bug Fixes
+
+* build the plugin against the minimum supported Jellyfin ([bb3d47a](https://github.com/JellyUX/Homepage/commit/bb3d47a23b3a4344bf9b35786d3227a4cf4eef21))
+* drop the CSS order set on home sections ([8cf0d7e](https://github.com/JellyUX/Homepage/commit/8cf0d7e8240b9a80842388806a80635998f567f3))
+* fall back to native rendering when a patched chunk token is missing ([c6df508](https://github.com/JellyUX/Homepage/commit/c6df50818c6cf6ad9d7562badbcab883a99aee7a))
+
 ## [2.10.0](https://github.com/JellyUX/Homepage/compare/v2.9.2...v2.10.0) (2026-10-11)
 
 ### Features

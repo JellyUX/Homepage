@@ -9,6 +9,14 @@
         "imageUrl": "https://raw.githubusercontent.com/JellyUX/Homepage/main/docs/icon.png",
         "versions": [
             {
+                "version": "2.10.1.0",
+                "changelog": "### Bug Fixes\n\n* build the plugin against the minimum supported Jellyfin ([bb3d47a](https://github.com/JellyUX/Homepage/commit/bb3d47a23b3a4344bf9b35786d3227a4cf4eef21))\n* drop the CSS order set on home sections ([8cf0d7e](https://github.com/JellyUX/Homepage/commit/8cf0d7e8240b9a80842388806a80635998f567f3))\n* fall back to native rendering when a patched chunk token is missing ([c6df508](https://github.com/JellyUX/Homepage/commit/c6df50818c6cf6ad9d7562badbcab883a99aee7a))",
+                "targetAbi": "10.11.9.0",
+                "sourceUrl": "https://github.com/JellyUX/Homepage/releases/download/v2.10.1/jellyux-homepage_2.10.1.0.zip",
+                "checksum": "a3b833851621561b5e5a0e519b0be0ed",
+                "timestamp": "2026-10-12T15:56:35Z"
+            },
+            {
                 "version": "2.10.0.0",
                 "changelog": "### Features\n\n* add a switch for each JellyUX client module ([acb9bd0](https://github.com/JellyUX/Homepage/commit/acb9bd0627d7c5e562a169150b59f9e4fb2b6965))\n\n### Bug Fixes\n\n* cap the progress bar at 50 episode chunks ([72cc730](https://github.com/JellyUX/Homepage/commit/72cc73031f3c31c740c4ebee19b25aa21fe2cbcf))\n* inject only the scripts of enabled modules ([3472b5a](https://github.com/JellyUX/Homepage/commit/3472b5ace6a352b40c16062bd268e9ff134b26e9))\n* load tab card images only when they come into view ([ebe8f03](https://github.com/JellyUX/Homepage/commit/ebe8f031668ee1e899d0d3527ae60b67c2fbbc41))\n* serve client assets as immutable under a content hash ([759aae1](https://github.com/JellyUX/Homepage/commit/759aae1fb272d3adda3fd6684aba6325228a0c1b))\n* stop detail-page modules from refetching on every DOM change ([2ce7624](https://github.com/JellyUX/Homepage/commit/2ce7624b7cd6a2fb1311170183ebd11634344354))\n* stop the home lazy loader at the last page of sections ([b018ba2](https://github.com/JellyUX/Homepage/commit/b018ba29b56d910901a33cd8e8b38355d9e1d224))",
                 "targetAbi": "10.11.9.0",
