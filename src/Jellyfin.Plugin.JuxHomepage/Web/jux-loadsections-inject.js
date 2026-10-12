@@ -3,14 +3,12 @@
 // the ",loadSections:" injection point by TransformationPatches.PatchLoadSections.
 // It is NOT served as a web resource.
 //
-// Placeholder tokens are substituted at runtime with the minified variable names
-// resolved from the Jellyfin 10.11.10 web bundle:
-//   {{cardbuilder}}     -> u  (u.default  = cardBuilder)
-//   {{layoutmanager}}   -> n  (n.A        = layoutManager)
-//   {{shapes}}          -> y  (y.UI / y.xK / y.zP = backdrop / portrait / square)
-//   {{approuter}}       -> p  (p.appRouter = appRouter)
-//   {{globalize}}       -> s  (s.Ay       = globalize)
+// Placeholder tokens are substituted at runtime with minified names from the Jellyfin web bundle:
+//   {{cardbuilder}}     -> the cardBuilder module, read through its .default export
 //   {{this_hook}}       -> resolved dynamically from the last "var X=" before ,loadSections:
+// Everything else JellyUX needs is rebuilt here instead of being read from minified exports: the
+// card shapes mirror jellyfin-web's own helpers (an omitted argument means overflow), and
+// layoutManager.tv mirrors the "layout-tv" class that layoutManager sets on the html element.
 //
 // The function is spliced as:
 //   ,loadSections:<fragment>,originalLoadSections:
@@ -20,12 +18,20 @@ function(e, t, r, o, page) {
         if (!window.JellyfinAPI) {
             window.JellyfinAPI = {
                 cardBuilder: {{cardbuilder}}.default,
-                layoutManager: {{layoutmanager}}.A,
-                getBackdropShape: {{shapes}}.UI,
-                getPortraitShape: {{shapes}}.xK,
-                getSquareShape: {{shapes}}.zP,
-                appRouter: {{approuter}}.appRouter,
-                globalize: {{globalize}}.Ay
+                layoutManager: {
+                    get tv() {
+                        return document.documentElement.classList.contains('layout-tv');
+                    }
+                },
+                getBackdropShape: function (overflow) {
+                    return overflow === undefined || overflow ? 'overflowBackdrop' : 'backdrop';
+                },
+                getPortraitShape: function (overflow) {
+                    return overflow === undefined || overflow ? 'overflowPortrait' : 'portrait';
+                },
+                getSquareShape: function (overflow) {
+                    return overflow === undefined || overflow ? 'overflowSquare' : 'square';
+                }
             };
         }
         if (window.JUXHomepage) {

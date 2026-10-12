@@ -13,7 +13,7 @@ namespace Jellyfin.Plugin.JuxHomepage.Tests.Inject;
 // around ",loadSections:".
 public sealed class TransformationPatchesTests
 {
-    private const string FragmentTemplate = "/*{{cardbuilder}}{{layoutmanager}}{{shapes}}{{approuter}}{{globalize}}{{this_hook}}*/";
+    private const string FragmentTemplate = "/*{{cardbuilder}}{{this_hook}}*/";
 
     [Fact]
     public void TryPatchLoadSections_ValidChunkWithHook_SplicesFragmentAndReplacesTokens()

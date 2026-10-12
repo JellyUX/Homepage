@@ -58,15 +58,12 @@ internal sealed record ClientAsset(
 /// </summary>
 public static class TransformationPatches
 {
-    // Minified variable names in the Jellyfin 10.11.10 home chunk (56213.*.chunk.js).
-    // Verified by extracting the web bundle from jellyfin/jellyfin:10.11.10 and inspecting
-    // the module-level var declarations around ",loadSections:".
-    // Update these constants when targeting a new Jellyfin web release.
-    private const string HookCardBuilder = "u";    // u.default  = cardBuilder
-    private const string HookLayoutManager = "n";  // n.A        = layoutManager
-    private const string HookShapes = "y";         // y.UI / y.xK / y.zP = backdrop / portrait / square
-    private const string HookAppRouter = "p";      // p.appRouter = appRouter
-    private const string HookGlobalize = "s";      // s.Ay       = globalize
+    // Minified name of the cardBuilder module in the Jellyfin 10.11.10 home chunk (56213.*.chunk.js),
+    // read through its .default export. It is the only minified name the inject fragment depends on
+    // besides the module self-reference, which is resolved at patch time. Verified by extracting the
+    // web bundle from jellyfin/jellyfin:10.11.10 and inspecting the var declarations of the module
+    // that defines ",loadSections:". Update it when targeting a new Jellyfin web release.
+    private const string HookCardBuilder = "u";
 
     private static readonly Regex LastVarRegex =
         new Regex(@"var\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=", RegexOptions.Compiled);
@@ -286,10 +283,6 @@ public static class TransformationPatches
 
         var fragment = fragmentTemplate
             .Replace("{{cardbuilder}}", HookCardBuilder, StringComparison.Ordinal)
-            .Replace("{{layoutmanager}}", HookLayoutManager, StringComparison.Ordinal)
-            .Replace("{{shapes}}", HookShapes, StringComparison.Ordinal)
-            .Replace("{{approuter}}", HookAppRouter, StringComparison.Ordinal)
-            .Replace("{{globalize}}", HookGlobalize, StringComparison.Ordinal)
             .Replace("{{this_hook}}", thisHook, StringComparison.Ordinal);
 
         var patched = raw.Replace(",loadSections:", $",loadSections:{fragment},originalLoadSections:", StringComparison.Ordinal);
