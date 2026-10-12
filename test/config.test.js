@@ -256,6 +256,12 @@ describe('configuration page controller (F-33)', () => {
         expect(enter.defaultPrevented).toBe(true);
         expect(types()).toEqual(['Seasonal', 'Genre', 'Collection']);
         expect(window.ApiClient.updatePluginConfiguration).not.toHaveBeenCalled();
+
+        // The replaced field then fires a change, as Chromium does when the re-render removes it while
+        // focused: its stale index (2) now names Collection, which must stay where it is.
+        position.dispatchEvent(new Event('change'));
+        await settle();
+        expect(types()).toEqual(['Seasonal', 'Genre', 'Collection']);
     });
 
     it('puts an out-of-range position back without moving anything', async () => {

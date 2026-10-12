@@ -703,13 +703,19 @@ function createConfigPage() {
             // Typing a position moves the row there in one step (keyboard and touch alternative to
             // dragging); an out-of-range or empty value puts the current position back.
             list.querySelectorAll('.jux-admin-position').forEach(function (input) {
+                var applied = false;
                 function applyPosition() {
+                    // Each field moves its row once. The re-render below removes the focused field,
+                    // and Chromium then fires a change on it at once, from inside the re-render: its
+                    // index names another row by then, so that second call must not move anything.
+                    if (applied) { return; }
                     var idx = parseInt(input.getAttribute('data-index'), 10);
                     var target = parseInt(input.value, 10);
                     if (isNaN(target) || target < 1 || target > self.state.sortedWidgets.length || target === idx + 1) {
                         input.value = idx + 1;
                         return;
                     }
+                    applied = true;
                     self.readDomIntoState();
                     self.state.sortedWidgets = moveRow(self.state.sortedWidgets, idx, target - 1);
                     self.renderWidgets();
