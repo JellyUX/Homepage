@@ -1,3 +1,23 @@
+## [2.12.0](https://github.com/JellyUX/Homepage/compare/v2.11.1...v2.12.0) (2026-10-12)
+
+### Features
+
+* add a Preview button to every admin section card ([9742330](https://github.com/JellyUX/Homepage/commit/9742330ff95580aa48e3ed043f4c467166c76d8a))
+* list the configuration page in the dashboard plugin menu ([b8597c3](https://github.com/JellyUX/Homepage/commit/b8597c3c90b1765c926661d1712878b7bf6c4c3a))
+* move an admin section to any position by number or drag and drop ([9374141](https://github.com/JellyUX/Homepage/commit/93741413a8301bf6762e70786813156e20fbc4e2))
+* preview an unsaved home section from the admin page ([c63bc9e](https://github.com/JellyUX/Homepage/commit/c63bc9e1c6b9185e763733d95c778713223f6567))
+
+### Bug Fixes
+
+* align the admin card controls and describe every way to reorder ([10b1e58](https://github.com/JellyUX/Homepage/commit/10b1e583b653f144ac6bd7a749e0b91e00a58f60))
+* apply a typed section position on Enter instead of saving the page ([f5d079e](https://github.com/JellyUX/Homepage/commit/f5d079edcd611c81528660853f582720898c3400))
+* classify the seasonal widget as Admin and choose admin editors by widget type ([a49514c](https://github.com/JellyUX/Homepage/commit/a49514cdbf944d17dcdd005d2ca5965bd590eb31))
+* keep Save in view and fold the admin section cards into a summary line ([8b18957](https://github.com/JellyUX/Homepage/commit/8b18957fd1544fe51e9dc848a312961587400b60))
+* mask the TMDb API key on the configuration page ([cc4c550](https://github.com/JellyUX/Homepage/commit/cc4c550495b7177ae9c0f0812dd9a3136f8b230c))
+* move a section only once when its typed position is applied ([9f82eff](https://github.com/JellyUX/Homepage/commit/9f82eff3bce7b0ef88932e889a288f06f13e5ec9))
+* serve the configuration page stylesheet without a one-hour cache ([fa2ec6e](https://github.com/JellyUX/Homepage/commit/fa2ec6ef683639de533a61c5089b7a5adefecf29))
+* show the Now Playing region in full and keep the TMDb rows inside narrow screens ([65ff3c9](https://github.com/JellyUX/Homepage/commit/65ff3c99fea56feaee4ad4b4c2e670f408f28965))
+
 ## [2.11.1](https://github.com/JellyUX/Homepage/compare/v2.11.0...v2.11.1) (2026-10-12)
 
 ### Bug Fixes
