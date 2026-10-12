@@ -83,6 +83,8 @@
   "admin.order.up": "Monter",
   "admin.order.down": "Descendre",
   "admin.order.remove": "Supprimer la section",
+  "admin.order.position": "Position de {name}",
+  "admin.order.drag": "Glisser pour déplacer la section",
   "admin.card.expand": "Afficher les réglages",
   "admin.card.collapse": "Masquer les réglages",
   "admin.summary.items": "{min} à {max} éléments",

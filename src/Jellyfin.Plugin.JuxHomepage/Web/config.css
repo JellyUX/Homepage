@@ -72,7 +72,50 @@ ul.jux-admin-warning {
 }
 .jux-admin-order-buttons {
     display: flex;
+    align-items: center;
     gap: 0.25em;
+}
+.jux-admin-position {
+    width: 3.5em;
+    padding: 0.35em 0.4em;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+.jux-admin-widget-card {
+    position: relative;
+}
+.jux-admin-drag-handle {
+    cursor: grab;
+    color: var(--jf-palette-text-secondary, rgba(255, 255, 255, 0.7));
+    user-select: none;
+}
+.jux-admin-drag-handle:hover {
+    color: var(--jf-palette-text-primary, rgb(255, 255, 255));
+}
+.jux-admin-dragging {
+    opacity: 0.45;
+}
+/* Insertion line where the dragged section will land. */
+.jux-admin-drop-before::before,
+.jux-admin-drop-after::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background-color: var(--jf-palette-primary-main, rgb(0, 164, 220));
+}
+.jux-admin-drop-before::before {
+    top: -0.55em;
+}
+.jux-admin-drop-after::after {
+    bottom: -0.55em;
+}
+/* HTML5 drag and drop does not run on touch screens: the position field and the arrows do. */
+@media (pointer: coarse) {
+    .jux-admin-drag-handle {
+        display: none;
+    }
 }
 .jux-admin-row {
     display: flex;

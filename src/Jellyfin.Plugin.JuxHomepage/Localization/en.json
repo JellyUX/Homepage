@@ -83,6 +83,8 @@
   "admin.order.up": "Move up",
   "admin.order.down": "Move down",
   "admin.order.remove": "Remove section",
+  "admin.order.position": "Position of {name}",
+  "admin.order.drag": "Drag to move the section",
   "admin.card.expand": "Show settings",
   "admin.card.collapse": "Hide settings",
   "admin.summary.items": "{min} to {max} items",

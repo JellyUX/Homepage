@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import createController, { editorKind, escHtml, getExtraParam, moveRow, validateTmdb, widgetSummary } from '../src/Jellyfin.Plugin.JuxHomepage/Web/config.js';
+import createController, { dropIndex, editorKind, escHtml, getExtraParam, moveRow, validateTmdb, widgetSummary } from '../src/Jellyfin.Plugin.JuxHomepage/Web/config.js';
 
 const CONFIG_HTML = readFileSync(resolve(__dirname, '../src/Jellyfin.Plugin.JuxHomepage/Web/config.html'), 'utf8');
 
@@ -44,6 +44,17 @@ describe('editorKind (F-37)', () => {
         expect(editorKind('jux.personalized.favorite-genre', 'Personalized', index)).toBe('personalized');
         expect(editorKind('jux.connected.trending-movies', 3, index)).toBe('connected');
         expect(editorKind('jux.unknown', 9, index)).toBe('');
+    });
+});
+
+describe('dropIndex', () => {
+    it('lands a dragged row above or below the row it is dropped on', () => {
+        const rows = ['a', 'b', 'c', 'd'];
+        expect(moveRow(rows, 3, dropIndex(3, 0, false))).toEqual(['d', 'a', 'b', 'c']);
+        expect(moveRow(rows, 0, dropIndex(0, 3, true))).toEqual(['b', 'c', 'd', 'a']);
+        expect(moveRow(rows, 0, dropIndex(0, 2, false))).toEqual(['b', 'a', 'c', 'd']);
+        expect(moveRow(rows, 3, dropIndex(3, 1, true))).toEqual(['a', 'b', 'd', 'c']);
+        expect(moveRow(rows, 1, dropIndex(1, 1, true))).toEqual(rows);
     });
 });
 
@@ -208,6 +219,62 @@ describe('configuration page controller (F-33)', () => {
         expect(card(1).classList.contains('jux-admin-widget-card-collapsed')).toBe(false);
         expect(view.querySelector('#juxValError_1').style.display).toBe('');
         expect(document.activeElement).toBe(card(1).querySelector('.jux-admin-widget-value'));
+    });
+
+    function types() {
+        return [...view.querySelectorAll('.jux-admin-widget-card')].map((c) => c.querySelector('.checkboxLabel').textContent);
+    }
+
+    it('moves the last section to the first place by typing its position (F-50)', async () => {
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+        expect(types()).toEqual(['Genre', 'Collection', 'Seasonal']);
+
+        const position = card(2).querySelector('.jux-admin-position');
+        position.value = '1';
+        position.dispatchEvent(new Event('change'));
+        await settle();
+
+        expect(types()).toEqual(['Seasonal', 'Genre', 'Collection']);
+        expect(document.activeElement).toBe(card(0).querySelector('.jux-admin-position'));
+    });
+
+    it('puts an out-of-range position back without moving anything', async () => {
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+
+        const position = card(0).querySelector('.jux-admin-position');
+        position.value = '9';
+        position.dispatchEvent(new Event('change'));
+        await settle();
+
+        expect(types()).toEqual(['Genre', 'Collection', 'Seasonal']);
+        expect(position.value).toBe('1');
+    });
+
+    it('moves a section dragged by its handle and dropped above another one (F-50)', async () => {
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+        const dataTransfer = { setData: vi.fn(), setDragImage: vi.fn() };
+        function dragEvent(type, clientY) {
+            const e = new Event(type, { bubbles: true, cancelable: true });
+            e.dataTransfer = dataTransfer;
+            e.clientY = clientY;
+            return e;
+        }
+
+        card(2).querySelector('.jux-admin-drag-handle').dispatchEvent(dragEvent('dragstart', 0));
+        const over = dragEvent('dragover', -1);
+        card(0).dispatchEvent(over);
+        expect(over.defaultPrevented).toBe(true);
+        expect(card(0).classList.contains('jux-admin-drop-before')).toBe(true);
+        card(0).dispatchEvent(dragEvent('drop', -1));
+        await settle();
+
+        expect(types()).toEqual(['Seasonal', 'Genre', 'Collection']);
     });
 
     it('gives the Admin-category Seasonal row its own editor, not the admin value picker', async () => {

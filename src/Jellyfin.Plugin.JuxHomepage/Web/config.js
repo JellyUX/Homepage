@@ -67,6 +67,13 @@ export function editorKind(widgetType, category, categoryIndex) {
     return '';
 }
 
+// Where a row dragged from index from lands when dropped on the row at index over, above it or
+// (after = true) below it, as the target index of moveRow.
+export function dropIndex(from, over, after) {
+    var to = after ? over + 1 : over;
+    return from < to ? to - 1 : to;
+}
+
 // The one-line summary of a folded widget row: its chosen value or date window, view mode and
 // item range, so the admin can scan every section without unfolding it.
 export function widgetSummary(widget, valueLabel, t) {
@@ -91,6 +98,8 @@ function createConfigPage() {
         // Widget rows the admin unfolded; every other row shows as a one-line summary. Rows are
         // kept by reference, so reordering keeps each row's state.
         _expandedRows: new Set(),
+        // Index of the row being dragged by its handle, null otherwise.
+        _dragIndex: null,
         // Flat key -> translated string dictionary, loaded once via GET JuxHomepage/Localizations.
         _i18n: {},
         state: {
@@ -351,6 +360,8 @@ function createConfigPage() {
                     html += '<div class="jux-admin-widget-card' + (isExpanded ? '' : ' jux-admin-widget-card-collapsed') + '" data-index="' + i + '" data-is-admin="' + (isAdm ? '1' : '0') + '" data-is-personalized="' + (isPers ? '1' : '0') + '">';
 
                     html += '<div class="jux-admin-widget-header">';
+                    html += '<span class="material-icons jux-admin-drag-handle" draggable="true" data-index="' + i + '" aria-hidden="true"';
+                    html += ' title="' + self.escHtml(self.t('admin.order.drag')) + '">drag_indicator</span>';
                     html += '<label class="emby-checkbox-label jux-admin-enabled-label">';
                     html += '<input type="checkbox" id="widgetEnabled_' + i + '" class="emby-checkbox jux-admin-enabled"';
                     html += (w.Enabled ? ' checked' : '') + ' />';
@@ -372,6 +383,9 @@ function createConfigPage() {
                     }
 
                     html += '<div class="jux-admin-order-buttons">';
+                    html += '<input type="number" class="emby-input jux-admin-position" data-index="' + i + '" min="1" max="' + widgets.length + '" step="1"';
+                    html += ' value="' + (i + 1) + '" aria-label="' + self.escHtml(self.t('admin.order.position', { name: defaultName })) + '"';
+                    html += ' title="' + self.escHtml(self.t('admin.order.position', { name: defaultName })) + '" />';
                     html += '<button type="button" class="emby-button paper-icon-button-light jux-admin-btn-up"';
                     html += ' data-index="' + i + '"' + (isFirst ? ' disabled' : '') + ' title="' + self.escHtml(self.t('admin.order.up')) + '">';
                     html += '<span class="material-icons">arrow_upward</span></button>';
@@ -680,6 +694,69 @@ function createConfigPage() {
                     self.renderWidgets();
                     var again = list.querySelector('.jux-admin-btn-toggle[data-index="' + idx + '"]');
                     if (again) { again.focus(); }
+                });
+            });
+
+            // Typing a position moves the row there in one step (keyboard and touch alternative to
+            // dragging); an out-of-range or empty value puts the current position back.
+            list.querySelectorAll('.jux-admin-position').forEach(function (input) {
+                input.addEventListener('change', function () {
+                    var idx = parseInt(input.getAttribute('data-index'), 10);
+                    var target = parseInt(input.value, 10);
+                    if (isNaN(target) || target < 1 || target > self.state.sortedWidgets.length || target === idx + 1) {
+                        input.value = idx + 1;
+                        return;
+                    }
+                    self.readDomIntoState();
+                    self.state.sortedWidgets = moveRow(self.state.sortedWidgets, idx, target - 1);
+                    self.renderWidgets();
+                    var moved = list.querySelector('.jux-admin-position[data-index="' + (target - 1) + '"]');
+                    if (moved) { moved.focus(); }
+                });
+            });
+
+            // Mouse reordering: drag a card by its handle and drop it above or below another card.
+            list.querySelectorAll('.jux-admin-drag-handle').forEach(function (handle) {
+                var dragCard = handle.closest('.jux-admin-widget-card');
+                handle.addEventListener('dragstart', function (e) {
+                    self._dragIndex = parseInt(handle.getAttribute('data-index'), 10);
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', String(self._dragIndex));
+                    if (e.dataTransfer.setDragImage) { e.dataTransfer.setDragImage(dragCard, 16, 16); }
+                    dragCard.classList.add('jux-admin-dragging');
+                });
+                handle.addEventListener('dragend', function () {
+                    self._dragIndex = null;
+                    list.querySelectorAll('.jux-admin-widget-card').forEach(function (c) {
+                        c.classList.remove('jux-admin-dragging', 'jux-admin-drop-before', 'jux-admin-drop-after');
+                    });
+                });
+            });
+            list.querySelectorAll('.jux-admin-widget-card').forEach(function (dropCard) {
+                function isAfter(e) {
+                    var rect = dropCard.getBoundingClientRect();
+                    return e.clientY > rect.top + rect.height / 2;
+                }
+                dropCard.addEventListener('dragover', function (e) {
+                    if (self._dragIndex === null || self._dragIndex === undefined) { return; }
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    var after = isAfter(e);
+                    dropCard.classList.toggle('jux-admin-drop-after', after);
+                    dropCard.classList.toggle('jux-admin-drop-before', !after);
+                });
+                dropCard.addEventListener('dragleave', function () {
+                    dropCard.classList.remove('jux-admin-drop-before', 'jux-admin-drop-after');
+                });
+                dropCard.addEventListener('drop', function (e) {
+                    if (self._dragIndex === null || self._dragIndex === undefined) { return; }
+                    e.preventDefault();
+                    var from = self._dragIndex;
+                    var over = parseInt(dropCard.getAttribute('data-index'), 10);
+                    self._dragIndex = null;
+                    self.readDomIntoState();
+                    self.state.sortedWidgets = moveRow(self.state.sortedWidgets, from, dropIndex(from, over, isAfter(e)));
+                    self.renderWidgets();
                 });
             });
 
