@@ -240,6 +240,24 @@ describe('configuration page controller (F-33)', () => {
         expect(document.activeElement).toBe(card(0).querySelector('.jux-admin-position'));
     });
 
+    it('applies a typed position on Enter without saving the page', async () => {
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+        window.ApiClient.updatePluginConfiguration = vi.fn(() => Promise.resolve({}));
+        const position = card(2).querySelector('.jux-admin-position');
+        position.focus();
+        position.value = '1';
+
+        const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+        position.dispatchEvent(enter);
+        await settle();
+
+        expect(enter.defaultPrevented).toBe(true);
+        expect(types()).toEqual(['Seasonal', 'Genre', 'Collection']);
+        expect(window.ApiClient.updatePluginConfiguration).not.toHaveBeenCalled();
+    });
+
     it('puts an out-of-range position back without moving anything', async () => {
         createController(view);
         view.dispatchEvent(new Event('viewshow'));

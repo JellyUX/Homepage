@@ -703,7 +703,7 @@ function createConfigPage() {
             // Typing a position moves the row there in one step (keyboard and touch alternative to
             // dragging); an out-of-range or empty value puts the current position back.
             list.querySelectorAll('.jux-admin-position').forEach(function (input) {
-                input.addEventListener('change', function () {
+                function applyPosition() {
                     var idx = parseInt(input.getAttribute('data-index'), 10);
                     var target = parseInt(input.value, 10);
                     if (isNaN(target) || target < 1 || target > self.state.sortedWidgets.length || target === idx + 1) {
@@ -715,6 +715,15 @@ function createConfigPage() {
                     self.renderWidgets();
                     var moved = list.querySelector('.jux-admin-position[data-index="' + (target - 1) + '"]');
                     if (moved) { moved.focus(); }
+                }
+                input.addEventListener('change', applyPosition);
+                // Enter would submit the whole form (implicit submission) and save the page: it
+                // applies the typed position instead.
+                input.addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        applyPosition();
+                    }
                 });
             });
 
