@@ -293,6 +293,8 @@ public sealed class TMDbCacheServiceTests : IDisposable
     {
         const int ItemCount = 30;
         var perCallDelay = TimeSpan.FromMilliseconds(50);
+        var inFlight = 0;
+        var maxInFlight = 0;
 
         var movies = Enumerable.Range(1, ItemCount)
             .Select(i => new TMDbMovie { Id = i, Title = "Movie " + i })
@@ -311,7 +313,10 @@ public sealed class TMDbCacheServiceTests : IDisposable
             .Setup(c => c.GetMovieExternalIdsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .Returns(async (int tmdbId, CancellationToken ct) =>
             {
+                var now = Interlocked.Increment(ref inFlight);
+                InterlockedMax(ref maxInFlight, now);
                 await Task.Delay(perCallDelay, ct).ConfigureAwait(false);
+                Interlocked.Decrement(ref inFlight);
                 return libraryItemsByTmdbId.ContainsKey(tmdbId) ? "tt" + tmdbId : null;
             });
 
@@ -331,9 +336,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
 
         var service = BuildService(apiClientMock.Object, libraryManagerMock.Object);
 
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         await service.RefreshTrendingMoviesAsync(CancellationToken.None);
-        stopwatch.Stop();
 
         var result = service.GetTrendingMovies();
         Assert.Equal(ItemCount, result.Count);
@@ -343,14 +346,25 @@ public sealed class TMDbCacheServiceTests : IDisposable
             Assert.Equal(expectedMatched, movie.LibraryItemId.HasValue);
         }
 
-        // A fully sequential run would take at least ItemCount * perCallDelay (~1.5s here). Bounded
-        // concurrency (5 at a time) should take roughly ItemCount / 5 * perCallDelay (~300ms) plus
-        // overhead -- well under half the sequential time, proving items are genuinely processed
-        // concurrently rather than merely producing the same correct result one at a time.
-        var sequentialWorstCase = perCallDelay * ItemCount;
-        Assert.True(
-            stopwatch.Elapsed < sequentialWorstCase / 2,
-            $"Expected parallel cross-referencing to complete well under {sequentialWorstCase}, took {stopwatch.Elapsed}.");
+        // Counting overlapping calls proves the items run concurrently, within the bound of
+        // LibraryCrossReferencer.MaxConcurrency (5), without depending on how fast the runner is (an
+        // elapsed-time threshold failed on CI under coverage instrumentation: 0.83 s for 0.75 s).
+        Assert.InRange(maxInFlight, 2, 5);
+    }
+
+    private static void InterlockedMax(ref int target, int value)
+    {
+        var current = Volatile.Read(ref target);
+        while (value > current)
+        {
+            var observed = Interlocked.CompareExchange(ref target, value, current);
+            if (observed == current)
+            {
+                return;
+            }
+
+            current = observed;
+        }
     }
 
     // -------------------------------------------------------------------------
