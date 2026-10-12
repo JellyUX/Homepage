@@ -67,12 +67,30 @@ export function editorKind(widgetType, category, categoryIndex) {
     return '';
 }
 
+// The one-line summary of a folded widget row: its chosen value or date window, view mode and
+// item range, so the admin can scan every section without unfolding it.
+export function widgetSummary(widget, valueLabel, t) {
+    var parts = [];
+    if (widget.CustomDisplayName) { parts.push(widget.CustomDisplayName); }
+    if (valueLabel && parts.indexOf(valueLabel) === -1) { parts.push(valueLabel); }
+    var start = getExtraParam(widget, 'startDate');
+    var end = getExtraParam(widget, 'endDate');
+    if (start && end) { parts.push(t('admin.summary.window', { start: start, end: end })); }
+    parts.push(t('admin.viewmode.' + String(widget.ViewMode || 'Portrait').toLowerCase()));
+    parts.push(t('admin.summary.items', { min: widget.MinItems, max: widget.MaxItems }));
+    if (widget.Enabled === false) { parts.push(t('admin.summary.disabled')); }
+    return parts.join(' \u00b7 ');
+}
+
 function createConfigPage() {
     return {
         PLUGIN_ID: '3adf1f1f-1541-4e47-b9e3-34d2d2968af6',
         _submitBound: false,
         // Cache of available values per widgetType, loaded on demand.
         _valuesCache: {},
+        // Widget rows the admin unfolded; every other row shows as a one-line summary. Rows are
+        // kept by reference, so reordering keeps each row's state.
+        _expandedRows: new Set(),
         // Flat key -> translated string dictionary, loaded once via GET JuxHomepage/Localizations.
         _i18n: {},
         state: {
@@ -328,7 +346,9 @@ function createConfigPage() {
                     var currentValue = self.getExtraValue(w);
                     var currentLabel = currentValue ? self.getLabelForValue(w.WidgetType, currentValue) : '';
 
-                    html += '<div class="jux-admin-widget-card" data-index="' + i + '" data-is-admin="' + (isAdm ? '1' : '0') + '" data-is-personalized="' + (isPers ? '1' : '0') + '">';
+                    var isExpanded = self._expandedRows.has(w);
+                    var bodyId = 'juxWidgetBody_' + i;
+                    html += '<div class="jux-admin-widget-card' + (isExpanded ? '' : ' jux-admin-widget-card-collapsed') + '" data-index="' + i + '" data-is-admin="' + (isAdm ? '1' : '0') + '" data-is-personalized="' + (isPers ? '1' : '0') + '">';
 
                     html += '<div class="jux-admin-widget-header">';
                     html += '<label class="emby-checkbox-label jux-admin-enabled-label">';
@@ -363,9 +383,17 @@ function createConfigPage() {
                         html += ' data-index="' + i + '" title="' + self.escHtml(self.t('admin.order.remove')) + '">';
                         html += '<span class="material-icons">delete</span></button>';
                     }
+                    var toggleLabel = self.t(isExpanded ? 'admin.card.collapse' : 'admin.card.expand');
+                    html += '<button type="button" class="emby-button paper-icon-button-light jux-admin-btn-toggle"';
+                    html += ' data-index="' + i + '" aria-expanded="' + (isExpanded ? 'true' : 'false') + '" aria-controls="' + bodyId + '"';
+                    html += ' title="' + self.escHtml(toggleLabel) + '" aria-label="' + self.escHtml(toggleLabel) + '">';
+                    html += '<span class="material-icons" aria-hidden="true">' + (isExpanded ? 'expand_less' : 'expand_more') + '</span></button>';
                     html += '</div>';
 
                     html += '</div>';
+
+                    html += '<div class="fieldDescription jux-admin-widget-summary">' + self.escHtml(widgetSummary(w, isAdm ? currentLabel : '', self.t.bind(self))) + '</div>';
+                    html += '<div class="jux-admin-widget-body" id="' + bodyId + '">';
 
                     // Admin-only: value picker with datalist autocomplete.
                     if (isAdm) {
@@ -612,6 +640,7 @@ function createConfigPage() {
                     }
 
                     html += '</div>';
+                    html += '</div>';
                 });
 
                 list.innerHTML = html;
@@ -637,6 +666,22 @@ function createConfigPage() {
                     }
                 });
             }
+
+            list.querySelectorAll('.jux-admin-btn-toggle').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    var idx = parseInt(btn.getAttribute('data-index'), 10);
+                    self.readDomIntoState();
+                    var row = self.state.sortedWidgets[idx];
+                    if (self._expandedRows.has(row)) {
+                        self._expandedRows.delete(row);
+                    } else {
+                        self._expandedRows.add(row);
+                    }
+                    self.renderWidgets();
+                    var again = list.querySelector('.jux-admin-btn-toggle[data-index="' + idx + '"]');
+                    if (again) { again.focus(); }
+                });
+            });
 
             list.querySelectorAll('.jux-admin-btn-up').forEach(function (btn) {
                 btn.addEventListener('click', function () {
@@ -1135,13 +1180,16 @@ function createConfigPage() {
 
             // Validate: admin sections must have a value.
             var hasValueError = false;
+            var firstErrorIndex = -1;
             var list = document.getElementById('juxWidgetList');
             self.state.sortedWidgets.forEach(function (w, i) {
                 if (!self.isAdmin(w.WidgetType)) { return; }
                 var extraValue = self.getExtraValue(w);
                 var errEl = list ? list.querySelector('#juxValError_' + i) : null;
                 if (!extraValue) {
+                    if (!hasValueError) { firstErrorIndex = i; }
                     hasValueError = true;
+                    self._expandedRows.add(w);
                     if (errEl) { errEl.style.display = ''; }
                 } else {
                     if (errEl) { errEl.style.display = 'none'; }
@@ -1165,7 +1213,18 @@ function createConfigPage() {
                 if (errEl) { errEl.style.display = valid ? 'none' : ''; }
             });
 
-            if (hasValueError) { return; }
+            if (hasValueError) {
+                // A folded row hides its error: unfold the rows in error, then bring the first one
+                // into view with its field focused.
+                self.renderWidgets();
+                self.state.sortedWidgets.forEach(function (w, i) {
+                    var err = document.getElementById('juxValError_' + i);
+                    if (err) { err.style.display = self.isAdmin(w.WidgetType) && !self.getExtraValue(w) ? '' : 'none'; }
+                });
+                var firstField = document.getElementById('widgetValue_' + firstErrorIndex);
+                if (firstField) { firstField.focus(); }
+                return;
+            }
 
             Dashboard.showLoadingMsg();
 
@@ -1307,6 +1366,7 @@ function createConfigPage() {
                             MaxInstances: (isPers || isConn || isNat) ? 1 : 5,
                             ExtraParams: extraParams
                         });
+                        self._expandedRows.add(self.state.sortedWidgets[self.state.sortedWidgets.length - 1]);
                         self.populateAddSelect();
                         self.renderWidgets();
                     });

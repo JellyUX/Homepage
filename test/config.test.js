@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import createController, { editorKind, escHtml, getExtraParam, moveRow, validateTmdb } from '../src/Jellyfin.Plugin.JuxHomepage/Web/config.js';
+import createController, { editorKind, escHtml, getExtraParam, moveRow, validateTmdb, widgetSummary } from '../src/Jellyfin.Plugin.JuxHomepage/Web/config.js';
 
 const CONFIG_HTML = readFileSync(resolve(__dirname, '../src/Jellyfin.Plugin.JuxHomepage/Web/config.html'), 'utf8');
 
@@ -44,6 +44,21 @@ describe('editorKind (F-37)', () => {
         expect(editorKind('jux.personalized.favorite-genre', 'Personalized', index)).toBe('personalized');
         expect(editorKind('jux.connected.trending-movies', 3, index)).toBe('connected');
         expect(editorKind('jux.unknown', 9, index)).toBe('');
+    });
+});
+
+describe('widgetSummary (F-50)', () => {
+    const t = (key, params) => key + (params ? JSON.stringify(params) : '');
+
+    it('lists the name, the value, the date window, the view mode and the item range', () => {
+        const seasonal = { CustomDisplayName: 'Halloween', ViewMode: 'Landscape', MinItems: 1, MaxItems: 20, ExtraParams: [{ Key: 'startDate', Value: '10-01' }, { Key: 'endDate', Value: '10-31' }] };
+        expect(widgetSummary(seasonal, '', t)).toBe(
+            'Halloween · admin.summary.window{"start":"10-01","end":"10-31"} · admin.viewmode.landscape · admin.summary.items{"min":1,"max":20}');
+    });
+
+    it('shows a value equal to the name once, and flags a disabled row', () => {
+        const genre = { CustomDisplayName: 'Drame', Enabled: false, ViewMode: 'Portrait', MinItems: 4, MaxItems: 20, ExtraParams: [] };
+        expect(widgetSummary(genre, 'Drame', t)).toBe('Drame · admin.viewmode.portrait · admin.summary.items{"min":4,"max":20} · admin.summary.disabled');
     });
 });
 
@@ -159,6 +174,40 @@ describe('configuration page controller (F-33)', () => {
             ['jux.admin.genre', 'Drame', 10],
             ['jux.connected.seasonal', 's1', 20]
         ]);
+    });
+
+    it('folds every row into a summary line, and unfolds one with its toggle', async () => {
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+
+        const cards = [...view.querySelectorAll('.jux-admin-widget-card')];
+        expect(cards.every((c) => c.classList.contains('jux-admin-widget-card-collapsed'))).toBe(true);
+        expect(card(0).querySelector('.jux-admin-widget-summary').textContent).toContain('Drame');
+
+        card(0).querySelector('.jux-admin-btn-toggle').click();
+        await settle();
+        expect(card(0).classList.contains('jux-admin-widget-card-collapsed')).toBe(false);
+        expect(card(0).querySelector('.jux-admin-btn-toggle').getAttribute('aria-expanded')).toBe('true');
+        expect(card(1).classList.contains('jux-admin-widget-card-collapsed')).toBe(true);
+        expect(document.activeElement).toBe(card(0).querySelector('.jux-admin-btn-toggle'));
+    });
+
+    it('unfolds an admin row saved without a value and focuses its field, without saving', async () => {
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+        const input = card(1).querySelector('.jux-admin-widget-value');
+        input.value = '';
+        window.ApiClient.updatePluginConfiguration = vi.fn(() => Promise.resolve({}));
+
+        view.querySelector('.juxConfigForm').dispatchEvent(new Event('submit', { cancelable: true }));
+        await settle();
+
+        expect(window.ApiClient.updatePluginConfiguration).not.toHaveBeenCalled();
+        expect(card(1).classList.contains('jux-admin-widget-card-collapsed')).toBe(false);
+        expect(view.querySelector('#juxValError_1').style.display).toBe('');
+        expect(document.activeElement).toBe(card(1).querySelector('.jux-admin-widget-value'));
     });
 
     it('gives the Admin-category Seasonal row its own editor, not the admin value picker', async () => {

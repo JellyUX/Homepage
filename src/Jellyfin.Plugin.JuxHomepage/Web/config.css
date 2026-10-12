@@ -24,8 +24,44 @@ ul.jux-admin-warning {
     gap: 0.5em;
     margin-bottom: 0.75em;
 }
+/* A folded card shows its header and a one-line summary; its fields stay in the DOM so the page
+   still reads and saves them. */
+.jux-admin-widget-card-collapsed {
+    padding-bottom: 0.6em;
+}
+.jux-admin-widget-card-collapsed .jux-admin-widget-header {
+    margin-bottom: 0.15em;
+}
+.jux-admin-widget-card-collapsed .jux-admin-widget-body {
+    display: none;
+}
+.jux-admin-widget-summary {
+    display: none;
+    margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.jux-admin-widget-card-collapsed .jux-admin-widget-summary {
+    display: block;
+}
+/* The Save button stays in reach while the admin scrolls the long section list. Same surface as
+   the page (MUI palette variables set by jellyfin-web, with the dark theme as fallback). */
+.jux-admin-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin-top: 1em;
+    padding: 0.75em 0;
+    background-color: var(--jf-palette-background-default, rgb(16, 16, 16));
+    border-top: 1px solid var(--borderColor, rgba(255, 255, 255, 0.1));
+}
+/* The native checkbox label is full width; a zero basis keeps the badge and the row buttons on the
+   same line, and the header only wraps when the name no longer fits. */
 .jux-admin-enabled-label {
-    flex: 1 1 auto;
+    flex: 1 1 0;
+    min-width: 10em;
+    width: auto;
 }
 .jux-admin-category-badge {
     font-size: 0.75em;
