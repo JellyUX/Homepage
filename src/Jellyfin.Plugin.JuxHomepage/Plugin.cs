@@ -108,6 +108,10 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
         // A fresh install (default instance, never saved) is seeded before the tiers run: the
         // append-if-missing tiers below would otherwise make the array non-empty and leave the
         // install with only the rows they add instead of the full default layout.
+        if (config.SchemaVersion < 2 && config.Widgets.Length == 0)
+        {
+            config.Widgets = [.. NativeWidgetDefaults.Build(), .. SeasonalWidgetDefaults.Build()];
+        }
 
         if (config.SchemaVersion < 2)
         {
