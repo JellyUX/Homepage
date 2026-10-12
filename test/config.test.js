@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import createController, { escHtml, getExtraParam, moveRow, validateTmdb } from '../src/Jellyfin.Plugin.JuxHomepage/Web/config.js';
+import createController, { editorKind, escHtml, getExtraParam, moveRow, validateTmdb } from '../src/Jellyfin.Plugin.JuxHomepage/Web/config.js';
 
 const CONFIG_HTML = readFileSync(resolve(__dirname, '../src/Jellyfin.Plugin.JuxHomepage/Web/config.html'), 'utf8');
 
@@ -26,6 +26,24 @@ describe('moveRow', () => {
     it('leaves the input list untouched', () => {
         moveRow(rows, 3, 0);
         expect(rows).toEqual(['a', 'b', 'c', 'd']);
+    });
+});
+
+describe('editorKind (F-37)', () => {
+    const index = { Native: 0, Admin: 1, Personalized: 2, Connected: 3 };
+
+    it('gives the widget types with an editor of their own that editor, whatever their category', () => {
+        expect(editorKind('jux.connected.seasonal', 1, index)).toBe('seasonal');
+        expect(editorKind('jux.connected.discover-movies', 3, index)).toBe('discover');
+        expect(editorKind('jux.connected.rewards', 3, index)).toBe('rewards');
+    });
+
+    it('falls back to the editor of the category, by index or by name', () => {
+        expect(editorKind('jux.admin.genre', 1, index)).toBe('admin');
+        expect(editorKind('jux.native.next-up', 0, index)).toBe('native');
+        expect(editorKind('jux.personalized.favorite-genre', 'Personalized', index)).toBe('personalized');
+        expect(editorKind('jux.connected.trending-movies', 3, index)).toBe('connected');
+        expect(editorKind('jux.unknown', 9, index)).toBe('');
     });
 });
 
@@ -60,7 +78,8 @@ describe('escHtml', () => {
 describe('configuration page controller (F-33)', () => {
     const descriptors = [
         { WidgetType: 'jux.admin.genre', DisplayName: 'Genre', Category: 1, MinItems: 4, ViewMode: 'Portrait' },
-        { WidgetType: 'jux.admin.collection', DisplayName: 'Collection', Category: 1, MinItems: 4, ViewMode: 'Portrait' }
+        { WidgetType: 'jux.admin.collection', DisplayName: 'Collection', Category: 1, MinItems: 4, ViewMode: 'Portrait' },
+        { WidgetType: 'jux.connected.seasonal', DisplayName: 'Seasonal', Category: 1, MinItems: 1, ViewMode: 'Portrait' }
     ];
     const values = {
         'jux.admin.genre': [{ Value: 'Drame', Label: 'Drame' }],
@@ -70,7 +89,8 @@ describe('configuration page controller (F-33)', () => {
         Enabled: true,
         Widgets: [
             { WidgetType: 'jux.admin.genre', Enabled: true, Order: 0, MinItems: 4, MaxItems: 20, ViewMode: 'Portrait', CustomDisplayName: 'Drame', ExtraParams: [{ Key: 'value', Value: 'Drame' }] },
-            { WidgetType: 'jux.admin.collection', Enabled: true, Order: 1, MinItems: 4, MaxItems: 20, ViewMode: 'Portrait', CustomDisplayName: 'Harry Potter - Saga', ExtraParams: [{ Key: 'value', Value: 'c1' }] }
+            { WidgetType: 'jux.admin.collection', Enabled: true, Order: 1, MinItems: 4, MaxItems: 20, ViewMode: 'Portrait', CustomDisplayName: 'Harry Potter - Saga', ExtraParams: [{ Key: 'value', Value: 'c1' }] },
+            { WidgetType: 'jux.connected.seasonal', Enabled: true, Order: 2, MinItems: 1, MaxItems: 20, ViewMode: 'Portrait', ExtraParams: [{ Key: 'value', Value: 's1' }, { Key: 'startDate', Value: '10-01' }, { Key: 'endDate', Value: '10-31' }, { Key: 'theme', Value: 'halloween' }] }
         ]
     };
 
@@ -136,7 +156,20 @@ describe('configuration page controller (F-33)', () => {
         const saved = window.ApiClient.updatePluginConfiguration.mock.calls[0][1].Widgets;
         expect(saved.map((w) => [w.WidgetType, getExtraParam(w, 'value'), w.Order])).toEqual([
             ['jux.admin.collection', 'c1', 0],
-            ['jux.admin.genre', 'Drame', 10]
+            ['jux.admin.genre', 'Drame', 10],
+            ['jux.connected.seasonal', 's1', 20]
         ]);
+    });
+
+    it('gives the Admin-category Seasonal row its own editor, not the admin value picker', async () => {
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+
+        const seasonal = card(2);
+        expect(seasonal.getAttribute('data-is-admin')).toBe('0');
+        expect(seasonal.querySelector('.jux-admin-widget-value')).toBeNull();
+        expect(seasonal.querySelector('.jux-seasonal-startdate').value).toBe('10-01');
+        expect(seasonal.querySelector('.jux-admin-category-badge').textContent).toBe('admin.category.admin');
     });
 });

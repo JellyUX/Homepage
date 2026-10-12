@@ -100,6 +100,7 @@ JellyUX Homepage is built to coexist cleanly with other popular Jellyfin customi
 | Collection | Admin | Items from a collection chosen by the admin |
 | Tag | Admin | Items matching a tag chosen by the admin |
 | Year | Admin | Items released in a year chosen by the admin |
+| Seasonal | Admin | Items shown during an admin-configured recurring date window (e.g. Halloween, Christmas), optionally filtered by genre/tag |
 | Because You Watched | Personalized | Recommendations based on a recently watched item |
 | Favorite Genre | Personalized | Recommendations from the user's most-watched genre |
 | Favorite Actor | Personalized | Recommendations from the user's most-watched actor |
@@ -112,7 +113,6 @@ JellyUX Homepage is built to coexist cleanly with other popular Jellyfin customi
 | Now Playing | Connected (TMDb) | Movies currently in theaters, per TMDb |
 | Discover Movies | Connected (TMDb) | Movie discovery filtered by admin-configured criteria |
 | Rewards | Connected (Wikidata) | Library films that won an admin-configured award (ceremony/category/year) |
-| Seasonal | Connected | Items shown during an admin-configured recurring date window (e.g. Halloween, Christmas), optionally filtered by genre/tag |
 
 ---
 

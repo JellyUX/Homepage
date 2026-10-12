@@ -42,6 +42,31 @@ export function moveRow(rows, from, to) {
     return copy;
 }
 
+// Widget types whose row gets an editor of its own, whatever their category.
+var DEDICATED_EDITORS = {
+    'jux.connected.discover-movies': 'discover',
+    'jux.connected.rewards': 'rewards',
+    'jux.connected.seasonal': 'seasonal'
+};
+
+var CATEGORY_EDITORS = ['Native', 'Admin', 'Personalized', 'Connected'];
+
+// Chooses the editor of a widget row: a dedicated editor first, then the one of its category. A
+// widget's category names its data source (IWidget.Category), so it alone never picks the editor
+// (TODO_V4.md 6.4, F-37). Returns '' for an unknown category.
+export function editorKind(widgetType, category, categoryIndex) {
+    if (Object.prototype.hasOwnProperty.call(DEDICATED_EDITORS, widgetType)) {
+        return DEDICATED_EDITORS[widgetType];
+    }
+    for (var i = 0; i < CATEGORY_EDITORS.length; i++) {
+        var name = CATEGORY_EDITORS[i];
+        if (category === categoryIndex[name] || category === name) {
+            return name.toLowerCase();
+        }
+    }
+    return '';
+}
+
 function createConfigPage() {
     return {
         PLUGIN_ID: '3adf1f1f-1541-4e47-b9e3-34d2d2968af6',
@@ -121,26 +146,26 @@ function createConfigPage() {
         // called. Never hardcode the numeric values here -- read them from _categoryIndex instead.
         _categoryIndex: {},
 
-        isAdmin: function (widgetType) {
+        editorKindOf: function (widgetType) {
             var desc = this.getDescriptor(widgetType);
-            // Category is serialized as an integer matching WidgetCategory's declaration order.
-            // Accept both the numeric index and the string name to be safe.
-            return desc && (desc.Category === this._categoryIndex.Admin || desc.Category === 'Admin');
+            return desc ? editorKind(widgetType, desc.Category, this._categoryIndex) : '';
+        },
+
+        isAdmin: function (widgetType) {
+            return this.editorKindOf(widgetType) === 'admin';
         },
 
         isPersonalized: function (widgetType) {
-            var desc = this.getDescriptor(widgetType);
-            return desc && (desc.Category === this._categoryIndex.Personalized || desc.Category === 'Personalized');
+            return this.editorKindOf(widgetType) === 'personalized';
         },
 
+        // Connected rows and the dedicated editors share the same card layout.
         isConnected: function (widgetType) {
-            var desc = this.getDescriptor(widgetType);
-            return desc && (desc.Category === this._categoryIndex.Connected || desc.Category === 'Connected');
+            return ['connected', 'discover', 'rewards', 'seasonal'].indexOf(this.editorKindOf(widgetType)) !== -1;
         },
 
         isNative: function (widgetType) {
-            var desc = this.getDescriptor(widgetType);
-            return desc && (desc.Category === this._categoryIndex.Native || desc.Category === 'Native');
+            return this.editorKindOf(widgetType) === 'native';
         },
 
         DISCOVER_MOVIES_TYPE: 'jux.connected.discover-movies',

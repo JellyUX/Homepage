@@ -1,12 +1,12 @@
 # Seasonal
 
-**Category:** Connected
+**Category:** Admin
 
 Displays items from your local library during a recurring, admin-configured date window (e.g.
-Halloween, Christmas), optionally restricted to a specific genre and/or tag. Unlike the other
-Connected widgets, Seasonal does not depend on any external data source (no TMDb or Wikidata call, no
-API key needed) -- it is classified as Connected rather than Admin so it gets a fully custom editor in
-the admin panel instead of the generic single-value picker every Admin widget shares.
+Halloween, Christmas), optionally restricted to a specific genre and/or tag. Like the other Admin
+widgets, Seasonal reads only your library (no TMDb or Wikidata call, no API key needed), but it has
+its own editor in the admin panel (theme, dates, genre, tag) instead of the single-value picker the
+other Admin widgets share.
 
 The plugin ships with four disabled-by-default presets (Halloween, Christmas, Valentine's Day, New
 Year); enable the ones you want, or add your own custom Seasonal section with any date window, theme,

@@ -45,6 +45,7 @@ nav:
           - Collection: widgets/admin/collection.md
           - Tag: widgets/admin/tag.md
           - Year: widgets/admin/year.md
+          - Seasonal: widgets/connected/seasonal.md
       - Personalized:
           - Favorite Genre: widgets/personalized/favorite-genre.md
           - Favorite Actor: widgets/personalized/favorite-actor.md
@@ -59,5 +60,4 @@ nav:
           - Now Playing: widgets/connected/now-playing-movies.md
           - Discover Movies: widgets/connected/discover-movies.md
           - Rewards: widgets/connected/rewards.md
-          - Seasonal: widgets/connected/seasonal.md
   - Troubleshooting: troubleshooting.md

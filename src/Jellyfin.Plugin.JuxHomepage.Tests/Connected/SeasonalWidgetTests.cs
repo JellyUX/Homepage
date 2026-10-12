@@ -84,7 +84,7 @@ public sealed class SeasonalWidgetTests
         var d = widget.GetDescriptor();
 
         Assert.Equal("jux.connected.seasonal", d.WidgetType);
-        Assert.Equal(WidgetCategory.Connected, d.Category);
+        Assert.Equal(WidgetCategory.Admin, d.Category);
         Assert.Equal(WidgetViewMode.Portrait, d.ViewMode);
         Assert.Equal(4, d.MinItems);
     }

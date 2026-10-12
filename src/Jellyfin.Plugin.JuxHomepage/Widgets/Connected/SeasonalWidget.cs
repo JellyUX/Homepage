@@ -11,14 +11,11 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets.Connected;
 /// A configurable seasonal widget that shows library items during a recurring, admin-configured
 /// <c>MM-dd</c> date window (e.g. Halloween, Christmas), optionally filtered by genre and/or tag.
 /// <para>
-/// TODO_V3.md Phase 9.1: classified as <see cref="WidgetCategory.Connected"/> rather than
-/// <see cref="WidgetCategory.Admin"/> -- even though it queries the local library, not an external
-/// source -- because <c>config.html</c>'s admin editor UI is chosen purely by category
-/// (<c>isAdmin()</c> tests <c>Category === Admin</c>, independent of the actual C# base class) and
-/// renders a generic single "Value" + autocomplete field for any Admin-category widget. This widget
-/// needs several custom fields (theme, start/end date, optional genre, optional tag), the same
-/// situation <see cref="DiscoverMoviesWidget"/> and Rewards are already in, so it follows their
-/// precedent of using <see cref="WidgetCategory.Connected"/> to get a fully custom editor instead.
+/// Classified as <see cref="WidgetCategory.Admin"/>: the category names the data source, here the
+/// local library (TODO_V4.md 6.4, F-37). The configuration page picks this widget's custom editor
+/// (theme, start/end date, optional genre, optional tag) by its <see cref="WidgetType"/>, not by its
+/// category. The <c>jux.connected.</c> type prefix, the namespace and the documentation URL predate
+/// this and are kept, since saved configuration rows reference the type.
 /// </para>
 /// <para>
 /// Implements <see cref="IWidget"/> directly rather than subclassing <see cref="Admin.AdminWidgetBase"/>,
@@ -58,7 +55,7 @@ public sealed class SeasonalWidget : IWidget
     public string DefaultDisplayName => "Seasonal";
 
     /// <inheritdoc/>
-    public WidgetCategory Category => WidgetCategory.Connected;
+    public WidgetCategory Category => WidgetCategory.Admin;
 
     /// <inheritdoc/>
     public int DefaultMinItems => 4;
