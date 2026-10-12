@@ -13,9 +13,7 @@
             </div>
         </div>
 
-        <div id="juxWarningBanner" class="verticalSection" style="display: none;">
-            <p id="juxWarningText" class="fieldDescription jux-admin-warning"></p>
-        </div>
+        <div id="juxWarningBanner" class="verticalSection" style="display: none;"></div>
 
         <form class="juxConfigForm">
 
@@ -1187,7 +1185,8 @@
                     self.loadTmdbCountries(),
                     self.loadTmdbGenres(),
                     self.loadLocalizations(),
-                    ApiClient.getJSON(ApiClient.getUrl('JuxHomepage/meta')).catch(function () { return null; })
+                    ApiClient.getJSON(ApiClient.getUrl('JuxHomepage/meta')).catch(function () { return null; }),
+                    ApiClient.getJSON(ApiClient.getUrl('JuxHomepage/Admin/Warnings')).catch(function () { return []; })
                 ]).then(function (results) {
                     self.state.config = results[0];
                     self.state.descriptors = results[1] || [];
@@ -1205,15 +1204,16 @@
                     self.translateStaticText();
                     self.renderTmdbStatus(results[2] || []);
 
-                    var warning = self.state.config.StartupWarning;
+                    var warnings = results[7] || [];
                     var banner = document.getElementById('juxWarningBanner');
-                    var warningText = document.getElementById('juxWarningText');
-                    if (warning) {
-                        warningText.textContent = warning;
-                        banner.style.display = '';
-                    } else {
-                        banner.style.display = 'none';
-                    }
+                    banner.innerHTML = '';
+                    warnings.forEach(function (code) {
+                        var p = document.createElement('p');
+                        p.className = 'fieldDescription jux-admin-warning';
+                        p.textContent = self.t('admin.warning.' + code);
+                        banner.appendChild(p);
+                    });
+                    banner.style.display = warnings.length ? '' : 'none';
 
                     document.getElementById('chkEnabled').checked = !!self.state.config.Enabled;
                     var modules = self.state.config.Modules || {};

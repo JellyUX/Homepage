@@ -35,6 +35,8 @@
   "jux.personalized.because-you-watched.format": "Parce que vous avez regardé {value}",
 
   "admin.page.title": "JellyUX Homepage",
+  "admin.warning.FileTransformationMissing": "Le plugin File Transformation n'est pas installé : JellyUX Homepage ne peut rien injecter dans le client web. Installez jellyfin-plugin-file-transformation puis redémarrez Jellyfin.",
+  "admin.warning.CustomTabsInstalled": "Custom Tabs est installé : il ne peut pas fonctionner avec JellyUX Homepage. File Transformation n'applique qu'un seul patch au modèle de la page d'accueil, si bien que les onglets d'un des deux plugins s'ouvrent vides. Désinstallez Custom Tabs (retirez son dossier du répertoire des plugins) puis redémarrez Jellyfin.",
   "admin.general.title": "Général",
   "admin.general.enable.label": "Activer JellyUX Homepage",
   "admin.general.enable.help": "Afficher les widgets JellyUX sur la page d'accueil. Désactiver pour revenir à la page d'accueil native de Jellyfin. Pour couper JellyUX, utilisez toujours cet interrupteur, jamais Désactiver sur le plugin dans le tableau de bord de Jellyfin : Jellyfin 10.11 supprime alors le plugin au redémarrage suivant.",

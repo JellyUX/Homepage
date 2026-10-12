@@ -434,7 +434,7 @@ public class JuxHomepageController : ControllerBase
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Returns plugin status metadata: enabled flag, any startup warning, and the ordered list of
+    /// Returns plugin status metadata: enabled flag and the ordered list of
     /// widget category names (matching <see cref="WidgetCategory"/>'s declaration order), so the
     /// admin config page can resolve a descriptor's numeric <c>Category</c> to a name without
     /// hardcoding the enum's underlying values.
@@ -446,7 +446,21 @@ public class JuxHomepageController : ControllerBase
     public ActionResult<PluginMeta> GetMeta()
     {
         var config = Plugin.Instance?.Configuration ?? new PluginConfiguration();
-        return Ok(new PluginMeta(config.Enabled, config.StartupWarning, Enum.GetNames<WidgetCategory>()));
+        return Ok(new PluginMeta(config.Enabled, Enum.GetNames<WidgetCategory>()));
+    }
+
+    /// <summary>
+    /// Returns the integration warning codes the admin page shows in its banner (missing
+    /// FileTransformation, Custom Tabs installed), computed on each call.
+    /// </summary>
+    /// <param name="coexistenceWarnings">The warning source.</param>
+    /// <returns>The warning codes, empty when JellyUX can run normally.</returns>
+    [HttpGet("Admin/Warnings")]
+    [Authorize(Policy = Policies.RequiresElevation)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult<IReadOnlyList<string>> GetAdminWarnings([FromServices] CoexistenceWarnings coexistenceWarnings)
+    {
+        return Ok(coexistenceWarnings.Get());
     }
 
     // -------------------------------------------------------------------------
@@ -1085,13 +1099,12 @@ public class JuxHomepageController : ControllerBase
 
     /// <summary>Plugin status metadata returned by /JuxHomepage/meta.</summary>
     /// <param name="Enabled">Whether the plugin is active.</param>
-    /// <param name="Warning">Startup warning if a dependency is missing; otherwise null.</param>
     /// <param name="WidgetCategories">
     /// Widget category names in <see cref="WidgetCategory"/> declaration order (index = underlying
     /// enum value), so the admin config page can resolve a descriptor's <c>Category</c> without
     /// hardcoding the enum's numeric values.
     /// </param>
-    public record PluginMeta(bool Enabled, string? Warning, IReadOnlyList<string> WidgetCategories);
+    public record PluginMeta(bool Enabled, IReadOnlyList<string> WidgetCategories);
 
     /// <summary>TMDb cache status entry returned by /JuxHomepage/TMDb/Status.</summary>
     /// <param name="Type">The <see cref="TMDbCacheType"/> name (e.g. "TrendingMovies").</param>

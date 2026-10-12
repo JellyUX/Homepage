@@ -90,26 +90,11 @@ public sealed class StartupService : IHostedService, IDisposable
     {
         if (!_detector.IsAvailable())
         {
-            const string warning =
+            _logger.LogError(
                 "FileTransformation plugin is not installed. "
                 + "JellyUX Homepage cannot inject resources into index.html. "
-                + "Install jellyfin-plugin-file-transformation and restart Jellyfin.";
-
-            _logger.LogError(warning);
-
-            if (Plugin.Instance is not null)
-            {
-                Plugin.Instance.Configuration.StartupWarning = warning;
-                Plugin.Instance.SaveConfiguration();
-            }
-
+                + "Install jellyfin-plugin-file-transformation and restart Jellyfin.");
             return;
-        }
-
-        if (Plugin.Instance?.Configuration.StartupWarning is not null)
-        {
-            Plugin.Instance.Configuration.StartupWarning = null;
-            Plugin.Instance.SaveConfiguration();
         }
 
         RegisterIndexHtmlTransformation();

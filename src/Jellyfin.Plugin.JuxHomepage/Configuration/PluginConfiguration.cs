@@ -14,12 +14,6 @@ public class PluginConfiguration : BasePluginConfiguration
     public bool Enabled { get; set; } = true;
 
     /// <summary>
-    /// Gets or sets a warning message set at startup when a required dependency is missing.
-    /// Null when all dependencies are present. Surfaced via /JuxHomepage/meta.
-    /// </summary>
-    public string? StartupWarning { get; set; }
-
-    /// <summary>
     /// Gets or sets the global widget configuration list.
     /// Defines which widgets are enabled, their order, and their display settings.
     /// Users may override individual entries via <see cref="UserConfiguration.WidgetOverrides"/>

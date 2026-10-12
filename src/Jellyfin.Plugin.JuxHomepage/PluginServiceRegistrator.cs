@@ -31,6 +31,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     public void RegisterServices(IServiceCollection serviceCollection, IServerApplicationHost applicationHost)
     {
         serviceCollection.AddSingleton<FileTransformationDetector>();
+        serviceCollection.AddSingleton<CoexistenceWarnings>();
         serviceCollection.AddSingleton<SessionCache>(_ => new SessionCache());
         serviceCollection.AddHostedService<ConfigurationChangeListener>();
         serviceCollection.AddHostedService<StartupService>();
