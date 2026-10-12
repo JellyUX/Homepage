@@ -12,6 +12,17 @@ configuration page warns about it whenever Custom Tabs is installed.
 restart Jellyfin. Do not use **Disable** in **Administration > Plugins** for this: on Jellyfin 10.11 a
 disabled plugin is deleted at the next restart (see the README).
 
+## Items hidden in Jellyfin Enhanced still show in some JellyUX sections
+
+The JellyUX native sections (Continue Watching, Next Up, Recently Added Movies, Shows and Episodes)
+read the same Jellyfin routes as the native home page, so Jellyfin Enhanced hidden content, Remove
+from Continue Watching and Spoiler Guard apply to them exactly as on the native home page.
+
+The other JellyUX sections (genres, collections, recommendations, TMDb and so on) come from the
+JellyUX server, which Jellyfin Enhanced does not filter. There, a hidden item is only removed by the
+Jellyfin Enhanced web script when it scans the page, which does not always happen on the first
+render, and Spoiler Guard does not replace episode titles.
+
 ## Plugin becomes unreachable (HTTP 500) after an update
 
 A simple Jellyfin restart may not be enough after updating the plugin. Do a full restart of the
