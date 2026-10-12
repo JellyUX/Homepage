@@ -12,25 +12,39 @@ const EXPECTED_TABS = [
     { id: 'jux-tabbtn-statistics', index: '5', en: 'Statistics', fr: 'Statistiques' }
 ];
 
-// The home page as Jellyfin renders it: the native Home/Favorites buttons, then the 6 panes in
-// DOM order (2 native, 4 spliced server-side by TransformationPatches.HomeHtmlChunk).
-function renderHomePage({ withSlider = true } = {}) {
+// The home page as Jellyfin renders it: the native Home/Favorites buttons in the header, then the
+// home view (#indexPage) holding the 6 panes in DOM order (2 native, 4 spliced server-side by
+// TransformationPatches.HomeHtmlChunk). thirdPartyTab inserts another plugin's button and pane
+// before the JellyUX ones; cachedViewBefore keeps another view with its own .tabContent panes
+// earlier in the document, as Jellyfin does for up to 3 views.
+function renderHomePage({ withSlider = true, thirdPartyTab = false, cachedViewBefore = false } = {}) {
     const slider = withSlider
         ? '<div class="emby-tabs-slider">'
             + '<button class="emby-tab-button emby-tab-button-active" data-index="0"></button>'
             + '<button class="emby-tab-button" data-index="1"></button>'
+            + (thirdPartyTab ? '<button class="emby-tab-button" id="other-tabbtn" data-index="2"></button>' : '')
             + '</div>'
         : '';
-    const panes = [0, 1, 2, 3, 4, 5]
+    const native = [0, 1]
         .map((i) => `<div class="tabContent pageTabContent${i === 0 ? ' is-active' : ''}" data-index="${i}"></div>`)
         .join('');
-    document.body.innerHTML = `<div class="headerTabs">${slider}</div>${panes}`;
+    const other = thirdPartyTab ? '<div class="tabContent pageTabContent" id="other-tab"></div>' : '';
+    const jux = ['watchlist', 'progress', 'history', 'statistics']
+        .map((name, i) => `<div class="tabContent pageTabContent" id="jux-tab-${name}" data-index="${i + 2}"></div>`)
+        .join('');
+    const cached = cachedViewBefore
+        ? '<div class="page hide" id="moviesPage"><div class="tabContent" id="cached-0"></div>'
+            + '<div class="tabContent" id="cached-1"></div><div class="tabContent" id="cached-2"></div></div>'
+        : '';
+    document.body.innerHTML = `<div class="headerTabs">${slider}</div>${cached}`
+        + `<div class="page homePage" id="indexPage">${native}${other}${jux}</div>`;
 }
 
 const injector = () => window.juxTabInjector;
 const juxButtons = () => [...document.querySelectorAll('.emby-tabs-slider [id^="jux-tabbtn-"]')];
 const activePaneIndexes = () =>
     [...document.querySelectorAll('.tabContent.is-active')].map((p) => p.getAttribute('data-index'));
+const activePaneIds = () => [...document.querySelectorAll('.tabContent.is-active')].map((p) => p.id);
 
 beforeAll(async () => {
     // A non-home route at load time, so the init() run on import returns without polling.
@@ -91,6 +105,23 @@ describe('createTabs', () => {
         expect(juxButtons()).toHaveLength(4);
     });
 
+    it('numbers each button after the real position of its pane when another tab comes first', () => {
+        renderHomePage({ thirdPartyTab: true });
+
+        injector().createTabs();
+
+        expect(juxButtons().map((b) => b.getAttribute('data-index'))).toEqual(['3', '4', '5', '6']);
+    });
+
+    it('creates no button for a pane missing from the home view', () => {
+        renderHomePage();
+        document.getElementById('jux-tab-history').remove();
+
+        injector().createTabs();
+
+        expect(juxButtons().map((b) => b.id)).toEqual(['jux-tabbtn-watchlist', 'jux-tabbtn-progress', 'jux-tabbtn-statistics']);
+    });
+
     it('does nothing when the tab bar is absent', () => {
         renderHomePage({ withSlider: false });
 
@@ -120,6 +151,26 @@ describe('pane activation', () => {
         await Promise.resolve();
 
         expect(activePaneIndexes()).toEqual(['4']);
+    });
+
+    it('opens its own pane when another plugin tab sits before the JellyUX tabs', () => {
+        renderHomePage({ thirdPartyTab: true });
+        injector().createTabs();
+
+        document.getElementById('jux-tabbtn-watchlist').click();
+        vi.advanceTimersByTime(50);
+
+        expect(activePaneIds()).toEqual(['jux-tab-watchlist']);
+    });
+
+    it('leaves the panes of a cached view untouched', async () => {
+        renderHomePage({ cachedViewBefore: true });
+        injector().createTabs();
+
+        document.getElementById('jux-tabbtn-progress').classList.add('emby-tab-button-active');
+        await Promise.resolve();
+
+        expect(activePaneIds()).toEqual(['jux-tab-progress']);
     });
 
     it('ignores class changes on the native buttons', async () => {

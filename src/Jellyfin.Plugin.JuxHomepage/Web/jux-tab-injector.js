@@ -4,9 +4,9 @@
 // TODO_V3.md Phase 4.1. Modeled directly on the jellyfin-plugin-custom-tabs approach (verified
 // against its real source, not just its README): a plain <button data-index="N"> appended into
 // .emby-tabs-slider is enough -- Jellyfin's native "emby-tabs" custom element handles the click and
-// visibility toggling itself, keyed by DOM position among all .tabContent panes (see
-// Inject/TransformationPatches.cs for the matching content-pane splice at the same data-index
-// values). No custom click handling is needed or attempted here.
+// visibility toggling itself, keyed by DOM position among the home view's .tabContent panes. N is
+// therefore read from the real position of each pane spliced by Inject/TransformationPatches.cs,
+// not hardcoded: another plugin's pane before ours would shift it (TODO_V4.md 4.1, F-12).
 //
 // The tab bar is rebuilt from scratch by React on every view mount (home.js calls setTabs(), which
 // replaces .headerTabs innerHTML entirely), so this script must re-run on every navigation, not just
@@ -19,10 +19,10 @@ if (typeof window.juxTabInjector === 'undefined') {
         // find the (always-present) pane and wrongly conclude the button already existed, so no
         // button was ever created. Bug found by live DOM inspection on jellyux-test.
         tabs: [
-            { buttonId: 'jux-tabbtn-watchlist', dataIndex: 2, labelEn: 'Watchlist', labelFr: 'Watchlist' },
-            { buttonId: 'jux-tabbtn-progress', dataIndex: 3, labelEn: 'Progress', labelFr: 'Progression' },
-            { buttonId: 'jux-tabbtn-history', dataIndex: 4, labelEn: 'History', labelFr: 'Historique' },
-            { buttonId: 'jux-tabbtn-statistics', dataIndex: 5, labelEn: 'Statistics', labelFr: 'Statistiques' }
+            { buttonId: 'jux-tabbtn-watchlist', paneId: 'jux-tab-watchlist', labelEn: 'Watchlist', labelFr: 'Watchlist' },
+            { buttonId: 'jux-tabbtn-progress', paneId: 'jux-tab-progress', labelEn: 'Progress', labelFr: 'Progression' },
+            { buttonId: 'jux-tabbtn-history', paneId: 'jux-tab-history', labelEn: 'History', labelFr: 'Historique' },
+            { buttonId: 'jux-tabbtn-statistics', paneId: 'jux-tab-statistics', labelEn: 'Statistics', labelFr: 'Statistiques' }
         ],
 
         init: function () {
@@ -60,6 +60,11 @@ if (typeof window.juxTabInjector === 'undefined') {
                     return;
                 }
 
+                var paneIndex = _paneIndex(tab.paneId);
+                if (paneIndex < 0) {
+                    return;
+                }
+
                 var title = document.createElement('div');
                 title.className = 'emby-button-foreground';
                 title.textContent = lang === 'fr' ? tab.labelFr : tab.labelEn;
@@ -76,7 +81,7 @@ if (typeof window.juxTabInjector === 'undefined') {
                 button.type = 'button';
                 button.setAttribute('is', 'emby-button');
                 button.className = 'emby-tab-button emby-button';
-                button.setAttribute('data-index', tab.dataIndex);
+                button.setAttribute('data-index', paneIndex);
                 button.id = tab.buttonId;
                 button.appendChild(title);
 
@@ -88,7 +93,7 @@ if (typeof window.juxTabInjector === 'undefined') {
                 // regardless of that timing, without needing to fully reverse-engineer the
                 // minified controller's internal warm-up behavior.
                 button.addEventListener('click', function () {
-                    setTimeout(function () { _activatePane(tab.dataIndex); }, 50);
+                    setTimeout(function () { _activatePane(tab.paneId); }, 50);
                 });
 
                 tabsSlider.appendChild(button);
@@ -111,10 +116,26 @@ if (typeof window.juxTabInjector === 'undefined') {
     var _tabBarObserver = null;
     var _observedSlider = null;
 
-    function _activatePane(index) {
-        var panes = document.querySelectorAll('.tabContent');
-        Array.prototype.forEach.call(panes, function (pane, paneIndex) {
-            pane.classList.toggle('is-active', paneIndex === index);
+    // The panes of the view holding paneId, never the whole document: Jellyfin keeps up to 3 views
+    // in the DOM, each with its own .tabContent panes (E2-04).
+    function _viewPanes(pane) {
+        var view = pane.closest('.page') || pane.parentNode;
+        return Array.prototype.slice.call(view.querySelectorAll('.tabContent'));
+    }
+
+    function _paneIndex(paneId) {
+        var pane = document.getElementById(paneId);
+        return pane ? _viewPanes(pane).indexOf(pane) : -1;
+    }
+
+    function _activatePane(paneId) {
+        var target = document.getElementById(paneId);
+        if (!target) {
+            return;
+        }
+
+        _viewPanes(target).forEach(function (pane) {
+            pane.classList.toggle('is-active', pane === target);
         });
     }
 
@@ -132,7 +153,7 @@ if (typeof window.juxTabInjector === 'undefined') {
             for (var i = 0; i < mutations.length; i++) {
                 var button = mutations[i].target;
                 if (button.id && button.id.indexOf('jux-tabbtn-') === 0 && button.classList.contains('emby-tab-button-active')) {
-                    _activatePane(parseInt(button.getAttribute('data-index'), 10));
+                    _activatePane(button.id.replace('jux-tabbtn-', 'jux-tab-'));
                 }
             }
         });
