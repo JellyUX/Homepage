@@ -396,6 +396,9 @@ function createConfigPage() {
                         html += '<button type="button" class="emby-button paper-icon-button-light jux-admin-btn-remove"';
                         html += ' data-index="' + i + '" title="' + self.escHtml(self.t('admin.order.remove')) + '">';
                         html += '<span class="material-icons">delete</span></button>';
+                    } else {
+                        // Keeps the button columns aligned on rows that cannot be removed.
+                        html += '<span class="emby-button paper-icon-button-light jux-admin-btn-placeholder" aria-hidden="true"><span class="material-icons">delete</span></span>';
                     }
                     var toggleLabel = self.t(isExpanded ? 'admin.card.collapse' : 'admin.card.expand');
                     html += '<button type="button" class="emby-button paper-icon-button-light jux-admin-btn-toggle"';

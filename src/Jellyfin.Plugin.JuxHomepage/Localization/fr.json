@@ -69,7 +69,7 @@
   "admin.tmdbcache.pageshint": "Chaque page correspond à environ 20 éléments TMDb, donc \"Pages : 3\" récupère environ 60 éléments pour cette liste.",
   "admin.tmdbcache.refreshnow": "Rafraîchir maintenant",
   "admin.widgets.title": "Widgets",
-  "admin.widgets.help": "Utiliser les flèches pour changer l'ordre d'affichage. Les changements prennent effet après la sauvegarde.",
+  "admin.widgets.help": "Glisser une section par sa poignée, saisir sa position ou utiliser les flèches pour changer l'ordre d'affichage. Les changements prennent effet après la sauvegarde.",
   "admin.addsection.title": "Ajouter une section",
   "admin.addsection.type.label": "Type de section",
   "admin.addsection.type.placeholder": "-- choisir un type --",

@@ -56,11 +56,11 @@ ul.jux-admin-warning {
     background-color: var(--jf-palette-background-default, rgb(16, 16, 16));
     border-top: 1px solid var(--borderColor, rgba(255, 255, 255, 0.1));
 }
-/* The native checkbox label is full width; a zero basis keeps the badge and the row buttons on the
-   same line, and the header only wraps when the name no longer fits. */
+/* The native checkbox label is full width; sized to its text instead, it keeps the category badge
+   next to the name and leaves the row buttons a right-aligned column on every card. */
 .jux-admin-enabled-label {
-    flex: 1 1 0;
-    min-width: 10em;
+    flex: 0 1 auto;
+    min-width: 0;
     width: auto;
 }
 .jux-admin-category-badge {
@@ -74,6 +74,11 @@ ul.jux-admin-warning {
     display: flex;
     align-items: center;
     gap: 0.25em;
+    margin-left: auto;
+}
+.jux-admin-btn-placeholder {
+    visibility: hidden;
+    margin-left: 0;
 }
 .jux-admin-position {
     width: 3.5em;

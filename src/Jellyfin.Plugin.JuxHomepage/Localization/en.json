@@ -69,7 +69,7 @@
   "admin.tmdbcache.pageshint": "Each page is about 20 items from TMDb, so \"Pages: 3\" fetches roughly 60 items for that list.",
   "admin.tmdbcache.refreshnow": "Refresh now",
   "admin.widgets.title": "Widgets",
-  "admin.widgets.help": "Use the arrows to change the display order. Changes take effect after saving.",
+  "admin.widgets.help": "Drag a section by its handle, type its position or use the arrows to change the display order. Changes take effect after saving.",
   "admin.addsection.title": "Add a section",
   "admin.addsection.type.label": "Section type",
   "admin.addsection.type.placeholder": "-- choose a type --",
