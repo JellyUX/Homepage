@@ -1,3 +1,17 @@
+## [2.11.1](https://github.com/JellyUX/Homepage/compare/v2.11.0...v2.11.1) (2026-10-12)
+
+### Bug Fixes
+
+* bound the paging and language parameters and honor MaxItems ([e65aa9e](https://github.com/JellyUX/Homepage/commit/e65aa9eef1c5af4e9d3527c89e9830909616f3a9))
+* escape apostrophes and load card images through one shared core ([24c1ab3](https://github.com/JellyUX/Homepage/commit/24c1ab3a845aee53479a6f9e33ab0b4770970662))
+* keep JellyUX failures out of the Jellyfin operations and tab answers ([8bebc60](https://github.com/JellyUX/Homepage/commit/8bebc602ca278677b9a5a193c3751593801eeba4))
+* load the watchlist ids of each signed-in user, even after a slow sign-in ([a4bb547](https://github.com/JellyUX/Homepage/commit/a4bb5479ea8094e533015f29df6f9adcf80c1c1f))
+* read the day from one time source and validate seasonal MM-dd dates ([49a2202](https://github.com/JellyUX/Homepage/commit/49a2202f3f0077bb8695625a172f92a4ad93a315))
+* send each detail-item request once across detail-page modules ([050271c](https://github.com/JellyUX/Homepage/commit/050271c40ae47a92cf21a9c5dfc98a5d5b34b07f))
+* share the detail-item request with the detail page watchlist button ([60577e3](https://github.com/JellyUX/Homepage/commit/60577e3e55a372eab654d77f424396a71f8a7fa1))
+* show an error with a retry when a tab or a home section fails ([9b8a19a](https://github.com/JellyUX/Homepage/commit/9b8a19a882494c097696552c3ccb5e7a62d48434))
+* show grey placeholders at once and drop the meta request from the home page ([eeed8f7](https://github.com/JellyUX/Homepage/commit/eeed8f78cbd8c88cb295c78abc249220097e0bd5))
+
 ## [2.11.0](https://github.com/JellyUX/Homepage/compare/v2.10.1...v2.11.0) (2026-10-12)
 
 ### Features

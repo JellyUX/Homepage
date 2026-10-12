@@ -9,6 +9,14 @@
         "imageUrl": "https://raw.githubusercontent.com/JellyUX/Homepage/main/docs/icon.png",
         "versions": [
             {
+                "version": "2.11.1.0",
+                "changelog": "### Bug Fixes\n\n* bound the paging and language parameters and honor MaxItems ([e65aa9e](https://github.com/JellyUX/Homepage/commit/e65aa9eef1c5af4e9d3527c89e9830909616f3a9))\n* escape apostrophes and load card images through one shared core ([24c1ab3](https://github.com/JellyUX/Homepage/commit/24c1ab3a845aee53479a6f9e33ab0b4770970662))\n* keep JellyUX failures out of the Jellyfin operations and tab answers ([8bebc60](https://github.com/JellyUX/Homepage/commit/8bebc602ca278677b9a5a193c3751593801eeba4))\n* load the watchlist ids of each signed-in user, even after a slow sign-in ([a4bb547](https://github.com/JellyUX/Homepage/commit/a4bb5479ea8094e533015f29df6f9adcf80c1c1f))\n* read the day from one time source and validate seasonal MM-dd dates ([49a2202](https://github.com/JellyUX/Homepage/commit/49a2202f3f0077bb8695625a172f92a4ad93a315))\n* send each detail-item request once across detail-page modules ([050271c](https://github.com/JellyUX/Homepage/commit/050271c40ae47a92cf21a9c5dfc98a5d5b34b07f))\n* share the detail-item request with the detail page watchlist button ([60577e3](https://github.com/JellyUX/Homepage/commit/60577e3e55a372eab654d77f424396a71f8a7fa1))\n* show an error with a retry when a tab or a home section fails ([9b8a19a](https://github.com/JellyUX/Homepage/commit/9b8a19a882494c097696552c3ccb5e7a62d48434))\n* show grey placeholders at once and drop the meta request from the home page ([eeed8f7](https://github.com/JellyUX/Homepage/commit/eeed8f78cbd8c88cb295c78abc249220097e0bd5))",
+                "targetAbi": "10.11.9.0",
+                "sourceUrl": "https://github.com/JellyUX/Homepage/releases/download/v2.11.1/jellyux-homepage_2.11.1.0.zip",
+                "checksum": "67aa2432f1b396982ed60e317de80913",
+                "timestamp": "2026-10-12T18:26:39Z"
+            },
+            {
                 "version": "2.11.0.0",
                 "changelog": "### Features\n\n* warn administrators when Custom Tabs is installed alongside JellyUX ([f127165](https://github.com/JellyUX/Homepage/commit/f1271658f4589901c16f6bd74ba7fa38107cff1b))\n\n### Bug Fixes\n\n* number JellyUX tabs after their real pane position in the home view ([8380064](https://github.com/JellyUX/Homepage/commit/83800646fe5a474e2073e8896448f92f40a53712))\n* read the native home sections from the native Jellyfin routes ([a293fd3](https://github.com/JellyUX/Homepage/commit/a293fd3dfc056815709a5938eddbc25944a6caf7))\n* reload once when the browser serves a cached native home chunk ([bb39e6a](https://github.com/JellyUX/Homepage/commit/bb39e6a2f8cc4cd77e3d882c8e2341419275e9fa))",
                 "targetAbi": "10.11.9.0",
