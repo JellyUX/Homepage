@@ -25,21 +25,6 @@
   },
   {
     "files": [
-      "Jellyfin.Plugin.JuxHomepage/Web/jux-breadcrumb.js",
-      "Jellyfin.Plugin.JuxHomepage/Web/jux-card-hooks.js",
-      "Jellyfin.Plugin.JuxHomepage/Web/jux-collections.js",
-      "Jellyfin.Plugin.JuxHomepage/Web/jux-history.js",
-      "Jellyfin.Plugin.JuxHomepage/Web/jux-homepage.js",
-      "Jellyfin.Plugin.JuxHomepage/Web/jux-progress.js",
-      "Jellyfin.Plugin.JuxHomepage/Web/jux-series-flatten.js",
-      "Jellyfin.Plugin.JuxHomepage/Web/jux-statistics.js",
-      "Jellyfin.Plugin.JuxHomepage/Web/jux-ui.js",
-      "Jellyfin.Plugin.JuxHomepage/Web/jux-watchlist.js"
-    ],
-    "copies": 11
-  },
-  {
-    "files": [
       "Jellyfin.Plugin.JuxHomepage/Web/jux-card-hooks.js",
       "Jellyfin.Plugin.JuxHomepage/Web/jux-history.js",
       "Jellyfin.Plugin.JuxHomepage/Web/jux-progress.js",

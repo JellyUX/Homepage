@@ -1,13 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import juxStatistics from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-statistics.js';
 
-const { _escHtml, _buildTitleHtml, _buildTilesHtml } = juxStatistics;
-
-describe('_escHtml', () => {
-    it('escapes HTML special characters', () => {
-        expect(_escHtml('<b>&"</b>')).toBe('&lt;b&gt;&amp;&quot;&lt;/b&gt;');
-    });
-});
+const { _buildTitleHtml, _buildTilesHtml } = juxStatistics;
 
 describe('_buildTitleHtml', () => {
     it('renders the localized section title', () => {

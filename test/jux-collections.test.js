@@ -9,7 +9,6 @@ const {
     _storageKeys,
     _buildCollectionsSectionSkeleton,
     _currentDetailItemId,
-    _escHtml,
     _syncObserver
 } = juxCollections;
 
@@ -93,17 +92,6 @@ describe('_currentDetailItemId', () => {
     it('returns null when no id is present', () => {
         window.location.hash = '#/home';
         expect(_currentDetailItemId()).toBeNull();
-    });
-});
-
-describe('_escHtml', () => {
-    it('escapes HTML special characters', () => {
-        expect(_escHtml('<b>Tom & "Jerry"</b>')).toBe('&lt;b&gt;Tom &amp; &quot;Jerry&quot;&lt;/b&gt;');
-    });
-
-    it('returns an empty string for nullish input', () => {
-        expect(_escHtml(null)).toBe('');
-        expect(_escHtml(undefined)).toBe('');
     });
 });
 

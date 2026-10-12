@@ -230,7 +230,7 @@
                     lazy: true,
                     lines: 2
                 });
-                _loadCardImages(itemsContainer);
+                window.JuxCore.observeCardImages(itemsContainer);
 
                 var similar = activePage.querySelector('#similarCollapsible');
                 if (similar) {
@@ -260,7 +260,7 @@
             // (jux-homepage.js) doesn't apply here and was adding ~60px of unwanted left indentation
             // relative to every other section on this page.
             '<div class="verticalSection detailVerticalSection jux-collections-section">' +
-            '<h2 class="sectionTitle sectionTitle-cards padded-right">' + _escHtml(title) + '</h2>' +
+            '<h2 class="sectionTitle sectionTitle-cards padded-right">' + window.JuxCore.escHtml(title) + '</h2>' +
             // no-padding confirmed live as required: without it the scroller applies its own default
             // left padding on top of the outer section's padding, misaligning the cards (but not the
             // title, which sits outside the scroller) ~55px right of every other section on the page.
@@ -339,7 +339,7 @@
             button.className = 'jux-sort-button jux-collection-sort-btn';
             button.innerHTML =
                 '<span class="material-icons sort" aria-hidden="true"></span>' +
-                '<span class="jux-sort-button-label">' + _escHtml(_labelFor(_sortFields(), state.sortBy)) + '</span>' +
+                '<span class="jux-sort-button-label">' + window.JuxCore.escHtml(_labelFor(_sortFields(), state.sortBy)) + '</span>' +
                 '<span class="material-icons arrow_drop_down" aria-hidden="true"></span>';
 
             button.addEventListener('click', function () {
@@ -415,33 +415,13 @@
                 lazy: true,
                 lines: 2
             });
-            _loadCardImages(itemsContainer);
+            window.JuxCore.observeCardImages(itemsContainer);
         }).catch(function (err) {
             console.error('[JellyUX] Collection re-sort fetch failed:', err);
         });
     }
 
-    // See jux-watchlist.js -- a JUX-built card grid never gets Jellyfin's native lazy-image loading,
-    // so the background image has to be applied manually.
-    function _loadCardImages(container) {
-        var lazyImages = container.querySelectorAll('.cardImageContainer.lazy[data-src]');
-        Array.prototype.forEach.call(lazyImages, function (el) {
-            var src = el.getAttribute('data-src');
-            if (!src) { return; }
-            el.style.backgroundImage = 'url(\'' + src + '\')';
-            el.classList.remove('lazy');
-            el.classList.add('lazy-image-fadein-fast');
-        });
-    }
 
-    function _escHtml(str) {
-        if (!str) { return ''; }
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
-    }
 
     window.juxCollections.init();
 
@@ -456,7 +436,6 @@
             _storageKeys: _storageKeys,
             _buildCollectionsSectionSkeleton: _buildCollectionsSectionSkeleton,
             _currentDetailItemId: _currentDetailItemId,
-            _escHtml: _escHtml,
             _syncObserver: _syncObserver
         };
     }

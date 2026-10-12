@@ -94,13 +94,14 @@ public static class TransformationPatches
     private static readonly string[] HomeTabIds = ["jux-tab-watchlist", "jux-tab-progress", "jux-tab-history", "jux-tab-statistics"];
 
     // Every client asset index.html can reference, in document order: deferred scripts execute in
-    // this order, so jux-ui.js must stay before the scripts that consume window.JuxUI. Module null
-    // marks the core assets, loaded whenever the plugin is enabled; jux-ui is loaded only when an
-    // active asset declares UsesJuxUi.
+    // this order, so jux-core.js comes first (every script reads window.JuxCore) and jux-ui.js must
+    // stay before the scripts that consume window.JuxUI. Module null marks the core assets, loaded
+    // whenever the plugin is enabled; jux-ui is loaded only when an active asset declares UsesJuxUi.
     private static readonly ClientAsset[] ClientAssets =
     [
         new("jux-homepage.css", IsStylesheet: true, Module: null),
         new("jux-ui.css", IsStylesheet: true, Module: null, IsJuxUi: true),
+        new("jux-core.js", IsStylesheet: false, Module: null),
         new("jux-homepage.js", IsStylesheet: false, Module: null),
         new("jux-ui.js", IsStylesheet: false, Module: null, IsJuxUi: true),
         new("jux-tab-injector.js", IsStylesheet: false, Module: m => m.Tabs),

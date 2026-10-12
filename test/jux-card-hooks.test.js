@@ -6,7 +6,6 @@ const {
     _readCardItemInfo,
     _isWatchlistType,
     _currentDetailItemId,
-    _escHtml,
     _infiniteScrollMediaType,
     _parseSortSettings,
     _buildItemsQuery,
@@ -61,17 +60,6 @@ describe('_currentDetailItemId', () => {
     it('returns null when the hash has no id', () => {
         window.location.hash = '#/home';
         expect(_currentDetailItemId()).toBeNull();
-    });
-});
-
-describe('_escHtml', () => {
-    it('escapes HTML special characters', () => {
-        expect(_escHtml('<b>"Tom & Jerry"</b>')).toBe('&lt;b&gt;&quot;Tom &amp; Jerry&quot;&lt;/b&gt;');
-    });
-
-    it('returns an empty string for falsy input', () => {
-        expect(_escHtml('')).toBe('');
-        expect(_escHtml(null)).toBe('');
     });
 });
 

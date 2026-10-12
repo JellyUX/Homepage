@@ -340,7 +340,7 @@
 
         var wrapper = document.createElement('div');
         wrapper.innerHTML =
-            '<button is="emby-button" type="button" class="' + _escHtml(itemClass) + ' jux-watchlist-menuitem" data-jux-item-id="' + _escHtml(itemId) + '">' +
+            '<button is="emby-button" type="button" class="' + window.JuxCore.escHtml(itemClass) + ' jux-watchlist-menuitem" data-jux-item-id="' + window.JuxCore.escHtml(itemId) + '">' +
             '<span class="actionsheetMenuItemIcon listItemIcon listItemIcon-transparent material-icons" aria-hidden="true"></span>' +
             '<div class="listItemBody actionsheetListItemBody"><div class="listItemBodyText actionSheetItemText"></div></div>' +
             '</button>';
@@ -761,7 +761,7 @@
             });
 
             state.container.insertAdjacentHTML('beforeend', html);
-            _loadCardImages(state.container);
+            window.JuxCore.observeCardImages(state.container);
 
             state.startIndex += items.length;
 
@@ -779,27 +779,7 @@
         });
     }
 
-    // See jux-watchlist.js -- a card grid appended by hand never gets Jellyfin's native lazy-image
-    // loading, so the background image has to be applied manually.
-    function _loadCardImages(container) {
-        var lazyImages = container.querySelectorAll('.cardImageContainer.lazy[data-src]');
-        Array.prototype.forEach.call(lazyImages, function (el) {
-            var src = el.getAttribute('data-src');
-            if (!src) { return; }
-            el.style.backgroundImage = 'url(\'' + src + '\')';
-            el.classList.remove('lazy');
-            el.classList.add('lazy-image-fadein-fast');
-        });
-    }
 
-    function _escHtml(str) {
-        if (!str) { return ''; }
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
-    }
 
     window.juxCardHooks.init();
 
@@ -811,7 +791,6 @@
             _readCardItemInfo: _readCardItemInfo,
             _isWatchlistType: _isWatchlistType,
             _currentDetailItemId: _currentDetailItemId,
-            _escHtml: _escHtml,
             _infiniteScrollMediaType: _infiniteScrollMediaType,
             _parseSortSettings: _parseSortSettings,
             _buildItemsQuery: _buildItemsQuery,

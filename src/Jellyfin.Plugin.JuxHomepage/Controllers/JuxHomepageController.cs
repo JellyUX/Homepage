@@ -127,6 +127,29 @@ public class JuxHomepageController : ControllerBase
     }
 
     /// <summary>
+    /// Serves the JellyUX shared core script (escaping, CSS image URLs, detail-item request cache,
+    /// deferred card images -- TODO_V4.md 5.1). Anonymous - loaded by a script tag injected into
+    /// index.html, before every other JellyUX script.
+    /// </summary>
+    /// <returns>JavaScript file contents.</returns>
+    [HttpGet("jux-core.js")]
+    [AllowAnonymous]
+    [Produces("application/javascript")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public IActionResult GetCoreScript()
+    {
+        var stream = GetEmbeddedResource("jux-core.js");
+        if (stream is null)
+        {
+            return NotFound();
+        }
+
+        SetCacheHeaders(Request, Response);
+        return File(stream, "application/javascript");
+    }
+
+    /// <summary>
     /// Serves the JellyUX shared UI helpers script (empty state, loading spinner, progress bar, stat
     /// card, native sort dialog -- TODO_V3.md Phase 6 bis). Anonymous - loaded by a script tag
     /// injected into index.html, before the tab-rendering scripts that consume it.

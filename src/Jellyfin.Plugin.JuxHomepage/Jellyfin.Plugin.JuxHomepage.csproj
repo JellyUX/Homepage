@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Web\jux-homepage.js" />
+    <EmbeddedResource Include="Web\jux-core.js" />
     <EmbeddedResource Include="Web\jux-ui.js" />
     <EmbeddedResource Include="Web\jux-ui.css" />
     <EmbeddedResource Include="Web\jux-tab-injector.js" />

@@ -1,19 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import juxHomepage from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-homepage.js';
 
-const { _escHtml, _buildSeeAllHref, _fallback, _isHomePage, _hasMorePages, _setupLazyLoader, _chunkState, _repairStaleChunks, _armChunkGuard } = juxHomepage;
-
-describe('_escHtml', () => {
-    it('escapes ampersands, angle brackets, and quotes', () => {
-        expect(_escHtml('<b>Tom & "Jerry"</b>')).toBe('&lt;b&gt;Tom &amp; &quot;Jerry&quot;&lt;/b&gt;');
-    });
-
-    it('returns an empty string for empty or nullish input', () => {
-        expect(_escHtml('')).toBe('');
-        expect(_escHtml(null)).toBe('');
-        expect(_escHtml(undefined)).toBe('');
-    });
-});
+const { _buildSeeAllHref, _fallback, _isHomePage, _hasMorePages, _setupLazyLoader, _chunkState, _repairStaleChunks, _armChunkGuard } = juxHomepage;
 
 describe('_buildSeeAllHref', () => {
     it('resolves a known route to its Jellyfin hash URL', () => {

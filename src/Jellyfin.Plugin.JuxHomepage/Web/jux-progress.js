@@ -8,7 +8,7 @@
 //
 // Same conventions as jux-watchlist.js: loaded as a plain <script src>, click listener delegated on
 // `document` (the tab bar/button is recreated on every view mount), rendered via
-// window.JellyfinAPI.cardBuilder.getCardsHtml + JuxUI.observeCardImages (a plain <div>
+// window.JellyfinAPI.cardBuilder.getCardsHtml + JuxCore.observeCardImages (a plain <div>
 // pane never gets Jellyfin's native lazy-image loading).
 //
 // Each row is a series -- not just a BaseItemDto, but a { Item, WatchedEpisodes, TotalEpisodes,
@@ -118,11 +118,11 @@
 
     function _buildShellHtml(lang, state) {
         var t = _labels[lang];
-        return '<h2 class="sectionTitle sectionTitle-cards jux-section-title-container">' + _escHtml(t.title) + '</h2>' +
+        return '<h2 class="sectionTitle sectionTitle-cards jux-section-title-container">' + window.JuxCore.escHtml(t.title) + '</h2>' +
             '<div class="jux-view-controls">' +
             '<button type="button" class="jux-sort-button" id="jux-progress-sort-btn">' +
             '<span class="material-icons sort" aria-hidden="true"></span>' +
-            '<span class="jux-sort-button-label">' + _escHtml(_labelFor(_sortOptions(t), state.sortBy)) + '</span>' +
+            '<span class="jux-sort-button-label">' + window.JuxCore.escHtml(_labelFor(_sortOptions(t), state.sortBy)) + '</span>' +
             '<span class="material-icons arrow_drop_down" aria-hidden="true"></span>' +
             '</button>' +
             '</div>' +
@@ -186,9 +186,7 @@
             lines: 2
         });
 
-        if (window.JuxUI) {
-            window.JuxUI.observeCardImages(itemsContainer);
-        }
+        window.JuxCore.observeCardImages(itemsContainer);
         _decorateCards(itemsContainer, rows, lang);
     }
 
@@ -280,14 +278,6 @@
         });
     }
 
-    function _escHtml(str) {
-        if (!str) { return ''; }
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
-    }
 
     window.juxProgress.init();
 
@@ -295,7 +285,6 @@
     // functions directly without a real browser/DOM.
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
-            _escHtml: _escHtml,
             _sortOptions: _sortOptions,
             _labelFor: _labelFor,
             _buildShellHtml: _buildShellHtml,

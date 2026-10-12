@@ -1,18 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import juxHistory from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-history.js';
 
-const { _escHtml, _sortOptions, _labelFor, _buildShellHtml } = juxHistory;
-
-describe('_escHtml', () => {
-    it('escapes HTML special characters', () => {
-        expect(_escHtml('<b>Tom & "Jerry"</b>')).toBe('&lt;b&gt;Tom &amp; &quot;Jerry&quot;&lt;/b&gt;');
-    });
-
-    it('returns an empty string for nullish input', () => {
-        expect(_escHtml(null)).toBe('');
-        expect(_escHtml(undefined)).toBe('');
-    });
-});
+const { _sortOptions, _labelFor, _buildShellHtml } = juxHistory;
 
 describe('_labelFor', () => {
     it('returns the label matching the current value', () => {

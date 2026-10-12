@@ -81,7 +81,7 @@
     }
 
     function _buildTitleHtml(lang) {
-        return '<h2 class="sectionTitle sectionTitle-cards jux-section-title-container">' + _escHtml(_labels[lang].title) + '</h2>';
+        return '<h2 class="sectionTitle sectionTitle-cards jux-section-title-container">' + window.JuxCore.escHtml(_labels[lang].title) + '</h2>';
     }
 
     function _buildTilesHtml(stats, lang) {
@@ -98,18 +98,10 @@
 
     // Only reached if jux-ui.js somehow failed to load -- keeps the tab from rendering nothing.
     function _fallbackTile(icon, value, label) {
-        return '<div class="jux-stat-card"><div class="jux-stat-value">' + _escHtml(String(value)) + '</div>' +
-            '<div class="jux-stat-label">' + _escHtml(label) + '</div></div>';
+        return '<div class="jux-stat-card"><div class="jux-stat-value">' + window.JuxCore.escHtml(String(value)) + '</div>' +
+            '<div class="jux-stat-label">' + window.JuxCore.escHtml(label) + '</div></div>';
     }
 
-    function _escHtml(str) {
-        if (!str) { return ''; }
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
-    }
 
     window.juxStatistics.init();
 
@@ -117,7 +109,6 @@
     // functions directly without a real browser/DOM.
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
-            _escHtml: _escHtml,
             _buildTitleHtml: _buildTitleHtml,
             _buildTilesHtml: _buildTilesHtml
         };

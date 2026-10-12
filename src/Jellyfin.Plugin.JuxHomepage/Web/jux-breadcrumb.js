@@ -256,11 +256,11 @@
 
         var html = segments.map(function (seg, i) {
             var isLast = i === segments.length - 1;
-            var text = _escHtml(seg.text || '');
+            var text = window.JuxCore.escHtml(seg.text || '');
             if (isLast || !seg.url) {
                 return '<span class="jux-breadcrumb-current">' + text + '</span>';
             }
-            return '<a class="jux-breadcrumb-link" href="' + _escHtml(seg.url) + '">' + text + '</a>';
+            return '<a class="jux-breadcrumb-link" href="' + window.JuxCore.escHtml(seg.url) + '">' + text + '</a>';
         }).join('<span class="jux-breadcrumb-sep">›</span>');
 
         container.innerHTML = html;
@@ -349,14 +349,6 @@
         });
     }
 
-    function _escHtml(str) {
-        if (!str) { return ''; }
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
-    }
 
     window.juxBreadcrumb.init();
 
@@ -371,7 +363,6 @@
             _buildBreadcrumbSegments: _buildBreadcrumbSegments,
             _seasonFallbackName: _seasonFallbackName,
             _episodeLabel: _episodeLabel,
-            _escHtml: _escHtml
         };
     }
 })();

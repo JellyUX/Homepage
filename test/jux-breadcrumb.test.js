@@ -8,8 +8,7 @@ const {
     _libraryHashFor,
     _buildBreadcrumbSegments,
     _seasonFallbackName,
-    _episodeLabel,
-    _escHtml
+    _episodeLabel
 } = juxBreadcrumb;
 
 describe('_currentDetailItemId', () => {
@@ -230,13 +229,3 @@ describe('_buildBreadcrumbSegments', () => {
     });
 });
 
-describe('_escHtml', () => {
-    it('escapes HTML special characters', () => {
-        expect(_escHtml('<b>Tom & "Jerry"</b>')).toBe('&lt;b&gt;Tom &amp; &quot;Jerry&quot;&lt;/b&gt;');
-    });
-
-    it('returns an empty string for nullish input', () => {
-        expect(_escHtml(null)).toBe('');
-        expect(_escHtml(undefined)).toBe('');
-    });
-});

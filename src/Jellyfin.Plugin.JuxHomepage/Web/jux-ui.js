@@ -40,58 +40,8 @@
         hideLoading: hideLoading,
         buildProgressBar: buildProgressBar,
         buildStatCard: buildStatCard,
-        openSortDialog: openSortDialog,
-        observeCardImages: observeCardImages
+        openSortDialog: openSortDialog
     };
-
-    // -------------------------------------------------------------------------
-    // Deferred card images (TODO_V4.md 2.3, F-10)
-    // -------------------------------------------------------------------------
-
-    // cardBuilder.getCardsHtml emits ".cardImageContainer.lazy[data-src]", but a JUX tab's plain
-    // <div> container never gets Jellyfin's native lazy loading, so the image has to be applied by
-    // hand. Each image is applied when its card comes near the viewport, instead of all at once on
-    // every tab click. One observer per container: re-rendering a container drops the observer of
-    // its previous, now detached cards.
-    var _imageObservers = typeof WeakMap === 'function' ? new WeakMap() : null;
-
-    function _applyCardImage(el) {
-        var src = el.getAttribute('data-src');
-        if (!src) { return; }
-        el.style.backgroundImage = 'url(\'' + src + '\')';
-        el.classList.remove('lazy');
-        el.classList.add('lazy-image-fadein-fast');
-    }
-
-    function observeCardImages(container) {
-        if (!container) {
-            return;
-        }
-
-        var lazyImages = container.querySelectorAll('.cardImageContainer.lazy[data-src]');
-        if (typeof IntersectionObserver === 'undefined' || !_imageObservers) {
-            Array.prototype.forEach.call(lazyImages, _applyCardImage);
-            return;
-        }
-
-        var previous = _imageObservers.get(container);
-        if (previous) {
-            previous.disconnect();
-        }
-
-        var observer = new IntersectionObserver(function (entries) {
-            entries.forEach(function (entry) {
-                if (entry.isIntersecting) {
-                    observer.unobserve(entry.target);
-                    _applyCardImage(entry.target);
-                }
-            });
-        }, { rootMargin: '300px' });
-        _imageObservers.set(container, observer);
-        Array.prototype.forEach.call(lazyImages, function (el) {
-            observer.observe(el);
-        });
-    }
 
     // -------------------------------------------------------------------------
     // Empty state
@@ -102,15 +52,15 @@
             return;
         }
 
-        var icon = (options && options.icon) || 'info';
+        var icon = window.JuxCore.iconName(options && options.icon, 'info');
         var title = (options && options.title) || '';
         var subtitle = (options && options.subtitle) || '';
 
         container.innerHTML =
             '<div class="jux-empty-state">' +
-            '<div class="jux-empty-icon"><span class="material-icons ' + _escHtml(icon) + '" aria-hidden="true"></span></div>' +
-            '<div class="jux-empty-title">' + _escHtml(title) + '</div>' +
-            (subtitle ? '<div class="jux-empty-subtitle">' + _escHtml(subtitle) + '</div>' : '') +
+            '<div class="jux-empty-icon"><span class="material-icons ' + icon + '" aria-hidden="true"></span></div>' +
+            '<div class="jux-empty-title">' + window.JuxCore.escHtml(title) + '</div>' +
+            (subtitle ? '<div class="jux-empty-subtitle">' + window.JuxCore.escHtml(subtitle) + '</div>' : '') +
             '</div>';
     }
 
@@ -172,7 +122,7 @@
         return '<div class="' + barClass + '" role="progressbar" aria-valuenow="' + watched + '" aria-valuemin="0" aria-valuemax="' + total + '">' +
             chunks +
             '</div>' +
-            (completed ? '<span class="jux-progress-complete-badge">' + _escHtml(_completeLabel()) + '</span>' : '');
+            (completed ? '<span class="jux-progress-complete-badge">' + window.JuxCore.escHtml(_completeLabel()) + '</span>' : '');
     }
 
     function _completeLabel() {
@@ -185,10 +135,10 @@
 
     function buildStatCard(icon, value, label) {
         return '<div class="jux-stat-card">' +
-            '<span class="material-icons jux-stat-icon ' + _escHtml(icon) + '" aria-hidden="true"></span>' +
+            '<span class="material-icons jux-stat-icon ' + window.JuxCore.iconName(icon, 'info') + '" aria-hidden="true"></span>' +
             '<div class="jux-stat-body">' +
-            '<div class="jux-stat-value">' + _escHtml(String(value)) + '</div>' +
-            '<div class="jux-stat-label">' + _escHtml(label) + '</div>' +
+            '<div class="jux-stat-value">' + window.JuxCore.escHtml(String(value)) + '</div>' +
+            '<div class="jux-stat-label">' + window.JuxCore.escHtml(label) + '</div>' +
             '</div>' +
             '</div>';
     }
@@ -222,7 +172,7 @@
             '<button is="paper-icon-button-light" class="btnCloseDialog autoSize" tabindex="-1">' +
             '<span class="material-icons arrow_back" aria-hidden="true"></span>' +
             '</button>' +
-            '<h3 class="formDialogHeaderTitle">' + _escHtml((options && options.title) || '') + '</h3>' +
+            '<h3 class="formDialogHeaderTitle">' + window.JuxCore.escHtml((options && options.title) || '') + '</h3>' +
             '</div>' +
             '<div class="formDialogContent smoothScrollY jux-sort-dialog-content">' +
             sortGroupHtml +
@@ -298,7 +248,7 @@
         var clipId = 'jux-radio-cutoff-' + _radioUid;
 
         return '<label class="radio-label-block mdl-radio mdl-js-radio mdl-js-ripple-effect show-focus jux-radio-label">' +
-            '<input type="radio" is="emby-radio" name="' + _escHtml(groupName) + '" value="' + _escHtml(value) + '" ' +
+            '<input type="radio" is="emby-radio" name="' + window.JuxCore.escHtml(groupName) + '" value="' + window.JuxCore.escHtml(value) + '" ' +
             'class="mdl-radio__button"' + (checked ? ' checked' : '') + '>' +
             '<div class="mdl-radio__circles">' +
             '<svg><defs><clipPath id="' + clipId + '"><circle cx="50%" cy="50%" r="50%"></circle></clipPath></defs>' +
@@ -307,7 +257,7 @@
             '</svg>' +
             '<div class="mdl-radio__focus-circle"></div>' +
             '</div>' +
-            '<span class="radioButtonLabel mdl-radio__label">' + _escHtml(label) + '</span>' +
+            '<span class="radioButtonLabel mdl-radio__label">' + window.JuxCore.escHtml(label) + '</span>' +
             '</label>';
     }
 
@@ -319,14 +269,6 @@
         return (document.documentElement.lang || 'en').toLowerCase().indexOf('fr') === 0 ? 'fr' : 'en';
     }
 
-    function _escHtml(str) {
-        if (!str) { return ''; }
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
-    }
 
     // Guarded UMD-lite export (same convention as the other Web/ scripts), so Vitest can exercise the
     // pure functions directly without a real browser/DOM.
@@ -335,8 +277,6 @@
             showEmpty: showEmpty,
             buildProgressBar: buildProgressBar,
             buildStatCard: buildStatCard,
-            observeCardImages: observeCardImages,
-            _escHtml: _escHtml,
             _buildRadio: _buildRadio,
             _buildRadioGroup: _buildRadioGroup
         };

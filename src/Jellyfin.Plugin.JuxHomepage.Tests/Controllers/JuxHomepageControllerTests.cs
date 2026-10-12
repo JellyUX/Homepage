@@ -273,6 +273,7 @@ public sealed class JuxHomepageControllerTests
     public static TheoryData<string, string, string> WebResourceActions => new()
     {
         { nameof(JuxHomepageController.GetScript), "jux-homepage.js", JavaScript },
+        { nameof(JuxHomepageController.GetCoreScript), "jux-core.js", JavaScript },
         { nameof(JuxHomepageController.GetUiScript), "jux-ui.js", JavaScript },
         { nameof(JuxHomepageController.GetUiStylesheet), "jux-ui.css", Css },
         { nameof(JuxHomepageController.GetTabInjectorScript), "jux-tab-injector.js", JavaScript },

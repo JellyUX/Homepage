@@ -6,7 +6,7 @@
 // spinner, and an icon-based empty state.
 //
 // Same conventions as jux-watchlist.js/jux-progress.js: click listener delegated on `document`,
-// rendered via window.JellyfinAPI.cardBuilder.getCardsHtml + JuxUI.observeCardImages.
+// rendered via window.JellyfinAPI.cardBuilder.getCardsHtml + JuxCore.observeCardImages.
 //
 // Unlike Series Progress, each row here is a plain BaseItemDto (see
 // Watchlist/MovieHistoryViewService.cs -- history rows need no extra per-item fields, the last-played
@@ -114,11 +114,11 @@
 
     function _buildShellHtml(lang, state) {
         var t = _labels[lang];
-        return '<h2 class="sectionTitle sectionTitle-cards jux-section-title-container">' + _escHtml(t.title) + '</h2>' +
+        return '<h2 class="sectionTitle sectionTitle-cards jux-section-title-container">' + window.JuxCore.escHtml(t.title) + '</h2>' +
             '<div class="jux-view-controls">' +
             '<button type="button" class="jux-sort-button" id="jux-history-sort-btn">' +
             '<span class="material-icons sort" aria-hidden="true"></span>' +
-            '<span class="jux-sort-button-label">' + _escHtml(_labelFor(_sortOptions(t), state.sortBy)) + '</span>' +
+            '<span class="jux-sort-button-label">' + window.JuxCore.escHtml(_labelFor(_sortOptions(t), state.sortBy)) + '</span>' +
             '<span class="material-icons arrow_drop_down" aria-hidden="true"></span>' +
             '</button>' +
             '</div>' +
@@ -182,9 +182,7 @@
             lines: 2
         });
 
-        if (window.JuxUI) {
-            window.JuxUI.observeCardImages(itemsContainer);
-        }
+        window.JuxCore.observeCardImages(itemsContainer);
         _decorateCards(itemsContainer, items, lang);
     }
 
@@ -239,14 +237,6 @@
         });
     }
 
-    function _escHtml(str) {
-        if (!str) { return ''; }
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
-    }
 
     window.juxHistory.init();
 
@@ -254,7 +244,6 @@
     // functions directly without a real browser/DOM.
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
-            _escHtml: _escHtml,
             _sortOptions: _sortOptions,
             _labelFor: _labelFor,
             _buildShellHtml: _buildShellHtml

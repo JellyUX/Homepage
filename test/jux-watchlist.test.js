@@ -1,19 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import juxWatchlist from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-watchlist.js';
 
-const { _escHtml, _sortOptions, _typeOptions, _labelFor, _buildShellHtml } = juxWatchlist;
-
-describe('_escHtml', () => {
-    it('escapes ampersands, angle brackets, and quotes', () => {
-        expect(_escHtml('<b>Tom & "Jerry"</b>')).toBe('&lt;b&gt;Tom &amp; &quot;Jerry&quot;&lt;/b&gt;');
-    });
-
-    it('returns an empty string for empty or nullish input', () => {
-        expect(_escHtml('')).toBe('');
-        expect(_escHtml(null)).toBe('');
-        expect(_escHtml(undefined)).toBe('');
-    });
-});
+const { _sortOptions, _typeOptions, _labelFor, _buildShellHtml } = juxWatchlist;
 
 describe('_labelFor', () => {
     const options = [{ value: 'A', label: 'Alpha' }, { value: 'B', label: 'Beta' }];

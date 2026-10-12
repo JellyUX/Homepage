@@ -183,21 +183,21 @@
             var href = _buildSeeAllHref(descriptor.Route);
             if (href) {
                 titleContainer.innerHTML =
-                    '<a is="emby-linkbutton" href="' + _escHtml(href) + '" ' +
+                    '<a is="emby-linkbutton" href="' + window.JuxCore.escHtml(href) + '" ' +
                     'class="button-flat button-flat-mini sectionTitleTextButton">' +
                     '<h2 class="sectionTitle sectionTitle-cards jux-section-title">' +
-                    _escHtml(descriptor.DisplayName) + '</h2>' +
+                    window.JuxCore.escHtml(descriptor.DisplayName) + '</h2>' +
                     '<span class="material-icons chevron_right" aria-hidden="true"></span>' +
                     '</a>';
             } else {
                 titleContainer.innerHTML =
                     '<h2 class="sectionTitle sectionTitle-cards jux-section-title">' +
-                    _escHtml(descriptor.DisplayName) + '</h2>';
+                    window.JuxCore.escHtml(descriptor.DisplayName) + '</h2>';
             }
         } else {
             titleContainer.innerHTML =
                 '<h2 class="sectionTitle sectionTitle-cards jux-section-title">' +
-                _escHtml(descriptor.DisplayName) + '</h2>';
+                window.JuxCore.escHtml(descriptor.DisplayName) + '</h2>';
         }
 
         sectionEl.appendChild(titleContainer);
@@ -395,14 +395,6 @@
     // Utilities
     // -------------------------------------------------------------------------
 
-    function _escHtml(str) {
-        if (!str) { return ''; }
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
-    }
 
     // -------------------------------------------------------------------------
     // Stale chunk guard (TODO_V4.md 4.2, F-13)
@@ -533,7 +525,6 @@
     // file simply doesn't need that conversion for testing purposes).
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
-            _escHtml: _escHtml,
             _buildSeeAllHref: _buildSeeAllHref,
             _fallback: _fallback,
             _isHomePage: _isHomePage,

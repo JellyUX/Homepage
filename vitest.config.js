@@ -8,6 +8,7 @@ export default defineConfig({
         environment: 'jsdom',
         // e2e/ holds the Playwright browser tests (npx playwright test -c e2e).
         exclude: [...configDefaults.exclude, 'e2e/**'],
+        setupFiles: ['test/setup-core.js'],
         // npx vitest run --coverage; summarized in CI by ci/coverage-summary.mjs, no threshold.
         coverage: {
             provider: 'v8',
