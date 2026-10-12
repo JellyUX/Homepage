@@ -129,3 +129,23 @@ describe('_setupLazyLoader (F-10)', () => {
         expect(elem.querySelector('.jux-lazy-sentinel')).toBeNull();
     });
 });
+
+describe('_buildSection (F-11)', () => {
+    afterEach(() => {
+        document.body.innerHTML = '';
+    });
+
+    it('places sections in the order they are built, without a CSS order the container ignores', async () => {
+        // The server returns descriptors sorted by Order (WidgetLayoutResolver); the native
+        // .homeSectionsContainer is not a flex container in 10.11.10, so style.order had no effect.
+        const elem = document.createElement('div');
+        const descriptor = (type, order) => ({ WidgetType: type, Order: order, DisplayName: type, ViewMode: 'Backdrop' });
+
+        await juxHomepage._buildSection(elem, {}, 'u', null, descriptor('jux.native.next-up', 10));
+        await juxHomepage._buildSection(elem, {}, 'u', null, descriptor('jux.native.my-media', 40));
+
+        const sections = [...elem.querySelectorAll('.jux-widget-section')];
+        expect(sections.map((s) => s.classList.contains('jux-widget-jux-native-next-up'))).toEqual([true, false]);
+        expect(sections.map((s) => s.style.order)).toEqual(['', '']);
+    });
+});

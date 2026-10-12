@@ -169,7 +169,6 @@
         sectionEl.className =
             'verticalSection jux-widget-section jux-widget-' +
             descriptor.WidgetType.replace(/\./g, '-');
-        sectionEl.style.order = String(descriptor.Order);
 
         // TODO_V3.md Phase 9.1: generic hook for any widget instance carrying a Theme (currently
         // only the Seasonal widget's presets set one) -- jux-homepage.css keys visual effects (e.g.
@@ -380,7 +379,8 @@
             _fallback: _fallback,
             _isHomePage: _isHomePage,
             _hasMorePages: _hasMorePages,
-            _setupLazyLoader: _setupLazyLoader
+            _setupLazyLoader: _setupLazyLoader,
+            _buildSection: _buildSection
         };
     }
 })();
