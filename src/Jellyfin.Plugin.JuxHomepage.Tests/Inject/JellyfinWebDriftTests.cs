@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.RegularExpressions;
 using Jellyfin.Plugin.JuxHomepage.Inject;
 using Jellyfin.Plugin.JuxHomepage.IO;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -5,32 +7,35 @@ using Xunit;
 
 namespace Jellyfin.Plugin.JuxHomepage.Tests.Inject;
 
-// CI guard (Phase 12.2 of TODO_V2.md): proactively detects a Jellyfin Web bundle drift against the
-// project's most fragile mechanism (loadSections splicing) before it silently breaks for users. Reuses
-// the exact pure functions extracted in Phase 9 (TransformationPatches.FindLoadSectionsChunks/
-// LoadInjectFragmentTemplate/TryPatchLoadSections) against a real jellyfin/jellyfin:latest image,
-// instead of re-implementing the detection logic separately (which would risk testing something
-// different from the real production code path).
+// CI guard (TODO_V4.md 3.3, F-11): detects a Jellyfin Web bundle drift against everything JellyUX patches
+// or depends on, before it silently breaks for users. Reuses the production code paths
+// (TransformationPatches.FindLoadSectionsChunks/TryPatchLoadSections/CheckHomeHtmlChunks) instead of
+// re-implementing the detection, and checks every native token of Web/jux-native-selectors.json.
 //
-// Requires Docker and network access to pull jellyfin/jellyfin:latest -- tagged so it is excluded from
-// the normal `dotnet test` run in ci.yml (see the "Category!=RequiresDocker" filter there) and only
-// runs in the dedicated .github/workflows/jellyfin-web-drift.yml (cron + workflow_dispatch).
+// Needs the web client extracted from the target image (jellyfin/jellyfin:10.11.10, the version the
+// hook constant is validated for): tagged so the normal `dotnet test` run skips it; the "drift" job of
+// ci.yml extracts the bundle, sets JELLYFIN_WEB_EXTRACT_PATH and runs it as part of the release gate.
 [Trait("Category", "RequiresDocker")]
 public sealed class JellyfinWebDriftTests
 {
-    [Fact]
-    public void CurrentLoadSectionsPatterns_StillMatchLatestJellyfinWeb()
+    private static string WebPath()
     {
         var webPath = Environment.GetEnvironmentVariable("JELLYFIN_WEB_EXTRACT_PATH");
         if (string.IsNullOrEmpty(webPath))
         {
             throw new InvalidOperationException(
                 "JELLYFIN_WEB_EXTRACT_PATH must be set to the extracted jellyfin-web directory. "
-                + "See .github/workflows/jellyfin-web-drift.yml, which sets this before running this test.");
+                + "See the drift job of .github/workflows/ci.yml, which sets it before running this test.");
         }
 
+        return webPath;
+    }
+
+    [Fact]
+    public void LoadSectionsSplice_StillResolvesAgainstTheTargetBundle()
+    {
         var fileSystem = new FileSystem();
-        var chunks = TransformationPatches.FindLoadSectionsChunks(webPath, fileSystem, NullLogger.Instance);
+        var chunks = TransformationPatches.FindLoadSectionsChunks(WebPath(), fileSystem, NullLogger.Instance);
 
         Assert.NotEmpty(chunks);
 
@@ -42,10 +47,42 @@ public sealed class JellyfinWebDriftTests
             var content = fileSystem.ReadAllText(chunkPath);
             var (_, outcome) = TransformationPatches.TryPatchLoadSections(content, template!);
 
-            // HookNotFound means the minified hook constants (TransformationPatches.cs, HookCardBuilder
-            // etc.) no longer resolve against this Jellyfin Web build -- exactly the drift this job
-            // exists to catch. See CLAUDE.md "Jellyfin Update Procedure" for how to re-extract them.
+            // HookNotFound means a token the splice needs (module self-reference, cardBuilder binding
+            // or its .default read) is gone from this build. See CLAUDE.md "Jellyfin Update Procedure".
             Assert.Equal(LoadSectionsOutcome.Patched, outcome);
         }
+    }
+
+    [Fact]
+    public void HomeHtmlAnchor_IsPresentInTheTargetBundle()
+    {
+        Assert.True(TransformationPatches.CheckHomeHtmlChunks(WebPath(), new FileSystem(), NullLogger.Instance));
+    }
+
+    [Fact]
+    public void EveryInventoriedNativeToken_AppearsInTheTargetBundle()
+    {
+        var bundle = string.Concat(Directory
+            .EnumerateFiles(WebPath(), "*", SearchOption.AllDirectories)
+            .Where(f => f.EndsWith(".js", StringComparison.Ordinal)
+                || f.EndsWith(".css", StringComparison.Ordinal)
+                || f.EndsWith(".html", StringComparison.Ordinal))
+            .Select(File.ReadAllText));
+
+        using var inventory = JsonDocument.Parse(File.ReadAllText(
+            Path.Combine(RepoPaths.Root(), "src", "Jellyfin.Plugin.JuxHomepage", "Web", "jux-native-selectors.json")));
+
+        // A name must stand on its own: "actionSheetScrollerX" does not keep "actionSheetScroller" alive.
+        bool IsPresent(string key, string token) => key == "anchors"
+            ? bundle.Contains(token, StringComparison.Ordinal)
+            : Regex.IsMatch(bundle, $@"(?<![\w-]){Regex.Escape(token)}(?![\w-])");
+
+        var missing = new[] { "classes", "ids", "attributes", "elements", "anchors" }
+            .SelectMany(key => inventory.RootElement.GetProperty(key).EnumerateArray().Select(t => (Key: key, Token: t.GetString()!)))
+            .Where(entry => !IsPresent(entry.Key, entry.Token))
+            .Select(entry => $"{entry.Key}: {entry.Token}")
+            .ToList();
+
+        Assert.Empty(missing);
     }
 }

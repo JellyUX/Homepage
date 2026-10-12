@@ -10,7 +10,6 @@
 !.github/dependabot.yml
 !.github/workflows/
 !.github/workflows/ci.yml
-!.github/workflows/jellyfin-web-drift.yml
 !.github/workflows/docs.yml
 !.github/scripts/
 !.github/scripts/update-manifest.py
@@ -95,6 +94,7 @@ src/**
 !src/**/*.html
 !src/**/appsettings*.json
 !src/**/Localization/*.json
+!src/Jellyfin.Plugin.JuxHomepage/Web/jux-native-selectors.json
 src/**/bin/
 src/**/obj/
 

@@ -136,9 +136,36 @@ jobs:
             e2e/.work/jellyfin.log
           retention-days: 14
 
+  drift:
+    name: Jellyfin Web drift (10.11.10)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 9.0.x
+
+      # The bundle the HookCardBuilder constant and Web/jux-native-selectors.json are validated for.
+      - name: Extract jellyfin-web from jellyfin/jellyfin:10.11.10
+        run: |
+          docker create --name jf-drift-extract jellyfin/jellyfin:10.11.10
+          WEB_DIR=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' jf-drift-extract | grep '^JELLYFIN_WEB_DIR=' | cut -d= -f2)
+          docker cp "jf-drift-extract:$WEB_DIR" ./jellyfin-web-extract
+          docker rm jf-drift-extract
+          echo "JELLYFIN_WEB_EXTRACT_PATH=$PWD/jellyfin-web-extract" >> "$GITHUB_ENV"
+
+      - name: Restore & build
+        run: |
+          dotnet restore
+          dotnet build --configuration Release --no-restore
+
+      - name: Run the drift checks
+        run: dotnet test --no-build --configuration Release --filter "Category=RequiresDocker"
+
   release:
     name: Release
-    needs: [build-test, build-newest-abi, static, e2e]
+    needs: [build-test, build-newest-abi, static, e2e, drift]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
