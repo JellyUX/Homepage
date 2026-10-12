@@ -1101,7 +1101,7 @@ function createConfigPage() {
                 if (s.Type === 'NowPlayingMovies') {
                     html += '<span class="jux-admin-tmdb-pages">';
                     html += '<label for="selNowPlayingRegion">' + self.escHtml(self.t('admin.tmdbregion.label')) + '</label>';
-                    html += '<select id="selNowPlayingRegion" class="emby-select jux-admin-tmdb-pages-input">';
+                    html += '<select id="selNowPlayingRegion" class="emby-select jux-admin-tmdb-region">';
                     html += '<option value="">' + self.escHtml(self.t('admin.tmdbregion.default')) + '</option>';
                     self._tmdbCountries.forEach(function (c) {
                         var selected = c.Value === currentRegion ? ' selected' : '';

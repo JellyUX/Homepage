@@ -145,6 +145,7 @@ ul.jux-admin-warning {
 }
 .jux-admin-tmdb-status-row {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-between;
     gap: 1em;
     padding: 0.4em 0;
@@ -153,14 +154,22 @@ ul.jux-admin-warning {
 .jux-admin-tmdb-status-row:last-child {
     border-bottom: none;
 }
+/* Wraps under its status on a narrow screen instead of pushing the page sideways. */
 .jux-admin-tmdb-pages {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 0.5em;
-    flex-shrink: 0;
+    min-width: 0;
+    max-width: 100%;
 }
 .jux-admin-tmdb-pages-input {
     width: 4em;
+}
+/* Wide enough for "Default (all regions)" and country names, never wider than the row. */
+.jux-admin-tmdb-region {
+    width: 14em;
+    max-width: 100%;
 }
 .jux-admin-secret {
     display: flex;
