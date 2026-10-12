@@ -126,6 +126,14 @@ on Jellyfin 10.11 a disabled plugin is deleted at the next restart (Jellyfin iss
 [#15897](https://github.com/jellyfin/jellyfin/issues/15897), fixed in 12.0 by
 [#17521](https://github.com/jellyfin/jellyfin/pull/17521) and not backported to 10.11).
 
+**Custom Tabs cannot be installed alongside JellyUX**
+
+JellyUX and [Custom Tabs](https://github.com/IAmParadox27/jellyfin-plugin-custom-tabs) both add
+tabs by patching the same home page template through File Transformation, which applies only one
+patch per file: one plugin's tabs then open on empty panes. When Custom Tabs is installed, the
+JellyUX configuration page shows a warning. Uninstall Custom Tabs by removing its folder from the
+plugins directory, then restart Jellyfin.
+
 **Plugin becomes unreachable (HTTP 500) after an update**
 
 A simple Jellyfin restart may not be enough after updating the plugin - do a full restart of the

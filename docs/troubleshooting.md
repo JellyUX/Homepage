@@ -1,5 +1,17 @@
 # Troubleshooting
 
+## JellyUX tabs, or Custom Tabs tabs, open empty
+
+JellyUX and [Custom Tabs](https://github.com/IAmParadox27/jellyfin-plugin-custom-tabs) cannot be
+installed together. Both add tabs by patching the same `home-html` chunk through File
+Transformation, which runs only one transformation per file pattern: the plugin whose patch is
+applied keeps its panes, and the other plugin's buttons switch to the wrong, empty panes. The JellyUX
+configuration page warns about it whenever Custom Tabs is installed.
+
+**Fix**: uninstall Custom Tabs by removing its folder from the Jellyfin plugins directory, then
+restart Jellyfin. Do not use **Disable** in **Administration > Plugins** for this: on Jellyfin 10.11 a
+disabled plugin is deleted at the next restart (see the README).
+
 ## Plugin becomes unreachable (HTTP 500) after an update
 
 A simple Jellyfin restart may not be enough after updating the plugin. Do a full restart of the
