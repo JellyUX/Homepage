@@ -151,4 +151,36 @@ public sealed class WatchlistAutoRemoveServiceTests
         // Unsubscribed -- Likes must remain untouched since the handler no longer runs.
         Assert.True(userData.Likes);
     }
+
+    [Fact]
+    public async Task OnUserDataSaved_SaveThrows_DoesNotFailTheJellyfinOperation()
+    {
+        var user = new User("test", "Default", "Default");
+        var item = new Movie { Id = Guid.NewGuid(), Name = "Movie" };
+        var userData = new UserItemData { Key = "k1", Played = true, Likes = true };
+        var userManagerMock = new Mock<IUserManager>();
+        userManagerMock.Setup(m => m.GetUserById(user.Id)).Returns(user);
+        var userDataManagerMock = new Mock<IUserDataManager>();
+        userDataManagerMock
+            .Setup(m => m.SaveUserData(It.IsAny<User>(), It.IsAny<BaseItem>(), It.IsAny<UserItemData>(), It.IsAny<UserDataSaveReason>(), It.IsAny<CancellationToken>()))
+            .Throws(new InvalidOperationException("database locked"));
+        var service = new WatchlistAutoRemoveService(
+            userDataManagerMock.Object,
+            userManagerMock.Object,
+            NullLogger<WatchlistAutoRemoveService>.Instance);
+        await service.StartAsync(CancellationToken.None);
+
+        var raise = Record.Exception(() => userDataManagerMock.Raise(
+            m => m.UserDataSaved += null,
+            userDataManagerMock.Object,
+            new UserDataSaveEventArgs
+            {
+                Item = item,
+                UserData = userData,
+                UserId = user.Id,
+                SaveReason = UserDataSaveReason.PlaybackFinished
+            }));
+
+        Assert.Null(raise);
+    }
 }

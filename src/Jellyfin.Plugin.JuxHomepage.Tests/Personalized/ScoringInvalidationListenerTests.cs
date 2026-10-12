@@ -6,6 +6,7 @@ using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Entities;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
 
@@ -43,7 +44,7 @@ public sealed class ScoringInvalidationListenerTests
     [Fact]
     public async Task PlaybackFinished_NewUserFirstFilm_PersonalizedValueAppearsSameDay()
     {
-        var listener = new ScoringInvalidationListener(_userDataManagerMock.Object, _service);
+        var listener = new ScoringInvalidationListener(_userDataManagerMock.Object, _service, NullLogger<ScoringInvalidationListener>.Instance);
         await listener.StartAsync(CancellationToken.None);
         Assert.Empty(_service.GetTopGenres(_user.Id, 5));
 
@@ -59,7 +60,7 @@ public sealed class ScoringInvalidationListenerTests
     [Fact]
     public async Task PlaybackProgress_DoesNotRefreshTheSnapshot()
     {
-        var listener = new ScoringInvalidationListener(_userDataManagerMock.Object, _service);
+        var listener = new ScoringInvalidationListener(_userDataManagerMock.Object, _service, NullLogger<ScoringInvalidationListener>.Instance);
         await listener.StartAsync(CancellationToken.None);
         Assert.Empty(_service.GetTopGenres(_user.Id, 5));
 

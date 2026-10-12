@@ -431,6 +431,21 @@ public sealed class JuxHomepageControllerTests
     }
 
     [Fact]
+    public async Task GetWatchlistItems_ServiceThrows_AnswersAnExplicit500()
+    {
+        var caller = TestMocks.DefaultUser();
+        var watchlistMock = new Mock<IWatchlistService>();
+        watchlistMock
+            .Setup(w => w.GetItems(It.IsAny<Guid>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<CancellationToken>()))
+            .Throws(new InvalidOperationException("database locked"));
+        var controller = BuildUserController(caller, isAdministrator: false, watchlistServiceMock: watchlistMock);
+
+        var response = await controller.GetWatchlistItems(Guid.Empty);
+
+        Assert.Equal(StatusCodes.Status500InternalServerError, Assert.IsType<StatusCodeResult>(response.Result).StatusCode);
+    }
+
+    [Fact]
     public async Task GetSections_UnknownLanguage_SharesTheEnglishCacheEntry()
     {
         var caller = TestMocks.DefaultUser();

@@ -1,6 +1,7 @@
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Entities;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.JuxHomepage.Widgets.Personalized;
 
@@ -14,6 +15,7 @@ public sealed class ScoringInvalidationListener : IHostedService
 {
     private readonly IUserDataManager _userDataManager;
     private readonly ScoringService _scoringService;
+    private readonly ILogger<ScoringInvalidationListener> _logger;
     private EventHandler<UserDataSaveEventArgs>? _handler;
 
     /// <summary>
@@ -21,10 +23,15 @@ public sealed class ScoringInvalidationListener : IHostedService
     /// </summary>
     /// <param name="userDataManager">Jellyfin user data manager.</param>
     /// <param name="scoringService">The scoring service whose snapshots to refresh.</param>
-    public ScoringInvalidationListener(IUserDataManager userDataManager, ScoringService scoringService)
+    /// <param name="logger">Logger.</param>
+    public ScoringInvalidationListener(
+        IUserDataManager userDataManager,
+        ScoringService scoringService,
+        ILogger<ScoringInvalidationListener> logger)
     {
         _userDataManager = userDataManager;
         _scoringService = scoringService;
+        _logger = logger;
     }
 
     /// <inheritdoc/>
@@ -46,11 +53,12 @@ public sealed class ScoringInvalidationListener : IHostedService
         return Task.CompletedTask;
     }
 
-    private void OnUserDataSaved(object? sender, UserDataSaveEventArgs e)
-    {
-        if (e.SaveReason is UserDataSaveReason.PlaybackFinished or UserDataSaveReason.TogglePlayed)
+    private void OnUserDataSaved(object? sender, UserDataSaveEventArgs e) =>
+        EventHandlerGuard.Run(_logger, nameof(OnUserDataSaved), () =>
         {
-            _scoringService.MarkStale(e.UserId);
-        }
-    }
+            if (e.SaveReason is UserDataSaveReason.PlaybackFinished or UserDataSaveReason.TogglePlayed)
+            {
+                _scoringService.MarkStale(e.UserId);
+            }
+        });
 }

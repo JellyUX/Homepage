@@ -2,6 +2,7 @@ using Jellyfin.Plugin.JuxHomepage.Widgets;
 using Jellyfin.Plugin.JuxHomepage.Widgets.Personalized;
 using MediaBrowser.Model.Plugins;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.JuxHomepage.Configuration;
 
@@ -16,6 +17,7 @@ public sealed class ConfigurationChangeListener : IHostedService
 {
     private readonly SessionCache _sessionCache;
     private readonly ScoringService _scoringService;
+    private readonly ILogger<ConfigurationChangeListener> _logger;
     private EventHandler<BasePluginConfiguration>? _handler;
 
     /// <summary>
@@ -23,10 +25,12 @@ public sealed class ConfigurationChangeListener : IHostedService
     /// </summary>
     /// <param name="sessionCache">The session cache to clear on configuration change.</param>
     /// <param name="scoringService">The scoring service whose snapshots to clear on configuration change.</param>
-    public ConfigurationChangeListener(SessionCache sessionCache, ScoringService scoringService)
+    /// <param name="logger">Logger.</param>
+    public ConfigurationChangeListener(SessionCache sessionCache, ScoringService scoringService, ILogger<ConfigurationChangeListener> logger)
     {
         _sessionCache = sessionCache;
         _scoringService = scoringService;
+        _logger = logger;
     }
 
     /// <inheritdoc/>
@@ -54,9 +58,10 @@ public sealed class ConfigurationChangeListener : IHostedService
     }
 
     /// <summary>Clears both caches; internal so tests can drive it without a live plugin instance.</summary>
-    internal void OnConfigurationChanged()
-    {
-        _sessionCache.Clear();
-        _scoringService.Clear();
-    }
+    internal void OnConfigurationChanged() =>
+        EventHandlerGuard.Run(_logger, nameof(OnConfigurationChanged), () =>
+        {
+            _sessionCache.Clear();
+            _scoringService.Clear();
+        });
 }

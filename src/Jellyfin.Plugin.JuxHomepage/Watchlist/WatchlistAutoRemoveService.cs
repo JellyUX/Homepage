@@ -68,7 +68,10 @@ public sealed class WatchlistAutoRemoveService : IHostedService
     /// <c>PlaybackFinished</c>) means this handler's own write can never re-trigger itself: the guard
     /// below rejects any reason other than <c>PlaybackFinished</c> before it would ever recurse.
     /// </summary>
-    private void OnUserDataSaved(object? sender, UserDataSaveEventArgs e)
+    private void OnUserDataSaved(object? sender, UserDataSaveEventArgs e) =>
+        EventHandlerGuard.Run(_logger, nameof(OnUserDataSaved), () => RemoveFinishedItem(e));
+
+    private void RemoveFinishedItem(UserDataSaveEventArgs e)
     {
         if (e.SaveReason != UserDataSaveReason.PlaybackFinished)
         {

@@ -2,6 +2,7 @@ using Jellyfin.Plugin.JuxHomepage.Library;
 using MediaBrowser.Controller.Collections;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Library;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
 
@@ -15,7 +16,7 @@ public sealed class CollectionsIndexInvalidationListenerTests
         var collectionManagerMock = new Mock<ICollectionManager>();
         var libraryManagerMock = new Mock<ILibraryManager>();
         var indexMock = new Mock<ICollectionsIndexCacheService>();
-        var listener = new CollectionsIndexInvalidationListener(collectionManagerMock.Object, libraryManagerMock.Object, indexMock.Object);
+        var listener = new CollectionsIndexInvalidationListener(collectionManagerMock.Object, libraryManagerMock.Object, indexMock.Object, NullLogger<CollectionsIndexInvalidationListener>.Instance);
         await listener.StartAsync(CancellationToken.None);
 
         libraryManagerMock.Raise(m => m.ItemUpdated += null, libraryManagerMock.Object, new ItemChangeEventArgs { Item = new Movie() });
@@ -32,7 +33,7 @@ public sealed class CollectionsIndexInvalidationListenerTests
     {
         var collectionManagerMock = new Mock<ICollectionManager>();
         var indexMock = new Mock<ICollectionsIndexCacheService>();
-        var listener = new CollectionsIndexInvalidationListener(collectionManagerMock.Object, new Mock<ILibraryManager>().Object, indexMock.Object);
+        var listener = new CollectionsIndexInvalidationListener(collectionManagerMock.Object, new Mock<ILibraryManager>().Object, indexMock.Object, NullLogger<CollectionsIndexInvalidationListener>.Instance);
         await listener.StartAsync(CancellationToken.None);
 
         collectionManagerMock.Raise(m => m.ItemsAddedToCollection += null, new CollectionModifiedEventArgs(new BoxSet(), []));

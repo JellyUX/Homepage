@@ -2,6 +2,7 @@ using MediaBrowser.Controller.Collections;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Library;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.JuxHomepage.Library;
 
@@ -16,6 +17,7 @@ public sealed class CollectionsIndexInvalidationListener : IHostedService
     private readonly ICollectionManager _collectionManager;
     private readonly ILibraryManager _libraryManager;
     private readonly ICollectionsIndexCacheService _index;
+    private readonly ILogger<CollectionsIndexInvalidationListener> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CollectionsIndexInvalidationListener"/> class.
@@ -23,14 +25,17 @@ public sealed class CollectionsIndexInvalidationListener : IHostedService
     /// <param name="collectionManager">Jellyfin collection manager.</param>
     /// <param name="libraryManager">Jellyfin library manager.</param>
     /// <param name="index">The collections index to invalidate.</param>
+    /// <param name="logger">Logger.</param>
     public CollectionsIndexInvalidationListener(
         ICollectionManager collectionManager,
         ILibraryManager libraryManager,
-        ICollectionsIndexCacheService index)
+        ICollectionsIndexCacheService index,
+        ILogger<CollectionsIndexInvalidationListener> logger)
     {
         _collectionManager = collectionManager;
         _libraryManager = libraryManager;
         _index = index;
+        _logger = logger;
     }
 
     /// <inheritdoc/>
@@ -55,15 +60,18 @@ public sealed class CollectionsIndexInvalidationListener : IHostedService
         return Task.CompletedTask;
     }
 
-    private void OnCollectionCreated(object? sender, CollectionCreatedEventArgs e) => _index.Invalidate();
+    private void OnCollectionCreated(object? sender, CollectionCreatedEventArgs e) =>
+        EventHandlerGuard.Run(_logger, nameof(OnCollectionCreated), _index.Invalidate);
 
-    private void OnCollectionModified(object? sender, CollectionModifiedEventArgs e) => _index.Invalidate();
+    private void OnCollectionModified(object? sender, CollectionModifiedEventArgs e) =>
+        EventHandlerGuard.Run(_logger, nameof(OnCollectionModified), _index.Invalidate);
 
-    private void OnItemChanged(object? sender, ItemChangeEventArgs e)
-    {
-        if (e.Item is BoxSet)
+    private void OnItemChanged(object? sender, ItemChangeEventArgs e) =>
+        EventHandlerGuard.Run(_logger, nameof(OnItemChanged), () =>
         {
-            _index.Invalidate();
-        }
-    }
+            if (e.Item is BoxSet)
+            {
+                _index.Invalidate();
+            }
+        });
 }

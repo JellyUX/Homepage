@@ -6,6 +6,7 @@ using Jellyfin.Plugin.JuxHomepage.Widgets.Personalized;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Library;
+using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
 
@@ -36,7 +37,7 @@ public sealed class ConfigurationChangeListenerTests
         sessionCache.Set(user.Id, "en", [new WidgetDescriptor { WidgetType = "w1" }]);
         scoring.GetTopGenres(user.Id, 5);
 
-        new ConfigurationChangeListener(sessionCache, scoring).OnConfigurationChanged();
+        new ConfigurationChangeListener(sessionCache, scoring, NullLogger<ConfigurationChangeListener>.Instance).OnConfigurationChanged();
 
         Assert.False(sessionCache.TryGet(user.Id, "en", TimeSpan.FromMinutes(15), out _));
         Assert.False(scoring.HasSnapshotForTesting(user.Id));

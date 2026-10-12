@@ -582,6 +582,22 @@ public class JuxHomepageController : ControllerBase
     private static (int StartIndex, int Limit) BoundPage(int startIndex, int limit) =>
         (Math.Max(0, startIndex), Math.Clamp(limit, 1, WidgetConfig.MaxItemsCeiling));
 
+    // Reads one tab view (TODO_V4.md 5.5, F-23): a failure is logged with its view and user and
+    // answered with an explicit 500, which the tab shows as an error with a retry (5.2), the same
+    // protection on every view instead of none.
+    private ActionResult<T> ReadView<T>(string view, Guid userId, Func<T> read)
+    {
+        try
+        {
+            return Ok(read());
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "JellyUX {View} failed for user {UserId}.", view, userId);
+            return StatusCode(StatusCodes.Status500InternalServerError);
+        }
+    }
+
     // -------------------------------------------------------------------------
     // Watchlist (authenticated user)
     // -------------------------------------------------------------------------
@@ -620,8 +636,7 @@ public class JuxHomepageController : ControllerBase
         userId = resolvedUserId.Value;
 
         (startIndex, limit) = BoundPage(startIndex, limit);
-        var result = _watchlistService.GetItems(userId, sortBy, sortOrder, includeItemTypes, startIndex, limit, includeTotalRecordCount: true, cancellationToken);
-        return Ok(result);
+        return ReadView("Watchlist", userId, () => _watchlistService.GetItems(userId, sortBy, sortOrder, includeItemTypes, startIndex, limit, includeTotalRecordCount: true, cancellationToken));
     }
 
     /// <summary>
@@ -648,7 +663,7 @@ public class JuxHomepageController : ControllerBase
 
         userId = resolvedUserId.Value;
 
-        return Ok(_watchlistService.GetLikedItemIds(userId, cancellationToken));
+        return ReadView("Watchlist ids", userId, () => _watchlistService.GetLikedItemIds(userId, cancellationToken));
     }
 
     /// <summary>
@@ -683,8 +698,7 @@ public class JuxHomepageController : ControllerBase
         userId = resolvedUserId.Value;
 
         (startIndex, limit) = BoundPage(startIndex, limit);
-        var result = _seriesProgressViewService.GetItems(userId, sortBy, sortOrder, startIndex, limit, cancellationToken);
-        return Ok(result);
+        return ReadView("Series Progress", userId, () => _seriesProgressViewService.GetItems(userId, sortBy, sortOrder, startIndex, limit, cancellationToken));
     }
 
     /// <summary>
@@ -719,8 +733,7 @@ public class JuxHomepageController : ControllerBase
         userId = resolvedUserId.Value;
 
         (startIndex, limit) = BoundPage(startIndex, limit);
-        var result = _movieHistoryViewService.GetItems(userId, sortBy, sortOrder, startIndex, limit, cancellationToken);
-        return Ok(result);
+        return ReadView("Movie History", userId, () => _movieHistoryViewService.GetItems(userId, sortBy, sortOrder, startIndex, limit, cancellationToken));
     }
 
     /// <summary>
@@ -743,7 +756,7 @@ public class JuxHomepageController : ControllerBase
 
         userId = resolvedUserId.Value;
 
-        return Ok(_statisticsService.GetStatistics(userId));
+        return ReadView("Statistics", userId, () => _statisticsService.GetStatistics(userId));
     }
 
     /// <summary>
