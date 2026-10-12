@@ -74,6 +74,53 @@ export function dropIndex(from, over, after) {
     return from < to ? to - 1 : to;
 }
 
+// The configuration row stored for a widget row at index i of the page: what Save writes and
+// what Preview sends, so a preview always shows what saving would store.
+export function toConfigRow(widget, i, isAdmin) {
+    return {
+        WidgetType: widget.WidgetType,
+        Enabled: widget.Enabled,
+        CustomDisplayName: widget.CustomDisplayName || null,
+        Order: i * 10,
+        MinItems: Math.max(0, widget.MinItems),
+        MaxItems: Math.max(1, widget.MaxItems),
+        ViewMode: widget.ViewMode,
+        AllowUserOverride: isAdmin ? false : (typeof widget.AllowUserOverride === 'boolean' ? widget.AllowUserOverride : true),
+        MinInstances: widget.MinInstances || 1,
+        MaxInstances: widget.MaxInstances || 1,
+        ExtraParams: widget.ExtraParams || []
+    };
+}
+
+// The preview of a row (POST JuxHomepage/Preview, TODO_V4.md 6.5): a poster grid of its own, so
+// it renders whether or not the home screen was opened in this session. imageUrl(item) returns the
+// poster URL of an item, or '' when it has none.
+export function previewHtml(preview, imageUrl, t) {
+    var items = preview.Items || [];
+    var html = '<div class="jux-admin-preview-head">';
+    html += '<span class="jux-admin-preview-count">' + escHtml(t('admin.preview.count', { count: preview.TotalRecordCount })) + '</span>';
+    if (preview.HiddenReason === 'MinItems') {
+        html += '<span class="jux-admin-preview-hidden">' + escHtml(t('admin.preview.hidden.minitems', { min: preview.MinItems })) + '</span>';
+    } else if (preview.HiddenReason === 'NoValue') {
+        html += '<span class="jux-admin-preview-hidden">' + escHtml(t('admin.preview.hidden.novalue')) + '</span>';
+    }
+    html += '</div>';
+    if (!items.length) {
+        return html + '<p class="fieldDescription">' + escHtml(t('admin.preview.empty')) + '</p>';
+    }
+    html += '<ul class="jux-admin-preview-grid">';
+    items.forEach(function (item) {
+        var src = imageUrl(item);
+        html += '<li class="jux-admin-preview-item">';
+        html += src
+            ? '<img class="jux-admin-preview-poster" src="' + escHtml(src) + '" alt="" loading="lazy" />'
+            : '<span class="jux-admin-preview-poster jux-admin-preview-noposter" aria-hidden="true"></span>';
+        html += '<span class="jux-admin-preview-name">' + escHtml(item.Name) + '</span>';
+        html += '</li>';
+    });
+    return html + '</ul>';
+}
+
 // The one-line summary of a folded widget row: its chosen value or date window, view mode and
 // item range, so the admin can scan every section without unfolding it.
 export function widgetSummary(widget, valueLabel, t) {
@@ -656,6 +703,12 @@ function createConfigPage() {
                         html += '</div>';
                     }
 
+                    html += '<div class="jux-admin-preview-actions">';
+                    html += '<button type="button" class="emby-button raised jux-admin-btn-preview" data-index="' + i + '" aria-controls="juxPreview_' + i + '">';
+                    html += '<span>' + self.escHtml(self.t('admin.preview.button')) + '</span></button>';
+                    html += '</div>';
+                    html += '<div class="jux-admin-preview" id="juxPreview_' + i + '" aria-live="polite"></div>';
+
                     html += '</div>';
                     html += '</div>';
                 });
@@ -683,6 +736,12 @@ function createConfigPage() {
                     }
                 });
             }
+
+            list.querySelectorAll('.jux-admin-btn-preview').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    self.previewRow(parseInt(btn.getAttribute('data-index'), 10));
+                });
+            });
 
             list.querySelectorAll('.jux-admin-btn-toggle').forEach(function (btn) {
                 btn.addEventListener('click', function () {
@@ -908,6 +967,35 @@ function createConfigPage() {
                             });
                         }).catch(function () {});
                     }, 300);
+                });
+            });
+        },
+
+        // Renders the row at index as it is on the page, unsaved, through POST JuxHomepage/Preview.
+        previewRow: function (index) {
+            var self = this;
+            var target = document.getElementById('juxPreview_' + index);
+            if (!target) { return Promise.resolve(); }
+            self.readDomIntoState();
+            var w = self.state.sortedWidgets[index];
+            target.innerHTML = '<p class="fieldDescription">' + self.escHtml(self.t('admin.preview.loading')) + '</p>';
+            return ApiClient.ajax({
+                type: 'POST',
+                url: ApiClient.getUrl('JuxHomepage/Preview', { lang: self._currentLang() }),
+                data: JSON.stringify(toConfigRow(w, index, self.isAdmin(w.WidgetType))),
+                contentType: 'application/json',
+                dataType: 'json'
+            }).then(function (preview) {
+                target.innerHTML = previewHtml(preview || {}, function (item) {
+                    var tag = item.ImageTags && item.ImageTags.Primary;
+                    return tag ? ApiClient.getUrl('Items/' + item.Id + '/Images/Primary', { tag: tag, maxHeight: 300, quality: 90 }) : '';
+                }, self.t.bind(self));
+            }).catch(function (err) {
+                console.error('[JellyUX Config] Preview failed:', err);
+                target.innerHTML = '<p class="fieldDescription jux-admin-field-error">' + self.escHtml(self.t('admin.preview.error')) + '</p>'
+                    + '<button type="button" class="emby-button jux-admin-btn-preview-retry">' + self.escHtml(self.t('admin.preview.retry')) + '</button>';
+                target.querySelector('.jux-admin-btn-preview-retry').addEventListener('click', function () {
+                    self.previewRow(index);
                 });
             });
         },
@@ -1354,20 +1442,7 @@ function createConfigPage() {
                 }
 
                 config.Widgets = self.state.sortedWidgets.map(function (w, i) {
-                    var isAdm = self.isAdmin(w.WidgetType);
-                    return {
-                        WidgetType: w.WidgetType,
-                        Enabled: w.Enabled,
-                        CustomDisplayName: w.CustomDisplayName || null,
-                        Order: i * 10,
-                        MinItems: Math.max(0, w.MinItems),
-                        MaxItems: Math.max(1, w.MaxItems),
-                        ViewMode: w.ViewMode,
-                        AllowUserOverride: isAdm ? false : (typeof w.AllowUserOverride === 'boolean' ? w.AllowUserOverride : true),
-                        MinInstances: w.MinInstances || 1,
-                        MaxInstances: w.MaxInstances || 1,
-                        ExtraParams: w.ExtraParams || []
-                    };
+                    return toConfigRow(w, i, self.isAdmin(w.WidgetType));
                 });
 
                 return ApiClient.updatePluginConfiguration(self.PLUGIN_ID, config).then(function (result) {

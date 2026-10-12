@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import createController, { dropIndex, editorKind, escHtml, getExtraParam, moveRow, validateTmdb, widgetSummary } from '../src/Jellyfin.Plugin.JuxHomepage/Web/config.js';
+import createController, { dropIndex, editorKind, escHtml, getExtraParam, moveRow, previewHtml, toConfigRow, validateTmdb, widgetSummary } from '../src/Jellyfin.Plugin.JuxHomepage/Web/config.js';
 
 const CONFIG_HTML = readFileSync(resolve(__dirname, '../src/Jellyfin.Plugin.JuxHomepage/Web/config.html'), 'utf8');
 
@@ -44,6 +44,37 @@ describe('editorKind (F-37)', () => {
         expect(editorKind('jux.personalized.favorite-genre', 'Personalized', index)).toBe('personalized');
         expect(editorKind('jux.connected.trending-movies', 3, index)).toBe('connected');
         expect(editorKind('jux.unknown', 9, index)).toBe('');
+    });
+});
+
+describe('previewHtml (F-62)', () => {
+    const t = (key, params) => key + (params ? JSON.stringify(params) : '');
+    const poster = (item) => (item.Id === 'a' ? '/img/a' : '');
+
+    it('lists each item with its poster, and a placeholder when it has none', () => {
+        const html = previewHtml({ TotalRecordCount: 2, MinItems: 1, Items: [{ Id: 'a', Name: 'Alien' }, { Id: 'b', Name: '<b>B</b>' }] }, poster, t);
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        expect(doc.querySelector('.jux-admin-preview-count').textContent).toBe('admin.preview.count{"count":2}');
+        expect([...doc.querySelectorAll('.jux-admin-preview-name')].map((n) => n.textContent)).toEqual(['Alien', '<b>B</b>']);
+        expect(doc.querySelector('img.jux-admin-preview-poster').getAttribute('src')).toBe('/img/a');
+        expect(doc.querySelectorAll('.jux-admin-preview-noposter')).toHaveLength(1);
+        expect(doc.querySelector('.jux-admin-preview-hidden')).toBeNull();
+    });
+
+    it('says why the home screen would hide the section, and when nothing matches', () => {
+        const text = (html) => new DOMParser().parseFromString(html, 'text/html').body.textContent;
+        const below = previewHtml({ TotalRecordCount: 1, MinItems: 4, HiddenReason: 'MinItems', Items: [{ Id: 'a', Name: 'Alien' }] }, poster, t);
+        expect(text(below)).toContain('admin.preview.hidden.minitems{"min":4}');
+        const none = previewHtml({ TotalRecordCount: 0, MinItems: 1, HiddenReason: 'NoValue', Items: [] }, poster, t);
+        expect(text(none)).toContain('admin.preview.hidden.novalue');
+        expect(text(none)).toContain('admin.preview.empty');
+    });
+});
+
+describe('toConfigRow', () => {
+    it('stores an admin row without user override and clamps its item range', () => {
+        const row = toConfigRow({ WidgetType: 'jux.admin.genre', Enabled: true, MinItems: -2, MaxItems: 0, AllowUserOverride: true }, 3, true);
+        expect(row).toMatchObject({ Order: 30, MinItems: 0, MaxItems: 1, AllowUserOverride: false, MinInstances: 1, MaxInstances: 1, ExtraParams: [], CustomDisplayName: null });
     });
 });
 
@@ -299,6 +330,50 @@ describe('configuration page controller (F-33)', () => {
         await settle();
 
         expect(types()).toEqual(['Seasonal', 'Genre', 'Collection']);
+    });
+
+    it('previews the edited, unsaved value of a row (F-62)', async () => {
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+        window.ApiClient.ajax = vi.fn(() => Promise.resolve({ TotalRecordCount: 1, MinItems: 4, HiddenReason: 'MinItems', Items: [{ Id: 'x', Name: 'Mad Max', ImageTags: { Primary: 't1' } }] }));
+        card(0).querySelector('.jux-admin-btn-toggle').click();
+        await settle();
+        values['jux.admin.genre'].push({ Value: 'Action', Label: 'Action' });
+        card(0).querySelector('.jux-admin-widget-value').value = 'Action';
+
+        card(0).querySelector('.jux-admin-btn-preview').click();
+        await settle();
+
+        const request = window.ApiClient.ajax.mock.calls[0][0];
+        expect(request.type).toBe('POST');
+        expect(request.url).toBe('JuxHomepage/Preview');
+        expect(getExtraParam(JSON.parse(request.data), 'value')).toBe('Action');
+        const preview = view.querySelector('#juxPreview_0');
+        expect(preview.querySelector('.jux-admin-preview-name').textContent).toBe('Mad Max');
+        expect(preview.querySelector('img').getAttribute('src')).toBe('Items/x/Images/Primary');
+        expect(preview.querySelector('.jux-admin-preview-hidden')).not.toBeNull();
+        values['jux.admin.genre'].pop();
+    });
+
+    it('offers a retry when the preview fails', async () => {
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+        window.ApiClient.ajax = vi.fn()
+            .mockImplementationOnce(() => Promise.reject(new Error('down')))
+            .mockImplementationOnce(() => Promise.resolve({ TotalRecordCount: 0, MinItems: 1, Items: [] }));
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        card(0).querySelector('.jux-admin-btn-preview').click();
+        await settle();
+        const preview = view.querySelector('#juxPreview_0');
+        expect(preview.querySelector('.jux-admin-field-error')).not.toBeNull();
+
+        preview.querySelector('.jux-admin-btn-preview-retry').click();
+        await settle();
+        expect(window.ApiClient.ajax).toHaveBeenCalledTimes(2);
+        expect(preview.textContent).toContain('admin.preview.empty');
     });
 
     it('masks the TMDb key and shows it on demand (F-50)', async () => {

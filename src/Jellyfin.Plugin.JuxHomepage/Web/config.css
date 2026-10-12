@@ -180,3 +180,54 @@ ul.jux-admin-warning {
     flex: 1 1 auto;
     min-width: 0;
 }
+/* Preview of an unsaved section (TODO_V4.md 6.5): a poster grid of its own, so it does not depend
+   on the home screen's card builder. */
+.jux-admin-preview-actions {
+    margin-top: 0.5em;
+}
+.jux-admin-preview:empty {
+    display: none;
+}
+.jux-admin-preview {
+    margin-top: 0.75em;
+}
+.jux-admin-preview-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25em 1em;
+    margin-bottom: 0.6em;
+}
+.jux-admin-preview-count {
+    color: var(--jf-palette-text-secondary, rgba(255, 255, 255, 0.7));
+}
+.jux-admin-preview-hidden {
+    color: var(--jf-palette-warning-main, rgb(255, 167, 38));
+}
+.jux-admin-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(6.5em, 1fr));
+    gap: 0.75em;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.jux-admin-preview-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3em;
+    min-width: 0;
+}
+.jux-admin-preview-poster {
+    display: block;
+    width: 100%;
+    aspect-ratio: 2 / 3;
+    object-fit: cover;
+    border-radius: var(--jf-shape-borderRadius, 4px);
+    background-color: var(--jf-palette-background-paper, rgb(32, 32, 32));
+}
+.jux-admin-preview-name {
+    font-size: 0.85em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
