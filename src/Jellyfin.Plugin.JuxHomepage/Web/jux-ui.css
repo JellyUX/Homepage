@@ -1,4 +1,4 @@
-/* JellyUX shared UI helpers — styles for window.JuxUI (Web/jux-ui.js).
+/* JellyUX shared UI helpers - styles for window.JuxUI (Web/jux-ui.js).
  * TODO_V3.md Phase 6 bis: empty state, loading spinner, progress bar, stat tile, native sort dialog,
  * used by jux-watchlist.js/jux-progress.js/jux-history.js/jux-statistics.js.
  * TODO_V3.md Phase 8.1: breadcrumb navigation (jux-breadcrumb.js) also styles its small set of
@@ -216,7 +216,7 @@
  * Sort dialog (dialogBackdrop is native and works standalone; the dialog box
  * itself, its centering wrapper, and the radio-circle sizing below are
  * self-hosted rather than relying on native .centeredDialog/.mdl-radio__*
- * CSS — live inspection found that CSS only exists in a lazily-loaded
+ * CSS - live inspection found that CSS only exists in a lazily-loaded
  * webpack chunk Jellyfin fetches for its own native sort dialog, which our
  * tabs never trigger, so the classes were present with no matching styles.
  * Values below are copied from that native dialog's real computed styles

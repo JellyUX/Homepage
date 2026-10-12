@@ -1,12 +1,12 @@
-/* JellyUX Homepage — home screen styles.
+/* JellyUX Homepage - home screen styles.
  * Only jux-prefixed classes are styled here.
  * Native Jellyfin classes (.homeSectionsContainer, .verticalSection, .itemsContainer, etc.)
  * are never redefined, ensuring compatibility with ZestyTheme and Media Bar.
- * All colors use native Jellyfin CSS custom properties — no hardcoded values.
+ * All colors use native Jellyfin CSS custom properties - no hardcoded values.
  * The following variables are intentionally never redefined: --accent, --dark, --darkest.
  */
 
-/* Items container inside a JUX section — no visual override, purely a targeting anchor. */
+/* Items container inside a JUX section - no visual override, purely a targeting anchor. */
 .jux-items-container {
     /* Inherits all layout from Jellyfin's native .itemsContainer / .scrollSlider rules. */
 }

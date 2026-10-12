@@ -1,6 +1,6 @@
 'use strict';
 
-// JellyUX Homepage — home screen override.
+// JellyUX Homepage - home screen override.
 // This script is injected into Jellyfin's index.html by the plugin.
 // window.JellyfinAPI is populated by the loadSections splice fragment (jux-loadsections-inject.js)
 // before control reaches window.JUXHomepage.loadSections.
@@ -337,7 +337,7 @@
 
     // Maps JUX route keys to Jellyfin hash-based page URLs.
     // appRouter.getRouteUrl cannot be used for library pages (movies, tvshows, music…)
-    // because those strings are not registered named routes — the router tries to resolve
+    // because those strings are not registered named routes - the router tries to resolve
     // them as item references, producing /Items/undefined errors.
     var _ROUTE_HREF_MAP = {
         'movies':  '#/movies.html',
