@@ -72,32 +72,11 @@
         _run();
     }
 
-    // Network results of the current detail item, one shared Promise per call: however many
-    // mutation batches re-run _tryIncludedIn/_tryCollectionSort, each request is sent at most once
-    // per item. A failed request stays cached (no retry loop on every mutation) until the user
-    // opens another item.
-    var _cache = { itemId: null };
-
-    function _cached(itemId, key, request) {
-        if (_cache.itemId !== itemId) {
-            _cache = { itemId: itemId };
-        }
-        if (!_cache[key]) {
-            _cache[key] = request();
-        }
-        return _cache[key];
-    }
-
-    function _getItem(userId, itemId) {
-        return _cached(itemId, 'item', function () {
-            return window.ApiClient.getItem(userId, itemId);
-        });
-    }
-
+    // The collections of the current item, built once per item on top of the detail-item cache of
+    // jux-core.js, which the breadcrumb shares (TODO_V4.md 5.1).
     function _getIncludedIn(userId, itemId) {
-        return _cached(itemId, 'includedIn', function () {
-            var url = window.ApiClient.getUrl('JuxHomepage/Collections/IncludedIn/' + itemId);
-            return window.ApiClient.getJSON(url).then(function (refs) {
+        return window.JuxCore.cached(itemId, 'collections:boxSets', function () {
+            return window.JuxCore.getIncludedIn(itemId).then(function (refs) {
                 if (!refs || refs.length === 0) {
                     return [];
                 }
@@ -178,7 +157,7 @@
         // sections). Cleared on failure so a later retry isn't permanently blocked.
         activePage.dataset.juxCollectionsPending = itemId;
 
-        _getItem(userId, itemId).then(function (item) {
+        window.JuxCore.getItem(userId, itemId).then(function (item) {
             if (!_isSupportedForCollections(item)) {
                 // Final: an item's Type never changes, so there's no point re-checking on every
                 // future mutation for this same item id.
@@ -295,7 +274,7 @@
         // hasn't been created yet by a still-pending earlier call).
         activePage.dataset.juxCollectionSortPending = itemId;
 
-        _getItem(userId, itemId).then(function (item) {
+        window.JuxCore.getItem(userId, itemId).then(function (item) {
             if (!_isBoxSet(item)) {
                 // Final, same reasoning as in _tryIncludedIn: only a collection gets a sort button.
                 activePage.dataset.juxCollectionSortChecked = itemId;

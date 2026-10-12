@@ -217,8 +217,7 @@
     // If a movie belongs to more than one collection, only the first is shown (a breadcrumb is a
     // single linear trail, not a tree); documented as expected in the Phase 8 manual test.
     function _fetchCollectionRef(itemId) {
-        var url = window.ApiClient.getUrl('JuxHomepage/Collections/IncludedIn/' + itemId);
-        return window.ApiClient.getJSON(url).then(function (refs) {
+        return window.JuxCore.getIncludedIn(itemId).then(function (refs) {
             return (refs && refs[0]) || null;
         }).catch(function () {
             return null;
@@ -310,7 +309,7 @@
         // MutationObserver fires repeatedly while the DOM settles).
         container.dataset.juxBreadcrumbPending = itemId;
 
-        window.ApiClient.getItem(userId, itemId).then(function (item) {
+        window.JuxCore.getItem(userId, itemId).then(function (item) {
             if (!_isSupportedType(item)) {
                 // Final: an item's Type never changes, so no point re-checking this same id again.
                 if (container.dataset.juxBreadcrumbPending === itemId) {

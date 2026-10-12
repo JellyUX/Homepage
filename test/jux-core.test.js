@@ -1,7 +1,7 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import juxCore from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-core.js';
 
-const { escHtml, cssUrl, iconName, cached, observeCardImages } = juxCore;
+const { escHtml, cssUrl, iconName, cached, getItem, getIncludedIn, observeCardImages } = juxCore;
 
 describe('escHtml (F-35)', () => {
     it('escapes ampersands, angle brackets, double quotes and apostrophes', () => {
@@ -64,6 +64,24 @@ describe('cached', () => {
         cached('b', 'item', request);
 
         expect(calls).toBe(2);
+    });
+
+    it('lets collections and the breadcrumb share one getItem and one Included In per item', () => {
+        window.ApiClient = {
+            getUrl: path => path,
+            getItem: vi.fn().mockResolvedValue({ Type: 'Movie' }),
+            getJSON: vi.fn().mockResolvedValue([])
+        };
+
+        getItem('user1', 'shared1');
+        getIncludedIn('shared1');
+        getItem('user1', 'shared1');
+        getIncludedIn('shared1');
+
+        expect(window.ApiClient.getItem).toHaveBeenCalledTimes(1);
+        expect(window.ApiClient.getJSON).toHaveBeenCalledTimes(1);
+        expect(window.ApiClient.getJSON).toHaveBeenCalledWith('JuxHomepage/Collections/IncludedIn/shared1');
+        delete window.ApiClient;
     });
 });
 

@@ -58,21 +58,6 @@
         _tryFlatten();
     }
 
-    // Network results of the current detail item, one shared Promise per call, so repeated mutation
-    // batches never resend a request for the same item (see jux-collections.js). A failed request
-    // stays cached until the user opens another item.
-    var _cache = { itemId: null };
-
-    function _cached(itemId, key, request) {
-        if (_cache.itemId !== itemId) {
-            _cache = { itemId: itemId };
-        }
-        if (!_cache[key]) {
-            _cache[key] = request();
-        }
-        return _cache[key];
-    }
-
     var _labels = {
         en: { seasonFallback: 'Season {number}' },
         fr: { seasonFallback: 'Saison {number}' }
@@ -134,9 +119,7 @@
         // a genuine retry (e.g. cardBuilder becoming available later) isn't permanently blocked.
         activePage.dataset.juxFlattenPending = itemId;
 
-        _cached(itemId, 'item', function () {
-            return window.ApiClient.getItem(userId, itemId);
-        }).then(function (item) {
+        window.JuxCore.getItem(userId, itemId).then(function (item) {
             if (!_shouldFlatten(item)) {
                 // Final: an item's Type/ChildCount never changes, so there's no point re-checking on
                 // every future mutation for this same item id.
@@ -149,7 +132,7 @@
                 return;
             }
 
-            return _cached(itemId, 'episodes', function () {
+            return window.JuxCore.cached(itemId, 'flatten:episodes', function () {
                 return window.ApiClient.getJSON(window.ApiClient.getUrl('Shows/' + itemId + '/Episodes', {
                     userId: userId,
                     Fields: 'UserData,PrimaryImageAspectRatio'
