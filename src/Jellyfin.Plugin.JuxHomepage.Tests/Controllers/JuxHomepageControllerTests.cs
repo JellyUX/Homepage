@@ -165,11 +165,13 @@ public sealed class JuxHomepageControllerTests
         Assert.Equal("jux.admin.genre", Assert.Single(catalog.Widgets).WidgetType);
     }
 
-    [Fact]
-    public void GetAdminCatalog_IsRestrictedToAdministrators()
+    [Theory]
+    [InlineData(nameof(JuxHomepageController.GetAdminCatalog))]
+    [InlineData(nameof(JuxHomepageController.PreviewSection))]
+    public void AdminPageEndpoints_AreRestrictedToAdministrators(string action)
     {
         var policies = typeof(JuxHomepageController)
-            .GetMethod(nameof(JuxHomepageController.GetAdminCatalog))!
+            .GetMethod(action)!
             .GetCustomAttributes<AuthorizeAttribute>()
             .Select(a => a.Policy);
 

@@ -510,6 +510,52 @@ public class JuxHomepageController : ControllerBase
     }
 
     /// <summary>
+    /// Renders one widget row of the admin page before it is saved (TODO_V4.md 6.5, F-62): the items
+    /// the section would show for <paramref name="userId"/>, how many it finds, and why the home
+    /// screen would hide it.
+    /// </summary>
+    /// <param name="row">The widget row as edited on the admin page.</param>
+    /// <param name="resolver">The layout resolver that renders the row.</param>
+    /// <param name="userId">The user whose library the row reads; the caller by default.</param>
+    /// <param name="lang">The requested language of the section title.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The <see cref="WidgetPreview"/>.</returns>
+    [HttpPost("Preview")]
+    [Authorize(Policy = Policies.RequiresElevation)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<WidgetPreview>> PreviewSection(
+        [FromBody] WidgetConfig row,
+        [FromServices] WidgetLayoutResolver resolver,
+        [FromQuery] Guid userId = default,
+        [FromQuery] string? lang = null,
+        CancellationToken cancellationToken = default)
+    {
+        var resolvedUserId = await ResolveRequestUserIdAsync(userId).ConfigureAwait(false);
+        if (resolvedUserId is null)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        WidgetPreview? preview;
+        try
+        {
+            preview = await resolver
+                .PreviewAsync(resolvedUserId.Value, row, _localizationService.NormalizeLanguage(lang), cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Previewing widget '{WidgetType}' failed for user {UserId}.", row.WidgetType, resolvedUserId.Value);
+            return StatusCode(StatusCodes.Status500InternalServerError);
+        }
+
+        return preview is null ? NotFound() : Ok(preview);
+    }
+
+    /// <summary>
     /// Returns the list of available values for an admin widget type, for use in the autocomplete
     /// picker when the administrator adds a new section.
     /// </summary>

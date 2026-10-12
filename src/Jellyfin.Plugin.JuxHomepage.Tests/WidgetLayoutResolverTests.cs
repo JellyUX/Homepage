@@ -324,4 +324,70 @@ public sealed class WidgetLayoutResolverTests
 
         Assert.Equal(expected, Assert.Single(descriptors).MaxItems);
     }
+
+    // TODO_V4.md 6.5 (F-62): a preview reads the row sent by the admin page, never the saved one.
+    [Fact]
+    public async Task PreviewAsync_ReadsTheUnsavedRowUpToItsMaxItems()
+    {
+        WidgetPayload? seen = null;
+        var item = new BaseItemDto { Name = "Alien" };
+        var mock = new Mock<IWidget>();
+        mock.Setup(w => w.WidgetType).Returns("jux.admin.genre");
+        mock.Setup(w => w.Resolve(It.IsAny<Guid>(), It.IsAny<WidgetInstanceConfig>(), It.IsAny<int>())).Returns(mock.Object);
+        mock.Setup(w => w.GetDescriptor()).Returns(new WidgetDescriptor { WidgetType = "jux.admin.genre" });
+        mock.Setup(w => w.GetItemsAsync(It.IsAny<WidgetPayload>(), It.IsAny<CancellationToken>()))
+            .Callback((WidgetPayload p, CancellationToken _) => seen = p)
+            .ReturnsAsync(new WidgetResult([item], 1));
+        var registry = new WidgetRegistry();
+        registry.Register(mock.Object);
+        var saved = new WidgetConfig { WidgetType = "jux.admin.genre", ExtraParams = [new WidgetExtraParam { Key = "value", Value = "Drame" }] };
+        var resolver = new WidgetLayoutResolver(
+            registry,
+            Mock.Of<IUserConfigurationStore>(),
+            new LocalizationService(new Dictionary<string, IReadOnlyDictionary<string, string>>()),
+            () => new PluginConfiguration { Widgets = [saved] },
+            NullLogger<WidgetLayoutResolver>.Instance);
+        var edited = new WidgetConfig
+        {
+            WidgetType = "jux.admin.genre",
+            CustomDisplayName = "Science-Fiction",
+            MinItems = 50,
+            MaxItems = 500,
+            ExtraParams = [new WidgetExtraParam { Key = "value", Value = "Science-Fiction" }]
+        };
+
+        var preview = await resolver.PreviewAsync(Guid.NewGuid(), edited, lang: null, CancellationToken.None);
+
+        Assert.NotNull(preview);
+        Assert.Equal("Science-Fiction", seen!.AdditionalData);
+        Assert.Equal(WidgetConfig.MaxItemsCeiling, seen.Limit);
+        Assert.Equal("Science-Fiction", preview.DisplayName);
+        Assert.Same(item, Assert.Single(preview.Items));
+        Assert.Equal(1, preview.TotalRecordCount);
+        Assert.Equal(50, preview.MinItems);
+        Assert.Equal(WidgetPreview.HiddenBelowMinItems, preview.HiddenReason);
+    }
+
+    [Fact]
+    public async Task PreviewAsync_RowWithoutAnInstanceForTheUser_IsHiddenWithNoValue()
+    {
+        var mock = new Mock<IWidget>();
+        mock.Setup(w => w.WidgetType).Returns("jux.personalized.favorite-genre");
+        mock.Setup(w => w.Resolve(It.IsAny<Guid>(), It.IsAny<WidgetInstanceConfig>(), It.IsAny<int>())).Returns((IWidget?)null);
+        var registry = new WidgetRegistry();
+        registry.Register(mock.Object);
+        var resolver = new WidgetLayoutResolver(
+            registry,
+            Mock.Of<IUserConfigurationStore>(),
+            new LocalizationService(new Dictionary<string, IReadOnlyDictionary<string, string>>()),
+            () => new PluginConfiguration(),
+            NullLogger<WidgetLayoutResolver>.Instance);
+
+        var preview = await resolver.PreviewAsync(
+            Guid.NewGuid(), new WidgetConfig { WidgetType = "jux.personalized.favorite-genre" }, lang: null, CancellationToken.None);
+
+        Assert.Equal(WidgetPreview.HiddenNoValue, preview!.HiddenReason);
+        Assert.Empty(preview.Items);
+        Assert.Null(await resolver.PreviewAsync(Guid.NewGuid(), new WidgetConfig { WidgetType = "jux.unknown" }, null, CancellationToken.None));
+    }
 }

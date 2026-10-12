@@ -355,6 +355,39 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
     }
 
     /// <summary>
+    /// Clamps one widget row to valid ranges in place: the rows of a saved configuration and a row
+    /// previewed before it is saved (TODO_V4.md 6.5) go through the same rules.
+    /// </summary>
+    /// <param name="widget">The widget row to validate in place.</param>
+    internal static void ValidateWidget(WidgetConfig widget)
+    {
+        // Clamp per-widget values and ensure MinItems does not exceed MaxItems.
+        widget.MinItems = Math.Max(0, widget.MinItems);
+        widget.MaxItems = Math.Clamp(widget.MaxItems, 1, WidgetConfig.MaxItemsCeiling);
+        if (widget.MinItems > widget.MaxItems)
+        {
+            widget.MinItems = widget.MaxItems;
+        }
+
+        widget.MinInstances = Math.Max(1, widget.MinInstances);
+        widget.MaxInstances = Math.Max(1, widget.MaxInstances);
+        if (widget.MinInstances > widget.MaxInstances)
+        {
+            widget.MinInstances = widget.MaxInstances;
+        }
+
+        // Seasonal windows recur every year as MM-dd: an unparseable date is dropped at load and save
+        // (TODO_V4.md 5.5, F-23), so the stored configuration and the admin page never carry a window
+        // the widget would silently treat as never active.
+        if (widget.WidgetType == "jux.connected.seasonal")
+        {
+            widget.ExtraParams = widget.ExtraParams
+                .Where(p => p.Key is not ("startDate" or "endDate") || SeasonalWidget.TryParseMonthDay(p.Value, out _))
+                .ToArray();
+        }
+    }
+
+    /// <summary>
     /// Clamps all configuration values to valid ranges in place. Called both when the configuration
     /// is loaded (so a hand-edited XML file cannot bypass validation until the next admin save) and
     /// when an admin saves from the dashboard.
@@ -372,32 +405,9 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
             config.Cache.TMDbRefreshIntervalHours = Math.Max(1, config.Cache.TMDbRefreshIntervalHours);
         }
 
-        // Clamp per-widget values and ensure MinItems does not exceed MaxItems.
         foreach (var widget in config.Widgets)
         {
-            widget.MinItems = Math.Max(0, widget.MinItems);
-            widget.MaxItems = Math.Clamp(widget.MaxItems, 1, WidgetConfig.MaxItemsCeiling);
-            if (widget.MinItems > widget.MaxItems)
-            {
-                widget.MinItems = widget.MaxItems;
-            }
-
-            widget.MinInstances = Math.Max(1, widget.MinInstances);
-            widget.MaxInstances = Math.Max(1, widget.MaxInstances);
-            if (widget.MinInstances > widget.MaxInstances)
-            {
-                widget.MinInstances = widget.MaxInstances;
-            }
-        }
-
-        // Seasonal windows recur every year as MM-dd: an unparseable date is dropped at load and save
-        // (TODO_V4.md 5.5, F-23), so the stored configuration and the admin page never carry a window
-        // the widget would silently treat as never active.
-        foreach (var widget in config.Widgets.Where(w => w.WidgetType == "jux.connected.seasonal"))
-        {
-            widget.ExtraParams = widget.ExtraParams
-                .Where(p => p.Key is not ("startDate" or "endDate") || SeasonalWidget.TryParseMonthDay(p.Value, out _))
-                .ToArray();
+            ValidateWidget(widget);
         }
 
         // Trim API keys; empty string becomes null.

@@ -294,6 +294,57 @@ public sealed class WidgetLayoutResolver
         };
     }
 
+    /// <summary>
+    /// Renders one widget row that may not be saved yet the way the home screen would for
+    /// <paramref name="userId"/> (TODO_V4.md 6.5, F-62): the row is validated like a saved one, then
+    /// resolved and read through the same path as a layout section, up to its MaxItems.
+    /// </summary>
+    /// <param name="userId">The user whose library and history the row reads.</param>
+    /// <param name="config">The row as edited on the admin page; validated in place.</param>
+    /// <param name="lang">The normalized language of the section title.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The preview, or null when the row's widget type is not registered.</returns>
+    public async Task<WidgetPreview?> PreviewAsync(
+        Guid userId,
+        WidgetConfig config,
+        string? lang,
+        CancellationToken cancellationToken)
+    {
+        var widget = _registry.GetByType(config.WidgetType);
+        if (widget is null)
+        {
+            return null;
+        }
+
+        Plugin.ValidateWidget(config);
+        var instanceConfig = BuildInstanceConfig(config, widget, lang, _localizationService);
+        var instance = widget.Resolve(userId, instanceConfig, 0);
+        if (instance is null)
+        {
+            return new WidgetPreview(instanceConfig.DisplayName, [], 0, config.MinItems, WidgetPreview.HiddenNoValue);
+        }
+
+        var instanceDescriptor = instance.GetDescriptor();
+        var selfIdentifies = instanceDescriptor.AdditionalData is not null;
+        var payload = new WidgetPayload
+        {
+            UserId = userId,
+            AdditionalData = selfIdentifies ? instanceDescriptor.AdditionalData : instanceConfig.AdditionalData,
+            ExtraParams = instanceConfig.ExtraParams,
+            StartIndex = 0,
+            Limit = config.MaxItems
+        };
+
+        var result = await instance.GetItemsAsync(payload, cancellationToken).ConfigureAwait(false);
+        var found = Math.Max(result.TotalRecordCount, result.Items.Count);
+        return new WidgetPreview(
+            selfIdentifies ? instanceDescriptor.DisplayName : instanceConfig.DisplayName,
+            result.Items,
+            found,
+            config.MinItems,
+            found < config.MinItems ? WidgetPreview.HiddenBelowMinItems : null);
+    }
+
     private static WidgetInstanceConfig BuildInstanceConfig(
         WidgetConfig config,
         IWidget widget,
