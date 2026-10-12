@@ -1,0 +1,324 @@
+// Static checks for the project rules (TODO_V4.md rule G2): em dashes, color literals, banned fonts,
+// targetAbi coherence, commit messages and code duplication. Run from the repository root:
+//   node ci/static-checks.mjs [--commits <git range>]
+// Errors fail the run; warnings are reported only. Both are printed as GitHub annotations.
+
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const EM_DASH = String.fromCharCode(0x2014);
+const BANNED_FONTS = ['Inter', 'Poppins', 'Manrope', 'Outfit', 'Plus Jakarta Sans', 'Space Grotesk'];
+const COMMIT_TYPES = ['feat', 'fix', 'refactor', 'style', 'docs', 'chore', 'test', 'revert'];
+const WEB_DIR = 'src/Jellyfin.Plugin.JuxHomepage/Web/';
+const MIN_ABI = '10.11.9.0';
+const FIRST_VERSION_REQUIRING_MIN_ABI = '2.4.0.0';
+const BINARY_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.ico', '.webp', '.dll', '.pdb', '.zip', '.mkv', '.woff', '.woff2']);
+export const BASELINE_PATH = 'ci/duplication-baseline.json';
+
+const HEX_COLOR = /(?<![\w&#-])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})(?![\w-])/g;
+const COLOR_FUNCTION = /\b(?:rgba?|hsla?)\(\s*[\d.]/g;
+const VAR_FALLBACK = /var\(\s*--[\w-]+\s*,\s*(?:#[0-9a-fA-F]{3,8}|(?:rgba?|hsla?)\([^()]*\))\s*\)/g;
+
+/**
+ * Blanks out comments while keeping line breaks, so reported line numbers stay right.
+ * @param {string} text
+ * @param {string} ext File extension, including the dot.
+ * @returns {string}
+ */
+export function stripComments(text, ext) {
+    const blank = (m) => m.replace(/[^\n]/g, ' ');
+    let out = text.replace(/\/\*[\s\S]*?\*\//g, blank);
+    if (ext === '.html') {
+        out = out.replace(/<!--[\s\S]*?-->/g, blank);
+    }
+    if (ext === '.js' || ext === '.mjs' || ext === '.html') {
+        out = out.replace(/(^|[^:\\'"`])\/\/[^\n]*/g, (m, lead) => lead + blank(m.slice(lead.length)));
+    }
+    return out;
+}
+
+/**
+ * Finds the lines holding an em dash.
+ * @param {string} text
+ * @returns {number[]} 1-based line numbers.
+ */
+export function findEmDashes(text) {
+    return text.split('\n').flatMap((line, i) => (line.includes(EM_DASH) ? [i + 1] : []));
+}
+
+/**
+ * Finds hardcoded colors outside a var() fallback, comments excluded.
+ * @param {string} text
+ * @param {string} ext File extension, including the dot.
+ * @returns {{line: number, match: string}[]}
+ */
+export function findColorLiterals(text, ext) {
+    const lines = stripComments(text, ext).split('\n');
+    const found = [];
+    lines.forEach((raw, i) => {
+        const line = raw.replace(VAR_FALLBACK, '');
+        for (const re of [HEX_COLOR, COLOR_FUNCTION]) {
+            for (const m of line.matchAll(re)) {
+                found.push({ line: i + 1, match: m[0] });
+            }
+        }
+    });
+    return found;
+}
+
+/**
+ * Finds banned font family names, as whole words.
+ * @param {string} text
+ * @returns {{line: number, match: string}[]}
+ */
+export function findBannedFonts(text) {
+    const re = new RegExp(`\\b(?:${BANNED_FONTS.map((f) => f.replace(/ /g, '\\s+')).join('|')})\\b`, 'g');
+    return text.split('\n').flatMap((line, i) => [...line.matchAll(re)].map((m) => ({ line: i + 1, match: m[0] })));
+}
+
+function compareVersions(a, b) {
+    const pa = a.split('.').map(Number);
+    const pb = b.split('.').map(Number);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+        const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+        if (d !== 0) {
+            return d;
+        }
+    }
+    return 0;
+}
+
+/**
+ * Checks that build.yaml, manifest.json and the minimum-ABI CI build agree.
+ * @param {{buildYaml: string, manifest: string, ciYml: string}} files
+ * @returns {string[]} Error messages.
+ */
+export function checkTargetAbi({ buildYaml, manifest, ciYml }) {
+    const errors = [];
+    const abi = /^targetAbi:\s*"([0-9.]+)"/m.exec(buildYaml)?.[1];
+    if (!abi) {
+        return ['build.yaml has no targetAbi line.'];
+    }
+    if (compareVersions(abi, MIN_ABI) < 0) {
+        errors.push(`build.yaml targetAbi ${abi} is below the required minimum ${MIN_ABI}.`);
+    }
+
+    const offending = JSON.parse(manifest)[0].versions
+        .filter((v) => compareVersions(v.version, FIRST_VERSION_REQUIRING_MIN_ABI) >= 0)
+        .filter((v) => compareVersions(v.targetAbi, MIN_ABI) < 0)
+        .map((v) => v.version);
+    if (offending.length > 0) {
+        errors.push(`manifest.json versions below targetAbi ${MIN_ABI}: ${offending.join(', ')}.`);
+    }
+
+    const minBuild = /-p:JellyfinVersion=([0-9.]+)/.exec(ciYml)?.[1];
+    if (!minBuild) {
+        errors.push('ci.yml has no build against the minimum Jellyfin version (-p:JellyfinVersion=).');
+    } else if (compareVersions(minBuild, abi) !== 0) {
+        errors.push(`ci.yml builds against Jellyfin ${minBuild}, but build.yaml declares targetAbi ${abi}.`);
+    }
+    return errors;
+}
+
+/**
+ * Checks one commit against the commit rules.
+ * @param {{sha: string, subject: string, body: string, files: string[]}} commit
+ * @returns {{errors: string[], warnings: string[]}}
+ */
+export function checkCommit({ sha, subject, body, files }) {
+    const errors = [];
+    const warnings = [];
+    const short = sha.slice(0, 7);
+    const typeRe = new RegExp(`^(${COMMIT_TYPES.join('|')})(\\([\\w./-]+\\))?!?: \\S`);
+    const type = typeRe.exec(subject)?.[1];
+
+    if (!type) {
+        errors.push(`${short}: subject "${subject}" is not a Conventional Commit (${COMMIT_TYPES.join(', ')}).`);
+    }
+    if (/^co-authored-by:/im.test(body)) {
+        errors.push(`${short}: Co-Authored-By trailers are not allowed.`);
+    }
+    if (subject.includes(EM_DASH) || body.includes(EM_DASH)) {
+        errors.push(`${short}: the commit message contains an em dash.`);
+    }
+
+    if (type === 'fix') {
+        const touchesWeb = files.some((f) => f.startsWith(WEB_DIR));
+        const touchesTests = files.some((f) => f.startsWith('test/') || f.startsWith('e2e/') || f.includes('.Tests/'));
+        if (touchesWeb && !touchesTests && !/^untestable:\s*\S/im.test(body)) {
+            errors.push(`${short}: a fix: on web assets without a test needs an "Untestable: <reason>" trailer.`);
+        }
+        if (files.length > 3 && body.trim() === '') {
+            warnings.push(`${short}: a fix: touching ${files.length} files has no body explaining it.`);
+        }
+    }
+    return { errors, warnings };
+}
+
+/**
+ * Groups jscpd clone pairs into families of overlapping locations.
+ * @param {{firstFile: {name: string, start: number, end: number}, secondFile: {name: string, start: number, end: number}}[]} duplicates
+ * @returns {{files: string[], copies: number}[]} Families with at least 3 copies.
+ */
+export function groupCloneFamilies(duplicates) {
+    const locations = [];
+    const parent = [];
+    const find = (x) => (parent[x] === x ? x : (parent[x] = find(parent[x])));
+    const locate = ({ name, start, end }) => {
+        const file = name.replace(/\\/g, '/');
+        let i = locations.findIndex((l) => l.file === file && l.start <= end && start <= l.end);
+        if (i < 0) {
+            locations.push({ file, start, end });
+            i = locations.length - 1;
+            parent[i] = i;
+        } else {
+            locations[i].start = Math.min(locations[i].start, start);
+            locations[i].end = Math.max(locations[i].end, end);
+        }
+        return i;
+    };
+    for (const d of duplicates) {
+        parent[find(locate(d.firstFile))] = find(locate(d.secondFile));
+    }
+
+    const groups = new Map();
+    locations.forEach((l, i) => {
+        const root = find(i);
+        groups.set(root, [...(groups.get(root) ?? []), l]);
+    });
+    return [...groups.values()]
+        .filter((g) => g.length >= 3)
+        .map((g) => ({ files: [...new Set(g.map((l) => l.file))].sort(), copies: g.length }));
+}
+
+/**
+ * Compares clone families with the baseline: per set of files, no more families and no more copies.
+ * @param {{files: string[], copies: number}[]} families
+ * @param {{files: string[], copies: number}[]} baseline
+ * @returns {{errors: string[], warnings: string[]}}
+ */
+export function compareWithBaseline(families, baseline) {
+    const byKey = (list) => {
+        const map = new Map();
+        for (const f of list) {
+            const key = f.files.join(' | ');
+            map.set(key, [...(map.get(key) ?? []), f.copies].sort((a, b) => b - a));
+        }
+        return map;
+    };
+    const current = byKey(families);
+    const allowed = byKey(baseline);
+    const errors = [];
+    const warnings = [];
+
+    for (const [key, copies] of current) {
+        const limit = allowed.get(key) ?? [];
+        if (copies.length > limit.length || copies.some((c, i) => c > limit[i])) {
+            errors.push(`code repeated 3+ times beyond the baseline (${copies.join(', ')} copies, allowed ${limit.join(', ') || 'none'}): ${key}`);
+        }
+    }
+    for (const [key, copies] of allowed) {
+        const now = current.get(key) ?? [];
+        if (now.length < copies.length || now.some((c, i) => c < copies[i])) {
+            warnings.push(`duplication went down, shrink ${BASELINE_PATH}: ${key}`);
+        }
+    }
+    return { errors, warnings };
+}
+
+function git(args) {
+    return execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+}
+
+function runJscpd() {
+    const out = mkdtempSync(path.join(tmpdir(), 'jscpd-'));
+    try {
+        execFileSync(process.execPath, [
+            'node_modules/jscpd/run-jscpd.js', 'src',
+            '--ignore', '**/bin/**,**/obj/**,**/*.Tests/**',
+            '--reporters', 'json', '--output', out, '--silent'
+        ], { stdio: 'ignore' });
+        return JSON.parse(readFileSync(path.join(out, 'jscpd-report.json'), 'utf8')).duplicates;
+    } finally {
+        rmSync(out, { recursive: true, force: true });
+    }
+}
+
+/**
+ * Computes the current clone families, as stored in the baseline file.
+ * @returns {{files: string[], copies: number}[]}
+ */
+export function currentCloneFamilies() {
+    return groupCloneFamilies(runJscpd())
+        .map((f) => ({ ...f, files: f.files.map((name) => path.relative(process.cwd(), name).replace(/\\/g, '/')) }))
+        .sort((a, b) => a.files.join().localeCompare(b.files.join()) || b.copies - a.copies);
+}
+
+function main() {
+    const errors = [];
+    const warnings = [];
+    const report = (list, file, items, what) => items.forEach((it) => list.push({ file, line: it.line, message: `${what}: ${it.match ?? ''}`.trim() }));
+
+    for (const file of git(['ls-files']).split('\n').filter(Boolean)) {
+        const ext = path.extname(file).toLowerCase();
+        if (BINARY_EXTENSIONS.has(ext) || !existsSync(file)) {
+            continue;
+        }
+        const text = readFileSync(file, 'utf8');
+        findEmDashes(text).forEach((line) => errors.push({ file, line, message: 'em dash' }));
+        if (file.startsWith(WEB_DIR) && ['.css', '.html', '.js'].includes(ext)) {
+            report(errors, file, findColorLiterals(text, ext), 'color literal outside a var() fallback');
+        }
+        if (['.css', '.html', '.js', '.yml'].includes(ext)) {
+            report(errors, file, findBannedFonts(text), 'banned font');
+        }
+    }
+
+    checkTargetAbi({
+        buildYaml: readFileSync('build.yaml', 'utf8'),
+        manifest: readFileSync('manifest.json', 'utf8'),
+        ciYml: readFileSync('.github/workflows/ci.yml', 'utf8')
+    }).forEach((message) => errors.push({ file: 'build.yaml', message }));
+
+    const rangeArg = process.argv.indexOf('--commits');
+    const range = rangeArg > 0 ? process.argv[rangeArg + 1] : '';
+    if (range) {
+        for (const sha of git(['rev-list', '--no-merges', range]).split('\n').filter(Boolean)) {
+            const author = git(['log', '-1', '--format=%an', sha]).trim();
+            if (author.endsWith('[bot]')) {
+                continue;
+            }
+            const result = checkCommit({
+                sha,
+                subject: git(['log', '-1', '--format=%s', sha]).trim(),
+                body: git(['log', '-1', '--format=%b', sha]),
+                files: git(['diff-tree', '--no-commit-id', '--name-only', '-r', sha]).split('\n').filter(Boolean)
+            });
+            result.errors.forEach((message) => errors.push({ message }));
+            result.warnings.forEach((message) => warnings.push({ message }));
+        }
+    }
+
+    const baseline = existsSync(BASELINE_PATH) ? JSON.parse(readFileSync(BASELINE_PATH, 'utf8')) : [];
+    const dup = compareWithBaseline(currentCloneFamilies(), baseline);
+    dup.errors.forEach((message) => errors.push({ message }));
+    dup.warnings.forEach((message) => warnings.push({ message }));
+
+    const annotate = (level, { file, line, message }) =>
+        console.log(`::${level}${file ? ` file=${file}${line ? `,line=${line}` : ''}` : ''}::${message}`);
+    warnings.forEach((w) => annotate('warning', w));
+    errors.forEach((e) => annotate('error', e));
+    console.log(`Static checks: ${errors.length} error(s), ${warnings.length} warning(s).`);
+    process.exitCode = errors.length > 0 ? 1 : 0;
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+    if (process.argv.includes('--write-baseline')) {
+        console.log(JSON.stringify(currentCloneFamilies(), null, 2));
+    } else {
+        main();
+    }
+}

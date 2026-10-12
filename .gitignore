@@ -25,6 +25,9 @@
 !package.json
 !package-lock.json
 !vitest.config.js
+!ci/
+!ci/static-checks.mjs
+!ci/duplication-baseline.json
 !mkdocs.yml
 
 # Documentation assets
