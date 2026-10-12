@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Security.Claims;
 using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.JuxHomepage.Configuration;
@@ -284,7 +285,13 @@ public sealed class JuxHomepageControllerTests
 
     // Every script and stylesheet of Web/ except the splice fragment: adding a file there serves it,
     // with no second list to update.
-    private static IEnumerable<string> ServedWebAssetNames() => WebFiles(".js", ".css").Where(f => f != SpliceFragment);
+    // Files Jellyfin serves itself as plugin pages (configurationpage?name=...), not through GetAsset.
+    private static IEnumerable<string> PluginPageFiles() => ((Plugin)RuntimeHelpers.GetUninitializedObject(typeof(Plugin)))
+        .GetPages()
+        .Select(p => p.EmbeddedResourcePath[(p.EmbeddedResourcePath.IndexOf(".Web.", StringComparison.Ordinal) + 5)..]);
+
+    private static IEnumerable<string> ServedWebAssetNames() => WebFiles(".js", ".css")
+        .Where(f => f != SpliceFragment && !PluginPageFiles().Contains(f));
 
     public static TheoryData<string> ServedWebAssets => new(ServedWebAssetNames());
 
@@ -328,6 +335,7 @@ public sealed class JuxHomepageControllerTests
     [Theory]
     [InlineData(SpliceFragment)]
     [InlineData("config.html")]
+    [InlineData("config.js")]
     [InlineData("jux-native-selectors.json")]
     [InlineData("en.json")]
     [InlineData("Plugin.cs")]

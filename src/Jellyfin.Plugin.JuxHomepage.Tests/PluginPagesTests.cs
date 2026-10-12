@@ -16,4 +16,17 @@ public sealed class PluginPagesTests
         Assert.True(page.EnableInMainMenu);
         Assert.Equal("JellyUX Homepage", page.DisplayName);
     }
+
+    [Fact]
+    public void GetPages_ServesTheControllerModuleNamedByTheConfigurationPage()
+    {
+        var plugin = (Plugin)RuntimeHelpers.GetUninitializedObject(typeof(Plugin));
+        var html = File.ReadAllText(Path.Combine(RepoPaths.Root(), "src", "Jellyfin.Plugin.JuxHomepage", "Web", "config.html"));
+
+        var page = Assert.Single(plugin.GetPages(), p => p.EmbeddedResourcePath.EndsWith(".Web.config.js", System.StringComparison.Ordinal));
+
+        Assert.Contains($"data-controller=\"__plugin/{page.Name}\"", html, System.StringComparison.Ordinal);
+        Assert.False(page.EnableInMainMenu);
+        Assert.NotNull(typeof(Plugin).Assembly.GetManifestResourceStream(page.EmbeddedResourcePath));
+    }
 }

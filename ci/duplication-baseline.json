@@ -13,13 +13,13 @@
   },
   {
     "files": [
-      "Jellyfin.Plugin.JuxHomepage/Web/config.html"
+      "Jellyfin.Plugin.JuxHomepage/Web/config.js"
     ],
     "copies": 3
   },
   {
     "files": [
-      "Jellyfin.Plugin.JuxHomepage/Web/config.html"
+      "Jellyfin.Plugin.JuxHomepage/Web/config.js"
     ],
     "copies": 3
   },

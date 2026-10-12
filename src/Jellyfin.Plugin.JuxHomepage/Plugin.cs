@@ -64,6 +64,11 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
     /// <inheritdoc/>
     public override string Name => "JellyUX Homepage";
 
+    /// <summary>
+    /// The plugin page name that serves the configuration page's controller module.
+    /// </summary>
+    internal const string ConfigControllerPageName = "juxhomepageconfigjs";
+
     /// <inheritdoc/>
     public override Guid Id => Guid.Parse("3adf1f1f-1541-4e47-b9e3-34d2d2968af6");
 
@@ -80,6 +85,14 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
             DisplayName = Name,
             EnableInMainMenu = true,
             EmbeddedResourcePath = $"{GetType().Namespace}.Web.config.html"
+        };
+
+        // The configuration page's controller, loaded by jellyfin-web as an ES module from the page's
+        // data-controller="__plugin/juxhomepageconfigjs" attribute.
+        yield return new PluginPageInfo
+        {
+            Name = ConfigControllerPageName,
+            EmbeddedResourcePath = $"{GetType().Namespace}.Web.config.js"
         };
     }
 
