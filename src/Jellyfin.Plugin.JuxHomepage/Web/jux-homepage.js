@@ -69,9 +69,7 @@
             (
                 document.querySelector('.homePage') !== null ||
                 document.querySelector('.page.homePage') !== null ||
-                document.getElementById('indexPage') !== null ||
-                document.querySelector('[data-pageid="home"]') !== null ||
-                document.querySelector('[data-route="home"]') !== null
+                document.getElementById('indexPage') !== null
             );
 
         return !!(isHomeRoute || isHomeDom);
