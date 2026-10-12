@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.Inject;
 using Jellyfin.Plugin.JuxHomepage.IO;
@@ -262,5 +263,152 @@ public sealed class TransformationPatchesTests
         Assert.True(TransformationPatches.TabsActive(new PluginConfiguration()));
         Assert.False(TransformationPatches.TabsActive(new PluginConfiguration { Enabled = false }));
         Assert.False(TransformationPatches.TabsActive(ConfigWithout("Tabs")));
+    }
+
+    // -------------------------------------------------------------------------
+    // Reflective entry points (Plugin.Instance is never set in this test assembly, so they run on
+    // the default configuration: plugin enabled, every module on)
+    // -------------------------------------------------------------------------
+
+    private const string LoadSectionsChunk = "56213:function(e,t,r){var n=r(4),u=r(24468);function h(){return u.default.getCardsHtml()}var x={a:1,loadSections:function(){}}}";
+
+    [Fact]
+    public void LoadInjectFragmentTemplate_HoldsExactlyTheTwoResolvedTokens()
+    {
+        var template = TransformationPatches.LoadInjectFragmentTemplate();
+
+        Assert.NotNull(template);
+        var tokens = Regex.Matches(template!, @"\{\{[^{}]*\}\}").Select(m => m.Value).Distinct().Order();
+        Assert.Equal(["{{cardbuilder}}", "{{this_hook}}"], tokens);
+    }
+
+    [Fact]
+    public void PatchLoadSections_RealFragment_ResolvesEveryTokenAgainstTheChunk()
+    {
+        var patched = TransformationPatches.PatchLoadSections(new PatchRequestPayload { Contents = LoadSectionsChunk });
+
+        var marker = LoadSectionsChunk.IndexOf(",loadSections:", StringComparison.Ordinal) + ",loadSections:".Length;
+        Assert.StartsWith(LoadSectionsChunk[..marker], patched, StringComparison.Ordinal);
+        Assert.EndsWith(",originalLoadSections:function(){}}}", patched, StringComparison.Ordinal);
+        Assert.Contains("function(e, t, r, o, page)", patched, StringComparison.Ordinal);
+        Assert.Contains("cardBuilder: u.default", patched, StringComparison.Ordinal);
+        // "x" is the last "var X=" before the marker: the module object holding loadSections.
+        Assert.Contains("x.originalLoadSections.call(this, e, t, r, o)", patched, StringComparison.Ordinal);
+        Assert.DoesNotContain("{{", patched, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("var u=r(1);function f(){return u.default}")]
+    [InlineData("")]
+    [InlineData(null)]
+    public void PatchLoadSections_NoMarker_ReturnsTheInputUnchanged(string? raw)
+    {
+        var patched = TransformationPatches.PatchLoadSections(new PatchRequestPayload { Contents = raw });
+
+        Assert.Equal(raw ?? string.Empty, patched);
+    }
+
+    [Fact]
+    public void IndexHtml_DefaultConfiguration_InjectsEveryAssetAtTheEndOfHeadAndBody()
+    {
+        var html = TransformationPatches.IndexHtml(new PatchRequestPayload { Contents = EmptyIndex });
+
+        Assert.Equal(AllAssetsInOrder, InjectedAssets(html));
+        var key = ClientAssetVersion.Current;
+        Assert.Contains($"<link rel=\"stylesheet\" href=\"../JuxHomepage/jux-ui.css?v={key}\" />\n</head>", html, StringComparison.Ordinal);
+        Assert.Contains($"<script src=\"../JuxHomepage/jux-breadcrumb.js?v={key}\" defer></script>\n</body>", html, StringComparison.Ordinal);
+        Assert.True(html.IndexOf("</head>", StringComparison.Ordinal) < html.IndexOf("<script", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void IndexHtml_NullContents_ReturnsEmpty()
+    {
+        Assert.Equal(string.Empty, TransformationPatches.IndexHtml(new PatchRequestPayload { Contents = null }));
+    }
+
+    [Fact]
+    public void HomeHtmlChunk_DefaultConfiguration_SplicesTheTabPanesAfterTheAnchor()
+    {
+        var patched = TransformationPatches.HomeHtmlChunk(new PatchRequestPayload { Contents = "a" + HomeHtmlAnchor + "b" });
+
+        Assert.StartsWith("a" + HomeHtmlAnchor + " <div class=\"tabContent pageTabContent\" id=\"jux-tab-watchlist\" data-index=\"2\">", patched, StringComparison.Ordinal);
+        Assert.EndsWith("id=\"jux-tab-statistics\" data-index=\"5\"> <div class=\"sections\"></div> </div>b", patched, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("id=\"homeTab\" data-index=\"0\">")]
+    [InlineData(null)]
+    public void HomeHtmlChunk_AnchorMissing_ReturnsTheInputUnchanged(string? raw)
+    {
+        Assert.Equal(raw ?? string.Empty, TransformationPatches.HomeHtmlChunk(new PatchRequestPayload { Contents = raw }));
+    }
+
+    // -------------------------------------------------------------------------
+    // FindLoadSectionsChunks
+    // -------------------------------------------------------------------------
+
+    private static Mock<IFileSystem> ChunkFileSystem(params (string Path, string? Content)[] chunks)
+    {
+        var fileSystem = new Mock<IFileSystem>();
+        fileSystem.Setup(f => f.DirectoryExists("/web")).Returns(true);
+        fileSystem.Setup(f => f.GetFiles("/web", "*.chunk.js", SearchOption.AllDirectories))
+            .Returns(chunks.Select(c => c.Path).ToList());
+        foreach (var (path, content) in chunks)
+        {
+            if (content is null)
+            {
+                fileSystem.Setup(f => f.ReadAllText(path)).Throws(new IOException("locked"));
+            }
+            else
+            {
+                fileSystem.Setup(f => f.ReadAllText(path)).Returns(content);
+            }
+        }
+
+        return fileSystem;
+    }
+
+    [Fact]
+    public void FindLoadSectionsChunks_MissingWebDirectory_ReturnsEmptyWithoutListingFiles()
+    {
+        var fileSystem = new Mock<IFileSystem>();
+        fileSystem.Setup(f => f.DirectoryExists("/web")).Returns(false);
+
+        Assert.Empty(TransformationPatches.FindLoadSectionsChunks("/web", fileSystem.Object, NullLogger.Instance));
+        fileSystem.Verify(f => f.GetFiles(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<SearchOption>()), Times.Never);
+    }
+
+    [Fact]
+    public void FindLoadSectionsChunks_ReturnsOnlyTheChunksDefiningLoadSections()
+    {
+        var fileSystem = ChunkFileSystem(
+            ("/web/1.chunk.js", "var a={loadSections:1}"),
+            ("/web/56213.chunk.js", LoadSectionsChunk),
+            ("/web/sub/2.chunk.js", "var b=2"));
+
+        var chunks = TransformationPatches.FindLoadSectionsChunks("/web", fileSystem.Object, NullLogger.Instance);
+
+        Assert.Equal(["/web/56213.chunk.js"], chunks);
+    }
+
+    [Fact]
+    public void FindLoadSectionsChunks_UnreadableChunk_IsSkippedAndTheOthersStillScanned()
+    {
+        var fileSystem = ChunkFileSystem(
+            ("/web/locked.chunk.js", null),
+            ("/web/56213.chunk.js", LoadSectionsChunk),
+            ("/web/other.chunk.js", "x,loadSections:y"));
+
+        var chunks = TransformationPatches.FindLoadSectionsChunks("/web", fileSystem.Object, NullLogger.Instance);
+
+        Assert.Equal(["/web/56213.chunk.js", "/web/other.chunk.js"], chunks);
+    }
+
+    [Fact]
+    public void FindLoadSectionsChunks_NoMatchingChunk_ReturnsEmpty()
+    {
+        var fileSystem = ChunkFileSystem(("/web/1.chunk.js", "var a=1"), ("/web/2.chunk.js", "loadSections"));
+
+        Assert.Empty(TransformationPatches.FindLoadSectionsChunks("/web", fileSystem.Object, NullLogger.Instance));
     }
 }

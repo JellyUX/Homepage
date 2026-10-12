@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.Controllers;
+using Jellyfin.Plugin.JuxHomepage.Inject;
 using Jellyfin.Plugin.JuxHomepage.Library;
 using Jellyfin.Plugin.JuxHomepage.Library.Models;
 using Jellyfin.Plugin.JuxHomepage.Localization;
@@ -26,7 +27,8 @@ using Xunit;
 
 namespace Jellyfin.Plugin.JuxHomepage.Tests.Controllers;
 
-// Covers the admin widget-values guard (400/404), the TMDb search/status endpoints, Included In,
+// Covers the anonymous web resources (content, type, cache headers), the admin widget-values guard
+// (400/404), the TMDb search/status endpoints, Included In,
 // and the per-user IDOR guard of every endpoint taking a userId (discovered by reflection, so a new
 // endpoint is covered without editing this file).
 public sealed class JuxHomepageControllerTests
@@ -259,6 +261,99 @@ public sealed class JuxHomepageControllerTests
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         Assert.Same(visibleRefs, ok.Value);
+    }
+
+    // -------------------------------------------------------------------------
+    // Web resources (anonymous)
+    // -------------------------------------------------------------------------
+
+    private const string JavaScript = "application/javascript";
+    private const string Css = "text/css";
+
+    public static TheoryData<string, string, string> WebResourceActions => new()
+    {
+        { nameof(JuxHomepageController.GetScript), "jux-homepage.js", JavaScript },
+        { nameof(JuxHomepageController.GetUiScript), "jux-ui.js", JavaScript },
+        { nameof(JuxHomepageController.GetUiStylesheet), "jux-ui.css", Css },
+        { nameof(JuxHomepageController.GetTabInjectorScript), "jux-tab-injector.js", JavaScript },
+        { nameof(JuxHomepageController.GetWatchlistScript), "jux-watchlist.js", JavaScript },
+        { nameof(JuxHomepageController.GetCardHooksScript), "jux-card-hooks.js", JavaScript },
+        { nameof(JuxHomepageController.GetProgressScript), "jux-progress.js", JavaScript },
+        { nameof(JuxHomepageController.GetHistoryScript), "jux-history.js", JavaScript },
+        { nameof(JuxHomepageController.GetStatisticsScript), "jux-statistics.js", JavaScript },
+        { nameof(JuxHomepageController.GetSeriesFlattenScript), "jux-series-flatten.js", JavaScript },
+        { nameof(JuxHomepageController.GetCollectionsScript), "jux-collections.js", JavaScript },
+        { nameof(JuxHomepageController.GetBreadcrumbScript), "jux-breadcrumb.js", JavaScript },
+        { nameof(JuxHomepageController.GetStylesheet), "jux-homepage.css", Css },
+        { nameof(JuxHomepageController.GetConfigStylesheet), "config.css", Css },
+    };
+
+    [Fact]
+    public void WebResourceActions_CoverEveryAnonymousResourceEndpoint()
+    {
+        // Guards against a new asset endpoint escaping the theory below.
+        var served = typeof(JuxHomepageController)
+            .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+            .Where(m => m.GetCustomAttribute<AllowAnonymousAttribute>() is not null)
+            .Where(m => m.GetCustomAttribute<HttpGetAttribute>()?.Template is { } t
+                && (t.EndsWith(".js", StringComparison.Ordinal) || t.EndsWith(".css", StringComparison.Ordinal)))
+            .Select(m => m.Name)
+            .Order();
+
+        Assert.Equal(WebResourceActions.Select(row => (string)row[0]).Order(), served);
+    }
+
+    [Theory]
+    [MemberData(nameof(WebResourceActions))]
+    public void WebResource_ServesTheEmbeddedFileWithItsContentType(string action, string fileName, string contentType)
+    {
+        var result = InvokeWebResource(action, query: null, out _);
+
+        var file = Assert.IsType<FileStreamResult>(result);
+        Assert.Equal(contentType, file.ContentType);
+        using var reader = new StreamReader(file.FileStream);
+        var expected = File.ReadAllText(Path.Combine(RepoPaths.Root(), "src", "Jellyfin.Plugin.JuxHomepage", "Web", fileName));
+        Assert.Equal(expected, reader.ReadToEnd());
+    }
+
+    // Only the current content key pins a response for a year; a missing, empty or outdated key
+    // (an index.html cached before an update) must be revalidated hourly.
+    [Theory]
+    [InlineData("CURRENT", "public, max-age=31536000, immutable")]
+    [InlineData(null, "public, max-age=3600")]
+    [InlineData("", "public, max-age=3600")]
+    [InlineData("000000000000", "public, max-age=3600")]
+    public void WebResource_CacheControl_DependsOnTheVersionQuery(string? version, string expected)
+    {
+        var query = version switch
+        {
+            null => null,
+            "CURRENT" => $"?v={ClientAssetVersion.Current}",
+            _ => $"?v={version}",
+        };
+
+        foreach (var action in WebResourceActions.Select(row => (string)row[0]))
+        {
+            InvokeWebResource(action, query, out var response);
+
+            Assert.True(
+                response.Headers.CacheControl.ToString() == expected,
+                $"{action} returned Cache-Control '{response.Headers.CacheControl}' for query '{query}'");
+        }
+    }
+
+    private static IActionResult InvokeWebResource(string action, string? query, out HttpResponse response)
+    {
+        var httpContext = new DefaultHttpContext();
+        if (query is not null)
+        {
+            httpContext.Request.QueryString = new QueryString(query);
+        }
+
+        var controller = BuildController();
+        controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
+        response = httpContext.Response;
+        return (IActionResult)typeof(JuxHomepageController).GetMethod(action)!.Invoke(controller, null)!;
     }
 
     // -------------------------------------------------------------------------
