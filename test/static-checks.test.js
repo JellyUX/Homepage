@@ -87,6 +87,10 @@ describe('checkCommit', () => {
         expect(checkCommit(commit({ subject: 'chore(release): 2.10.0 [skip ci]' }))).toEqual({ errors: [], warnings: [] });
     });
 
+    it("accepts git revert's default subject", () => {
+        expect(checkCommit(commit({ subject: 'Revert "test: drop the seed"' })).errors).toEqual([]);
+    });
+
     it('rejects an unknown type and a co-author trailer', () => {
         const { errors } = checkCommit(commit({ subject: 'update stuff', body: 'Co-Authored-By: X <x@y>' }));
         expect(errors).toHaveLength(2);

@@ -134,7 +134,8 @@ export function checkCommit({ sha, subject, body, files }) {
     const warnings = [];
     const short = sha.slice(0, 7);
     const typeRe = new RegExp(`^(${COMMIT_TYPES.join('|')})(\\([\\w./-]+\\))?!?: \\S`);
-    const type = typeRe.exec(subject)?.[1];
+    // git revert's default subject, which the Conventional Commits parser reads as a revert.
+    const type = typeRe.exec(subject)?.[1] ?? (/^Revert ".+"$/.test(subject) ? 'revert' : undefined);
 
     if (!type) {
         errors.push(`${short}: subject "${subject}" is not a Conventional Commit (${COMMIT_TYPES.join(', ')}).`);
