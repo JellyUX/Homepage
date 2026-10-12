@@ -277,6 +277,26 @@ describe('configuration page controller (F-33)', () => {
         expect(types()).toEqual(['Seasonal', 'Genre', 'Collection']);
     });
 
+    it('masks the TMDb key and shows it on demand (F-50)', async () => {
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+        const key = view.querySelector('#txtTMDb');
+        const toggle = view.querySelector('#juxBtnShowTmdb');
+
+        expect(key.type).toBe('password');
+        expect(toggle.getAttribute('aria-pressed')).toBe('false');
+        expect(toggle.getAttribute('aria-label')).toBe('admin.apikeys.tmdb.show');
+
+        toggle.click();
+        expect(key.type).toBe('text');
+        expect(toggle.getAttribute('aria-pressed')).toBe('true');
+        expect(toggle.getAttribute('aria-label')).toBe('admin.apikeys.tmdb.hide');
+
+        toggle.click();
+        expect(key.type).toBe('password');
+    });
+
     it('gives the Admin-category Seasonal row its own editor, not the admin value picker', async () => {
         createController(view);
         view.dispatchEvent(new Event('viewshow'));

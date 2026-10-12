@@ -55,6 +55,8 @@
   "admin.modules.breadcrumb.help": "Library breadcrumb in the header of detail pages.",
   "admin.apikeys.title": "API Keys",
   "admin.apikeys.tmdb.label": "TMDb API Key",
+  "admin.apikeys.tmdb.show": "Show the key",
+  "admin.apikeys.tmdb.hide": "Hide the key",
   "admin.apikeys.tmdb.help": "Required for Connected widgets that use The Movie Database. Leave empty if not needed. Accepted formats: 32-character hexadecimal key (v3), or v4 bearer token starting with \"ey\".",
   "admin.apikeys.tmdb.error": "Invalid TMDb key format. Expected: 32 hexadecimal characters, a v4 bearer token, or leave empty.",
   "admin.cache.title": "Cache",

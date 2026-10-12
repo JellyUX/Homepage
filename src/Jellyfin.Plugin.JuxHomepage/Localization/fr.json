@@ -55,6 +55,8 @@
   "admin.modules.breadcrumb.help": "Fil d'Ariane de la bibliothèque dans l'en-tête des pages de détail.",
   "admin.apikeys.title": "Clés API",
   "admin.apikeys.tmdb.label": "Clé API TMDb",
+  "admin.apikeys.tmdb.show": "Afficher la clé",
+  "admin.apikeys.tmdb.hide": "Masquer la clé",
   "admin.apikeys.tmdb.help": "Requise pour les widgets Connectés utilisant The Movie Database. Laisser vide si non utilisée. Formats acceptés : clé hexadécimale de 32 caractères (v3), ou jeton bearer v4 commençant par \"ey\".",
   "admin.apikeys.tmdb.error": "Format de clé TMDb invalide. Attendu : 32 caractères hexadécimaux, un jeton bearer v4, ou laisser vide.",
   "admin.cache.title": "Cache",

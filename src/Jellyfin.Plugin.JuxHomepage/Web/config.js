@@ -1205,6 +1205,7 @@ function createConfigPage() {
                 });
 
                 self.translateStaticText();
+                if (self._syncShowTmdb) { self._syncShowTmdb(); }
                 self.renderTmdbStatus(results[2] || []);
 
                 var warnings = results[6] || [];
@@ -1447,6 +1448,25 @@ function createConfigPage() {
                         self.populateAddSelect();
                         self.renderWidgets();
                     });
+                }
+
+                // The TMDb key is masked like a password; the eye button shows it for checking.
+                var showTmdbBtn = document.getElementById('juxBtnShowTmdb');
+                if (showTmdbBtn) {
+                    var syncShowTmdb = function () {
+                        var shown = document.getElementById('txtTMDb').type === 'text';
+                        var label = self.t(shown ? 'admin.apikeys.tmdb.hide' : 'admin.apikeys.tmdb.show');
+                        showTmdbBtn.setAttribute('aria-pressed', shown ? 'true' : 'false');
+                        showTmdbBtn.setAttribute('aria-label', label);
+                        showTmdbBtn.title = label;
+                        showTmdbBtn.querySelector('.material-icons').textContent = shown ? 'visibility_off' : 'visibility';
+                    };
+                    showTmdbBtn.addEventListener('click', function () {
+                        var input = document.getElementById('txtTMDb');
+                        input.type = input.type === 'password' ? 'text' : 'password';
+                        syncShowTmdb();
+                    });
+                    self._syncShowTmdb = syncShowTmdb;
                 }
 
                 var refreshBtn = document.getElementById('juxBtnRefreshTmdb');

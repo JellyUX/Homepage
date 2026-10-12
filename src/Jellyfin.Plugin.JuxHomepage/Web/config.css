@@ -157,3 +157,12 @@ ul.jux-admin-warning {
 .jux-admin-tmdb-pages-input {
     width: 4em;
 }
+.jux-admin-secret {
+    display: flex;
+    align-items: center;
+    gap: 0.25em;
+}
+.jux-admin-secret .emby-input {
+    flex: 1 1 auto;
+    min-width: 0;
+}

@@ -96,7 +96,12 @@
                 <h3 class="sectionTitle" data-i18n="admin.apikeys.title">API Keys</h3>
                 <div class="inputContainer">
                     <label class="inputLabel inputLabelUnfocused" for="txtTMDb" data-i18n="admin.apikeys.tmdb.label">TMDb API Key</label>
-                    <input id="txtTMDb" type="text" class="emby-input" autocomplete="off" />
+                    <div class="jux-admin-secret">
+                        <input id="txtTMDb" type="password" class="emby-input" autocomplete="off" spellcheck="false" />
+                        <button type="button" id="juxBtnShowTmdb" class="emby-button paper-icon-button-light" aria-controls="txtTMDb" aria-pressed="false">
+                            <span class="material-icons" aria-hidden="true">visibility</span>
+                        </button>
+                    </div>
                     <div class="fieldDescription" data-i18n="admin.apikeys.tmdb.help">Required for Connected widgets that use The Movie Database. Leave empty if not needed. Accepted formats: 32-character hexadecimal key (v3), or v4 bearer token starting with "ey".</div>
                     <div id="juxTmdbError" class="fieldDescription jux-admin-field-error" style="display: none;" data-i18n="admin.apikeys.tmdb.error">Invalid TMDb key format. Expected: 32 hexadecimal characters, a v4 bearer token, or leave empty.</div>
                 </div>
