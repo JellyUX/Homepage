@@ -316,7 +316,7 @@ public sealed class JuxHomepageControllerTests
     {
         // Guards against the theories below silently testing nothing.
         Assert.Contains("jux-homepage.js", ServedWebAssetNames());
-        Assert.Contains("config.css", ServedWebAssetNames());
+        Assert.Contains("jux-ui.css", ServedWebAssetNames());
     }
 
     [Fact]
@@ -352,6 +352,7 @@ public sealed class JuxHomepageControllerTests
     [InlineData(SpliceFragment)]
     [InlineData("config.html")]
     [InlineData("config.js")]
+    [InlineData("config.css")]
     [InlineData("jux-native-selectors.json")]
     [InlineData("en.json")]
     [InlineData("Plugin.cs")]

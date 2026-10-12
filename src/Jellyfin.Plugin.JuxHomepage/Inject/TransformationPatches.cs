@@ -115,11 +115,7 @@ public static class TransformationPatches
         new("jux-breadcrumb.js", IsStylesheet: false, Module: m => m.Breadcrumb),
     ];
 
-    // Assets served by JuxHomepageController.GetAsset without being injected into index.html: the
-    // configuration page links them itself.
-    private static readonly string[] ConfigPageAssets = ["config.css"];
-
-    private static readonly string[] ServedAssets = [.. ClientAssets.Select(a => a.FileName), .. ConfigPageAssets];
+    private static readonly string[] ServedAssets = [.. ClientAssets.Select(a => a.FileName)];
 
     /// <summary>
     /// Resolves a requested file name against the served client assets, the only embedded files the

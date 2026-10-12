@@ -29,4 +29,16 @@ public sealed class PluginPagesTests
         Assert.False(page.EnableInMainMenu);
         Assert.NotNull(typeof(Plugin).Assembly.GetManifestResourceStream(page.EmbeddedResourcePath));
     }
+
+    [Fact]
+    public void GetPages_ServesTheStylesheetLinkedByTheConfigurationPage()
+    {
+        var plugin = (Plugin)RuntimeHelpers.GetUninitializedObject(typeof(Plugin));
+        var html = File.ReadAllText(Path.Combine(RepoPaths.Root(), "src", "Jellyfin.Plugin.JuxHomepage", "Web", "config.html"));
+
+        var page = Assert.Single(plugin.GetPages(), p => p.EmbeddedResourcePath.EndsWith(".Web.config.css", System.StringComparison.Ordinal));
+
+        Assert.Contains($"href=\"configurationpage?name={page.Name}\"", html, System.StringComparison.Ordinal);
+        Assert.False(page.EnableInMainMenu);
+    }
 }

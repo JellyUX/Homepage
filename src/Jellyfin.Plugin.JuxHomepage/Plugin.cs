@@ -69,6 +69,12 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
     /// </summary>
     internal const string ConfigControllerPageName = "juxhomepageconfigjs";
 
+    /// <summary>
+    /// The plugin page name that serves the configuration page's stylesheet. Plugin pages are sent
+    /// without cache headers, so an update reaches the page at its next visit.
+    /// </summary>
+    internal const string ConfigStylesheetPageName = "juxhomepageconfigcss";
+
     /// <inheritdoc/>
     public override Guid Id => Guid.Parse("3adf1f1f-1541-4e47-b9e3-34d2d2968af6");
 
@@ -93,6 +99,12 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
         {
             Name = ConfigControllerPageName,
             EmbeddedResourcePath = $"{GetType().Namespace}.Web.config.js"
+        };
+
+        yield return new PluginPageInfo
+        {
+            Name = ConfigStylesheetPageName,
+            EmbeddedResourcePath = $"{GetType().Namespace}.Web.config.css"
         };
     }
 
