@@ -77,6 +77,8 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
         yield return new PluginPageInfo
         {
             Name = Name,
+            DisplayName = Name,
+            EnableInMainMenu = true,
             EmbeddedResourcePath = $"{GetType().Namespace}.Web.config.html"
         };
     }
