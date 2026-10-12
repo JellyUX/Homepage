@@ -28,6 +28,12 @@
 !ci/
 !ci/static-checks.mjs
 !ci/duplication-baseline.json
+!e2e/
+!e2e/setup.mjs
+!e2e/helpers.mjs
+!e2e/playwright.config.mjs
+!e2e/tests/
+!e2e/tests/*.spec.mjs
 !mkdocs.yml
 
 # Documentation assets
