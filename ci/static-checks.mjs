@@ -92,11 +92,11 @@ function compareVersions(a, b) {
 }
 
 /**
- * Checks that build.yaml, manifest.json and the minimum-ABI CI build agree.
- * @param {{buildYaml: string, manifest: string, ciYml: string}} files
+ * Checks that build.yaml, manifest.json and the SDK the plugin compiles against agree.
+ * @param {{buildYaml: string, manifest: string, csproj: string}} files
  * @returns {string[]} Error messages.
  */
-export function checkTargetAbi({ buildYaml, manifest, ciYml }) {
+export function checkTargetAbi({ buildYaml, manifest, csproj }) {
     const errors = [];
     const abi = /^targetAbi:\s*"([0-9.]+)"/m.exec(buildYaml)?.[1];
     if (!abi) {
@@ -114,11 +114,12 @@ export function checkTargetAbi({ buildYaml, manifest, ciYml }) {
         errors.push(`manifest.json versions below targetAbi ${MIN_ABI}: ${offending.join(', ')}.`);
     }
 
-    const minBuild = /-p:JellyfinVersion=([0-9.]+)/.exec(ciYml)?.[1];
-    if (!minBuild) {
-        errors.push('ci.yml has no build against the minimum Jellyfin version (-p:JellyfinVersion=).');
-    } else if (compareVersions(minBuild, abi) !== 0) {
-        errors.push(`ci.yml builds against Jellyfin ${minBuild}, but build.yaml declares targetAbi ${abi}.`);
+    // A build against a newer SDK than targetAbi does not load on the servers targetAbi admits.
+    const sdk = /<JellyfinVersion Condition="[^"]*">([0-9.]+)</.exec(csproj)?.[1];
+    if (!sdk) {
+        errors.push('The plugin .csproj has no default JellyfinVersion.');
+    } else if (compareVersions(sdk, abi) !== 0) {
+        errors.push(`The plugin compiles against Jellyfin ${sdk}, but build.yaml declares targetAbi ${abi}.`);
     }
     return errors;
 }
@@ -280,7 +281,7 @@ function main() {
     checkTargetAbi({
         buildYaml: readFileSync('build.yaml', 'utf8'),
         manifest: readFileSync('manifest.json', 'utf8'),
-        ciYml: readFileSync('.github/workflows/ci.yml', 'utf8')
+        csproj: readFileSync('src/Jellyfin.Plugin.JuxHomepage/Jellyfin.Plugin.JuxHomepage.csproj', 'utf8')
     }).forEach((message) => errors.push({ file: 'build.yaml', message }));
 
     const rangeArg = process.argv.indexOf('--commits');

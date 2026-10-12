@@ -63,10 +63,10 @@ describe('checkTargetAbi', () => {
     const ok = {
         buildYaml: 'targetAbi: "10.11.9.0"\n',
         manifest: manifest([{ version: '2.3.0.0', targetAbi: '10.11.0.0' }, { version: '2.4.0.0', targetAbi: '10.11.9.0' }]),
-        ciYml: 'run: dotnet build x.csproj -p:JellyfinVersion=10.11.9'
+        csproj: `<JellyfinVersion Condition="'$(JellyfinVersion)' == ''">10.11.9</JellyfinVersion>`
     };
 
-    it('passes when build.yaml, the manifest and the CI minimum build agree', () => {
+    it('passes when build.yaml, the manifest and the SDK version agree', () => {
         expect(checkTargetAbi(ok)).toEqual([]);
     });
 
@@ -75,8 +75,8 @@ describe('checkTargetAbi', () => {
         expect(errors).toHaveLength(1);
     });
 
-    it('fails when the CI minimum build does not match targetAbi', () => {
-        expect(checkTargetAbi({ ...ok, ciYml: '-p:JellyfinVersion=10.11.10' })).toHaveLength(1);
+    it('fails when the plugin compiles against a newer SDK than targetAbi', () => {
+        expect(checkTargetAbi({ ...ok, csproj: `<JellyfinVersion Condition="'$(JellyfinVersion)' == ''">10.11.10</JellyfinVersion>` })).toHaveLength(1);
     });
 });
 
