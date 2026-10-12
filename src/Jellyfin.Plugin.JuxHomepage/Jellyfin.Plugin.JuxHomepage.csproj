@@ -23,23 +23,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <EmbeddedResource Include="Web\jux-homepage.js" />
-    <EmbeddedResource Include="Web\jux-core.js" />
-    <EmbeddedResource Include="Web\jux-ui.js" />
-    <EmbeddedResource Include="Web\jux-ui.css" />
-    <EmbeddedResource Include="Web\jux-tab-injector.js" />
-    <EmbeddedResource Include="Web\jux-watchlist.js" />
-    <EmbeddedResource Include="Web\jux-card-hooks.js" />
-    <EmbeddedResource Include="Web\jux-progress.js" />
-    <EmbeddedResource Include="Web\jux-history.js" />
-    <EmbeddedResource Include="Web\jux-statistics.js" />
-    <EmbeddedResource Include="Web\jux-series-flatten.js" />
-    <EmbeddedResource Include="Web\jux-collections.js" />
-    <EmbeddedResource Include="Web\jux-breadcrumb.js" />
-    <EmbeddedResource Include="Web\jux-homepage.css" />
-    <EmbeddedResource Include="Web\jux-loadsections-inject.js" />
-    <EmbeddedResource Include="Web\config.html" />
-    <EmbeddedResource Include="Web\config.css" />
+    <EmbeddedResource Include="Web\*.js" />
+    <EmbeddedResource Include="Web\*.css" />
+    <EmbeddedResource Include="Web\*.html" />
     <EmbeddedResource Include="Localization\fr.json" />
     <EmbeddedResource Include="Localization\en.json" />
   </ItemGroup>

@@ -270,51 +270,71 @@ public sealed class JuxHomepageControllerTests
     private const string JavaScript = "application/javascript";
     private const string Css = "text/css";
 
-    public static TheoryData<string, string, string> WebResourceActions => new()
-    {
-        { nameof(JuxHomepageController.GetScript), "jux-homepage.js", JavaScript },
-        { nameof(JuxHomepageController.GetCoreScript), "jux-core.js", JavaScript },
-        { nameof(JuxHomepageController.GetUiScript), "jux-ui.js", JavaScript },
-        { nameof(JuxHomepageController.GetUiStylesheet), "jux-ui.css", Css },
-        { nameof(JuxHomepageController.GetTabInjectorScript), "jux-tab-injector.js", JavaScript },
-        { nameof(JuxHomepageController.GetWatchlistScript), "jux-watchlist.js", JavaScript },
-        { nameof(JuxHomepageController.GetCardHooksScript), "jux-card-hooks.js", JavaScript },
-        { nameof(JuxHomepageController.GetProgressScript), "jux-progress.js", JavaScript },
-        { nameof(JuxHomepageController.GetHistoryScript), "jux-history.js", JavaScript },
-        { nameof(JuxHomepageController.GetStatisticsScript), "jux-statistics.js", JavaScript },
-        { nameof(JuxHomepageController.GetSeriesFlattenScript), "jux-series-flatten.js", JavaScript },
-        { nameof(JuxHomepageController.GetCollectionsScript), "jux-collections.js", JavaScript },
-        { nameof(JuxHomepageController.GetBreadcrumbScript), "jux-breadcrumb.js", JavaScript },
-        { nameof(JuxHomepageController.GetStylesheet), "jux-homepage.css", Css },
-        { nameof(JuxHomepageController.GetConfigStylesheet), "config.css", Css },
-    };
+    // Spliced into the native home chunk by TransformationPatches, never served on its own.
+    private const string SpliceFragment = "jux-loadsections-inject.js";
+
+    private static string WebDirectory() => Path.Combine(RepoPaths.Root(), "src", "Jellyfin.Plugin.JuxHomepage", "Web");
+
+    private static IEnumerable<string> WebFiles(params string[] extensions) => Directory
+        .EnumerateFiles(WebDirectory())
+        .Select(Path.GetFileName)
+        .OfType<string>()
+        .Where(f => extensions.Any(e => f.EndsWith(e, StringComparison.Ordinal)))
+        .Order(StringComparer.Ordinal);
+
+    // Every script and stylesheet of Web/ except the splice fragment: adding a file there serves it,
+    // with no second list to update.
+    private static IEnumerable<string> ServedWebAssetNames() => WebFiles(".js", ".css").Where(f => f != SpliceFragment);
+
+    public static TheoryData<string> ServedWebAssets => new(ServedWebAssetNames());
 
     [Fact]
-    public void WebResourceActions_CoverEveryAnonymousResourceEndpoint()
+    public void ServedWebAssets_AreDiscovered()
     {
-        // Guards against a new asset endpoint escaping the theory below.
-        var served = typeof(JuxHomepageController)
-            .GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
-            .Where(m => m.GetCustomAttribute<AllowAnonymousAttribute>() is not null)
-            .Where(m => m.GetCustomAttribute<HttpGetAttribute>()?.Template is { } t
-                && (t.EndsWith(".js", StringComparison.Ordinal) || t.EndsWith(".css", StringComparison.Ordinal)))
-            .Select(m => m.Name)
-            .Order();
+        // Guards against the theories below silently testing nothing.
+        Assert.Contains("jux-homepage.js", ServedWebAssetNames());
+        Assert.Contains("config.css", ServedWebAssetNames());
+    }
 
-        Assert.Equal(WebResourceActions.Select(row => (string)row[0]).Order(), served);
+    [Fact]
+    public void WebFiles_AreAllEmbedded()
+    {
+        var embedded = typeof(JuxHomepageController).Assembly.GetManifestResourceNames();
+
+        foreach (var file in WebFiles(".js", ".css", ".html"))
+        {
+            Assert.Contains($"Jellyfin.Plugin.JuxHomepage.Web.{file}", embedded);
+        }
     }
 
     [Theory]
-    [MemberData(nameof(WebResourceActions))]
-    public void WebResource_ServesTheEmbeddedFileWithItsContentType(string action, string fileName, string contentType)
+    [MemberData(nameof(ServedWebAssets))]
+    public void GetAsset_ServesTheEmbeddedFileWithItsContentType(string fileName)
     {
-        var result = InvokeWebResource(action, query: null, out _);
+        var result = InvokeGetAsset(fileName, query: null, out _);
 
         var file = Assert.IsType<FileStreamResult>(result);
-        Assert.Equal(contentType, file.ContentType);
+        Assert.Equal(fileName.EndsWith(".css", StringComparison.Ordinal) ? Css : JavaScript, file.ContentType);
         using var reader = new StreamReader(file.FileStream);
-        var expected = File.ReadAllText(Path.Combine(RepoPaths.Root(), "src", "Jellyfin.Plugin.JuxHomepage", "Web", fileName));
-        Assert.Equal(expected, reader.ReadToEnd());
+        Assert.Equal(File.ReadAllText(Path.Combine(WebDirectory(), fileName)), reader.ReadToEnd());
+    }
+
+    [Fact]
+    public void GetAsset_MatchesTheFileNameCaseInsensitively()
+    {
+        Assert.IsType<FileStreamResult>(InvokeGetAsset("JUX-HOMEPAGE.JS", query: null, out _));
+    }
+
+    [Theory]
+    [InlineData(SpliceFragment)]
+    [InlineData("config.html")]
+    [InlineData("jux-native-selectors.json")]
+    [InlineData("en.json")]
+    [InlineData("Plugin.cs")]
+    [InlineData("unknown.js")]
+    public void GetAsset_RefusesAnyFileOutsideTheServedAssets(string fileName)
+    {
+        Assert.IsType<NotFoundResult>(InvokeGetAsset(fileName, query: null, out _));
     }
 
     // Only the current content key pins a response for a year; a missing, empty or outdated key
@@ -324,7 +344,7 @@ public sealed class JuxHomepageControllerTests
     [InlineData(null, "public, max-age=3600")]
     [InlineData("", "public, max-age=3600")]
     [InlineData("000000000000", "public, max-age=3600")]
-    public void WebResource_CacheControl_DependsOnTheVersionQuery(string? version, string expected)
+    public void GetAsset_CacheControl_DependsOnTheVersionQuery(string? version, string expected)
     {
         var query = version switch
         {
@@ -333,17 +353,17 @@ public sealed class JuxHomepageControllerTests
             _ => $"?v={version}",
         };
 
-        foreach (var action in WebResourceActions.Select(row => (string)row[0]))
+        foreach (var fileName in ServedWebAssetNames())
         {
-            InvokeWebResource(action, query, out var response);
+            InvokeGetAsset(fileName, query, out var response);
 
             Assert.True(
                 response.Headers.CacheControl.ToString() == expected,
-                $"{action} returned Cache-Control '{response.Headers.CacheControl}' for query '{query}'");
+                $"{fileName} returned Cache-Control '{response.Headers.CacheControl}' for query '{query}'");
         }
     }
 
-    private static IActionResult InvokeWebResource(string action, string? query, out HttpResponse response)
+    private static IActionResult InvokeGetAsset(string fileName, string? query, out HttpResponse response)
     {
         var httpContext = new DefaultHttpContext();
         if (query is not null)
@@ -354,7 +374,7 @@ public sealed class JuxHomepageControllerTests
         var controller = BuildController();
         controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
         response = httpContext.Response;
-        return (IActionResult)typeof(JuxHomepageController).GetMethod(action)!.Invoke(controller, null)!;
+        return controller.GetAsset(fileName);
     }
 
     // -------------------------------------------------------------------------

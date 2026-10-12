@@ -32,6 +32,8 @@ public class JuxHomepageController : ControllerBase
 {
     private static readonly Assembly PluginAssembly = typeof(JuxHomepageController).Assembly;
 
+    private static readonly string WebResourcePrefix = $"{typeof(Plugin).Namespace}.Web.";
+
     private readonly IWidgetRegistry _registry;
     private readonly WidgetService _widgetService;
     private readonly IUserManager _userManager;
@@ -105,336 +107,28 @@ public class JuxHomepageController : ControllerBase
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Serves the JellyUX Homepage JavaScript bundle.
-    /// Anonymous - loaded by a script tag injected into index.html.
+    /// Serves a JellyUX client asset (script or stylesheet) embedded in the plugin.
+    /// Anonymous - loaded by the tags injected into index.html and by the configuration page, and a
+    /// browser-loaded &lt;script&gt; or &lt;link&gt; tag carries no Jellyfin auth token. Only the
+    /// assets named by <see cref="TransformationPatches.ServedAssetName"/> are served.
     /// </summary>
-    /// <returns>JavaScript file contents.</returns>
-    [HttpGet("jux-homepage.js")]
+    /// <param name="fileName">The asset file name, e.g. <c>jux-homepage.js</c>.</param>
+    /// <returns>The file contents, or 404 for a name outside the served assets.</returns>
+    [HttpGet("{fileName}")]
     [AllowAnonymous]
-    [Produces("application/javascript")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public IActionResult GetScript()
+    public IActionResult GetAsset([FromRoute] string fileName)
     {
-        var stream = GetEmbeddedResource("jux-homepage.js");
+        var name = TransformationPatches.ServedAssetName(fileName);
+        var stream = name is null ? null : PluginAssembly.GetManifestResourceStream(WebResourcePrefix + name);
         if (stream is null)
         {
             return NotFound();
         }
 
         SetCacheHeaders(Request, Response);
-        return File(stream, "application/javascript");
-    }
-
-    /// <summary>
-    /// Serves the JellyUX shared core script (escaping, CSS image URLs, detail-item request cache,
-    /// deferred card images -- TODO_V4.md 5.1). Anonymous - loaded by a script tag injected into
-    /// index.html, before every other JellyUX script.
-    /// </summary>
-    /// <returns>JavaScript file contents.</returns>
-    [HttpGet("jux-core.js")]
-    [AllowAnonymous]
-    [Produces("application/javascript")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public IActionResult GetCoreScript()
-    {
-        var stream = GetEmbeddedResource("jux-core.js");
-        if (stream is null)
-        {
-            return NotFound();
-        }
-
-        SetCacheHeaders(Request, Response);
-        return File(stream, "application/javascript");
-    }
-
-    /// <summary>
-    /// Serves the JellyUX shared UI helpers script (empty state, loading spinner, progress bar, stat
-    /// card, native sort dialog -- TODO_V3.md Phase 6 bis). Anonymous - loaded by a script tag
-    /// injected into index.html, before the tab-rendering scripts that consume it.
-    /// </summary>
-    /// <returns>JavaScript file contents.</returns>
-    [HttpGet("jux-ui.js")]
-    [AllowAnonymous]
-    [Produces("application/javascript")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public IActionResult GetUiScript()
-    {
-        var stream = GetEmbeddedResource("jux-ui.js");
-        if (stream is null)
-        {
-            return NotFound();
-        }
-
-        SetCacheHeaders(Request, Response);
-        return File(stream, "application/javascript");
-    }
-
-    /// <summary>
-    /// Serves the JellyUX shared UI helpers stylesheet (TODO_V3.md Phase 6 bis).
-    /// Anonymous - loaded by a link tag injected into index.html.
-    /// </summary>
-    /// <returns>CSS file contents.</returns>
-    [HttpGet("jux-ui.css")]
-    [AllowAnonymous]
-    [Produces("text/css")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public IActionResult GetUiStylesheet()
-    {
-        var stream = GetEmbeddedResource("jux-ui.css");
-        if (stream is null)
-        {
-            return NotFound();
-        }
-
-        SetCacheHeaders(Request, Response);
-        return File(stream, "text/css");
-    }
-
-    /// <summary>
-    /// Serves the JellyUX tab injector script (Watchlist/Progress/History/Statistics tab buttons).
-    /// Anonymous - loaded by a script tag injected into index.html.
-    /// </summary>
-    /// <returns>JavaScript file contents.</returns>
-    [HttpGet("jux-tab-injector.js")]
-    [AllowAnonymous]
-    [Produces("application/javascript")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public IActionResult GetTabInjectorScript()
-    {
-        var stream = GetEmbeddedResource("jux-tab-injector.js");
-        if (stream is null)
-        {
-            return NotFound();
-        }
-
-        SetCacheHeaders(Request, Response);
-        return File(stream, "application/javascript");
-    }
-
-    /// <summary>
-    /// Serves the JellyUX Watchlist tab rendering script.
-    /// Anonymous - loaded by a script tag injected into index.html.
-    /// </summary>
-    /// <returns>JavaScript file contents.</returns>
-    [HttpGet("jux-watchlist.js")]
-    [AllowAnonymous]
-    [Produces("application/javascript")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public IActionResult GetWatchlistScript()
-    {
-        var stream = GetEmbeddedResource("jux-watchlist.js");
-        if (stream is null)
-        {
-            return NotFound();
-        }
-
-        SetCacheHeaders(Request, Response);
-        return File(stream, "application/javascript");
-    }
-
-    /// <summary>
-    /// Serves the JellyUX card-overlay watchlist toggle button script.
-    /// Anonymous - loaded by a script tag injected into index.html.
-    /// </summary>
-    /// <returns>JavaScript file contents.</returns>
-    [HttpGet("jux-card-hooks.js")]
-    [AllowAnonymous]
-    [Produces("application/javascript")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public IActionResult GetCardHooksScript()
-    {
-        var stream = GetEmbeddedResource("jux-card-hooks.js");
-        if (stream is null)
-        {
-            return NotFound();
-        }
-
-        SetCacheHeaders(Request, Response);
-        return File(stream, "application/javascript");
-    }
-
-    /// <summary>
-    /// Serves the JellyUX Series Progress tab rendering script.
-    /// Anonymous - loaded by a script tag injected into index.html.
-    /// </summary>
-    /// <returns>JavaScript file contents.</returns>
-    [HttpGet("jux-progress.js")]
-    [AllowAnonymous]
-    [Produces("application/javascript")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public IActionResult GetProgressScript()
-    {
-        var stream = GetEmbeddedResource("jux-progress.js");
-        if (stream is null)
-        {
-            return NotFound();
-        }
-
-        SetCacheHeaders(Request, Response);
-        return File(stream, "application/javascript");
-    }
-
-    /// <summary>
-    /// Serves the JellyUX Movie History tab rendering script.
-    /// Anonymous - loaded by a script tag injected into index.html.
-    /// </summary>
-    /// <returns>JavaScript file contents.</returns>
-    [HttpGet("jux-history.js")]
-    [AllowAnonymous]
-    [Produces("application/javascript")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public IActionResult GetHistoryScript()
-    {
-        var stream = GetEmbeddedResource("jux-history.js");
-        if (stream is null)
-        {
-            return NotFound();
-        }
-
-        SetCacheHeaders(Request, Response);
-        return File(stream, "application/javascript");
-    }
-
-    /// <summary>
-    /// Serves the JellyUX Statistics tab rendering script.
-    /// Anonymous - loaded by a script tag injected into index.html.
-    /// </summary>
-    /// <returns>JavaScript file contents.</returns>
-    [HttpGet("jux-statistics.js")]
-    [AllowAnonymous]
-    [Produces("application/javascript")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public IActionResult GetStatisticsScript()
-    {
-        var stream = GetEmbeddedResource("jux-statistics.js");
-        if (stream is null)
-        {
-            return NotFound();
-        }
-
-        SetCacheHeaders(Request, Response);
-        return File(stream, "application/javascript");
-    }
-
-    /// <summary>
-    /// Serves the JellyUX single-season show flattening script (TODO_V3.md Phase 7.1).
-    /// Anonymous - loaded by a script tag injected into index.html.
-    /// </summary>
-    /// <returns>JavaScript file contents.</returns>
-    [HttpGet("jux-series-flatten.js")]
-    [AllowAnonymous]
-    [Produces("application/javascript")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public IActionResult GetSeriesFlattenScript()
-    {
-        var stream = GetEmbeddedResource("jux-series-flatten.js");
-        if (stream is null)
-        {
-            return NotFound();
-        }
-
-        SetCacheHeaders(Request, Response);
-        return File(stream, "application/javascript");
-    }
-
-    /// <summary>
-    /// Serves the JellyUX "Included In" collections + collection sorting script (TODO_V3.md Phase 7.2).
-    /// Anonymous - loaded by a script tag injected into index.html.
-    /// </summary>
-    /// <returns>JavaScript file contents.</returns>
-    [HttpGet("jux-collections.js")]
-    [AllowAnonymous]
-    [Produces("application/javascript")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public IActionResult GetCollectionsScript()
-    {
-        var stream = GetEmbeddedResource("jux-collections.js");
-        if (stream is null)
-        {
-            return NotFound();
-        }
-
-        SetCacheHeaders(Request, Response);
-        return File(stream, "application/javascript");
-    }
-
-    /// <summary>
-    /// Serves the JellyUX breadcrumb navigation script (TODO_V3.md Phase 8.1).
-    /// Anonymous - loaded by a script tag injected into index.html.
-    /// </summary>
-    /// <returns>JavaScript file contents.</returns>
-    [HttpGet("jux-breadcrumb.js")]
-    [AllowAnonymous]
-    [Produces("application/javascript")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public IActionResult GetBreadcrumbScript()
-    {
-        var stream = GetEmbeddedResource("jux-breadcrumb.js");
-        if (stream is null)
-        {
-            return NotFound();
-        }
-
-        SetCacheHeaders(Request, Response);
-        return File(stream, "application/javascript");
-    }
-
-    /// <summary>
-    /// Serves the JellyUX Homepage CSS stylesheet.
-    /// Anonymous - loaded by a link tag injected into index.html.
-    /// </summary>
-    /// <returns>CSS file contents.</returns>
-    [HttpGet("jux-homepage.css")]
-    [AllowAnonymous]
-    [Produces("text/css")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public IActionResult GetStylesheet()
-    {
-        var stream = GetEmbeddedResource("jux-homepage.css");
-        if (stream is null)
-        {
-            return NotFound();
-        }
-
-        SetCacheHeaders(Request, Response);
-        return File(stream, "text/css");
-    }
-
-    /// <summary>
-    /// Serves the JellyUX Homepage admin config page's CSS stylesheet.
-    /// Anonymous - a browser-loaded &lt;link&gt; tag carries no Jellyfin auth token, same reasoning as
-    /// jux-homepage.css above.
-    /// </summary>
-    /// <returns>CSS file contents.</returns>
-    [HttpGet("config.css")]
-    [AllowAnonymous]
-    [Produces("text/css")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public IActionResult GetConfigStylesheet()
-    {
-        var stream = GetEmbeddedResource("config.css");
-        if (stream is null)
-        {
-            return NotFound();
-        }
-
-        SetCacheHeaders(Request, Response);
-        return File(stream, "text/css");
+        return File(stream, name!.EndsWith(".css", StringComparison.Ordinal) ? "text/css" : "application/javascript");
     }
 
     /// <summary>
@@ -1074,15 +768,6 @@ public class JuxHomepageController : ControllerBase
             authInfo.UserId,
             authInfo.IsApiKey,
             User.IsInRole("Administrator"));
-    }
-
-    private static Stream? GetEmbeddedResource(string suffix)
-    {
-        var name = PluginAssembly
-            .GetManifestResourceNames()
-            .FirstOrDefault(n => n.EndsWith(suffix, StringComparison.OrdinalIgnoreCase));
-
-        return name is null ? null : PluginAssembly.GetManifestResourceStream(name);
     }
 
     private static void SetCacheHeaders(HttpRequest request, HttpResponse response)

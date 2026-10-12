@@ -115,6 +115,21 @@ public static class TransformationPatches
         new("jux-breadcrumb.js", IsStylesheet: false, Module: m => m.Breadcrumb),
     ];
 
+    // Assets served by JuxHomepageController.GetAsset without being injected into index.html: the
+    // configuration page links them itself.
+    private static readonly string[] ConfigPageAssets = ["config.css"];
+
+    private static readonly string[] ServedAssets = [.. ClientAssets.Select(a => a.FileName), .. ConfigPageAssets];
+
+    /// <summary>
+    /// Resolves a requested file name against the served client assets, the only embedded files the
+    /// asset endpoint exposes.
+    /// </summary>
+    /// <param name="fileName">The requested file name, matched case-insensitively.</param>
+    /// <returns>The asset's file name as embedded, or null when it is not served.</returns>
+    internal static string? ServedAssetName(string fileName) =>
+        ServedAssets.FirstOrDefault(n => string.Equals(n, fileName, StringComparison.OrdinalIgnoreCase));
+
     /// <summary>
     /// Injects the CSS link and JS script tags of the enabled JellyUX modules into Jellyfin's
     /// index.html, or nothing when the plugin is disabled.
