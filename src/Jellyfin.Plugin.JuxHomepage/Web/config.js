@@ -115,7 +115,7 @@ function createConfigPage() {
             return validateTmdb(value);
         },
 
-        // Category name -> numeric index, derived from GET JuxHomepage/meta's WidgetCategories
+        // Category name -> numeric index, derived from GET JuxHomepage/Admin/Catalog's WidgetCategories
         // (matches WidgetCategory's declaration order server-side: Native, Admin, Personalized,
         // Connected). Populated once in loadConfig, before renderWidgets/isAdmin/etc. are ever
         // called. Never hardcode the numeric values here -- read them from _categoryIndex instead.
@@ -1040,31 +1040,27 @@ function createConfigPage() {
             Dashboard.showLoadingMsg();
             Promise.all([
                 ApiClient.getPluginConfiguration(self.PLUGIN_ID),
-                ApiClient.getJSON(ApiClient.getUrl('JuxHomepage/Widgets')),
+                ApiClient.getJSON(ApiClient.getUrl('JuxHomepage/Admin/Catalog')),
                 ApiClient.getJSON(ApiClient.getUrl('JuxHomepage/TMDb/Status')).catch(function () { return []; }),
                 self.loadTmdbCountries(),
                 self.loadTmdbGenres(),
                 self.loadLocalizations(),
-                ApiClient.getJSON(ApiClient.getUrl('JuxHomepage/meta')).catch(function () { return null; }),
                 ApiClient.getJSON(ApiClient.getUrl('JuxHomepage/Admin/Warnings')).catch(function () { return []; })
             ]).then(function (results) {
                 self.state.config = results[0];
-                self.state.descriptors = results[1] || [];
+                var catalog = results[1] || {};
+                self.state.descriptors = catalog.Widgets || [];
 
                 // Populate _categoryIndex before anything below reads it (isAdmin/isPersonalized/
-                // isConnected, populateAddSelect, renderWidgets). Falls back to the historical
-                // hardcoded indices if /meta failed to load, so a transient network error here
-                // doesn't leave every widget miscategorized.
-                var meta = results[6];
-                var categoryNames = (meta && meta.WidgetCategories) || ['Native', 'Admin', 'Personalized', 'Connected'];
-                categoryNames.forEach(function (name, i) {
+                // isConnected, populateAddSelect, renderWidgets).
+                (catalog.WidgetCategories || []).forEach(function (name, i) {
                     self._categoryIndex[name] = i;
                 });
 
                 self.translateStaticText();
                 self.renderTmdbStatus(results[2] || []);
 
-                var warnings = results[7] || [];
+                var warnings = results[6] || [];
                 var banner = document.getElementById('juxWarningBanner');
                 banner.innerHTML = '';
                 warnings.forEach(function (code) {

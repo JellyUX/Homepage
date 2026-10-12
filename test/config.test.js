@@ -77,8 +77,9 @@ describe('configuration page controller (F-33)', () => {
     function getJSON(url) {
         const valuesRoute = /^JuxHomepage\/Widget\/(.+)\/values$/.exec(url);
         if (valuesRoute) { return Promise.resolve(values[decodeURIComponent(valuesRoute[1])] || []); }
-        if (url === 'JuxHomepage/Widgets') { return Promise.resolve(descriptors); }
-        if (url === 'JuxHomepage/meta') { return Promise.resolve({ WidgetCategories: ['Native', 'Admin', 'Personalized', 'Connected'] }); }
+        if (url === 'JuxHomepage/Admin/Catalog') {
+            return Promise.resolve({ WidgetCategories: ['Native', 'Admin', 'Personalized', 'Connected'], Widgets: descriptors });
+        }
         if (url === 'JuxHomepage/Localizations') { return Promise.resolve({}); }
         return Promise.resolve([]);
     }

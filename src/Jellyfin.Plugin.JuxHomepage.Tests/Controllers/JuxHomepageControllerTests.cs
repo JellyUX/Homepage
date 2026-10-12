@@ -149,15 +149,31 @@ public sealed class JuxHomepageControllerTests
     }
 
     [Fact]
-    public void GetMeta_ReturnsWidgetCategoryNamesInEnumOrder()
+    public void GetAdminCatalog_ReturnsEveryDescriptorAndTheCategoryNamesInEnumOrder()
     {
-        var controller = BuildController();
+        var widget = new Mock<IWidget>();
+        widget.Setup(w => w.GetDescriptor()).Returns(new WidgetDescriptor { WidgetType = "jux.admin.genre" });
+        var registryMock = new Mock<IWidgetRegistry>();
+        registryMock.Setup(r => r.GetAll()).Returns([widget.Object]);
+        var controller = BuildController(registryMock: registryMock);
 
-        var result = controller.GetMeta();
+        var result = controller.GetAdminCatalog();
 
         var ok = Assert.IsType<OkObjectResult>(result.Result);
-        var meta = Assert.IsType<JuxHomepageController.PluginMeta>(ok.Value);
-        Assert.Equal(Enum.GetNames<WidgetCategory>(), meta.WidgetCategories);
+        var catalog = Assert.IsType<JuxHomepageController.WidgetCatalog>(ok.Value);
+        Assert.Equal(Enum.GetNames<WidgetCategory>(), catalog.WidgetCategories);
+        Assert.Equal("jux.admin.genre", Assert.Single(catalog.Widgets).WidgetType);
+    }
+
+    [Fact]
+    public void GetAdminCatalog_IsRestrictedToAdministrators()
+    {
+        var policies = typeof(JuxHomepageController)
+            .GetMethod(nameof(JuxHomepageController.GetAdminCatalog))!
+            .GetCustomAttributes<AuthorizeAttribute>()
+            .Select(a => a.Policy);
+
+        Assert.Contains(Policies.RequiresElevation, policies);
     }
 
     [Fact]

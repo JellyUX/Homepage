@@ -151,22 +151,6 @@ public class JuxHomepageController : ControllerBase
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Returns plugin status metadata: enabled flag and the ordered list of
-    /// widget category names (matching <see cref="WidgetCategory"/>'s declaration order), so the
-    /// admin config page can resolve a descriptor's numeric <c>Category</c> to a name without
-    /// hardcoding the enum's underlying values.
-    /// </summary>
-    /// <returns>Plugin metadata object.</returns>
-    [HttpGet("meta")]
-    [Authorize]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    public ActionResult<PluginMeta> GetMeta()
-    {
-        var config = Plugin.Instance?.Configuration ?? new PluginConfiguration();
-        return Ok(new PluginMeta(config.Enabled, Enum.GetNames<WidgetCategory>()));
-    }
-
-    /// <summary>
     /// Returns the integration warning codes the admin page shows in its banner (missing
     /// FileTransformation, Custom Tabs installed), computed on each call.
     /// </summary>
@@ -507,21 +491,22 @@ public class JuxHomepageController : ControllerBase
     // -------------------------------------------------------------------------
 
     /// <summary>
-    /// Returns descriptors for all registered widget types.
-    /// Used by the admin UI to display available widgets and their capabilities.
+    /// Returns the widget catalog of the admin configuration page: the descriptor of every registered
+    /// widget type, and the widget category names in <see cref="WidgetCategory"/> declaration order,
+    /// so the page resolves a descriptor's numeric <c>Category</c> without hardcoding the enum.
     /// </summary>
-    /// <returns>An array of <see cref="WidgetDescriptor"/> objects.</returns>
-    [HttpGet("Widgets")]
+    /// <returns>The <see cref="WidgetCatalog"/>.</returns>
+    [HttpGet("Admin/Catalog")]
     [Authorize(Policy = Policies.RequiresElevation)]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public ActionResult<IReadOnlyList<WidgetDescriptor>> GetWidgets()
+    public ActionResult<WidgetCatalog> GetAdminCatalog()
     {
         var descriptors = _registry.GetAll()
             .Select(w => w.GetDescriptor())
             .ToList()
             .AsReadOnly();
 
-        return Ok(descriptors);
+        return Ok(new WidgetCatalog(Enum.GetNames<WidgetCategory>(), descriptors));
     }
 
     /// <summary>
@@ -832,14 +817,13 @@ public class JuxHomepageController : ControllerBase
         }
     }
 
-    /// <summary>Plugin status metadata returned by /JuxHomepage/meta.</summary>
-    /// <param name="Enabled">Whether the plugin is active.</param>
+    /// <summary>Widget catalog returned by /JuxHomepage/Admin/Catalog.</summary>
     /// <param name="WidgetCategories">
     /// Widget category names in <see cref="WidgetCategory"/> declaration order (index = underlying
-    /// enum value), so the admin config page can resolve a descriptor's <c>Category</c> without
-    /// hardcoding the enum's numeric values.
+    /// enum value).
     /// </param>
-    public record PluginMeta(bool Enabled, IReadOnlyList<string> WidgetCategories);
+    /// <param name="Widgets">The descriptor of every registered widget type.</param>
+    public record WidgetCatalog(IReadOnlyList<string> WidgetCategories, IReadOnlyList<WidgetDescriptor> Widgets);
 
     /// <summary>TMDb cache status entry returned by /JuxHomepage/TMDb/Status.</summary>
     /// <param name="Type">The <see cref="TMDbCacheType"/> name (e.g. "TrendingMovies").</param>
