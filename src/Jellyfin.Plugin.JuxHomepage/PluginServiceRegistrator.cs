@@ -12,9 +12,7 @@ using Jellyfin.Plugin.JuxHomepage.Widgets.Native;
 using Jellyfin.Plugin.JuxHomepage.Widgets.Personalized;
 using Jellyfin.Plugin.JuxHomepage.Rewards;
 using Jellyfin.Plugin.JuxHomepage.TMDb;
-using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller;
-using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Plugins;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -36,7 +34,10 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         // One time source for every JellyUX service (TODO_V4.md 5.5, F-23), so a test can drive the
         // clock and no service reads DateTime.Now on its own.
         serviceCollection.TryAddSingleton(TimeProvider.System);
-        serviceCollection.AddSingleton<SessionCache>(serviceProvider => new SessionCache(serviceProvider.GetRequiredService<TimeProvider>()));
+        // Every service that reads the plugin configuration takes this accessor rather than the
+        // configuration itself: Plugin.Instance is set by Jellyfin and replaced on each save.
+        serviceCollection.AddSingleton<Func<PluginConfiguration?>>(() => Plugin.Instance?.Configuration);
+        serviceCollection.AddSingleton<SessionCache>();
         serviceCollection.AddHostedService<ConfigurationChangeListener>();
         serviceCollection.AddHostedService<StartupService>();
         serviceCollection.AddSingleton<IFileSystem, FileSystem>();
@@ -47,18 +48,8 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             client.BaseAddress = new Uri("https://api.themoviedb.org/3/");
             client.Timeout = TimeSpan.FromSeconds(30);
         });
-        serviceCollection.AddSingleton<ITMDbApiClient>(serviceProvider => new TMDbApiClient(
-            serviceProvider.GetRequiredService<IHttpClientFactory>(),
-            () => Plugin.Instance?.Configuration,
-            serviceProvider.GetRequiredService<ILogger<TMDbApiClient>>(),
-            timeProvider: serviceProvider.GetRequiredService<TimeProvider>()));
-        serviceCollection.AddSingleton<ITMDbCacheService>(serviceProvider => new TMDbCacheService(
-            serviceProvider.GetRequiredService<IApplicationPaths>(),
-            serviceProvider.GetRequiredService<IFileSystem>(),
-            serviceProvider.GetRequiredService<ITMDbApiClient>(),
-            serviceProvider.GetRequiredService<ILibraryManager>(),
-            () => Plugin.Instance?.Configuration,
-            serviceProvider.GetRequiredService<ILogger<TMDbCacheService>>()));
+        serviceCollection.AddSingleton<ITMDbApiClient, TMDbApiClient>();
+        serviceCollection.AddSingleton<ITMDbCacheService, TMDbCacheService>();
 
         // Wikidata (TODO_V2.md Phase 14): no BaseAddress, since SPARQL queries and entity search live
         // on different hosts (query.wikidata.org vs. www.wikidata.org). Timeout is set above
@@ -81,77 +72,27 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         {
             AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate
         });
-        serviceCollection.AddSingleton<IWikidataApiClient>(serviceProvider => new WikidataApiClient(
-            serviceProvider.GetRequiredService<IHttpClientFactory>(),
-            serviceProvider.GetRequiredService<ILogger<WikidataApiClient>>()));
-        serviceCollection.AddSingleton<IRewardsCacheService>(serviceProvider => new RewardsCacheService(
-            serviceProvider.GetRequiredService<IApplicationPaths>(),
-            serviceProvider.GetRequiredService<IFileSystem>(),
-            serviceProvider.GetRequiredService<IWikidataApiClient>(),
-            serviceProvider.GetRequiredService<ILibraryManager>(),
-            () => Plugin.Instance?.Configuration,
-            serviceProvider.GetRequiredService<ILogger<RewardsCacheService>>()));
-        serviceCollection.AddSingleton<ISeriesProgressCacheService>(serviceProvider => new SeriesProgressCacheService(
-            serviceProvider.GetRequiredService<IApplicationPaths>(),
-            serviceProvider.GetRequiredService<IFileSystem>(),
-            serviceProvider.GetRequiredService<IUserManager>(),
-            serviceProvider.GetRequiredService<ILibraryManager>(),
-            serviceProvider.GetRequiredService<IUserDataManager>(),
-            serviceProvider.GetRequiredService<ILogger<SeriesProgressCacheService>>()));
-        serviceCollection.AddSingleton<IMovieHistoryCacheService>(serviceProvider => new MovieHistoryCacheService(
-            serviceProvider.GetRequiredService<IApplicationPaths>(),
-            serviceProvider.GetRequiredService<IFileSystem>(),
-            serviceProvider.GetRequiredService<IUserManager>(),
-            serviceProvider.GetRequiredService<ILibraryManager>(),
-            serviceProvider.GetRequiredService<IUserDataManager>(),
-            serviceProvider.GetRequiredService<ILogger<MovieHistoryCacheService>>()));
-        serviceCollection.AddSingleton<ICollectionsIndexCacheService>(serviceProvider => new CollectionsIndexCacheService(
-            serviceProvider.GetRequiredService<IApplicationPaths>(),
-            serviceProvider.GetRequiredService<IFileSystem>(),
-            serviceProvider.GetRequiredService<ILibraryManager>(),
-            serviceProvider.GetRequiredService<ILogger<CollectionsIndexCacheService>>()));
-        serviceCollection.AddSingleton<IWatchlistService>(serviceProvider => new WatchlistService(
-            serviceProvider.GetRequiredService<IUserManager>(),
-            serviceProvider.GetRequiredService<ILibraryManager>(),
-            serviceProvider.GetRequiredService<MediaBrowser.Controller.Dto.IDtoService>()));
+        serviceCollection.AddSingleton<IWikidataApiClient, WikidataApiClient>();
+        serviceCollection.AddSingleton<IRewardsCacheService, RewardsCacheService>();
+        serviceCollection.AddSingleton<ISeriesProgressCacheService, SeriesProgressCacheService>();
+        serviceCollection.AddSingleton<IMovieHistoryCacheService, MovieHistoryCacheService>();
+        serviceCollection.AddSingleton<ICollectionsIndexCacheService, CollectionsIndexCacheService>();
+        serviceCollection.AddSingleton<IWatchlistService, WatchlistService>();
         serviceCollection.AddHostedService<WatchlistAutoRemoveService>();
         serviceCollection.AddHostedService<ScoringInvalidationListener>();
         serviceCollection.AddHostedService<CollectionsIndexInvalidationListener>();
-        serviceCollection.AddSingleton<ISeriesProgressViewService>(serviceProvider => new SeriesProgressViewService(
-            serviceProvider.GetRequiredService<ISeriesProgressCacheService>(),
-            serviceProvider.GetRequiredService<IUserManager>(),
-            serviceProvider.GetRequiredService<ILibraryManager>(),
-            serviceProvider.GetRequiredService<MediaBrowser.Controller.Dto.IDtoService>(),
-            serviceProvider.GetRequiredService<ILogger<SeriesProgressViewService>>()));
-        serviceCollection.AddSingleton<IMovieHistoryViewService>(serviceProvider => new MovieHistoryViewService(
-            serviceProvider.GetRequiredService<IMovieHistoryCacheService>(),
-            serviceProvider.GetRequiredService<IUserManager>(),
-            serviceProvider.GetRequiredService<ILibraryManager>(),
-            serviceProvider.GetRequiredService<MediaBrowser.Controller.Dto.IDtoService>(),
-            serviceProvider.GetRequiredService<ILogger<MovieHistoryViewService>>()));
-        serviceCollection.AddSingleton<IStatisticsService>(serviceProvider => new StatisticsService(
-            serviceProvider.GetRequiredService<ISeriesProgressCacheService>(),
-            serviceProvider.GetRequiredService<IMovieHistoryCacheService>()));
-        serviceCollection.AddSingleton<ScoringService>(serviceProvider => new ScoringService(
-            serviceProvider.GetRequiredService<IUserManager>(),
-            serviceProvider.GetRequiredService<ILibraryManager>(),
-            serviceProvider.GetRequiredService<IUserDataManager>(),
-            () => Plugin.Instance?.Configuration,
-            serviceProvider.GetRequiredService<ILogger<ScoringService>>(),
-            timeProvider: serviceProvider.GetRequiredService<TimeProvider>()));
-        serviceCollection.AddSingleton<WidgetLayoutResolver>(serviceProvider => new WidgetLayoutResolver(
-            serviceProvider.GetRequiredService<IWidgetRegistry>(),
-            serviceProvider.GetRequiredService<IUserConfigurationStore>(),
-            serviceProvider.GetRequiredService<ILocalizationService>(),
-            () => Plugin.Instance?.Configuration,
-            serviceProvider.GetRequiredService<ILogger<WidgetLayoutResolver>>()));
-        serviceCollection.AddSingleton<WidgetService>(serviceProvider => new WidgetService(
-            serviceProvider.GetRequiredService<IWidgetRegistry>(),
-            serviceProvider.GetRequiredService<SessionCache>(),
-            serviceProvider.GetRequiredService<WidgetLayoutResolver>(),
-            () => Plugin.Instance?.Configuration,
-            serviceProvider.GetRequiredService<ILogger<WidgetService>>(),
-            serviceProvider.GetRequiredService<ScoringService>()));
+        serviceCollection.AddSingleton<ISeriesProgressViewService, SeriesProgressViewService>();
+        serviceCollection.AddSingleton<IMovieHistoryViewService, MovieHistoryViewService>();
+        serviceCollection.AddSingleton<IStatisticsService, StatisticsService>();
+        serviceCollection.AddSingleton<ScoringService>();
+        serviceCollection.AddSingleton<WidgetLayoutResolver>();
+        // WidgetService takes the personalization state as an optional parameter: built by type
+        // alone, it would get null, and a layout built while a user's first scoring still runs
+        // would be cached without its personalized sections. Passing it here, rather than
+        // registering ScoringService a second time, keeps one owner that disposes it once.
+        serviceCollection.AddSingleton(serviceProvider => ActivatorUtilities.CreateInstance<WidgetService>(
+            serviceProvider,
+            (IPersonalizationState)serviceProvider.GetRequiredService<ScoringService>()));
 
         serviceCollection.AddSingleton<IWidgetRegistry>(serviceProvider =>
         {
