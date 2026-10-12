@@ -363,6 +363,16 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
             }
         }
 
+        // Seasonal windows recur every year as MM-dd: an unparseable date is dropped at load and save
+        // (TODO_V4.md 5.5, F-23), so the stored configuration and the admin page never carry a window
+        // the widget would silently treat as never active.
+        foreach (var widget in config.Widgets.Where(w => w.WidgetType == "jux.connected.seasonal"))
+        {
+            widget.ExtraParams = widget.ExtraParams
+                .Where(p => p.Key is not ("startDate" or "endDate") || SeasonalWidget.TryParseMonthDay(p.Value, out _))
+                .ToArray();
+        }
+
         // Trim API keys; empty string becomes null.
         if (config.ApiKeys is not null)
         {

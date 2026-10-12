@@ -397,4 +397,29 @@ public sealed class PluginValidationTests
 
         Assert.Equal(WidgetConfig.MaxItemsCeiling, config.Widgets[0].MaxItems);
     }
+
+    [Fact]
+    public void ValidateConfiguration_DropsUnparseableSeasonalDatesOnly()
+    {
+        var config = new PluginConfiguration
+        {
+            Widgets =
+            [
+                new WidgetConfig
+                {
+                    WidgetType = "jux.connected.seasonal",
+                    ExtraParams =
+                    [
+                        new WidgetExtraParam { Key = "value", Value = "preset-1" },
+                        new WidgetExtraParam { Key = "startDate", Value = "13-40" },
+                        new WidgetExtraParam { Key = "endDate", Value = "02-29" }
+                    ]
+                }
+            ]
+        };
+
+        Plugin.ValidateConfiguration(config);
+
+        Assert.Equal(["value", "endDate"], config.Widgets[0].ExtraParams.Select(p => p.Key));
+    }
 }

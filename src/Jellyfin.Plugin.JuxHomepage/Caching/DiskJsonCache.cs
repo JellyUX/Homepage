@@ -33,6 +33,7 @@ public sealed class DiskJsonCache<T> : IDisposable
     private readonly string _directory;
     private readonly IFileSystem _fileSystem;
     private readonly ILogger _logger;
+    private readonly TimeProvider _timeProvider;
     private readonly ReaderWriterLockSlim _lock = new();
     private readonly ConcurrentDictionary<string, Memo> _memo = new();
     private bool _disposed;
@@ -43,11 +44,13 @@ public sealed class DiskJsonCache<T> : IDisposable
     /// <param name="directory">The directory cache files are read from and written to.</param>
     /// <param name="fileSystem">File system abstraction, for testability.</param>
     /// <param name="logger">Logger.</param>
-    public DiskJsonCache(string directory, IFileSystem fileSystem, ILogger logger)
+    /// <param name="timeProvider">Time source of cache timestamps. Defaults to <see cref="TimeProvider.System"/>.</param>
+    public DiskJsonCache(string directory, IFileSystem fileSystem, ILogger logger, TimeProvider? timeProvider = null)
     {
         _directory = directory;
         _fileSystem = fileSystem;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _fileSystem.CreateDirectory(_directory);
     }
 
@@ -121,7 +124,7 @@ public sealed class DiskJsonCache<T> : IDisposable
     {
         var path = Path.Combine(_directory, fileName);
         var tmpPath = path + ".tmp";
-        var entry = new CacheEntry<T> { RefreshedAtUtc = DateTime.UtcNow, Items = items };
+        var entry = new CacheEntry<T> { RefreshedAtUtc = _timeProvider.GetUtcNow().UtcDateTime, Items = items };
         var json = JsonSerializer.Serialize(entry, SerializerOptions);
 
         _lock.EnterWriteLock();
@@ -156,7 +159,7 @@ public sealed class DiskJsonCache<T> : IDisposable
             return true;
         }
 
-        return DateTime.UtcNow - _fileSystem.GetLastWriteTimeUtc(path) >= maxAge;
+        return _timeProvider.GetUtcNow().UtcDateTime - _fileSystem.GetLastWriteTimeUtc(path) >= maxAge;
     }
 
     /// <summary>

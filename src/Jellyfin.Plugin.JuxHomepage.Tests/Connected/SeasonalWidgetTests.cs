@@ -18,7 +18,8 @@ public sealed class SeasonalWidgetTests
 
     private static SeasonalWidget BuildWidget(
         out Mock<ILibraryManager> libraryManagerMock,
-        IReadOnlyList<BaseItem>? items = null)
+        IReadOnlyList<BaseItem>? items = null,
+        TimeProvider? timeProvider = null)
     {
         var userManagerMock = new Mock<IUserManager>();
         userManagerMock.Setup(m => m.GetUserById(It.IsAny<Guid>())).Returns(TestUser);
@@ -38,7 +39,7 @@ public sealed class SeasonalWidgetTests
             .Returns<IReadOnlyList<BaseItem>, DtoOptions, User, BaseItem>(
                 (src, _, _, _) => src.Select(i => new BaseItemDto { Id = i.Id, Name = i.Name }).ToList());
 
-        return new SeasonalWidget(userManagerMock.Object, libraryManagerMock.Object, dtoServiceMock.Object);
+        return new SeasonalWidget(userManagerMock.Object, libraryManagerMock.Object, dtoServiceMock.Object, timeProvider);
     }
 
     private static WidgetPayload BuildPayload(
@@ -244,5 +245,35 @@ public sealed class SeasonalWidgetTests
             CancellationToken.None);
 
         Assert.Equal(0, result.TotalRecordCount);
+    }
+
+    // -------------------------------------------------------------------------
+    // Time source and MM-dd parsing (TODO_V4.md 5.5, F-23)
+    // -------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("2027-01-03", 1)]
+    [InlineData("2026-12-26", 1)]
+    [InlineData("2027-02-01", 0)]
+    public async Task GetItemsAsync_YearWrappingWindow_FollowsTheInjectedClock(string today, int expected)
+    {
+        var clock = new ManualTimeProvider { UtcNowValue = DateTimeOffset.Parse(today + "T12:00:00Z", System.Globalization.CultureInfo.InvariantCulture) };
+        var widget = BuildWidget(out _, [new Movie { Id = Guid.NewGuid(), Name = "Fireworks" }], clock);
+
+        var result = await widget.GetItemsAsync(BuildPayload("12-26", "01-06"), CancellationToken.None);
+
+        Assert.Equal(expected, result.Items.Count);
+    }
+
+    [Theory]
+    [InlineData("02-29", true)]
+    [InlineData("10-31", true)]
+    [InlineData("02-30", false)]
+    [InlineData("13-01", false)]
+    [InlineData("1-5", false)]
+    [InlineData("", false)]
+    public void TryParseMonthDay_AcceptsEveryRealDayOfAnyYear(string value, bool expected)
+    {
+        Assert.Equal(expected, SeasonalWidget.TryParseMonthDay(value, out _));
     }
 }

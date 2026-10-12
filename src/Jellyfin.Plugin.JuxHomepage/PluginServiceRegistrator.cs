@@ -17,6 +17,7 @@ using MediaBrowser.Controller;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.Plugins;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -32,7 +33,10 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
     {
         serviceCollection.AddSingleton<FileTransformationDetector>();
         serviceCollection.AddSingleton<CoexistenceWarnings>();
-        serviceCollection.AddSingleton<SessionCache>(_ => new SessionCache());
+        // One time source for every JellyUX service (TODO_V4.md 5.5, F-23), so a test can drive the
+        // clock and no service reads DateTime.Now on its own.
+        serviceCollection.TryAddSingleton(TimeProvider.System);
+        serviceCollection.AddSingleton<SessionCache>(serviceProvider => new SessionCache(serviceProvider.GetRequiredService<TimeProvider>()));
         serviceCollection.AddHostedService<ConfigurationChangeListener>();
         serviceCollection.AddHostedService<StartupService>();
         serviceCollection.AddSingleton<IFileSystem, FileSystem>();
@@ -46,7 +50,8 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<ITMDbApiClient>(serviceProvider => new TMDbApiClient(
             serviceProvider.GetRequiredService<IHttpClientFactory>(),
             () => Plugin.Instance?.Configuration,
-            serviceProvider.GetRequiredService<ILogger<TMDbApiClient>>()));
+            serviceProvider.GetRequiredService<ILogger<TMDbApiClient>>(),
+            timeProvider: serviceProvider.GetRequiredService<TimeProvider>()));
         serviceCollection.AddSingleton<ITMDbCacheService>(serviceProvider => new TMDbCacheService(
             serviceProvider.GetRequiredService<IApplicationPaths>(),
             serviceProvider.GetRequiredService<IFileSystem>(),
@@ -132,7 +137,8 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             serviceProvider.GetRequiredService<ILibraryManager>(),
             serviceProvider.GetRequiredService<IUserDataManager>(),
             () => Plugin.Instance?.Configuration,
-            serviceProvider.GetRequiredService<ILogger<ScoringService>>()));
+            serviceProvider.GetRequiredService<ILogger<ScoringService>>(),
+            timeProvider: serviceProvider.GetRequiredService<TimeProvider>()));
         serviceCollection.AddSingleton<WidgetLayoutResolver>(serviceProvider => new WidgetLayoutResolver(
             serviceProvider.GetRequiredService<IWidgetRegistry>(),
             serviceProvider.GetRequiredService<IUserConfigurationStore>(),

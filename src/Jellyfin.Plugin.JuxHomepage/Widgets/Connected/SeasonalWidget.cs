@@ -34,6 +34,7 @@ public sealed class SeasonalWidget : IWidget
     private readonly IUserManager _userManager;
     private readonly ILibraryManager _libraryManager;
     private readonly IDtoService _dtoService;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SeasonalWidget"/> class.
@@ -41,11 +42,13 @@ public sealed class SeasonalWidget : IWidget
     /// <param name="userManager">Jellyfin user manager.</param>
     /// <param name="libraryManager">Jellyfin library manager.</param>
     /// <param name="dtoService">Jellyfin DTO projection service.</param>
-    public SeasonalWidget(IUserManager userManager, ILibraryManager libraryManager, IDtoService dtoService)
+    /// <param name="timeProvider">Time source of the current day (server local time). Defaults to <see cref="TimeProvider.System"/>.</param>
+    public SeasonalWidget(IUserManager userManager, ILibraryManager libraryManager, IDtoService dtoService, TimeProvider? timeProvider = null)
     {
         _userManager = userManager;
         _libraryManager = libraryManager;
         _dtoService = dtoService;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <inheritdoc/>
@@ -82,7 +85,7 @@ public sealed class SeasonalWidget : IWidget
             return Task.FromResult(WidgetResult.Empty);
         }
 
-        if (!IsInSeason(DateTime.Now, start, end))
+        if (!IsInSeason(_timeProvider.GetLocalNow().DateTime, start, end))
         {
             return Task.FromResult(WidgetResult.Empty);
         }
@@ -136,7 +139,7 @@ public sealed class SeasonalWidget : IWidget
     /// <param name="value">The raw string to parse.</param>
     /// <param name="result">The parsed month/day tuple, if successful.</param>
     /// <returns><see langword="true"/> if <paramref name="value"/> was a valid <c>MM-dd</c> date.</returns>
-    private static bool TryParseMonthDay(string? value, out (int Month, int Day) result)
+    internal static bool TryParseMonthDay(string? value, out (int Month, int Day) result)
     {
         result = default;
         if (string.IsNullOrEmpty(value))
@@ -144,11 +147,12 @@ public sealed class SeasonalWidget : IWidget
             return false;
         }
 
-        // A fixed reference year is used purely to validate the month/day combination (e.g. reject
-        // "02-30"); the year itself is discarded, since the window recurs every year.
+        // A fixed leap reference year is used purely to validate the month/day combination (e.g.
+        // reject "02-30" but keep "02-29", which parsing in the current year refuses three years out
+        // of four); the year itself is discarded, since the window recurs every year.
         if (!DateTime.TryParseExact(
-                value,
-                "MM-dd",
+                "2000-" + value,
+                "yyyy-MM-dd",
                 CultureInfo.InvariantCulture,
                 DateTimeStyles.None,
                 out var parsed))
