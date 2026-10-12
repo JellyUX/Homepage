@@ -63,10 +63,6 @@
         }
     };
 
-    function _resolveLang() {
-        return (document.documentElement.lang || 'en').toLowerCase().indexOf('fr') === 0 ? 'fr' : 'en';
-    }
-
     function _waitForUserId(attemptsLeft) {
         attemptsLeft = attemptsLeft === undefined ? 25 : attemptsLeft;
         var userId = window.ApiClient && window.ApiClient.getCurrentUserId();
@@ -166,7 +162,7 @@
         icon.setAttribute('aria-hidden', 'true');
         button.appendChild(icon);
 
-        _applyIconState(button, likedIds.has(itemInfo.id), _resolveLang());
+        _applyIconState(button, likedIds.has(itemInfo.id), window.JuxCore.resolveLang());
 
         button.addEventListener('click', function (event) {
             event.preventDefault();
@@ -270,7 +266,7 @@
         icon.setAttribute('aria-hidden', 'true');
         button.appendChild(icon);
 
-        _applyIconState(button, likedIds.has(itemId), _resolveLang());
+        _applyIconState(button, likedIds.has(itemId), window.JuxCore.resolveLang());
 
         button.addEventListener('click', function (event) {
             event.preventDefault();
@@ -345,7 +341,7 @@
             '<div class="listItemBody actionsheetListItemBody"><div class="listItemBodyText actionSheetItemText"></div></div>' +
             '</button>';
         var button = wrapper.firstElementChild;
-        _applyIconState(button, likedIds.has(itemId), _resolveLang());
+        _applyIconState(button, likedIds.has(itemId), window.JuxCore.resolveLang());
 
         button.addEventListener('click', function (event) {
             event.preventDefault();
@@ -426,7 +422,7 @@
     }
 
     function _syncButtonsForItem(itemId, isLiked) {
-        var lang = _resolveLang();
+        var lang = window.JuxCore.resolveLang();
         var matches = document.querySelectorAll('[data-jux-item-id="' + CSS.escape(itemId) + '"]');
         Array.prototype.forEach.call(matches, function (el) { _applyIconState(el, isLiked, lang); });
     }
@@ -434,7 +430,7 @@
     // Repairs any button that rendered before the preloaded liked-id set finished loading (see
     // the race documented on window.juxCardHooks.init above).
     function _resyncAllButtons(likedIds) {
-        var lang = _resolveLang();
+        var lang = window.JuxCore.resolveLang();
         var all = document.querySelectorAll('[data-jux-item-id]');
         Array.prototype.forEach.call(all, function (el) {
             _applyIconState(el, likedIds.has(el.getAttribute('data-jux-item-id')), lang);
@@ -778,8 +774,6 @@
             state.loading = false;
         });
     }
-
-
 
     window.juxCardHooks.init();
 

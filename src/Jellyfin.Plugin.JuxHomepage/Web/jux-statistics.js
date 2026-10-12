@@ -53,7 +53,7 @@
                 return;
             }
 
-            var lang = _resolveLang();
+            var lang = window.JuxCore.resolveLang();
             var userId = window.ApiClient && window.ApiClient.getCurrentUserId();
             if (!userId) {
                 return;
@@ -76,10 +76,6 @@
         }
     };
 
-    function _resolveLang() {
-        return (document.documentElement.lang || 'en').toLowerCase().indexOf('fr') === 0 ? 'fr' : 'en';
-    }
-
     function _buildTitleHtml(lang) {
         return '<h2 class="sectionTitle sectionTitle-cards jux-section-title-container">' + window.JuxCore.escHtml(_labels[lang].title) + '</h2>';
     }
@@ -101,7 +97,6 @@
         return '<div class="jux-stat-card"><div class="jux-stat-value">' + window.JuxCore.escHtml(String(value)) + '</div>' +
             '<div class="jux-stat-label">' + window.JuxCore.escHtml(label) + '</div></div>';
     }
-
 
     window.juxStatistics.init();
 

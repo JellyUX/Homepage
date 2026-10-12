@@ -1,7 +1,7 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import juxUi from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-ui.js';
 
-const { showEmpty, buildProgressBar, buildStatCard, _buildRadio, _buildRadioGroup } = juxUi;
+const { showEmpty, buildProgressBar, buildStatCard, createListTab, labelFor, _buildRadio, _buildRadioGroup } = juxUi;
 
 describe('showEmpty', () => {
     it('renders an icon, title, and subtitle into the container', () => {
@@ -134,5 +134,86 @@ describe('buildProgressBar bound (F-10)', () => {
         expect(html).toContain('jux-progress-bar-continuous');
         expect(html).toContain('width:25%');
         expect(html).toContain('aria-valuemax="1000"');
+    });
+});
+
+describe('labelFor', () => {
+    const options = [{ value: 'A', label: 'Alpha' }, { value: 'B', label: 'Beta' }];
+
+    it('returns the label of the current value, or of the first option', () => {
+        expect(labelFor(options, 'B')).toBe('Beta');
+        expect(labelFor(options, 'Z')).toBe('Alpha');
+    });
+});
+
+describe('createListTab (F-35)', () => {
+    const labels = { en: { title: 'Things', empty: 'No things', emptySubtitle: 'Add some.', sortName: 'Name', all: 'All', kindDialog: 'Kind' } };
+
+    function makeTab(extra) {
+        return createListTab(Object.assign({
+            id: 'things',
+            endpoint: 'JuxHomepage/Things/Items',
+            logName: 'Things',
+            labels,
+            state: { sortBy: 'Name', sortOrder: 'Ascending', kind: 'All' },
+            sortOptions: (t) => [{ value: 'Name', label: t.sortName }],
+            filters: [{ name: 'kind', key: 'kind', icon: 'filter_list', titleKey: 'kindDialog', options: (t) => [{ value: 'All', label: t.all }] }],
+            emptyIcon: 'inbox'
+        }, extra));
+    }
+
+    function mountPane() {
+        document.documentElement.lang = 'en';
+        document.body.innerHTML = '<div id="jux-tab-things"><div class="sections"></div></div>';
+    }
+
+    function apiClient(result) {
+        return {
+            getCurrentUserId: () => 'u1',
+            getUrl: (route, query) => route + '?' + new URLSearchParams(query).toString(),
+            getJSON: vi.fn(() => result)
+        };
+    }
+
+    afterEach(() => {
+        delete window.ApiClient;
+        delete window.JellyfinAPI;
+    });
+
+    it('requests the endpoint with the sort and filter state', () => {
+        mountPane();
+        window.ApiClient = apiClient(new Promise(() => {}));
+
+        makeTab().render();
+
+        expect(window.ApiClient.getJSON).toHaveBeenCalledWith('JuxHomepage/Things/Items?userId=u1&sortBy=Name&sortOrder=Ascending&kind=All&startIndex=0&limit=100');
+        expect(document.querySelector('#jux-things-sort-btn').textContent).toContain('Name');
+        expect(document.querySelector('#jux-things-kind-btn .filter_list')).not.toBeNull();
+        expect(document.querySelector('.jux-things-items [data-jux-loading]')).not.toBeNull();
+    });
+
+    it('shows the empty state when the endpoint returns no row', async () => {
+        mountPane();
+        window.ApiClient = apiClient(Promise.resolve({ Items: [] }));
+
+        makeTab().render();
+        await Promise.resolve(); await Promise.resolve();
+
+        expect(document.querySelector('.jux-empty-title').textContent).toBe('No things');
+        expect(document.querySelector('.jux-empty-icon .inbox')).not.toBeNull();
+    });
+
+    it('renders the items of each row with cardBuilder, then decorates them', async () => {
+        mountPane();
+        window.ApiClient = apiClient(Promise.resolve({ Items: [{ Item: { Id: 'a' } }] }));
+        const getCardsHtml = vi.fn(() => '<div class="card" data-id="a"></div>');
+        window.JellyfinAPI = { cardBuilder: { getCardsHtml }, getPortraitShape: () => 'portrait' };
+        const decorate = vi.fn();
+
+        makeTab({ itemOf: (row) => row.Item, cardOptions: { showParentTitle: true }, decorate }).render();
+        await Promise.resolve(); await Promise.resolve();
+
+        expect(getCardsHtml.mock.calls[0][0]).toMatchObject({ items: [{ Id: 'a' }], shape: 'portrait', showParentTitle: true });
+        expect(decorate).toHaveBeenCalledWith(document.querySelector('.jux-things-items'), [{ Item: { Id: 'a' } }], labels.en);
     });
 });

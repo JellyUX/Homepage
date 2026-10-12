@@ -5,7 +5,6 @@ const {
     _isSupportedForCollections,
     _isBoxSet,
     _sortFields,
-    _labelFor,
     _storageKeys,
     _buildCollectionsSectionSkeleton,
     _currentDetailItemId,
@@ -42,18 +41,6 @@ describe('_sortFields', () => {
         expect(fields).toHaveLength(5);
         const values = fields.map((f) => f.value);
         expect(values).toEqual(['SortName', 'PremiereDate', 'DateCreated', 'CommunityRating', 'CriticRating']);
-    });
-});
-
-describe('_labelFor', () => {
-    it('returns the label matching the current value', () => {
-        const fields = _sortFields();
-        expect(_labelFor(fields, 'PremiereDate')).toBe('Release Date');
-    });
-
-    it('falls back to the first option when the value is unknown', () => {
-        const fields = _sortFields();
-        expect(_labelFor(fields, 'Unknown')).toBe(fields[0].label);
     });
 });
 

@@ -40,8 +40,178 @@
         hideLoading: hideLoading,
         buildProgressBar: buildProgressBar,
         buildStatCard: buildStatCard,
-        openSortDialog: openSortDialog
+        openSortDialog: openSortDialog,
+        createListTab: createListTab,
+        labelFor: labelFor
     };
+
+    // -------------------------------------------------------------------------
+    // List tab (TODO_V4.md 5.1, F-35)
+    // -------------------------------------------------------------------------
+
+    // One card-grid tab of the home page (Watchlist, Progress, History): delegated click on its tab
+    // button, a title with sort and filter buttons, then the rows of one JellyUX endpoint rendered
+    // by Jellyfin's cardBuilder. config:
+    //   id          'watchlist' -> #jux-tabbtn-watchlist, #jux-tab-watchlist, .jux-watchlist-items
+    //   endpoint    JellyUX route of the rows ({ Items: [...] })
+    //   logName     name used in console errors
+    //   labels      { en: {...}, fr: {...} }, with title, empty, emptySubtitle, sortDialogTitle
+    //   state       initial { sortBy, sortOrder, <filter keys> }
+    //   sortOptions function (t) -> [{ value, label }]
+    //   filters     [{ name, key, icon, titleKey, options: function (t) }] (optional)
+    //   emptyIcon   Material icon of the empty state
+    //   cardOptions extra cardBuilder options (optional)
+    //   itemOf      function (row) -> BaseItemDto (optional, rows are items by default)
+    //   decorate    function (container, rows, t) called after the cards are rendered (optional)
+    function createListTab(config) {
+        var filters = config.filters || [];
+        var itemOf = config.itemOf || function (row) { return row; };
+
+        var tab = {
+            state: config.state,
+
+            init: function () {
+                document.addEventListener('click', function (event) {
+                    if (event.target.closest('#jux-tabbtn-' + config.id)) {
+                        tab.render();
+                    }
+                });
+            },
+
+            render: function () {
+                var pane = document.getElementById('jux-tab-' + config.id);
+                var sections = pane && pane.querySelector('.sections');
+                var userId = window.ApiClient && window.ApiClient.getCurrentUserId();
+                if (!sections || !userId) {
+                    return;
+                }
+
+                var lang = window.JuxCore.resolveLang();
+                sections.innerHTML = tab.buildShellHtml(lang, tab.state);
+                var itemsContainer = sections.querySelector('.jux-' + config.id + '-items');
+                _wireListControls(sections, tab, config, filters, lang);
+                showLoading(itemsContainer);
+
+                var query = { userId: userId, sortBy: tab.state.sortBy, sortOrder: tab.state.sortOrder };
+                filters.forEach(function (filter) { query[filter.key] = tab.state[filter.key]; });
+                query.startIndex = 0;
+                query.limit = 100;
+
+                window.ApiClient.getJSON(window.ApiClient.getUrl(config.endpoint, query)).then(function (result) {
+                    tab.renderRows(itemsContainer, (result && result.Items) || [], lang);
+                }).catch(function (err) {
+                    console.error('[JellyUX] ' + config.logName + ' fetch failed:', err);
+                    tab.renderRows(itemsContainer, [], lang);
+                });
+            },
+
+            buildShellHtml: function (lang, state) {
+                var t = config.labels[lang];
+                var html = '<h2 class="sectionTitle sectionTitle-cards jux-section-title-container">' + window.JuxCore.escHtml(t.title) + '</h2>' +
+                    '<div class="jux-view-controls">' +
+                    _listButtonHtml('jux-' + config.id + '-sort-btn', 'sort', labelFor(config.sortOptions(t), state.sortBy));
+                filters.forEach(function (filter) {
+                    html += _listButtonHtml('jux-' + config.id + '-' + filter.name + '-btn', filter.icon, labelFor(filter.options(t), state[filter.key]));
+                });
+                return html + '</div>' +
+                    '<div class="jux-' + config.id + '-items itemsContainer vertical-wrap padded-left padded-right"></div>';
+            },
+
+            renderRows: function (itemsContainer, rows, lang) {
+                if (!itemsContainer) {
+                    return;
+                }
+
+                var t = config.labels[lang];
+                if (rows.length === 0) {
+                    showEmpty(itemsContainer, { icon: config.emptyIcon, title: t.empty, subtitle: t.emptySubtitle });
+                    return;
+                }
+
+                var api = window.JellyfinAPI;
+                if (!api || !api.cardBuilder) {
+                    itemsContainer.innerHTML = '';
+                    return;
+                }
+
+                var options = {
+                    items: rows.map(itemOf),
+                    shape: api.getPortraitShape(false),
+                    showTitle: true,
+                    overlayText: false,
+                    overlayPlayButton: true,
+                    centerText: true,
+                    showYear: true,
+                    lazy: true,
+                    lines: 2
+                };
+                Object.keys(config.cardOptions || {}).forEach(function (key) { options[key] = config.cardOptions[key]; });
+                itemsContainer.innerHTML = api.cardBuilder.getCardsHtml(options);
+
+                window.JuxCore.observeCardImages(itemsContainer);
+                if (config.decorate) {
+                    config.decorate(itemsContainer, rows, t);
+                }
+            }
+        };
+
+        return tab;
+    }
+
+    function _listButtonHtml(id, icon, label) {
+        return '<button type="button" class="jux-sort-button" id="' + id + '">' +
+            '<span class="material-icons ' + window.JuxCore.iconName(icon, 'sort') + '" aria-hidden="true"></span>' +
+            '<span class="jux-sort-button-label">' + window.JuxCore.escHtml(label) + '</span>' +
+            '<span class="material-icons arrow_drop_down" aria-hidden="true"></span>' +
+            '</button>';
+    }
+
+    function _wireListControls(sections, tab, config, filters, lang) {
+        var t = config.labels[lang];
+        var sortBtn = sections.querySelector('#jux-' + config.id + '-sort-btn');
+        if (sortBtn) {
+            sortBtn.addEventListener('click', function () {
+                openSortDialog({
+                    title: t.sortDialogTitle,
+                    sortOptions: config.sortOptions(t),
+                    currentSortBy: tab.state.sortBy,
+                    currentSortOrder: tab.state.sortOrder,
+                    onChange: function (sortBy, sortOrder) {
+                        tab.state.sortBy = sortBy;
+                        tab.state.sortOrder = sortOrder;
+                        tab.render();
+                    }
+                });
+            });
+        }
+
+        filters.forEach(function (filter) {
+            var button = sections.querySelector('#jux-' + config.id + '-' + filter.name + '-btn');
+            if (!button) {
+                return;
+            }
+            button.addEventListener('click', function () {
+                openSortDialog({
+                    title: t[filter.titleKey],
+                    sortOptions: filter.options(t),
+                    currentSortBy: tab.state[filter.key],
+                    orderOptions: [],
+                    onChange: function (value) {
+                        tab.state[filter.key] = value;
+                        tab.render();
+                    }
+                });
+            });
+        });
+    }
+
+    // The label of the current value, or of the first option when the value is unknown.
+    function labelFor(options, value) {
+        for (var i = 0; i < options.length; i++) {
+            if (options[i].value === value) { return options[i].label; }
+        }
+        return options[0] && options[0].label;
+    }
 
     // -------------------------------------------------------------------------
     // Empty state
@@ -126,7 +296,7 @@
     }
 
     function _completeLabel() {
-        return _resolveLang() === 'fr' ? 'Terminé' : 'Complete';
+        return window.JuxCore.resolveLang() === 'fr' ? 'Terminé' : 'Complete';
     }
 
     // -------------------------------------------------------------------------
@@ -228,7 +398,7 @@
     }
 
     function _defaultOrderOptions() {
-        var lang = _resolveLang();
+        var lang = window.JuxCore.resolveLang();
         return lang === 'fr'
             ? [{ value: 'Descending', label: 'Décroissant' }, { value: 'Ascending', label: 'Croissant' }]
             : [{ value: 'Descending', label: 'Descending' }, { value: 'Ascending', label: 'Ascending' }];
@@ -265,11 +435,6 @@
     // Utilities
     // -------------------------------------------------------------------------
 
-    function _resolveLang() {
-        return (document.documentElement.lang || 'en').toLowerCase().indexOf('fr') === 0 ? 'fr' : 'en';
-    }
-
-
     // Guarded UMD-lite export (same convention as the other Web/ scripts), so Vitest can exercise the
     // pure functions directly without a real browser/DOM.
     if (typeof module !== 'undefined' && module.exports) {
@@ -277,6 +442,8 @@
             showEmpty: showEmpty,
             buildProgressBar: buildProgressBar,
             buildStatCard: buildStatCard,
+            createListTab: createListTab,
+            labelFor: labelFor,
             _buildRadio: _buildRadio,
             _buildRadioGroup: _buildRadioGroup
         };

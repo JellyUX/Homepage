@@ -1,3 +1,5 @@
-// Every client script reads window.JuxCore at call time; in the browser jux-core.js is injected
-// first (TransformationPatches.ClientAssets), here it is loaded before each test file.
+// Every client script reads window.JuxCore and the tab scripts window.JuxUI; in the browser both
+// are injected before them (TransformationPatches.ClientAssets), here they are loaded before each
+// test file.
 import '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-core.js';
+import '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-ui.js';

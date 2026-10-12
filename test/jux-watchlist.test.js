@@ -1,19 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import juxWatchlist from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-watchlist.js';
 
-const { _sortOptions, _typeOptions, _labelFor, _buildShellHtml } = juxWatchlist;
-
-describe('_labelFor', () => {
-    const options = [{ value: 'A', label: 'Alpha' }, { value: 'B', label: 'Beta' }];
-
-    it('returns the label matching the current value', () => {
-        expect(_labelFor(options, 'B')).toBe('Beta');
-    });
-
-    it('falls back to the first option when the value is unknown', () => {
-        expect(_labelFor(options, 'Z')).toBe('Alpha');
-    });
-});
+const { _sortOptions, _typeOptions, _buildShellHtml } = juxWatchlist;
 
 describe('_sortOptions / _typeOptions', () => {
     it('returns 4 sort options and 3 type options in English', () => {

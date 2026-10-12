@@ -25,33 +25,6 @@
   },
   {
     "files": [
-      "Jellyfin.Plugin.JuxHomepage/Web/jux-card-hooks.js",
-      "Jellyfin.Plugin.JuxHomepage/Web/jux-history.js",
-      "Jellyfin.Plugin.JuxHomepage/Web/jux-progress.js",
-      "Jellyfin.Plugin.JuxHomepage/Web/jux-watchlist.js"
-    ],
-    "copies": 7
-  },
-  {
-    "files": [
-      "Jellyfin.Plugin.JuxHomepage/Web/jux-collections.js",
-      "Jellyfin.Plugin.JuxHomepage/Web/jux-history.js",
-      "Jellyfin.Plugin.JuxHomepage/Web/jux-progress.js",
-      "Jellyfin.Plugin.JuxHomepage/Web/jux-watchlist.js"
-    ],
-    "copies": 6
-  },
-  {
-    "files": [
-      "Jellyfin.Plugin.JuxHomepage/Web/jux-history.js",
-      "Jellyfin.Plugin.JuxHomepage/Web/jux-progress.js",
-      "Jellyfin.Plugin.JuxHomepage/Web/jux-statistics.js",
-      "Jellyfin.Plugin.JuxHomepage/Web/jux-watchlist.js"
-    ],
-    "copies": 4
-  },
-  {
-    "files": [
       "Jellyfin.Plugin.JuxHomepage/Widgets/Admin/AdminWidgetBase.cs",
       "Jellyfin.Plugin.JuxHomepage/Widgets/Connected/ConnectedWidgetBase.cs",
       "Jellyfin.Plugin.JuxHomepage/Widgets/Native/NativeWidgetBase.cs"

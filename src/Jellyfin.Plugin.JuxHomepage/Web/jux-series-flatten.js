@@ -73,10 +73,6 @@
         return _cache[key];
     }
 
-    function _resolveLang() {
-        return (document.documentElement.lang || 'en').toLowerCase().indexOf('fr') === 0 ? 'fr' : 'en';
-    }
-
     var _labels = {
         en: { seasonFallback: 'Season {number}' },
         fr: { seasonFallback: 'Saison {number}' }
@@ -92,7 +88,7 @@
     }
 
     function _seasonTitle(episode) {
-        var lang = _resolveLang();
+        var lang = window.JuxCore.resolveLang();
         if (episode && episode.SeasonName) {
             return episode.SeasonName;
         }
@@ -221,8 +217,6 @@
             '</div>';
         return wrapper.firstElementChild;
     }
-
-
 
     window.juxSeriesFlatten.init();
 

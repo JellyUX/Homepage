@@ -109,10 +109,6 @@
         });
     }
 
-    function _resolveLang() {
-        return (document.documentElement.lang || 'en').toLowerCase().indexOf('fr') === 0 ? 'fr' : 'en';
-    }
-
     function _currentDetailItemId() {
         var match = /[#&?]id=([a-f0-9-]+)/i.exec(location.hash);
         return match ? match[1] : null;
@@ -127,7 +123,7 @@
     }
 
     function _sortFields() {
-        var t = _labels[_resolveLang()];
+        var t = _labels[window.JuxCore.resolveLang()];
         return [
             { value: 'SortName', label: t.sortTitle },
             { value: 'PremiereDate', label: t.releaseDate },
@@ -135,13 +131,6 @@
             { value: 'CommunityRating', label: t.communityRating },
             { value: 'CriticRating', label: t.criticRating }
         ];
-    }
-
-    function _labelFor(options, value) {
-        for (var i = 0; i < options.length; i++) {
-            if (options[i].value === value) { return options[i].label; }
-        }
-        return options[0] && options[0].label;
     }
 
     function _storageKeys(collectionId) {
@@ -215,7 +204,7 @@
 
                 activePage.dataset.juxCollectionsChecked = itemId;
 
-                var section = _buildCollectionsSectionSkeleton(_labels[_resolveLang()].includedIn);
+                var section = _buildCollectionsSectionSkeleton(_labels[window.JuxCore.resolveLang()].includedIn);
                 var itemsContainer = section.querySelector('.itemsContainer');
                 itemsContainer.innerHTML = api.cardBuilder.getCardsHtml({
                     items: boxSets,
@@ -339,7 +328,7 @@
             button.className = 'jux-sort-button jux-collection-sort-btn';
             button.innerHTML =
                 '<span class="material-icons sort" aria-hidden="true"></span>' +
-                '<span class="jux-sort-button-label">' + window.JuxCore.escHtml(_labelFor(_sortFields(), state.sortBy)) + '</span>' +
+                '<span class="jux-sort-button-label">' + window.JuxCore.escHtml(window.JuxUI.labelFor(_sortFields(), state.sortBy)) + '</span>' +
                 '<span class="material-icons arrow_drop_down" aria-hidden="true"></span>';
 
             button.addEventListener('click', function () {
@@ -348,7 +337,7 @@
                 }
 
                 window.JuxUI.openSortDialog({
-                    title: _labels[_resolveLang()].sortDialogTitle,
+                    title: _labels[window.JuxCore.resolveLang()].sortDialogTitle,
                     sortOptions: _sortFields(),
                     currentSortBy: state.sortBy,
                     currentSortOrder: state.sortOrder,
@@ -357,7 +346,7 @@
                         state.sortOrder = sortOrder;
                         localStorage.setItem(keys.sort, sortBy);
                         localStorage.setItem(keys.order, sortOrder);
-                        button.querySelector('.jux-sort-button-label').textContent = _labelFor(_sortFields(), sortBy);
+                        button.querySelector('.jux-sort-button-label').textContent = window.JuxUI.labelFor(_sortFields(), sortBy);
                         var liveItemsContainer = activePage.querySelector('.itemsContainer.collectionItemsContainer') || itemsContainer;
                         _resortCollection(itemId, liveItemsContainer, state);
                     }
@@ -421,8 +410,6 @@
         });
     }
 
-
-
     window.juxCollections.init();
 
     // Guarded UMD-lite export (same convention as jux-watchlist.js), so Vitest can exercise the pure
@@ -432,7 +419,6 @@
             _isSupportedForCollections: _isSupportedForCollections,
             _isBoxSet: _isBoxSet,
             _sortFields: _sortFields,
-            _labelFor: _labelFor,
             _storageKeys: _storageKeys,
             _buildCollectionsSectionSkeleton: _buildCollectionsSectionSkeleton,
             _currentDetailItemId: _currentDetailItemId,

@@ -66,10 +66,6 @@
         _tryRenderBreadcrumb();
     }
 
-    function _resolveLang() {
-        return (document.documentElement.lang || 'en').toLowerCase().indexOf('fr') === 0 ? 'fr' : 'en';
-    }
-
     function _currentDetailItemId() {
         var match = /[#&?]id=([a-f0-9-]+)/i.exec(location.hash);
         return match ? match[1] : null;
@@ -89,7 +85,7 @@
     }
 
     function _seasonFallbackName(item) {
-        var lang = _resolveLang();
+        var lang = window.JuxCore.resolveLang();
         var number = item && item.IndexNumber != null ? item.IndexNumber : 1;
         return _labels[lang].seasonFallback.replace('{number}', String(number));
     }
@@ -348,7 +344,6 @@
             }
         });
     }
-
 
     window.juxBreadcrumb.init();
 

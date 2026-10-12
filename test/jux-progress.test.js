@@ -1,19 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import juxProgress from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-progress.js';
 
-const { _sortOptions, _labelFor, _buildShellHtml, _formatEpisodeCode, _formatTemplate } = juxProgress;
-
-describe('_labelFor', () => {
-    it('returns the label matching the current value', () => {
-        const options = [{ value: 'LastPlayed', label: 'Last Watched' }, { value: 'Name', label: 'Name' }];
-        expect(_labelFor(options, 'Name')).toBe('Name');
-    });
-
-    it('falls back to the first option when the value is unknown', () => {
-        const options = [{ value: 'LastPlayed', label: 'Last Watched' }, { value: 'Name', label: 'Name' }];
-        expect(_labelFor(options, 'Unknown')).toBe('Last Watched');
-    });
-});
+const { _sortOptions, _buildShellHtml, _formatEpisodeCode, _formatTemplate } = juxProgress;
 
 describe('_sortOptions', () => {
     it('returns 2 sort options', () => {
