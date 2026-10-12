@@ -199,7 +199,9 @@
             return Promise.resolve(null);
         }
 
-        return apiClient.getItem(apiClient.getCurrentUserId(), itemId).then(function (item) {
+        // The detail-item cache of jux-core.js, shared with collections, the breadcrumb and
+        // flattened seasons (TODO_V4.md 5.1).
+        return window.JuxCore.getItem(apiClient.getCurrentUserId(), itemId).then(function (item) {
             _itemTypes[itemId] = (item && item.Type) || null;
             return _itemTypes[itemId];
         }, function () {
