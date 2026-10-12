@@ -321,3 +321,44 @@ describe('_armChunkGuard', () => {
         expect(win.location.reload).toHaveBeenCalledTimes(1);
     });
 });
+
+describe('_makeFetchData', () => {
+    const { _makeFetchData } = juxHomepage;
+    const apiClient = {
+        getUrl: (path, params) => ({ path, params }),
+        getJSON: (request) => Promise.resolve(request)
+    };
+    const common = {
+        userId: 'u1',
+        startIndex: 0,
+        limit: 20,
+        fields: 'PrimaryImageAspectRatio,DateCreated',
+        imageTypeLimit: 1,
+        enableImageTypes: 'Primary,Thumb,Backdrop',
+        enableTotalRecordCount: false
+    };
+    const latest = (type) => ({ ...common, includeItemTypes: type, sortBy: 'DateCreated', sortOrder: 'Descending', recursive: true, isMissing: false });
+
+    // Native routes carry the filters other plugins hook on them (Jellyfin Enhanced hidden content
+    // and Spoiler Guard), which /JuxHomepage/Section never sees (TODO_V4.md 4.3, F-15).
+    it.each([
+        ['jux.native.continue-watching', 'UserItems/Resume', { ...common, mediaTypes: 'Video' }],
+        ['jux.native.next-up', 'Shows/NextUp', common],
+        ['jux.native.recently-added-movies', 'Items', latest('Movie')],
+        ['jux.native.recently-added-shows', 'Items', latest('Series')],
+        ['jux.native.recently-added-episodes', 'Items', latest('Episode')]
+    ])('reads %s from the native route %s', async (widgetType, path, params) => {
+        const request = await _makeFetchData(apiClient, 'u1', { WidgetType: widgetType })();
+
+        expect(request).toEqual({ path, params });
+    });
+
+    it('reads the other widgets from the JellyUX section endpoint', async () => {
+        const request = await _makeFetchData(apiClient, 'u1', { WidgetType: 'jux.admin.genre', AdditionalData: 'Drama' })();
+
+        expect(request).toEqual({
+            path: 'JuxHomepage/Section/jux.admin.genre',
+            params: { userId: 'u1', additionalData: 'Drama', startIndex: 0, limit: 20 }
+        });
+    });
+});

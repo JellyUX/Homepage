@@ -243,7 +243,48 @@
         return api.getBackdropShape;
     }
 
+    // The native sections read the same Jellyfin routes as the native home page, with the query
+    // their server widget mirrors (identical items and order, measured on 8096): other plugins hook
+    // their filters on these routes and never see /JuxHomepage/Section, so Jellyfin Enhanced hidden
+    // content, Remove from Continue Watching and Spoiler Guard apply here too (TODO_V4.md 4.3, F-15).
+    var NATIVE_ROUTES = {
+        'jux.native.continue-watching': { path: 'UserItems/Resume', params: { mediaTypes: 'Video' } },
+        'jux.native.next-up': { path: 'Shows/NextUp', params: {} },
+        'jux.native.recently-added-movies': { path: 'Items', params: _latestParams('Movie') },
+        'jux.native.recently-added-shows': { path: 'Items', params: _latestParams('Series') },
+        'jux.native.recently-added-episodes': { path: 'Items', params: _latestParams('Episode') }
+    };
+
+    function _latestParams(itemType) {
+        return {
+            includeItemTypes: itemType,
+            sortBy: 'DateCreated',
+            sortOrder: 'Descending',
+            recursive: true,
+            isMissing: false
+        };
+    }
+
     function _makeFetchData(apiClient, userId, descriptor) {
+        var nativeRoute = NATIVE_ROUTES[descriptor.WidgetType];
+        if (nativeRoute) {
+            return function () {
+                var params = {
+                    userId: userId,
+                    startIndex: 0,
+                    limit: 20,
+                    fields: 'PrimaryImageAspectRatio,DateCreated',
+                    imageTypeLimit: 1,
+                    enableImageTypes: 'Primary,Thumb,Backdrop',
+                    enableTotalRecordCount: false
+                };
+                Object.keys(nativeRoute.params).forEach(function (key) {
+                    params[key] = nativeRoute.params[key];
+                });
+                return apiClient.getJSON(apiClient.getUrl(nativeRoute.path, params));
+            };
+        }
+
         return function () {
             return apiClient.getJSON(
                 apiClient.getUrl('JuxHomepage/Section/' + descriptor.WidgetType, {
@@ -499,6 +540,7 @@
             _hasMorePages: _hasMorePages,
             _setupLazyLoader: _setupLazyLoader,
             _buildSection: _buildSection,
+            _makeFetchData: _makeFetchData,
             _chunkState: _chunkState,
             _repairStaleChunks: _repairStaleChunks,
             _armChunkGuard: _armChunkGuard
