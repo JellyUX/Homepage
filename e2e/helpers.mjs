@@ -28,11 +28,19 @@ export async function login(page, user) {
     await page.goto(`${env.serverUrl}/web/`);
     // The web client can keep a hidden copy of the login view: act on the visible one only. The form
     // opens directly when no user is listed publicly; otherwise it sits behind a button.
+    // The view can switch while it settles (seen on CI after a restart), so poll instead of trusting the
+    // first element found, and give the button click a short timeout of its own.
     const name = page.locator('#txtManualName:visible');
     const manual = page.locator('.btnManual:visible');
-    await name.or(manual).first().waitFor();
-    if (!(await name.isVisible())) {
-        await manual.click();
+    const deadline = Date.now() + 30000;
+    while (!(await name.isVisible())) {
+        if (Date.now() > deadline) {
+            throw new Error('The manual login form never became visible.');
+        }
+        if (await manual.isVisible()) {
+            await manual.click({ timeout: 2000 }).catch(() => {});
+        }
+        await page.waitForTimeout(500);
     }
     await name.fill(user.name);
     await page.locator('#txtManualPassword:visible').fill(user.password);
