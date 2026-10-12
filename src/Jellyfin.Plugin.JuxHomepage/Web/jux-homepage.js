@@ -145,7 +145,7 @@
                 Array.prototype.forEach.call(containers, function (c) {
                     c.setAttribute('data-jux-loaded', '1');
                     if (typeof c.resume === 'function') {
-                        c.resume({ refresh: true });
+                        _resumeContainer(c);
                     }
                 });
             });
@@ -220,9 +220,10 @@
             ? userSettings.useEpisodeImagesInNextUpAndResume()
             : false;
 
-        itemsContainer.fetchData = _makeFetchData(apiClient, userId, descriptor);
-        itemsContainer.getItemsHtml = _makeGetItemsHtml(descriptor, shapeFn, useEpisodeImages);
+        itemsContainer.fetchData = _guardFetchData(_makeFetchData(apiClient, userId, descriptor), descriptor);
+        itemsContainer.getItemsHtml = _guardGetItemsHtml(_makeGetItemsHtml(descriptor, shapeFn, useEpisodeImages));
         itemsContainer.parentContainer = sectionEl;
+        itemsContainer.addEventListener('click', _onSectionRetry);
 
         scroller.appendChild(itemsContainer);
         sectionEl.appendChild(scroller);
@@ -295,6 +296,45 @@
                 })
             );
         };
+    }
+
+    // A failed section request (TODO_V4.md 5.2, F-40). The native itemscontainer hides its section
+    // when it receives no item and never catches a rejected fetchData (one unhandledrejection per
+    // section): the failure resolves to a single marker row instead, so the section stays visible
+    // and renders the error, with a retry button, in place of its cards.
+    var SECTION_ERROR = { juxSectionError: true };
+
+    function _guardFetchData(fetchData, descriptor) {
+        return function () {
+            return fetchData().catch(function (err) {
+                console.error('[JellyUX] Section fetch failed (' + descriptor.WidgetType + '):', err);
+                return { Items: [SECTION_ERROR] };
+            });
+        };
+    }
+
+    function _guardGetItemsHtml(getItemsHtml) {
+        return function (items) {
+            if (items.length === 1 && items[0] === SECTION_ERROR) {
+                return window.JuxCore.errorHtml({ compact: true });
+            }
+            return getItemsHtml(items);
+        };
+    }
+
+    function _onSectionRetry(event) {
+        var button = event.target.closest('.jux-error-retry');
+        if (!button) {
+            return;
+        }
+        button.disabled = true;
+        _resumeContainer(this);
+    }
+
+    function _resumeContainer(container) {
+        Promise.resolve(container.resume({ refresh: true })).catch(function (err) {
+            console.error('[JellyUX] Section render failed:', err);
+        });
     }
 
     function _makeGetItemsHtml(descriptor, shapeFn, useEpisodeImages) {
@@ -531,6 +571,8 @@
             _setupLazyLoader: _setupLazyLoader,
             _buildSection: _buildSection,
             _makeFetchData: _makeFetchData,
+            _guardFetchData: _guardFetchData,
+            _guardGetItemsHtml: _guardGetItemsHtml,
             _chunkState: _chunkState,
             _repairStaleChunks: _repairStaleChunks,
             _armChunkGuard: _armChunkGuard

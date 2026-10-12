@@ -89,3 +89,66 @@
     line-height: 1;
     cursor: pointer;
 }
+
+/* -------------------------------------------------------------------------
+ * Error state (TODO_V4.md 5.2, F-40): a failed tab pane or home section.
+ * Same layout as the empty state of jux-ui.css, so an outage reads as an
+ * outage, not as "nothing here"; the retry button is Jellyfin's raised button.
+ * ------------------------------------------------------------------------- */
+
+.jux-error-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 60vh;
+    padding: 4em 2em;
+    gap: 0.5em;
+}
+
+.jux-error-icon {
+    font-size: 4em;
+    opacity: 0.4;
+}
+
+.jux-error-title {
+    font-size: 1.2em;
+    font-weight: 600;
+}
+
+.jux-error-subtitle {
+    opacity: 0.7;
+    max-width: 32em;
+}
+
+.jux-error-retry {
+    margin-top: 0.75em;
+}
+
+/* Inside a home section: one line under the section title, in place of the cards. */
+.jux-error-state-compact {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    text-align: start;
+    min-height: 0;
+    padding: 0.5em 0;
+    gap: 0.75em;
+}
+
+.jux-error-state-compact .jux-error-icon {
+    font-size: 1.6em;
+}
+
+.jux-error-state-compact .jux-error-title {
+    font-size: 1em;
+    font-weight: 400;
+    opacity: 0.8;
+}
+
+.jux-error-state-compact .jux-error-retry {
+    margin: 0;
+}

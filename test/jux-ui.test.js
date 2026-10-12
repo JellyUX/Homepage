@@ -217,3 +217,35 @@ describe('createListTab (F-35)', () => {
         expect(decorate).toHaveBeenCalledWith(document.querySelector('.jux-things-items'), [{ Item: { Id: 'a' } }], labels.en);
     });
 });
+
+describe('createListTab failure (F-40)', () => {
+    afterEach(() => {
+        delete window.ApiClient;
+    });
+
+    it('shows the error state with a retry that renders again, never the empty state', async () => {
+        document.documentElement.lang = 'en';
+        document.body.innerHTML = '<div id="jux-tab-things"><div class="sections"></div></div>';
+        const getJSON = vi.fn()
+            .mockReturnValueOnce(Promise.reject(new Error('offline')))
+            .mockReturnValueOnce(new Promise(() => {}));
+        window.ApiClient = { getCurrentUserId: () => 'u1', getUrl: (route) => route, getJSON };
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const tab = createListTab({
+            id: 'things', endpoint: 'JuxHomepage/Things/Items', logName: 'Things',
+            labels: { en: { title: 'Things', empty: 'No things', sortName: 'Name' } },
+            state: { sortBy: 'Name', sortOrder: 'Ascending' },
+            sortOptions: (t) => [{ value: 'Name', label: t.sortName }],
+            emptyIcon: 'inbox'
+        });
+
+        tab.render();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        expect(document.querySelector('.jux-empty-state')).toBeNull();
+        expect(document.querySelector('.jux-error-title').textContent).toBe('Couldn’t load Things');
+        document.querySelector('.jux-error-retry').click();
+        expect(getJSON).toHaveBeenCalledTimes(2);
+        errorSpy.mockRestore();
+    });
+});

@@ -43,6 +43,7 @@
         },
 
         render: function () {
+            var self = this;
             var pane = document.getElementById('jux-tab-statistics');
             if (!pane) {
                 return;
@@ -69,9 +70,10 @@
                 body.innerHTML = _buildTilesHtml(stats, lang);
             }).catch(function (err) {
                 console.error('[JellyUX] Statistics fetch failed:', err);
-                body.innerHTML = _buildTilesHtml(
-                    { MoviesWatched: 0, SeriesTracked: 0, SeriesCompleted: 0, EpisodesWatched: 0 },
-                    lang);
+                window.JuxCore.showError(body, {
+                    name: _labels[lang].title,
+                    onRetry: function () { self.render(); }
+                });
             });
         }
     };

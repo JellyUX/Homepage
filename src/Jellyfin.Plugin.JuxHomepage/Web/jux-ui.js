@@ -101,7 +101,7 @@
                     tab.renderRows(itemsContainer, (result && result.Items) || [], lang);
                 }).catch(function (err) {
                     console.error('[JellyUX] ' + config.logName + ' fetch failed:', err);
-                    tab.renderRows(itemsContainer, [], lang);
+                    window.JuxCore.showError(itemsContainer, { name: config.labels[lang].title, onRetry: tab.render });
                 });
             },
 

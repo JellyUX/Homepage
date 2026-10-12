@@ -1,8 +1,9 @@
 'use strict';
 
 // JellyUX shared core (TODO_V4.md 5.1, F-35): the helpers every client module needs, loaded first
-// whenever the plugin is enabled, so a defect fixed here is fixed in every module. It holds no UI:
-// the tab widgets live in jux-ui.js, which builds on this file.
+// whenever the plugin is enabled, so a defect fixed here is fixed in every module. Its only UI is
+// the error state the home sections share with the tabs; the tab widgets live in jux-ui.js, which
+// builds on this file.
 (function () {
     if (typeof window.JuxCore !== 'undefined') {
         return;
@@ -117,6 +118,57 @@
         return (document.documentElement.lang || 'en').toLowerCase().indexOf('fr') === 0 ? 'fr' : 'en';
     }
 
+    // Error state (TODO_V4.md 5.2, F-40): what a failed request shows instead of an empty state, so
+    // an outage never reads as "nothing here". Here rather than in jux-ui.js because the home
+    // sections need it with the tabs module off. The retry button reuses Jellyfin's own raised
+    // button (emby-button), measured live on 10.11.10.
+    var _errorLabels = {
+        en: {
+            title: 'Couldn’t load {name}',
+            section: 'This section couldn’t be loaded.',
+            subtitle: 'The server did not respond. Check your connection, then try again.',
+            retry: 'Retry'
+        },
+        fr: {
+            title: 'Impossible de charger {name}',
+            section: 'Impossible de charger cette section.',
+            subtitle: 'Le serveur n’a pas répondu. Vérifie ta connexion, puis réessaie.',
+            retry: 'Réessayer'
+        }
+    };
+
+    // options: { name } for a full-pane error naming what failed, or { compact: true } for one line
+    // inside a home section.
+    function errorHtml(options) {
+        var t = _errorLabels[resolveLang()];
+        var compact = !!(options && options.compact);
+        var title = compact ? t.section : t.title.replace('{name}', (options && options.name) || '');
+        return '<div class="jux-error-state' + (compact ? ' jux-error-state-compact' : '') + '" role="alert">' +
+            '<span class="material-icons error jux-error-icon" aria-hidden="true"></span>' +
+            '<div class="jux-error-text">' +
+            '<div class="jux-error-title">' + escHtml(title) + '</div>' +
+            (compact ? '' : '<div class="jux-error-subtitle">' + escHtml(t.subtitle) + '</div>') +
+            '</div>' +
+            '<button is="emby-button" type="button" class="raised emby-button jux-error-retry"><span>' + escHtml(t.retry) + '</span></button>' +
+            '</div>';
+    }
+
+    // Renders the full-pane error into a container; the retry button calls onRetry once.
+    function showError(container, options) {
+        if (!container) {
+            return;
+        }
+
+        container.innerHTML = errorHtml(options);
+        var button = container.querySelector('.jux-error-retry');
+        button.addEventListener('click', function () {
+            button.disabled = true;
+            if (options && typeof options.onRetry === 'function') {
+                options.onRetry();
+            }
+        });
+    }
+
     window.JuxCore = {
         escHtml: escHtml,
         cssUrl: cssUrl,
@@ -125,7 +177,9 @@
         getItem: getItem,
         getIncludedIn: getIncludedIn,
         observeCardImages: observeCardImages,
-        resolveLang: resolveLang
+        resolveLang: resolveLang,
+        errorHtml: errorHtml,
+        showError: showError
     };
 
     if (typeof module !== 'undefined' && module.exports) {

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import juxHomepage from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-homepage.js';
 
-const { _buildSeeAllHref, _fallback, _isHomePage, _hasMorePages, _setupLazyLoader, _chunkState, _repairStaleChunks, _armChunkGuard } = juxHomepage;
+const { _buildSeeAllHref, _fallback, _isHomePage, _hasMorePages, _setupLazyLoader, _chunkState, _repairStaleChunks, _armChunkGuard, _guardFetchData, _guardGetItemsHtml } = juxHomepage;
 
 describe('_buildSeeAllHref', () => {
     it('resolves a known route to its Jellyfin hash URL', () => {
@@ -348,5 +348,25 @@ describe('_makeFetchData', () => {
             path: 'JuxHomepage/Section/jux.admin.genre',
             params: { userId: 'u1', additionalData: 'Drama', startIndex: 0, limit: 20 }
         });
+    });
+});
+
+describe('failed home section (F-40)', () => {
+    it('resolves a failed fetch to one marker row, so the native container keeps the section visible', async () => {
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const fetchData = _guardFetchData(() => Promise.reject(new Error('offline')), { WidgetType: 'jux.genre' });
+
+        const result = await fetchData();
+
+        expect(result.Items).toHaveLength(1);
+        expect(_guardGetItemsHtml(() => 'cards')(result.Items)).toContain('jux-error-state-compact');
+        errorSpy.mockRestore();
+    });
+
+    it('passes successful rows through to the card renderer', async () => {
+        const fetchData = _guardFetchData(() => Promise.resolve({ Items: [{ Id: 'a' }] }), { WidgetType: 'jux.genre' });
+        const getItemsHtml = _guardGetItemsHtml((items) => 'cards:' + items.length);
+
+        expect(getItemsHtml((await fetchData()).Items)).toBe('cards:1');
     });
 });

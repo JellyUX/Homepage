@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import juxCore from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-core.js';
 
-const { escHtml, cssUrl, iconName, cached, getItem, getIncludedIn, observeCardImages } = juxCore;
+const { escHtml, cssUrl, iconName, cached, getItem, getIncludedIn, observeCardImages, errorHtml, showError } = juxCore;
 
 describe('escHtml (F-35)', () => {
     it('escapes ampersands, angle brackets, double quotes and apostrophes', () => {
@@ -142,5 +142,42 @@ describe('observeCardImages (F-10, F-35)', () => {
         observeCardImages(container);
 
         expect(container.querySelectorAll('.cardImageContainer.lazy').length).toBe(0);
+    });
+});
+
+describe('error state (F-40)', () => {
+    it('names what failed, says what to do and offers a native raised retry button', () => {
+        document.documentElement.lang = 'en';
+        const div = document.createElement('div');
+        div.innerHTML = errorHtml({ name: '<Watchlist>' });
+
+        expect(div.querySelector('[role="alert"]')).not.toBeNull();
+        expect(div.querySelector('.jux-error-title').textContent).toBe('Couldn’t load <Watchlist>');
+        expect(div.querySelector('.jux-error-subtitle').textContent).toContain('try again');
+        expect(div.querySelector('button.raised.emby-button.jux-error-retry').textContent).toBe('Retry');
+    });
+
+    it('renders one line without subtitle inside a home section, in French', () => {
+        document.documentElement.lang = 'fr-FR';
+        const div = document.createElement('div');
+        div.innerHTML = errorHtml({ compact: true });
+
+        expect(div.querySelector('.jux-error-state-compact .jux-error-title').textContent).toBe('Impossible de charger cette section.');
+        expect(div.querySelector('.jux-error-subtitle')).toBeNull();
+        expect(div.querySelector('.jux-error-retry').textContent).toBe('Réessayer');
+        document.documentElement.lang = 'en';
+    });
+
+    it('calls onRetry once and disables the button', () => {
+        const container = document.createElement('div');
+        const onRetry = vi.fn();
+        showError(container, { name: 'History', onRetry });
+
+        const button = container.querySelector('.jux-error-retry');
+        button.click();
+        button.click();
+
+        expect(onRetry).toHaveBeenCalledTimes(1);
+        expect(button.disabled).toBe(true);
     });
 });
