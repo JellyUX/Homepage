@@ -12,7 +12,7 @@ public interface ISeriesProgressCacheService
 {
     /// <summary>Reads the cached series progress entries for a user.</summary>
     /// <param name="userId">The user to read progress for.</param>
-    /// <returns>The cached entries, or an empty list if no refresh has completed yet for this user.</returns>
+    /// <returns>The cached entries, computed first when the user has none yet (TODO_V4.md 8.2).</returns>
     IReadOnlyList<SeriesProgressEntry> GetProgress(Guid userId);
 
     /// <summary>
@@ -22,6 +22,15 @@ public interface ISeriesProgressCacheService
     /// <param name="userId">The user to check.</param>
     /// <returns>True if the cache is absent or stale; otherwise false.</returns>
     bool IsStale(Guid userId);
+
+    /// <summary>
+    /// Recomputes the entries of <paramref name="seriesIds"/> for a user after a watch (TODO_V4.md
+    /// 8.2, F-54), leaving the user's other series as cached; computes the full list when the user
+    /// has none yet. A series with no played episode left is removed.
+    /// </summary>
+    /// <param name="userId">The user.</param>
+    /// <param name="seriesIds">The series whose played state changed.</param>
+    void UpdateSeries(Guid userId, IReadOnlyCollection<Guid> seriesIds);
 
     /// <summary>
     /// Refreshes every user's series progress cache in sequence. Each user's computation is

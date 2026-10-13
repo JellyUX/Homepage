@@ -23,6 +23,7 @@ public sealed class MovieHistoryCacheService : IMovieHistoryCacheService, IDispo
     private static readonly TimeSpan Ttl = TimeSpan.FromHours(24);
 
     private readonly DiskJsonCache<MovieHistoryEntry> _cache;
+    private readonly PerUserComputedCache<MovieHistoryEntry> _perUser;
     private readonly IUserManager _userManager;
     private readonly ILibraryManager _libraryManager;
     private readonly IUserDataManager _userDataManager;
@@ -60,13 +61,39 @@ public sealed class MovieHistoryCacheService : IMovieHistoryCacheService, IDispo
             "movie-history");
 
         _cache = new DiskJsonCache<MovieHistoryEntry>(cacheDir, fileSystem, logger);
+        _perUser = new PerUserComputedCache<MovieHistoryEntry>(_cache, Ttl, ComputeHistory, logger);
     }
 
     /// <inheritdoc/>
-    public IReadOnlyList<MovieHistoryEntry> GetHistory(Guid userId) => _cache.Read(GetFileName(userId));
+    public IReadOnlyList<MovieHistoryEntry> GetHistory(Guid userId) => _perUser.Get(userId);
 
     /// <inheritdoc/>
-    public bool IsStale(Guid userId) => _cache.IsStale(GetFileName(userId), Ttl);
+    public bool IsStale(Guid userId) => _perUser.IsStale(userId);
+
+    /// <inheritdoc/>
+    public void UpdateMovies(Guid userId, IReadOnlyCollection<Guid> movieIds)
+    {
+        var user = _userManager.GetUserById(userId);
+        if (user is null || movieIds.Count == 0)
+        {
+            return;
+        }
+
+        _perUser.Update(userId, entries =>
+        {
+            var played = movieIds
+                .Select(id => _libraryManager.GetItemById(id))
+                .OfType<BaseItem>()
+                .Select(item => (Item: item, Data: _userDataManager.GetUserData(user, item)))
+                .Where(x => x.Data?.Played == true)
+                .Select(x => new MovieHistoryEntry { ItemId = x.Item.Id, Name = x.Item.Name, LastPlayedDate = x.Data!.LastPlayedDate });
+            return entries
+                .Where(e => !movieIds.Contains(e.ItemId))
+                .Concat(played)
+                .OrderByDescending(e => e.LastPlayedDate ?? DateTime.MinValue)
+                .ToList();
+        });
+    }
 
     /// <inheritdoc/>
     public bool TryAcquireRefreshLock() => _refreshGate.Wait(0);
@@ -85,8 +112,7 @@ public sealed class MovieHistoryCacheService : IMovieHistoryCacheService, IDispo
 
                 try
                 {
-                    var entries = ComputeHistory(user.Id);
-                    _cache.Write(GetFileName(user.Id), entries);
+                    _perUser.Refresh(user.Id);
                     refreshed++;
                 }
                 catch (Exception ex)
@@ -161,6 +187,4 @@ public sealed class MovieHistoryCacheService : IMovieHistoryCacheService, IDispo
             })
             .ToList();
     }
-
-    private static string GetFileName(Guid userId) => $"{userId}.json";
 }

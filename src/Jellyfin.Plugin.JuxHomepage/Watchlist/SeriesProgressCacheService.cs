@@ -1,4 +1,5 @@
 using Jellyfin.Data.Enums;
+using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.JuxHomepage.Caching;
 using Jellyfin.Plugin.JuxHomepage.IO;
 using Jellyfin.Plugin.JuxHomepage.TMDb;
@@ -23,6 +24,7 @@ public sealed class SeriesProgressCacheService : ISeriesProgressCacheService, ID
     private static readonly TimeSpan Ttl = TimeSpan.FromHours(24);
 
     private readonly DiskJsonCache<SeriesProgressEntry> _cache;
+    private readonly PerUserComputedCache<SeriesProgressEntry> _perUser;
     private readonly IUserManager _userManager;
     private readonly ILibraryManager _libraryManager;
     private readonly IUserDataManager _userDataManager;
@@ -60,13 +62,34 @@ public sealed class SeriesProgressCacheService : ISeriesProgressCacheService, ID
             "series-progress");
 
         _cache = new DiskJsonCache<SeriesProgressEntry>(cacheDir, fileSystem, logger);
+        _perUser = new PerUserComputedCache<SeriesProgressEntry>(_cache, Ttl, ComputeProgress, logger);
     }
 
     /// <inheritdoc/>
-    public IReadOnlyList<SeriesProgressEntry> GetProgress(Guid userId) => _cache.Read(GetFileName(userId));
+    public IReadOnlyList<SeriesProgressEntry> GetProgress(Guid userId) => _perUser.Get(userId);
 
     /// <inheritdoc/>
-    public bool IsStale(Guid userId) => _cache.IsStale(GetFileName(userId), Ttl);
+    public bool IsStale(Guid userId) => _perUser.IsStale(userId);
+
+    /// <inheritdoc/>
+    public void UpdateSeries(Guid userId, IReadOnlyCollection<Guid> seriesIds)
+    {
+        var user = _userManager.GetUserById(userId);
+        if (user is null || seriesIds.Count == 0)
+        {
+            return;
+        }
+
+        _perUser.Update(userId, entries =>
+        {
+            var updated = Aggregate(user, QueryEpisodes(user, seriesIds.ToArray()));
+            return entries
+                .Where(e => !seriesIds.Contains(e.SeriesId))
+                .Concat(updated)
+                .OrderByDescending(e => e.LastPlayedDate ?? DateTime.MinValue)
+                .ToList();
+        });
+    }
 
     /// <inheritdoc/>
     public bool TryAcquireRefreshLock() => _refreshGate.Wait(0);
@@ -85,8 +108,7 @@ public sealed class SeriesProgressCacheService : ISeriesProgressCacheService, ID
 
                 try
                 {
-                    var entries = ComputeProgress(user.Id);
-                    _cache.Write(GetFileName(user.Id), entries);
+                    _perUser.Refresh(user.Id);
                     refreshed++;
                 }
                 catch (Exception ex)
@@ -167,15 +189,24 @@ public sealed class SeriesProgressCacheService : ISeriesProgressCacheService, ID
             return [];
         }
 
-        var episodes = _libraryManager.GetItemList(new InternalItemsQuery(user)
+        return Aggregate(user, QueryEpisodes(user, watchedSeriesIds));
+    }
+
+    private IReadOnlyList<BaseItem> QueryEpisodes(User user, Guid[] seriesIds) =>
+        _libraryManager.GetItemList(new InternalItemsQuery(user)
         {
             IncludeItemTypes = [BaseItemKind.Episode],
-            AncestorIds = watchedSeriesIds,
+            AncestorIds = seriesIds,
             Recursive = true,
             IsVirtualItem = false,
-            DtoOptions = noImages
+            DtoOptions = new MediaBrowser.Controller.Dto.DtoOptions { Fields = [], EnableImages = false }
         });
 
+    /// <summary>
+    /// Builds one entry per series with at least one played episode, most recently played first.
+    /// </summary>
+    private IReadOnlyList<SeriesProgressEntry> Aggregate(User user, IReadOnlyList<BaseItem> episodes)
+    {
         var bySeries = new Dictionary<Guid, (string Name, int Watched, int Total, DateTime? LastPlayed, Episode? LastEpisode)>();
 
         foreach (var item in episodes)
@@ -225,6 +256,4 @@ public sealed class SeriesProgressCacheService : ISeriesProgressCacheService, ID
             .OrderByDescending(e => e.LastPlayedDate ?? DateTime.MinValue)
             .ToList();
     }
-
-    private static string GetFileName(Guid userId) => $"{userId}.json";
 }

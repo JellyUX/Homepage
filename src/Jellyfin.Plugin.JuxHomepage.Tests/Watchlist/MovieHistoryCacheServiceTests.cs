@@ -123,6 +123,34 @@ public sealed class MovieHistoryCacheServiceTests : IDisposable
         Assert.True(firstResult);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task UpdateMovies_ListsAFinishedMovieFirstAndDropsAnUnplayedOne(bool playedNow)
+    {
+        var user = new User("test", "Default", "Default");
+        var seen = new Movie { Id = Guid.NewGuid(), Name = "Seen" };
+        var finished = new Movie { Id = Guid.NewGuid(), Name = "Finished" };
+
+        var userManagerMock = new Mock<IUserManager>();
+        userManagerMock.Setup(m => m.GetUsers()).Returns([user]);
+        userManagerMock.Setup(m => m.GetUserById(user.Id)).Returns(user);
+        var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([seen, finished]);
+        libraryManagerMock.Setup(m => m.GetItemById(finished.Id)).Returns(finished);
+        var userDataManagerMock = new Mock<IUserDataManager>();
+        userDataManagerMock.Setup(m => m.GetUserData(user, seen)).Returns(new UserItemData { Key = "s", Played = true, LastPlayedDate = new DateTime(2026, 1, 1) });
+        userDataManagerMock.Setup(m => m.GetUserData(user, finished)).Returns(new UserItemData { Key = "f", Played = true, LastPlayedDate = new DateTime(2025, 1, 1) });
+        var service = BuildService(userManagerMock.Object, libraryManagerMock.Object, userDataManagerMock.Object);
+        await service.RefreshAllAsync(CancellationToken.None);
+
+        userDataManagerMock.Setup(m => m.GetUserData(user, finished)).Returns(new UserItemData { Key = "f", Played = playedNow, LastPlayedDate = new DateTime(2026, 2, 1) });
+        service.UpdateMovies(user.Id, [finished.Id]);
+
+        var expected = playedNow ? new[] { finished.Id, seen.Id } : [seen.Id];
+        Assert.Equal(expected, service.GetHistory(user.Id).Select(e => e.ItemId));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempDir))

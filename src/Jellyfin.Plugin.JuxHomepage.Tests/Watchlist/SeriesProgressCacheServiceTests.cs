@@ -241,6 +241,61 @@ public sealed class SeriesProgressCacheServiceTests : IDisposable
         Assert.True(firstResult);
     }
 
+    [Fact]
+    public void GetProgress_NewUserWithoutHistory_IsComputedOnceNotOnEveryOpening()
+    {
+        var user = new User("test", "Default", "Default");
+        var userManagerMock = new Mock<IUserManager>();
+        userManagerMock.Setup(m => m.GetUserById(user.Id)).Returns(user);
+        var queries = 0;
+        var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock
+            .Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
+            .Callback(() => queries++)
+            .Returns([]);
+        var service = BuildService(userManagerMock.Object, libraryManagerMock.Object, new Mock<IUserDataManager>().Object);
+
+        Assert.Empty(service.GetProgress(user.Id));
+        Assert.Empty(service.GetProgress(user.Id));
+
+        Assert.Equal(1, queries);
+        Assert.False(service.IsStale(user.Id));
+    }
+
+    [Fact]
+    public async Task UpdateSeries_EpisodeFinished_RecomputesThatSeriesOnlyAndKeepsTheOthers()
+    {
+        var user = new User("test", "Default", "Default");
+        var showA = Guid.NewGuid();
+        var showB = Guid.NewGuid();
+        var a1 = new Episode { Id = Guid.NewGuid(), Name = "A1", SeriesId = showA, SeriesName = "Show A" };
+        var a2 = new Episode { Id = Guid.NewGuid(), Name = "A2", SeriesId = showA, SeriesName = "Show A" };
+        var b1 = new Episode { Id = Guid.NewGuid(), Name = "B1", SeriesId = showB, SeriesName = "Show B" };
+
+        var userManagerMock = new Mock<IUserManager>();
+        userManagerMock.Setup(m => m.GetUsers()).Returns([user]);
+        userManagerMock.Setup(m => m.GetUserById(user.Id)).Returns(user);
+        var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock
+            .Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
+            .Returns((InternalItemsQuery q) => q.AncestorIds.Length == 1 && q.AncestorIds[0] == showA ? [a1, a2] : [a1, a2, b1]);
+        var played = new Dictionary<Guid, DateTime?> { [a1.Id] = new DateTime(2026, 1, 1), [b1.Id] = new DateTime(2026, 1, 2) };
+        var userDataManagerMock = new Mock<IUserDataManager>();
+        userDataManagerMock
+            .Setup(m => m.GetUserData(user, It.IsAny<BaseItem>()))
+            .Returns((User _, BaseItem item) => new UserItemData { Key = "k", Played = played.ContainsKey(item.Id), LastPlayedDate = played.GetValueOrDefault(item.Id) });
+        var service = BuildService(userManagerMock.Object, libraryManagerMock.Object, userDataManagerMock.Object);
+        await service.RefreshAllAsync(CancellationToken.None);
+
+        played[a2.Id] = new DateTime(2026, 1, 3);
+        service.UpdateSeries(user.Id, [showA]);
+
+        var progress = service.GetProgress(user.Id);
+        Assert.Equal([showA, showB], progress.Select(e => e.SeriesId));
+        Assert.Equal((2, 2, "A2"), (progress[0].WatchedEpisodes, progress[0].TotalEpisodes, progress[0].LastEpisodeName));
+        Assert.Equal(1, progress[1].WatchedEpisodes);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempDir))

@@ -11,7 +11,7 @@ public interface IMovieHistoryCacheService
 {
     /// <summary>Reads the cached movie history entries for a user.</summary>
     /// <param name="userId">The user to read history for.</param>
-    /// <returns>The cached entries, or an empty list if no refresh has completed yet for this user.</returns>
+    /// <returns>The cached entries, computed first when the user has none yet (TODO_V4.md 8.2).</returns>
     IReadOnlyList<MovieHistoryEntry> GetHistory(Guid userId);
 
     /// <summary>
@@ -21,6 +21,15 @@ public interface IMovieHistoryCacheService
     /// <param name="userId">The user to check.</param>
     /// <returns>True if the cache is absent or stale; otherwise false.</returns>
     bool IsStale(Guid userId);
+
+    /// <summary>
+    /// Re-reads the played state of <paramref name="movieIds"/> for a user after a watch (TODO_V4.md
+    /// 8.2, F-54): a played movie is listed with its last played date, an unplayed one removed;
+    /// computes the full list when the user has none yet.
+    /// </summary>
+    /// <param name="userId">The user.</param>
+    /// <param name="movieIds">The movies whose played state changed.</param>
+    void UpdateMovies(Guid userId, IReadOnlyCollection<Guid> movieIds);
 
     /// <summary>
     /// Refreshes every user's movie history cache in sequence. Each user's computation is

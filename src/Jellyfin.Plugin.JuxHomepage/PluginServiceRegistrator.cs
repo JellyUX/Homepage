@@ -80,6 +80,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<IWatchlistService, WatchlistService>();
         serviceCollection.AddHostedService<WatchlistAutoRemoveService>();
         serviceCollection.AddHostedService<ScoringInvalidationListener>();
+        serviceCollection.AddHostedService<TabCachesUpdateListener>();
         serviceCollection.AddHostedService<CollectionsIndexInvalidationListener>();
         serviceCollection.AddSingleton<ISeriesProgressViewService, SeriesProgressViewService>();
         serviceCollection.AddSingleton<IMovieHistoryViewService, MovieHistoryViewService>();
