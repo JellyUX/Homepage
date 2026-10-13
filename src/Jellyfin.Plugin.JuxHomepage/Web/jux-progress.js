@@ -28,7 +28,13 @@
             sortDialogTitle: 'Sort Progress',
             episodesWatched: '{watched}/{total} episodes',
             lastEpisode: 'Last: {code} - {name}',
-            markWatched: 'Mark as watched'
+            markWatched: 'Mark as watched',
+            unwatched: '{count} unwatched',
+            unwatchedTitle: 'Unwatched episodes',
+            unwatchedEmpty: 'Every episode is watched.',
+            unwatchedMore: '{count} more episodes not listed',
+            airDate: 'Aired {date}',
+            markEpisodeWatched: 'Mark {episode} as watched'
         },
         fr: {
             title: 'Progression',
@@ -39,7 +45,13 @@
             sortDialogTitle: 'Trier la progression',
             episodesWatched: '{watched}/{total} épisodes',
             lastEpisode: 'Dernier : {code} - {name}',
-            markWatched: 'Marquer comme vu'
+            markWatched: 'Marquer comme vu',
+            unwatched: '{count} non vus',
+            unwatchedTitle: 'Épisodes non vus',
+            unwatchedEmpty: 'Tous les épisodes sont vus.',
+            unwatchedMore: '{count} autres épisodes non listés',
+            airDate: 'Diffusé le {date}',
+            markEpisodeWatched: 'Marquer {episode} comme vu'
         }
     };
 
@@ -49,6 +61,9 @@
             { value: 'Name', label: t.sortName }
         ];
     }
+
+    // The unwatched episodes listed in the dialog at most; a longer remainder is counted, not listed.
+    var EPISODE_LIMIT = 100;
 
     function _decorateCards(container, rows, t) {
         var byId = {};
@@ -64,11 +79,9 @@
             var info = document.createElement('div');
             info.className = 'jux-progress-info';
 
-            info.innerHTML = window.JuxUI.buildProgressBar(row.WatchedEpisodes, row.TotalEpisodes);
-
-            var countsLine = document.createElement('div');
-            countsLine.textContent = _formatTemplate(t.episodesWatched, { watched: row.WatchedEpisodes, total: row.TotalEpisodes });
-            info.appendChild(countsLine);
+            var counts = document.createElement('div');
+            counts.className = 'jux-progress-counts';
+            info.appendChild(counts);
 
             if (row.LastEpisodeName) {
                 var lastLine = document.createElement('div');
@@ -79,32 +92,197 @@
                 info.appendChild(lastLine);
             }
 
-            var button = document.createElement('button');
-            button.type = 'button';
-            button.className = 'jux-progress-mark-watched';
-            button.title = t.markWatched;
-            var label = document.createElement('span');
-            label.className = 'jux-progress-mark-watched-label';
-            label.textContent = t.markWatched;
-            button.appendChild(label);
+            var actions = document.createElement('div');
+            actions.className = 'jux-progress-actions';
+
+            var unwatched = _pillButton('jux-progress-unwatched', 'playlist_play', '');
+            unwatched.addEventListener('click', function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+                _openUnwatchedDialog(row, card, t);
+            });
+            actions.appendChild(unwatched);
+
+            var button = _pillButton('', null, t.markWatched);
             button.addEventListener('click', function (event) {
                 event.preventDefault();
                 event.stopPropagation();
                 _markSeriesWatched(row.Item.Id, card, button, t);
             });
-            info.appendChild(button);
+            actions.appendChild(button);
+            info.appendChild(actions);
 
             card.classList.add('jux-progress-card');
             card.appendChild(info);
+            _renderCounts(card, row, t);
+        });
+    }
+
+    function _pillButton(className, icon, label) {
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.className = ('jux-progress-mark-watched ' + className).trim();
+        if (icon) {
+            var iconEl = document.createElement('span');
+            iconEl.className = 'material-icons ' + icon;
+            iconEl.setAttribute('aria-hidden', 'true');
+            button.appendChild(iconEl);
+        }
+        var labelEl = document.createElement('span');
+        labelEl.className = 'jux-progress-mark-watched-label';
+        labelEl.textContent = label;
+        button.appendChild(labelEl);
+        if (label) {
+            button.title = label;
+        }
+        return button;
+    }
+
+    // The progress bar, the "N/M episodes" line and the unwatched count of a card, drawn again
+    // after each episode marked in the dialog.
+    function _renderCounts(card, row, t) {
+        var counts = card.querySelector('.jux-progress-counts');
+        counts.innerHTML = window.JuxUI.buildProgressBar(row.WatchedEpisodes, row.TotalEpisodes);
+        var line = document.createElement('div');
+        line.textContent = _formatTemplate(t.episodesWatched, { watched: row.WatchedEpisodes, total: row.TotalEpisodes });
+        counts.appendChild(line);
+
+        var label = _formatTemplate(t.unwatched, { count: Math.max(0, row.TotalEpisodes - row.WatchedEpisodes) });
+        var button = card.querySelector('.jux-progress-unwatched');
+        button.querySelector('.jux-progress-mark-watched-label').textContent = label;
+        button.title = label;
+    }
+
+    // The series' unwatched episodes, read when the dialog opens (Jellyfin's own /Items route, the
+    // episodes the Progress counts are made of: not virtual, every season), each with a "watched"
+    // button that updates the card. The last one closes the dialog and the card leaves the tab, like
+    // a finished series does (TODO_V4.md 8.2).
+    function _openUnwatchedDialog(row, card, t) {
+        if (!window.ApiClient) { return; }
+        var userId = window.ApiClient.getCurrentUserId();
+        var opened = window.JuxUI.openDialog({
+            title: t.unwatchedTitle + ' - ' + (row.Item.Name || ''),
+            className: 'jux-sort-dialog jux-episodes-dialog',
+            contentClassName: 'jux-episodes-dialog-content'
+        });
+        var content = opened.dialog.querySelector('.jux-episodes-dialog-content');
+
+        function load() {
+            window.JuxUI.showLoading(content);
+            window.ApiClient.getItems(userId, {
+                ParentId: row.Item.Id,
+                IncludeItemTypes: 'Episode',
+                Recursive: true,
+                IsPlayed: false,
+                IsMissing: false,
+                SortBy: 'ParentIndexNumber,IndexNumber,SortName',
+                SortOrder: 'Ascending',
+                Fields: 'PremiereDate',
+                EnableImageTypes: 'Primary',
+                ImageTypeLimit: 1,
+                EnableUserData: false,
+                Limit: EPISODE_LIMIT
+            }).then(function (result) {
+                _renderEpisodes(content, result, row, card, opened, t);
+            }).catch(function (err) {
+                console.error('[JellyUX] Unwatched episodes fetch failed:', err);
+                window.JuxCore.showError(content, { name: t.unwatchedTitle, onRetry: load });
+            });
+        }
+
+        load();
+    }
+
+    function _renderEpisodes(content, result, row, card, opened, t) {
+        var episodes = (result && result.Items) || [];
+        if (episodes.length === 0) {
+            content.innerHTML = '<p class="jux-episodes-empty">' + window.JuxCore.escHtml(t.unwatchedEmpty) + '</p>';
+            return;
+        }
+
+        var lang = window.JuxCore.resolveLang();
+        var serverId = window.ApiClient.serverId();
+        var html = '<ul class="jux-episodes-list">' + episodes.map(function (episode) {
+            return _episodeRowHtml(episode, serverId, lang, t);
+        }).join('') + '</ul>';
+        var rest = ((result && result.TotalRecordCount) || 0) - episodes.length;
+        if (rest > 0) {
+            html += '<p class="jux-episodes-more">' + window.JuxCore.escHtml(_formatTemplate(t.unwatchedMore, { count: rest })) + '</p>';
+        }
+        content.innerHTML = html;
+
+        content.querySelectorAll('.jux-episode-watched').forEach(function (button) {
+            button.addEventListener('click', function () {
+                _markEpisodeWatched(button, row, card, opened, t);
+            });
+        });
+        content.querySelectorAll('.jux-episode-link').forEach(function (link) {
+            link.addEventListener('click', function () { opened.close(); });
+        });
+
+        var first = content.querySelector('.jux-episode-watched');
+        if (first) {
+            first.focus();
+        }
+    }
+
+    function _episodeRowHtml(episode, serverId, lang, t) {
+        var esc = window.JuxCore.escHtml;
+        var code = _formatEpisodeCode(episode.ParentIndexNumber, episode.IndexNumber);
+        var label = (code ? code + ' - ' : '') + (episode.Name || '');
+        var image = episode.ImageTags && episode.ImageTags.Primary
+            ? '<img class="jux-episode-image" loading="lazy" alt="" src="' + esc(window.ApiClient.getScaledImageUrl(episode.Id, { type: 'Primary', maxWidth: 240, tag: episode.ImageTags.Primary })) + '">'
+            : '<span class="jux-episode-image jux-episode-image-empty material-icons tv" aria-hidden="true"></span>';
+        var date = _formatAirDate(episode.PremiereDate, lang);
+        var markLabel = _formatTemplate(t.markEpisodeWatched, { episode: code || episode.Name || '' });
+
+        return '<li class="jux-episode" data-id="' + esc(episode.Id) + '">' + image +
+            '<div class="jux-episode-text">' +
+            '<a class="jux-episode-link" href="#/details?id=' + encodeURIComponent(episode.Id) + '&serverId=' + encodeURIComponent(serverId || '') + '">' + esc(label) + '</a>' +
+            (date ? '<span class="jux-episode-date">' + esc(_formatTemplate(t.airDate, { date: date })) + '</span>' : '') +
+            '</div>' +
+            '<button type="button" class="jux-episode-watched" title="' + esc(markLabel) + '" aria-label="' + esc(markLabel) + '">' +
+            '<span class="material-icons check" aria-hidden="true"></span></button>' +
+            '</li>';
+    }
+
+    // An air date is a calendar day stored as midnight UTC: read in UTC, or a viewer west of
+    // Greenwich sees the day before.
+    function _formatAirDate(value, lang) {
+        if (!value) { return ''; }
+        var date = new Date(value);
+        if (isNaN(date.getTime())) { return ''; }
+        return date.toLocaleDateString(lang, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+    }
+
+    function _markEpisodeWatched(button, row, card, opened, t) {
+        var item = button.closest('.jux-episode');
+        var userId = window.ApiClient.getCurrentUserId();
+        button.disabled = true;
+        window.ApiClient.markPlayed(userId, item.getAttribute('data-id'), new Date()).then(function () {
+            var next = item.nextElementSibling || item.previousElementSibling;
+            item.remove();
+            row.WatchedEpisodes = Math.min(row.TotalEpisodes, row.WatchedEpisodes + 1);
+            _renderCounts(card, row, t);
+            if (row.WatchedEpisodes >= row.TotalEpisodes) {
+                card.style.display = 'none';
+                opened.close();
+                return;
+            }
+            var focus = next && next.querySelector('.jux-episode-watched');
+            if (focus) {
+                focus.focus();
+            }
+        }).catch(function (err) {
+            console.error('[JellyUX] Failed to mark episode as watched:', err);
+            button.disabled = false;
         });
     }
 
     // Marks the whole series as watched via Jellyfin's own native endpoint (same approach as the
     // favorite toggle in jux-history.js) -- POST /Users/{userId}/PlayedItems/{itemId} cascades to
-    // every episode server-side, no JellyUX endpoint needed. The Series Progress list itself is a
-    // once-a-day server cache (WatchlistDailyRefreshTask), so rather than re-fetching (which would
-    // still show the old counts until the next refresh), this optimistically removes the card from
-    // view -- it reappears correctly counted after the next daily cache refresh.
+    // every episode server-side, no JellyUX endpoint needed. A finished series leaves Progress
+    // (TODO_V4.md 8.2), so the card is removed from view at once.
     function _markSeriesWatched(itemId, card, button, t) {
         if (!window.ApiClient) { return; }
         var userId = window.ApiClient.getCurrentUserId();
@@ -158,7 +336,9 @@
             _buildShellHtml: window.juxProgress.buildShellHtml,
             _formatEpisodeCode: _formatEpisodeCode,
             _formatTemplate: _formatTemplate,
-            _decorateCards: _decorateCards
+            _formatAirDate: _formatAirDate,
+            _decorateCards: _decorateCards,
+            _openUnwatchedDialog: _openUnwatchedDialog
         };
     }
 })();
