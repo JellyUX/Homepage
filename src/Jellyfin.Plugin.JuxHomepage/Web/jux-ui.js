@@ -33,6 +33,7 @@
     }
 
     var _radioUid = 0;
+    var _dialogUid = 0;
 
     window.JuxUI = {
         showEmpty: showEmpty,
@@ -41,6 +42,7 @@
         buildProgressBar: buildProgressBar,
         buildStatCard: buildStatCard,
         openSortDialog: openSortDialog,
+        openOptionsDialog: openOptionsDialog,
         createListTab: createListTab,
         labelFor: labelFor
     };
@@ -191,13 +193,11 @@
                 return;
             }
             button.addEventListener('click', function () {
-                openSortDialog({
+                openOptionsDialog({
                     title: t[filter.titleKey],
-                    sortOptions: filter.options(t),
-                    currentSortBy: tab.state[filter.key],
-                    orderOptions: [],
-                    onChange: function (value) {
-                        tab.state[filter.key] = value;
+                    groups: [{ name: filter.name, options: filter.options(t), current: tab.state[filter.key] }],
+                    onChange: function (values) {
+                        tab.state[filter.key] = values[filter.name];
                         tab.render();
                     }
                 });
@@ -317,12 +317,31 @@
     // Native-style sort dialog (emby-radio, native dialog/backdrop classes)
     // -------------------------------------------------------------------------
 
+    // Sort usage of the options dialog: a field group and an order group.
     // options: { title, sortOptions: [{value, label}], currentSortBy, orderOptions: [{value, label}],
     //            currentSortOrder, onChange: function(sortBy, sortOrder) }
     function openSortDialog(options) {
-        var sortOptions = (options && options.sortOptions) || [];
-        var orderOptions = (options && options.orderOptions) || _defaultOrderOptions();
-        var onChange = (options && options.onChange) || function () {};
+        var onChange = options.onChange || function () {};
+        return openOptionsDialog({
+            title: options.title,
+            groups: [
+                { name: 'sortBy', options: options.sortOptions || [], current: options.currentSortBy },
+                { name: 'sortOrder', options: options.orderOptions || _defaultOrderOptions(), current: options.currentSortOrder }
+            ],
+            onChange: function (values) { onChange(values.sortBy, values.sortOrder); }
+        });
+    }
+
+    // One dialog of radio groups, shared by sorting and filtering (TODO_V4.md 7.1, F-44).
+    // options: { title, groups: [{ name, options: [{value, label}], current }],
+    //            onChange: function(values) } where values maps each group name to its checked value.
+    function openOptionsDialog(options) {
+        var groups = options.groups || [];
+        var onChange = options.onChange || function () {};
+        var opener = document.activeElement;
+
+        _dialogUid += 1;
+        var titleId = 'jux-options-dialog-title-' + _dialogUid;
 
         var backdrop = document.createElement('div');
         backdrop.className = 'dialogBackdrop dialogBackdropOpened';
@@ -333,30 +352,38 @@
         var dialog = document.createElement('div');
         dialog.className = 'focuscontainer dialog formDialog centeredDialog opened jux-sort-dialog';
         dialog.setAttribute('role', 'dialog');
-
-        var sortGroupHtml = _buildRadioGroup(sortOptions, options.currentSortBy, 'jux-sort-by');
-        var orderGroupHtml = _buildRadioGroup(orderOptions, options.currentSortOrder, 'jux-sort-order');
+        dialog.setAttribute('aria-modal', 'true');
+        dialog.setAttribute('aria-labelledby', titleId);
 
         dialog.innerHTML =
             '<div class="formDialogHeader">' +
             '<button is="paper-icon-button-light" class="btnCloseDialog autoSize" tabindex="-1">' +
             '<span class="material-icons arrow_back" aria-hidden="true"></span>' +
             '</button>' +
-            '<h3 class="formDialogHeaderTitle">' + window.JuxCore.escHtml((options && options.title) || '') + '</h3>' +
+            '<h3 class="formDialogHeaderTitle" id="' + titleId + '">' + window.JuxCore.escHtml(options.title || '') + '</h3>' +
             '</div>' +
             '<div class="formDialogContent smoothScrollY jux-sort-dialog-content">' +
-            sortGroupHtml +
-            orderGroupHtml +
+            groups.map(function (group) {
+                return _buildRadioGroup(group.options, group.current, _groupInputName(titleId, group.name));
+            }).join('') +
             '</div>';
 
         container.appendChild(dialog);
         document.body.appendChild(backdrop);
         document.body.appendChild(container);
 
+        var firstRadio = dialog.querySelector('input:checked') || dialog.querySelector('.mdl-radio__button');
+        if (firstRadio) {
+            firstRadio.focus();
+        }
+
         function close() {
             backdrop.remove();
             container.remove();
             document.removeEventListener('keydown', onKeyDown);
+            if (opener && typeof opener.focus === 'function' && document.contains(opener)) {
+                opener.focus();
+            }
         }
 
         function onKeyDown(event) {
@@ -374,17 +401,19 @@
         dialog.querySelector('.btnCloseDialog').addEventListener('click', close);
         document.addEventListener('keydown', onKeyDown);
 
-        dialog.querySelectorAll('input[name="jux-sort-by"]').forEach(function (input) {
-            input.addEventListener('change', function () {
-                if (input.checked) {
-                    onChange(input.value, _currentChecked(dialog, 'jux-sort-order') || options.currentSortOrder);
-                }
+        function currentValues() {
+            var values = {};
+            groups.forEach(function (group) {
+                var checked = dialog.querySelector('input[name="' + _groupInputName(titleId, group.name) + '"]:checked');
+                values[group.name] = checked ? checked.value : group.current;
             });
-        });
-        dialog.querySelectorAll('input[name="jux-sort-order"]').forEach(function (input) {
+            return values;
+        }
+
+        dialog.querySelectorAll('.mdl-radio__button').forEach(function (input) {
             input.addEventListener('change', function () {
                 if (input.checked) {
-                    onChange(_currentChecked(dialog, 'jux-sort-by') || options.currentSortBy, input.value);
+                    onChange(currentValues());
                 }
             });
         });
@@ -392,9 +421,9 @@
         return { close: close };
     }
 
-    function _currentChecked(dialog, name) {
-        var checked = dialog.querySelector('input[name="' + name + '"]:checked');
-        return checked ? checked.value : null;
+    // Radio names are unique per dialog, so two dialogs never share a group.
+    function _groupInputName(titleId, groupName) {
+        return titleId + '-' + groupName;
     }
 
     function _defaultOrderOptions() {
@@ -444,6 +473,8 @@
             buildStatCard: buildStatCard,
             createListTab: createListTab,
             labelFor: labelFor,
+            openSortDialog: openSortDialog,
+            openOptionsDialog: openOptionsDialog,
             _buildRadio: _buildRadio,
             _buildRadioGroup: _buildRadioGroup
         };

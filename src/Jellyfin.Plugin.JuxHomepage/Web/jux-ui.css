@@ -262,6 +262,33 @@
     display: block;
 }
 
+/* One indicator per option: the native input stays focusable and keyboard-operable but is not
+ * drawn, and only the checked option shows the inner dot (the native chunk's rules, which this
+ * view never loads). */
+.jux-sort-dialog .mdl-radio__button {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    margin: 0;
+}
+
+.jux-sort-dialog .mdl-radio__inner-circle {
+    transform-box: fill-box;
+    transform-origin: center;
+    transition: transform 0.15s ease;
+}
+
+.jux-sort-dialog .mdl-radio__button:not(:checked) + .mdl-radio__circles .mdl-radio__inner-circle {
+    transform: scale(0);
+}
+
+.jux-sort-dialog .mdl-radio__button:focus-visible + .mdl-radio__circles {
+    border-radius: 50%;
+    outline: 2px solid var(--jf-palette-primary-main, #00a4dc);
+    outline-offset: 2px;
+}
+
 .jux-sort-dialog .mdl-radio {
     display: flex;
     align-items: center;

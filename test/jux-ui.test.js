@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import juxUi from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-ui.js';
 
-const { showEmpty, buildProgressBar, buildStatCard, createListTab, labelFor, _buildRadio, _buildRadioGroup } = juxUi;
+const { showEmpty, buildProgressBar, buildStatCard, createListTab, labelFor, openSortDialog, openOptionsDialog, _buildRadio, _buildRadioGroup } = juxUi;
 
 describe('showEmpty', () => {
     it('renders an icon, title, and subtitle into the container', () => {
@@ -247,5 +247,70 @@ describe('createListTab failure (F-40)', () => {
         document.querySelector('.jux-error-retry').click();
         expect(getJSON).toHaveBeenCalledTimes(2);
         errorSpy.mockRestore();
+    });
+});
+
+describe('options dialog (F-44)', () => {
+    const fields = [{ value: 'Name', label: 'Name' }, { value: 'Date', label: 'Date' }];
+
+    afterEach(() => {
+        document.body.innerHTML = '';
+    });
+
+    function radios(name) {
+        return [...document.querySelectorAll('.jux-sort-dialog input[type="radio"]')].filter((r) => r.name.endsWith('-' + name));
+    }
+
+    it('is a labelled modal dialog that takes the focus on the checked option and gives it back', () => {
+        document.body.innerHTML = '<button id="opener">Sort</button>';
+        const opener = document.getElementById('opener');
+        opener.focus();
+
+        const handle = openSortDialog({ title: 'Sort by', sortOptions: fields, currentSortBy: 'Date', currentSortOrder: 'Ascending', onChange: () => {} });
+        const dialog = document.querySelector('.jux-sort-dialog');
+
+        expect(dialog.getAttribute('role')).toBe('dialog');
+        expect(dialog.getAttribute('aria-modal')).toBe('true');
+        expect(document.getElementById(dialog.getAttribute('aria-labelledby')).textContent).toBe('Sort by');
+        expect(dialog.contains(document.activeElement)).toBe(true);
+        expect(document.activeElement.value).toBe('Date');
+
+        handle.close();
+        expect(document.querySelector('.jux-sort-dialog')).toBeNull();
+        expect(document.activeElement).toBe(opener);
+    });
+
+    it('sorts with a field group and an order group, reporting both values on each change', () => {
+        const onChange = vi.fn();
+        openSortDialog({ title: 'Sort by', sortOptions: fields, currentSortBy: 'Name', currentSortOrder: 'Ascending', onChange });
+
+        expect(radios('sortBy')).toHaveLength(2);
+        expect(radios('sortOrder')).toHaveLength(2);
+        const date = radios('sortBy').find((r) => r.value === 'Date');
+        date.checked = true;
+        date.dispatchEvent(new Event('change'));
+
+        expect(onChange).toHaveBeenCalledWith('Date', 'Ascending');
+    });
+
+    it('filters with a single group and no empty order group', () => {
+        const onChange = vi.fn();
+        openOptionsDialog({ title: 'Filter by Type', groups: [{ name: 'type', options: fields, current: 'Name' }], onChange });
+
+        expect(document.querySelectorAll('.jux-sort-dialog .jux-sort-group')).toHaveLength(1);
+        const date = radios('type').find((r) => r.value === 'Date');
+        date.checked = true;
+        date.dispatchEvent(new Event('change'));
+
+        expect(onChange).toHaveBeenCalledWith({ type: 'Date' });
+    });
+
+    it('gives each dialog its own radio names', () => {
+        openOptionsDialog({ title: 'A', groups: [{ name: 'type', options: fields, current: 'Name' }] });
+        openOptionsDialog({ title: 'B', groups: [{ name: 'type', options: fields, current: 'Date' }] });
+
+        const names = new Set([...document.querySelectorAll('.jux-sort-dialog input')].map((r) => r.name));
+        expect(names.size).toBe(2);
+        expect(document.querySelectorAll('.jux-sort-dialog input:checked')).toHaveLength(2);
     });
 });
