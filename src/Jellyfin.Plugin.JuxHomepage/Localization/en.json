@@ -25,6 +25,9 @@
   "jux.admin.tag": "Tag",
   "jux.admin.year": "Year",
 
+  "jux.local.recently-released": "Recently Released",
+  "jux.local.top-rated": "Top Rated in Library",
+
   "jux.personalized.favorite-genre": "Favorite Genre",
   "jux.personalized.favorite-genre.format": "More {value}",
   "jux.personalized.favorite-actor": "Favorite Actor",
@@ -166,6 +169,10 @@
   "admin.tmdbstatus.minvotes": "Min votes",
   "admin.tmdbrefresh.inprogress": "Refresh started, this may take a few seconds...",
   "admin.tmdbrefresh.failed": "Failed to trigger refresh. See browser console for details.",
+  "admin.local.itemtypes.label": "Show",
+  "admin.local.itemtypes.both": "Movies and series",
+  "admin.local.itemtypes.movies": "Movies",
+  "admin.local.itemtypes.series": "Series",
   "admin.seasonal.theme.label": "Theme",
   "admin.seasonal.theme.none": "None / custom",
   "admin.seasonal.theme.halloween": "Halloween",

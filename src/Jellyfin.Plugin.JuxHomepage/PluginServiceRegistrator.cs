@@ -8,6 +8,7 @@ using Jellyfin.Plugin.JuxHomepage.Watchlist;
 using Jellyfin.Plugin.JuxHomepage.Widgets;
 using Jellyfin.Plugin.JuxHomepage.Widgets.Admin;
 using Jellyfin.Plugin.JuxHomepage.Widgets.Connected;
+using Jellyfin.Plugin.JuxHomepage.Widgets.Local;
 using Jellyfin.Plugin.JuxHomepage.Widgets.Native;
 using Jellyfin.Plugin.JuxHomepage.Widgets.Personalized;
 using Jellyfin.Plugin.JuxHomepage.Rewards;
@@ -122,6 +123,11 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
             RegisterWidget<CollectionWidget>(registry, serviceProvider, logger);
             RegisterWidget<TagWidget>(registry, serviceProvider, logger);
             RegisterWidget<YearWidget>(registry, serviceProvider, logger);
+
+            // Register the local library sections (TODO_V4.md 9.1, F-61): the whole library in an order
+            // of their own, no value to pick. Their disabled preset rows come from LocalWidgetDefaults.
+            RegisterWidget<RecentlyReleasedWidget>(registry, serviceProvider, logger);
+            RegisterWidget<TopRatedWidget>(registry, serviceProvider, logger);
 
             // Register personalized widgets. Like admin widgets, these have no default
             // WidgetConfig rows; the admin adds instances explicitly via the configuration page.

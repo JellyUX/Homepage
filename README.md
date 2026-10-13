@@ -82,7 +82,7 @@ JellyUX Homepage is built to coexist cleanly with other popular Jellyfin customi
 
 ## Widgets
 
-27 widgets across 4 categories, each independently enabled, reordered, and configured from the admin panel.
+29 widgets across 4 categories, each independently enabled, reordered, and configured from the admin panel.
 
 | Widget | Category | Description |
 |---|---|---|
@@ -100,6 +100,8 @@ JellyUX Homepage is built to coexist cleanly with other popular Jellyfin customi
 | Collection | Admin | Items from a collection chosen by the admin |
 | Tag | Admin | Items matching a tag chosen by the admin |
 | Year | Admin | Items released in a year chosen by the admin |
+| Recently Released | Admin | The library's latest releases, newest release date first (movies, series or both), no TMDb needed |
+| Top Rated in Library | Admin | The library's best community-rated titles (movies, series or both), no TMDb needed |
 | Seasonal | Admin | Items shown during an admin-configured recurring date window (e.g. Halloween, Christmas), optionally filtered by genre/tag |
 | Because You Watched | Personalized | Recommendations based on a recently watched item |
 | Favorite Genre | Personalized | Recommendations from the user's most-watched genre |

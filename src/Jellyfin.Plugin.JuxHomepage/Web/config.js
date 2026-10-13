@@ -46,8 +46,18 @@ export function moveRow(rows, from, to) {
 var DEDICATED_EDITORS = {
     'jux.connected.discover-movies': 'discover',
     'jux.connected.rewards': 'rewards',
-    'jux.connected.seasonal': 'seasonal'
+    'jux.connected.seasonal': 'seasonal',
+    'jux.local.recently-released': 'local',
+    'jux.local.top-rated': 'local'
 };
+
+// The item types a local library section can show (TODO_V4.md 9.1, F-61), stored as
+// ExtraParams["itemTypes"]; the first one is the default of a new row.
+var LOCAL_ITEM_TYPES = [
+    ['Movie,Series', 'admin.local.itemtypes.both'],
+    ['Movie', 'admin.local.itemtypes.movies'],
+    ['Series', 'admin.local.itemtypes.series']
+];
 
 // The check mark of a native checkbox (the markup Jellyfin's emby-checkbox element draws), shared by
 // the static switches of config.html and the checkboxes of the widget cards.
@@ -274,7 +284,7 @@ function createConfigPage() {
 
         // Connected rows and the dedicated editors share the same card layout.
         isConnected: function (widgetType) {
-            return ['connected', 'discover', 'rewards', 'seasonal'].indexOf(this.editorKindOf(widgetType)) !== -1;
+            return ['connected', 'discover', 'rewards', 'seasonal', 'local'].indexOf(this.editorKindOf(widgetType)) !== -1;
         },
 
         isNative: function (widgetType) {
@@ -297,6 +307,10 @@ function createConfigPage() {
 
         isSeasonal: function (widgetType) {
             return widgetType === this.SEASONAL_TYPE;
+        },
+
+        isLocal: function (widgetType) {
+            return this.editorKindOf(widgetType) === 'local';
         },
 
         BECAUSE_YOU_WATCHED_TYPE: 'jux.personalized.because-you-watched',
@@ -677,6 +691,18 @@ function createConfigPage() {
                         html += '<label class="inputLabel inputLabelUnfocused" for="seasonalTag_' + i + '">' + self.escHtml(self.t('admin.seasonal.tag.label')) + '</label>';
                         html += '<input id="seasonalTag_' + i + '" type="text" class="emby-input jux-seasonal-tag" value="' + self.escHtml(seasonalTagValue) + '" />';
                         html += '</div>';
+                        html += '</div>';
+                    }
+
+                    if (self.isLocal(w.WidgetType)) {
+                        var localItemTypes = self.getExtraParam(w, 'itemTypes') || LOCAL_ITEM_TYPES[0][0];
+                        html += '<div class="inputContainer">';
+                        html += '<label class="inputLabel inputLabelUnfocused" for="localItemTypes_' + i + '">' + self.escHtml(self.t('admin.local.itemtypes.label')) + '</label>';
+                        html += '<select id="localItemTypes_' + i + '" class="emby-select-withcolor emby-select jux-local-itemtypes">';
+                        LOCAL_ITEM_TYPES.forEach(function (opt) {
+                            html += '<option value="' + opt[0] + '"' + (localItemTypes === opt[0] ? ' selected' : '') + '>' + self.escHtml(self.t(opt[1])) + '</option>';
+                        });
+                        html += '</select>';
                         html += '</div>';
                     }
 
@@ -1175,6 +1201,11 @@ function createConfigPage() {
 
                     w.ExtraParams = seasonalParams;
                 }
+
+                if (self.isLocal(w.WidgetType)) {
+                    var localItemTypesEl = card.querySelector('.jux-local-itemtypes');
+                    if (localItemTypesEl) { w.ExtraParams = [{ Key: 'itemTypes', Value: localItemTypesEl.value }]; }
+                }
             });
         },
 
@@ -1589,6 +1620,8 @@ function createConfigPage() {
                             // (no items ever match an unparseable date) until the admin fills
                             // them in and saves, rather than blocking the "Add" action itself.
                             extraParams = [{ Key: 'value', Value: newSeasonalInstanceId }];
+                        } else if (self.isLocal(widgetType)) {
+                            extraParams = [{ Key: 'itemTypes', Value: LOCAL_ITEM_TYPES[0][0] }];
                         }
                         self.state.sortedWidgets.push({
                             WidgetType: widgetType,

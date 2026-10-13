@@ -45,6 +45,8 @@ nav:
           - Collection: widgets/admin/collection.md
           - Tag: widgets/admin/tag.md
           - Year: widgets/admin/year.md
+          - Recently Released: widgets/admin/recently-released.md
+          - Top Rated in Library: widgets/admin/top-rated.md
           - Seasonal: widgets/connected/seasonal.md
       - Personalized:
           - Favorite Genre: widgets/personalized/favorite-genre.md

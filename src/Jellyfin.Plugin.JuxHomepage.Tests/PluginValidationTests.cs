@@ -8,6 +8,10 @@ namespace Jellyfin.Plugin.JuxHomepage.Tests;
 
 public sealed class PluginValidationTests
 {
+    // Rows the V10-to-V11 tier appends to every configuration migrated from an earlier tier
+    // (TODO_V4.md 9.1, F-61): the two disabled local library presets.
+    private const int LocalPresets = 2;
+
     [Fact]
     public void ValidateConfiguration_ClampsCacheValues()
     {
@@ -114,20 +118,50 @@ public sealed class PluginValidationTests
 
         Plugin.MigrateConfiguration(config);
 
-        Assert.Equal(10, config.SchemaVersion);
+        Assert.Equal(11, config.SchemaVersion);
         Assert.Equal((WidgetSort.SortName, WidgetSort.Ascending), (unsorted.SortBy, unsorted.SortOrder));
         Assert.Equal((WidgetSort.DateCreated, WidgetSort.Descending), (sorted.SortBy, sorted.SortOrder));
     }
 
     [Fact]
+    public void MigrateConfiguration_FromTierTen_AppendsTheDisabledLocalPresetsOnce()
+    {
+        var existing = new WidgetConfig { WidgetType = "jux.local.top-rated", Enabled = true, ExtraParams = [new WidgetExtraParam { Key = "itemTypes", Value = "Series" }] };
+        var config = new PluginConfiguration { SchemaVersion = 10, Widgets = [existing] };
+
+        Plugin.MigrateConfiguration(config);
+        config.SchemaVersion = 10;
+        Plugin.MigrateConfiguration(config);
+
+        Assert.Equal(11, config.SchemaVersion);
+        Assert.Equal(["jux.local.top-rated", "jux.local.recently-released"], config.Widgets.Select(w => w.WidgetType));
+        Assert.Same(existing, config.Widgets[0]);
+        var released = config.Widgets[1];
+        Assert.False(released.Enabled);
+        Assert.Equal("Movie", released.ExtraParams.Single(p => p.Key == "itemTypes").Value);
+    }
+
+    [Fact]
+    public void MigrateConfiguration_FreshInstall_EndsWithTheLocalPresetsDisabled()
+    {
+        var config = new PluginConfiguration();
+
+        Plugin.MigrateConfiguration(config);
+
+        var local = config.Widgets.Where(w => w.WidgetType.StartsWith("jux.local.", StringComparison.Ordinal)).ToList();
+        Assert.Equal(2, local.Count);
+        Assert.All(local, w => Assert.False(w.Enabled));
+    }
+
+    [Fact]
     public void MigrateConfiguration_NoOpForCurrentSchemaVersion_DoesNotThrow()
     {
-        var config = new PluginConfiguration { SchemaVersion = 10 };
+        var config = new PluginConfiguration { SchemaVersion = 11 };
 
         var exception = Record.Exception(() => Plugin.MigrateConfiguration(config));
 
         Assert.Null(exception);
-        Assert.Equal(10, config.SchemaVersion);
+        Assert.Equal(11, config.SchemaVersion);
         Assert.Empty(config.Widgets);
     }
 
@@ -156,8 +190,8 @@ public sealed class PluginValidationTests
         // seasonal presets), and V6->V7 (append Recently Added Episodes) thresholds, all four
         // migrations apply in order -- the fan-out first (3 rows), then the Watchlist widget row (4),
         // then the four seasonal preset rows (8), then the Recently Added Episodes row (9 total).
-        Assert.Equal(10, config.SchemaVersion);
-        Assert.Equal(9, config.Widgets.Length);
+        Assert.Equal(11, config.SchemaVersion);
+        Assert.Equal(9 + LocalPresets, config.Widgets.Length);
 
         Assert.Equal("jux.personalized.favorite-genre", config.Widgets[0].WidgetType);
         Assert.Equal("My Genres", config.Widgets[0].CustomDisplayName);
@@ -193,12 +227,12 @@ public sealed class PluginValidationTests
 
         Plugin.MigrateConfiguration(config);
 
-        Assert.Equal(10, config.SchemaVersion);
+        Assert.Equal(11, config.SchemaVersion);
 
         // The original row passes through the V1->V2 fan-out untouched (not Personalized), then the
         // V2->V3 migration appends the new native Watchlist widget row, then V5->V6 appends the four
         // seasonal preset rows, then V6->V7 appends the Recently Added Episodes row.
-        Assert.Equal(7, config.Widgets.Length);
+        Assert.Equal(7 + LocalPresets, config.Widgets.Length);
         var widget = config.Widgets.Single(w => w.WidgetType == "jux.admin.genre");
         Assert.Equal(5, widget.MaxInstances);
         Assert.Contains(config.Widgets, w => w.WidgetType == "jux.native.watchlist");
@@ -217,8 +251,8 @@ public sealed class PluginValidationTests
 
         Plugin.MigrateConfiguration(config);
 
-        Assert.Equal(10, config.SchemaVersion);
-        Assert.Equal(7, config.Widgets.Length);
+        Assert.Equal(11, config.SchemaVersion);
+        Assert.Equal(7 + LocalPresets, config.Widgets.Length);
         var watchlistWidget = config.Widgets.Single(w => w.WidgetType == "jux.native.watchlist");
         Assert.True(watchlistWidget.Enabled);
         Assert.Equal(50, watchlistWidget.Order);
@@ -241,8 +275,8 @@ public sealed class PluginValidationTests
 
         Plugin.MigrateConfiguration(config);
 
-        Assert.Equal(10, config.SchemaVersion);
-        Assert.Equal(7, config.Widgets.Length);
+        Assert.Equal(11, config.SchemaVersion);
+        Assert.Equal(7 + LocalPresets, config.Widgets.Length);
         var watchlistWidget = config.Widgets.Single(w => w.WidgetType == "jux.native.watchlist");
 
         // Untouched -- the migration must not overwrite an existing row (e.g. one the admin has
@@ -266,8 +300,8 @@ public sealed class PluginValidationTests
 
         // Starting at SchemaVersion 6, the seasonal presets are already present (no duplication), but
         // the V6->V7 migration still fires and appends the new Recently Added Episodes row.
-        Assert.Equal(10, config.SchemaVersion);
-        Assert.Equal(5, config.Widgets.Length);
+        Assert.Equal(11, config.SchemaVersion);
+        Assert.Equal(5 + LocalPresets, config.Widgets.Length);
         Assert.Equal(4, config.Widgets.Count(w => w.WidgetType == "jux.connected.seasonal"));
         Assert.Contains(config.Widgets, w => w.WidgetType == "jux.native.recently-added-episodes");
     }
@@ -283,8 +317,8 @@ public sealed class PluginValidationTests
 
         Plugin.MigrateConfiguration(config);
 
-        Assert.Equal(10, config.SchemaVersion);
-        Assert.Equal(6, config.Widgets.Length);
+        Assert.Equal(11, config.SchemaVersion);
+        Assert.Equal(6 + LocalPresets, config.Widgets.Length);
         Assert.Equal(4, config.Widgets.Count(w => w.WidgetType == "jux.connected.seasonal"));
         Assert.All(
             config.Widgets.Where(w => w.WidgetType == "jux.connected.seasonal"),
@@ -303,8 +337,8 @@ public sealed class PluginValidationTests
 
         Plugin.MigrateConfiguration(config);
 
-        Assert.Equal(10, config.SchemaVersion);
-        Assert.Equal(2, config.Widgets.Length);
+        Assert.Equal(11, config.SchemaVersion);
+        Assert.Equal(2 + LocalPresets, config.Widgets.Length);
         var episodesWidget = config.Widgets.Single(w => w.WidgetType == "jux.native.recently-added-episodes");
         Assert.True(episodesWidget.Enabled);
         Assert.Equal(35, episodesWidget.Order);
@@ -325,8 +359,8 @@ public sealed class PluginValidationTests
 
         Plugin.MigrateConfiguration(config);
 
-        Assert.Equal(10, config.SchemaVersion);
-        Assert.Equal(2, config.Widgets.Length);
+        Assert.Equal(11, config.SchemaVersion);
+        Assert.Equal(2 + LocalPresets, config.Widgets.Length);
         var episodesWidget = config.Widgets.Single(w => w.WidgetType == "jux.native.recently-added-episodes");
 
         // Untouched -- the migration must not overwrite an existing row, only append one when the
@@ -364,7 +398,7 @@ public sealed class PluginValidationTests
 
         Plugin.MigrateConfiguration(config);
 
-        Assert.Equal(10, config.SchemaVersion);
+        Assert.Equal(11, config.SchemaVersion);
         Assert.True(config.Modules.Tabs);
         Assert.True(config.Modules.CardEnhancements);
         Assert.True(config.Modules.SeriesFlatten);

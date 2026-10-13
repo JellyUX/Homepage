@@ -145,7 +145,8 @@ describe('configuration page controller (F-33)', () => {
     const descriptors = [
         { WidgetType: 'jux.admin.genre', DisplayName: 'Genre', Category: 1, MinItems: 4, ViewMode: 'Portrait' },
         { WidgetType: 'jux.admin.collection', DisplayName: 'Collection', Category: 1, MinItems: 4, ViewMode: 'Portrait' },
-        { WidgetType: 'jux.connected.seasonal', DisplayName: 'Seasonal', Category: 1, MinItems: 1, ViewMode: 'Portrait' }
+        { WidgetType: 'jux.connected.seasonal', DisplayName: 'Seasonal', Category: 1, MinItems: 1, ViewMode: 'Portrait' },
+        { WidgetType: 'jux.local.top-rated', DisplayName: 'Top Rated in Library', Category: 1, MinItems: 4, ViewMode: 'Portrait' }
     ];
     const values = {
         'jux.admin.genre': [{ Value: 'Drame', Label: 'Drame' }],
@@ -244,6 +245,29 @@ describe('configuration page controller (F-33)', () => {
 
         const saved = window.ApiClient.updatePluginConfiguration.mock.calls[0][1].Widgets;
         expect(saved.map((w) => w.SortBy)).toEqual(['Random', 'SortName', 'SortName']);
+    });
+
+    it('gives a local library row its item types instead of a value or a sort, and saves them (F-61)', async () => {
+        const local = { WidgetType: 'jux.local.top-rated', Enabled: false, Order: 3, MinItems: 4, MaxItems: 20, ViewMode: 'Portrait', ExtraParams: [{ Key: 'itemTypes', Value: 'Series' }] };
+        window.ApiClient.getPluginConfiguration = vi.fn(() => Promise.resolve({ ...JSON.parse(JSON.stringify(config)), Widgets: [...JSON.parse(JSON.stringify(config.Widgets)), local] }));
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+
+        const types = card(3).querySelector('.jux-local-itemtypes');
+        expect(types.value).toBe('Series');
+        expect(card(3).querySelector('.jux-admin-sort')).toBeNull();
+        expect(card(3).querySelector('.jux-admin-widget-value')).toBeNull();
+        expect(card(0).querySelector('.jux-admin-widget-value')).not.toBeNull();
+        types.value = 'Movie';
+
+        window.ApiClient.updatePluginConfiguration = vi.fn(() => Promise.resolve({}));
+        window.Dashboard.processPluginConfigurationUpdateResult = vi.fn();
+        view.querySelector('.juxConfigForm').dispatchEvent(new Event('submit', { cancelable: true }));
+        await settle();
+
+        const saved = window.ApiClient.updatePluginConfiguration.mock.calls[0][1].Widgets[3];
+        expect(saved.ExtraParams).toEqual([{ Key: 'itemTypes', Value: 'Movie' }]);
     });
 
     it('folds every row into a summary line, and unfolds one with its toggle', async () => {

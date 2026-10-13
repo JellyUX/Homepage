@@ -1,6 +1,7 @@
 using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.Widgets;
 using Jellyfin.Plugin.JuxHomepage.Widgets.Connected;
+using Jellyfin.Plugin.JuxHomepage.Widgets.Local;
 using Jellyfin.Plugin.JuxHomepage.Widgets.Native;
 using Jellyfin.Plugin.JuxHomepage.Widgets.Personalized;
 using MediaBrowser.Common.Configuration;
@@ -19,7 +20,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
     /// The current configuration schema version. See the "Configuration Schema Versioning" section
     /// in CLAUDE.md for the migration policy.
     /// </summary>
-    private const int CurrentSchemaVersion = 10;
+    private const int CurrentSchemaVersion = 11;
 
     /// <summary>
     /// The current per-user configuration schema version, tracked separately from
@@ -183,6 +184,11 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
 
         // V9-to-V10 (TODO_V4.md 8.4, F-59) adds WatchlistAutoRemove. No transform: a file without the
         // element deserializes to its default, on, which is the behavior every earlier version had.
+
+        if (config.SchemaVersion < 11)
+        {
+            config.Widgets = AppendLocalPresetsIfMissing(config.Widgets);
+        }
 
         // Add future migrations here as additional `if (config.SchemaVersion < N) { ... }` blocks,
         // each gated on its own target version and never combined with `else if` -- an installation
@@ -372,6 +378,20 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
         };
 
         return result.ToArray();
+    }
+
+    /// <summary>
+    /// V10-to-V11 migration step (TODO_V4.md 9.1, F-61): appends the disabled preset row of each local
+    /// library section (<see cref="LocalWidgetDefaults"/>) whose widget type has no row yet. Idempotent.
+    /// </summary>
+    /// <param name="widgets">The widget configuration rows to migrate.</param>
+    /// <returns>The migrated array of rows, with any missing preset rows appended.</returns>
+    private static WidgetConfig[] AppendLocalPresetsIfMissing(WidgetConfig[] widgets)
+    {
+        var missingPresets = LocalWidgetDefaults.Build()
+            .Where(preset => !widgets.Any(w => w.WidgetType == preset.WidgetType));
+
+        return [.. widgets, .. missingPresets];
     }
 
     /// <summary>
