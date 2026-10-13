@@ -12,6 +12,15 @@ configuration page warns about it whenever Custom Tabs is installed.
 restart Jellyfin. Do not use **Disable** in **Administration > Plugins** for this: on Jellyfin 10.11 a
 disabled plugin is deleted at the next restart (see the README).
 
+## "Cannot find module './'" in the browser console when opening a JellyUX tab
+
+Each click on a JellyUX tab logs one `Uncaught (in promise) Error: Cannot find module './'` in the
+browser console. It is harmless: the tab opens normally. Jellyfin Web loads a page controller for
+every home tab it is told about, and has one only for Home and Favorites; for any other tab (the
+JellyUX ones, or those of other plugins that add home tabs) that lookup fails, and Jellyfin does not
+catch the error. JellyUX leaves this native code path untouched rather than block it, since blocking
+it would also stop Jellyfin from pausing the Home tab while another tab is shown.
+
 ## Items hidden in Jellyfin Enhanced still show in some JellyUX sections
 
 The JellyUX native sections (Continue Watching, Next Up, Recently Added Movies, Shows and Episodes)
