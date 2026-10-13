@@ -49,6 +49,22 @@ var DEDICATED_EDITORS = {
     'jux.connected.seasonal': 'seasonal'
 };
 
+// The check mark of a native checkbox (the markup Jellyfin's emby-checkbox element draws), shared by
+// the static switches of config.html and the checkboxes of the widget cards.
+var CHECKBOX_OUTLINE_HTML = '<span class="checkboxOutline">' +
+    '<span class="material-icons checkboxIcon checkboxIcon-checked check" aria-hidden="true"></span>' +
+    '<span class="material-icons checkboxIcon checkboxIcon-unchecked " aria-hidden="true"></span>' +
+    '</span>';
+
+// Adds the check mark after the label text of each static checkbox of the page, once.
+function addCheckboxOutlines(root) {
+    root.querySelectorAll('.emby-checkbox-label').forEach(function (label) {
+        if (!label.querySelector('.checkboxOutline')) {
+            label.insertAdjacentHTML('beforeend', CHECKBOX_OUTLINE_HTML);
+        }
+    });
+}
+
 var CATEGORY_EDITORS = ['Native', 'Admin', 'Personalized', 'Connected'];
 
 // Chooses the editor of a widget row: a dedicated editor first, then the one of its category. A
@@ -443,10 +459,7 @@ function createConfigPage() {
                     html += '<input type="checkbox" id="widgetEnabled_' + i + '" class="emby-checkbox jux-admin-enabled"';
                     html += (w.Enabled ? ' checked' : '') + ' />';
                     html += '<span class="checkboxLabel">' + self.escHtml(defaultName) + '</span>';
-                    html += '<span class="checkboxOutline">';
-                    html += '<span class="material-icons checkboxIcon checkboxIcon-checked check" aria-hidden="true"></span>';
-                    html += '<span class="material-icons checkboxIcon checkboxIcon-unchecked " aria-hidden="true"></span>';
-                    html += '</span>';
+                    html += CHECKBOX_OUTLINE_HTML;
                     html += '</label>';
 
                     if (category !== undefined && category !== null && category !== '') {
@@ -719,10 +732,7 @@ function createConfigPage() {
                         html += '<input type="checkbox" id="widgetExcludeWatched_' + i + '" class="emby-checkbox jux-admin-exclude-watched"';
                         html += (excludeWatched ? ' checked' : '') + ' />';
                         html += '<span class="checkboxLabel">' + self.escHtml(self.t('admin.excludewatched.label')) + '</span>';
-                        html += '<span class="checkboxOutline">';
-                        html += '<span class="material-icons checkboxIcon checkboxIcon-checked check" aria-hidden="true"></span>';
-                        html += '<span class="material-icons checkboxIcon checkboxIcon-unchecked " aria-hidden="true"></span>';
-                        html += '</span>';
+                        html += CHECKBOX_OUTLINE_HTML;
                         html += '</label>';
                         html += '<div class="fieldDescription">' + self.escHtml(self.t('admin.excludewatched.help')) + '</div>';
                         html += '</div>';
@@ -1515,6 +1525,8 @@ function createConfigPage() {
         init: function () {
             var self = this;
             if (!this._submitBound) {
+                addCheckboxOutlines(document.querySelector('.juxConfigForm'));
+
                 document.querySelector('.juxConfigForm').addEventListener('submit', function (e) {
                     self.saveConfig(e);
                 });
