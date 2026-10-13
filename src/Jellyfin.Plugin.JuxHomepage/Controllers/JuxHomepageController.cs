@@ -606,8 +606,8 @@ public class JuxHomepageController : ControllerBase
     }
 
     /// <summary>
-    /// Returns the last-refreshed timestamp and cached item count for each TMDb cache type, for
-    /// display in the admin UI.
+    /// Returns the last-refreshed timestamp, cached item count and library match count for each
+    /// TMDb cache type, for display in the admin UI.
     /// </summary>
     /// <returns>An array of <see cref="TMDbCacheStatusDto"/> objects, one per <see cref="TMDbCacheType"/>.</returns>
     [HttpGet("TMDb/Status")]
@@ -616,10 +616,15 @@ public class JuxHomepageController : ControllerBase
     public ActionResult<IReadOnlyList<TMDbCacheStatusDto>> GetTMDbStatus()
     {
         var statuses = Enum.GetValues<TMDbCacheType>()
-            .Select(type => new TMDbCacheStatusDto(
-                type.ToString(),
-                _tmdbCacheService.GetLastRefreshedUtc(type),
-                GetTMDbItemCount(type)))
+            .Select(type =>
+            {
+                var items = GetTMDbItems(type);
+                return new TMDbCacheStatusDto(
+                    type.ToString(),
+                    _tmdbCacheService.GetLastRefreshedUtc(type),
+                    items.Count,
+                    items.Count(i => i.LibraryItemId.HasValue));
+            })
             .ToList()
             .AsReadOnly();
 
@@ -853,25 +858,25 @@ public class JuxHomepageController : ControllerBase
         return Ok(values);
     }
 
-    private int GetTMDbItemCount(TMDbCacheType type)
+    private IReadOnlyList<IExternalCacheItem> GetTMDbItems(TMDbCacheType type)
     {
         switch (type)
         {
             case TMDbCacheType.TrendingMovies:
-                return _tmdbCacheService.GetTrendingMovies().Count;
+                return _tmdbCacheService.GetTrendingMovies();
             case TMDbCacheType.TrendingShows:
-                return _tmdbCacheService.GetTrendingShows().Count;
+                return _tmdbCacheService.GetTrendingShows();
             case TMDbCacheType.AiringToday:
-                return _tmdbCacheService.GetAiringToday().Count;
+                return _tmdbCacheService.GetAiringToday();
             case TMDbCacheType.TopRatedMovies:
-                return _tmdbCacheService.GetTopRatedMovies().Count;
+                return _tmdbCacheService.GetTopRatedMovies();
             case TMDbCacheType.TopRatedShows:
-                return _tmdbCacheService.GetTopRatedShows().Count;
+                return _tmdbCacheService.GetTopRatedShows();
             case TMDbCacheType.NowPlayingMovies:
-                return _tmdbCacheService.GetNowPlayingMovies().Count;
+                return _tmdbCacheService.GetNowPlayingMovies();
             default:
-                _logger.LogWarning("Unhandled TMDbCacheType {Type} in item-count switch; reporting 0.", type);
-                return 0;
+                _logger.LogWarning("Unhandled TMDbCacheType {Type} in item switch; reporting no item.", type);
+                return [];
         }
     }
 
@@ -887,5 +892,6 @@ public class JuxHomepageController : ControllerBase
     /// <param name="Type">The <see cref="TMDbCacheType"/> name (e.g. "TrendingMovies").</param>
     /// <param name="LastRefreshedUtc">UTC timestamp of the last successful refresh, or null if never refreshed.</param>
     /// <param name="ItemCount">The number of items currently cached for this type.</param>
-    public record TMDbCacheStatusDto(string Type, DateTime? LastRefreshedUtc, int ItemCount);
+    /// <param name="MatchedCount">How many of those items were found in the local library (the only ones a section can show).</param>
+    public record TMDbCacheStatusDto(string Type, DateTime? LastRefreshedUtc, int ItemCount, int MatchedCount);
 }

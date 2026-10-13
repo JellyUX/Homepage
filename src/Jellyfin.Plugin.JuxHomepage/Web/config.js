@@ -1250,7 +1250,7 @@ function createConfigPage() {
                 var pagesKey = self._tmdbPagesConfigKey[s.Type];
                 var pages = pagesKey ? (tmdbLists[pagesKey] || 1) : 1;
                 html += '<div class="jux-admin-tmdb-status-row">';
-                html += '<span id="tmdbLabel_' + s.Type + '">' + self.escHtml(self.t('admin.tmdbstatus.cached', { label: label, count: s.ItemCount })) + '</span>';
+                html += '<span id="tmdbLabel_' + s.Type + '">' + self.escHtml(self.t('admin.tmdbstatus.cached', { label: label, count: s.ItemCount, matched: s.MatchedCount || 0 })) + '</span>';
                 html += '<span id="tmdbRefreshed_' + s.Type + '">' + self.escHtml(lastRefreshed) + '</span>';
                 if (pagesKey) {
                     html += '<span class="jux-admin-tmdb-pages">';
@@ -1281,6 +1281,9 @@ function createConfigPage() {
                     html += '</span>';
                 }
                 html += '</div>';
+                if (s.Type === 'NowPlayingMovies') {
+                    html += '<div class="fieldDescription">' + self.escHtml(self.t('admin.tmdbstatus.nowplaying.help')) + '</div>';
+                }
             });
             list.innerHTML = html || '<p class="fieldDescription">' + self.escHtml(self.t('admin.tmdbstatus.empty')) + '</p>';
         },
@@ -1304,7 +1307,7 @@ function createConfigPage() {
                 var labelKey = labels[s.Type];
                 var label = labelKey ? self.t(labelKey) : s.Type;
                 var lastRefreshed = s.LastRefreshedUtc ? new Date(s.LastRefreshedUtc).toLocaleString() : self.t('admin.tmdbstatus.never');
-                labelEl.textContent = self.t('admin.tmdbstatus.cached', { label: label, count: s.ItemCount });
+                labelEl.textContent = self.t('admin.tmdbstatus.cached', { label: label, count: s.ItemCount, matched: s.MatchedCount || 0 });
                 refreshedEl.textContent = lastRefreshed;
             });
             if (anyMissing) {

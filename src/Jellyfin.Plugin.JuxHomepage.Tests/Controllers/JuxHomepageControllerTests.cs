@@ -107,7 +107,7 @@ public sealed class JuxHomepageControllerTests
     public void GetTMDbStatus_ReturnsOneEntryPerCacheType_WithConfiguredCounts()
     {
         var tmdbCacheServiceMock = new Mock<ITMDbCacheService>();
-        tmdbCacheServiceMock.Setup(s => s.GetTrendingMovies()).Returns([new TMDbMovie()]);
+        tmdbCacheServiceMock.Setup(s => s.GetTrendingMovies()).Returns([new TMDbMovie(), new TMDbMovie { LibraryItemId = Guid.NewGuid() }, new TMDbMovie()]);
         tmdbCacheServiceMock.Setup(s => s.GetTrendingShows()).Returns([new TMDbShow(), new TMDbShow()]);
         tmdbCacheServiceMock.Setup(s => s.GetAiringToday()).Returns([]);
         tmdbCacheServiceMock.Setup(s => s.GetTopRatedMovies()).Returns([]);
@@ -121,12 +121,16 @@ public sealed class JuxHomepageControllerTests
         var ok = Assert.IsType<OkObjectResult>(result.Result);
         var statuses = Assert.IsAssignableFrom<IReadOnlyList<JuxHomepageController.TMDbCacheStatusDto>>(ok.Value);
         Assert.Equal(Enum.GetValues<TMDbCacheType>().Length, statuses.Count);
-        Assert.Equal(1, statuses.Single(s => s.Type == nameof(TMDbCacheType.TrendingMovies)).ItemCount);
-        Assert.Equal(2, statuses.Single(s => s.Type == nameof(TMDbCacheType.TrendingShows)).ItemCount);
+        var trendingMovies = statuses.Single(s => s.Type == nameof(TMDbCacheType.TrendingMovies));
+        Assert.Equal(3, trendingMovies.ItemCount);
+        Assert.Equal(1, trendingMovies.MatchedCount);
+        var trendingShows = statuses.Single(s => s.Type == nameof(TMDbCacheType.TrendingShows));
+        Assert.Equal(2, trendingShows.ItemCount);
+        Assert.Equal(0, trendingShows.MatchedCount);
     }
 
     [Fact]
-    public void GetTMDbItemCount_UnhandledCacheType_ReturnsZeroAndLogsWarning()
+    public void GetTMDbItems_UnhandledCacheType_ReturnsNoItemAndLogsWarning()
     {
         // Guards against the switch silently reporting 0 for a future TMDbCacheType value that was
         // added to the enum but never wired into this switch (Phase 9 fix, TODO_V2.md).
@@ -134,12 +138,12 @@ public sealed class JuxHomepageControllerTests
         var controller = BuildController(logger: loggerMock.Object);
 
         var method = typeof(JuxHomepageController).GetMethod(
-            "GetTMDbItemCount",
+            "GetTMDbItems",
             BindingFlags.NonPublic | BindingFlags.Instance)!;
 
-        var result = (int)method.Invoke(controller, [(TMDbCacheType)999])!;
+        var result = (IReadOnlyList<IExternalCacheItem>)method.Invoke(controller, [(TMDbCacheType)999])!;
 
-        Assert.Equal(0, result);
+        Assert.Empty(result);
         loggerMock.Verify(
             l => l.Log(
                 LogLevel.Warning,

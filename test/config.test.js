@@ -424,6 +424,28 @@ describe('configuration page controller (F-33)', () => {
         expect(key.type).toBe('password');
     });
 
+    it('shows how many cached TMDb items were found in the library, and what Now Playing needs (F-61)', async () => {
+        window.ApiClient.getJSON = vi.fn((url) => {
+            if (url === 'JuxHomepage/TMDb/Status') {
+                return Promise.resolve([
+                    { Type: 'TrendingMovies', LastRefreshedUtc: null, ItemCount: 80, MatchedCount: 2 },
+                    { Type: 'NowPlayingMovies', LastRefreshedUtc: null, ItemCount: 79, MatchedCount: 2 }
+                ]);
+            }
+            if (url === 'JuxHomepage/Localizations') {
+                return Promise.resolve({ 'admin.tmdbstatus.cached': '{label} ({count} cached, {matched} in your library)', 'jux.connected.trending-movies': 'Trending Movies' });
+            }
+            return getJSON(url);
+        });
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+
+        expect(view.querySelector('#tmdbLabel_TrendingMovies').textContent).toBe('Trending Movies (80 cached, 2 in your library)');
+        const help = [...view.querySelectorAll('#juxTmdbStatusList .fieldDescription')].map((d) => d.textContent);
+        expect(help).toEqual(['admin.tmdbstatus.nowplaying.help']);
+    });
+
     it('gives the Admin-category Seasonal row its own editor, not the admin value picker', async () => {
         createController(view);
         view.dispatchEvent(new Event('viewshow'));
