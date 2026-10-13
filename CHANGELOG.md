@@ -1,3 +1,21 @@
+## [2.14.0](https://github.com/JellyUX/Homepage/compare/v2.13.0...v2.14.0) (2026-10-13)
+
+### Features
+
+* add Recently Released and Top Rated in Library sections that need no TMDb ([15b0108](https://github.com/JellyUX/Homepage/commit/15b0108c67d7e5b151aa8dab6419bd2d192f15ca))
+* filter a seasonal section by several genres or tags, and hide it without any ([05a9b33](https://github.com/JellyUX/Homepage/commit/05a9b330ca248d906bfab5452c8a8a0d0a2c8fad))
+* read every client label from the language files, so a new language is one file ([cc01ad8](https://github.com/JellyUX/Homepage/commit/cc01ad8d25a475aa1f1812dcc3c0a328b02ce8bc))
+* ship seasonal presets filtered by tag or genre, several per season ([7a69a30](https://github.com/JellyUX/Homepage/commit/7a69a304dd46221f9d32596e5ddb3b30a0ebf9c9))
+* show how many cached TMDb items are in the library on the admin page ([5f09d49](https://github.com/JellyUX/Homepage/commit/5f09d494b08c635f51f49a71d30f3922c6f170d5))
+* show the seasonal preset names in the user's language ([23f9e51](https://github.com/JellyUX/Homepage/commit/23f9e518d7298664947148ceaa453384a1dd36c5))
+
+### Bug Fixes
+
+* open a native list from the see all of every section that has one ([3626a57](https://github.com/JellyUX/Homepage/commit/3626a57f509e96b0b6798c42820bf2c8b61caff4))
+* read the settings of the right row for each Personalized section ([fcd6c13](https://github.com/JellyUX/Homepage/commit/fcd6c13c01c5cd199816641e36dda2571826a2c7)), closes [type#rank](https://github.com/JellyUX/type/issues/rank)
+* show at most two episodes of a series in Recently Added Episodes ([ed756ee](https://github.com/JellyUX/Homepage/commit/ed756ee772f32172ffe70979813c8084633f1d94))
+* start a new Collection section at four cards like the other library sections ([e99e29e](https://github.com/JellyUX/Homepage/commit/e99e29e6aa5c6c5d1d50d19b9d787dab6605e7d0))
+
 ## [2.13.0](https://github.com/JellyUX/Homepage/compare/v2.12.1...v2.13.0) (2026-10-13)
 
 ### Features
