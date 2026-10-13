@@ -60,23 +60,25 @@
             var item = card && byId[card.getAttribute('data-id')];
             if (!item) { return; }
 
-            var isFavorite = !!(item.UserData && item.UserData.IsFavorite);
+            // The favorite state lives with the button and follows each confirmed toggle, so every
+            // click flips the current state, not the one of the first render (F-52).
+            var state = { favorite: !!(item.UserData && item.UserData.IsFavorite) };
 
             var button = document.createElement('button');
             button.type = 'button';
             button.setAttribute('is', 'paper-icon-button-light');
             button.className = 'cardOverlayButton cardOverlayButton-hover itemAction paper-icon-button-light jux-history-favorite-toggle';
-            button.title = isFavorite ? t.removeFavorite : t.addFavorite;
+            button.title = state.favorite ? t.removeFavorite : t.addFavorite;
 
             var icon = document.createElement('span');
-            icon.className = 'material-icons ' + (isFavorite ? 'favorite' : 'favorite_border');
+            icon.className = 'material-icons ' + (state.favorite ? 'favorite' : 'favorite_border');
             icon.setAttribute('aria-hidden', 'true');
             button.appendChild(icon);
 
             button.addEventListener('click', function (event) {
                 event.preventDefault();
                 event.stopPropagation();
-                _toggleFavorite(item.Id, !isFavorite, button, icon, t);
+                _toggleFavorite(item.Id, state, button, icon, t);
             });
 
             overlay.appendChild(button);
@@ -86,15 +88,20 @@
     // Favorite toggle via Jellyfin's own native endpoint (POST/DELETE
     // /Users/{userId}/FavoriteItems/{itemId}) -- no JellyUX endpoint needed, same convention already
     // used for the Watchlist toggle's underlying Likes field.
-    function _toggleFavorite(itemId, nowFavorite, button, icon, t) {
-        if (!window.ApiClient) { return; }
+    function _toggleFavorite(itemId, state, button, icon, t) {
+        if (!window.ApiClient || button.disabled) { return; }
         var userId = window.ApiClient.getCurrentUserId();
+        var nowFavorite = !state.favorite;
 
+        button.disabled = true;
         window.ApiClient.updateFavoriteStatus(userId, itemId, nowFavorite).then(function () {
+            state.favorite = nowFavorite;
             icon.className = 'material-icons ' + (nowFavorite ? 'favorite' : 'favorite_border');
             button.title = nowFavorite ? t.removeFavorite : t.addFavorite;
         }).catch(function (err) {
             console.error('[JellyUX] Failed to toggle favorite state:', err);
+        }).then(function () {
+            button.disabled = false;
         });
     }
 
@@ -116,7 +123,8 @@
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
             _sortOptions: _sortOptions,
-            _buildShellHtml: window.juxHistory.buildShellHtml
+            _buildShellHtml: window.juxHistory.buildShellHtml,
+            _decorateCards: _decorateCards
         };
     }
 })();
