@@ -180,16 +180,9 @@ public abstract class PersonalizedWidgetBase : IWidget
         }
 
         var dtoOptions = WidgetDtoOptions.Standard();
-        var query = new InternalItemsQuery(user)
-        {
-            IncludeItemTypes = IncludeItemTypes,
-            Recursive = true,
-            IsMissing = false,
-            EnableTotalRecordCount = false,
-            StartIndex = payload.StartIndex,
-            Limit = payload.Limit,
-            DtoOptions = dtoOptions
-        };
+        var query = LibrarySectionQuery.Create(user, dtoOptions, IncludeItemTypes);
+        query.StartIndex = payload.StartIndex;
+        query.Limit = payload.Limit;
 
         if (ExcludeWatched(payload))
         {

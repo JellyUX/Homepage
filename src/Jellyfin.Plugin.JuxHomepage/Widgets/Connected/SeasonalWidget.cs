@@ -98,14 +98,7 @@ public sealed class SeasonalWidget : IWidget
         }
 
         var dtoOptions = WidgetDtoOptions.Standard();
-        var query = new InternalItemsQuery(user)
-        {
-            Recursive = true,
-            IsMissing = false,
-            EnableTotalRecordCount = false,
-            IncludeItemTypes = [BaseItemKind.Movie, BaseItemKind.Series],
-            DtoOptions = dtoOptions
-        };
+        var query = LibrarySectionQuery.Create(user, dtoOptions, [BaseItemKind.Movie, BaseItemKind.Series]);
 
         if (extra.TryGetValue("genre", out var genre) && !string.IsNullOrWhiteSpace(genre))
         {

@@ -160,18 +160,7 @@ public abstract class AdminWidgetBase : IWidget
         }
 
         var dtoOptions = WidgetDtoOptions.Standard();
-        var query = new InternalItemsQuery(user)
-        {
-            Recursive = true,
-            IsMissing = false,
-            EnableTotalRecordCount = false,
-            DtoOptions = dtoOptions
-        };
-
-        if (IncludeItemTypes is not null)
-        {
-            query.IncludeItemTypes = IncludeItemTypes;
-        }
+        var query = LibrarySectionQuery.Create(user, dtoOptions, IncludeItemTypes);
 
         if (!ApplyFilter(query, value))
         {
