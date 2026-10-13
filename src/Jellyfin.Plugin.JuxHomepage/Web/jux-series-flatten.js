@@ -27,46 +27,18 @@
         return;
     }
 
-    var _observer = null;
+    var _syncObserver;
 
     window.juxSeriesFlatten = {
         init: function () {
-            window.addEventListener('hashchange', function () {
-                setTimeout(_syncObserver, 400);
-            });
-
-            _syncObserver();
+            _syncObserver = window.JuxCore.watchDetailPages(_tryFlatten);
         }
     };
-
-    // One observer for this module, connected only while a detail page (#...?id=) is shown and
-    // disconnected when the user leaves it (same idiom as jux-collections.js).
-    function _syncObserver() {
-        if (!_currentDetailItemId() || window.JuxCore.isOffForUser()) {
-            if (_observer) {
-                _observer.disconnect();
-                _observer = null;
-            }
-            return;
-        }
-
-        if (!_observer) {
-            _observer = new MutationObserver(_tryFlatten);
-            _observer.observe(document.body, { childList: true, subtree: true });
-        }
-
-        _tryFlatten();
-    }
 
     var _labels = {
         en: { seasonFallback: 'Season {number}' },
         fr: { seasonFallback: 'Saison {number}' }
     };
-
-    function _currentDetailItemId() {
-        var match = /[#&?]id=([a-f0-9-]+)/i.exec(location.hash);
-        return match ? match[1] : null;
-    }
 
     function _shouldFlatten(item) {
         return !!item && item.Type === 'Series' && item.ChildCount === 1;
@@ -86,7 +58,7 @@
     }
 
     function _tryFlatten() {
-        var itemId = _currentDetailItemId();
+        var itemId = window.JuxCore.currentDetailItemId();
         if (!itemId) {
             return;
         }
@@ -210,7 +182,7 @@
             _shouldFlatten: _shouldFlatten,
             _seasonTitle: _seasonTitle,
             _buildFlattenedSectionSkeleton: _buildFlattenedSectionSkeleton,
-            _currentDetailItemId: _currentDetailItemId,
+            _currentDetailItemId: window.JuxCore.currentDetailItemId,
             _syncObserver: _syncObserver
         };
     }

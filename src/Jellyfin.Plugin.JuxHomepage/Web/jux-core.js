@@ -204,7 +204,49 @@
         }
     }
 
+    // The item id of the detail page shown (#/details?id=...), or null on any other page.
+    function currentDetailItemId() {
+        var match = /[#&?]id=([a-f0-9-]+)/i.exec(location.hash);
+        return match ? match[1] : null;
+    }
+
+    // Runs onChange now and on every DOM mutation while a detail page is shown and JellyUX is on for
+    // the user; the observer is connected only then, so on every other page a detail-page module
+    // costs nothing. onLeave (optional) runs on every other page. Returns the sync function, run
+    // again 400 ms after each hash change (the time Jellyfin takes to swap the view).
+    function watchDetailPages(onChange, onLeave) {
+        var observer = null;
+
+        function sync() {
+            if (!currentDetailItemId() || isOffForUser()) {
+                if (observer) {
+                    observer.disconnect();
+                    observer = null;
+                }
+                if (onLeave) {
+                    onLeave();
+                }
+                return;
+            }
+
+            if (!observer) {
+                observer = new MutationObserver(onChange);
+                observer.observe(document.body, { childList: true, subtree: true });
+            }
+
+            onChange();
+        }
+
+        window.addEventListener('hashchange', function () {
+            setTimeout(sync, 400);
+        });
+        sync();
+        return sync;
+    }
+
     window.JuxCore = {
+        currentDetailItemId: currentDetailItemId,
+        watchDetailPages: watchDetailPages,
         isOffForUser: isOffForUser,
         setUserEnabled: setUserEnabled,
         escHtml: escHtml,

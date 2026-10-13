@@ -36,40 +36,17 @@
         }
     };
 
-    var _observer = null;
+    var _syncObserver;
 
     window.juxCollections = {
         init: function () {
-            window.addEventListener('hashchange', function () {
-                setTimeout(_syncObserver, 400);
-            });
-
-            _syncObserver();
+            _syncObserver = window.JuxCore.watchDetailPages(_run);
         }
     };
 
     function _run() {
         _tryIncludedIn();
         _tryCollectionSort();
-    }
-
-    // One observer for this module, connected only while a detail page (#...?id=) is shown and
-    // disconnected when the user leaves it: on every other page this module costs nothing.
-    function _syncObserver() {
-        if (!_currentDetailItemId() || window.JuxCore.isOffForUser()) {
-            if (_observer) {
-                _observer.disconnect();
-                _observer = null;
-            }
-            return;
-        }
-
-        if (!_observer) {
-            _observer = new MutationObserver(_run);
-            _observer.observe(document.body, { childList: true, subtree: true });
-        }
-
-        _run();
     }
 
     // The collections of the current item, built once per item on top of the detail-item cache of
@@ -86,11 +63,6 @@
                 });
             });
         });
-    }
-
-    function _currentDetailItemId() {
-        var match = /[#&?]id=([a-f0-9-]+)/i.exec(location.hash);
-        return match ? match[1] : null;
     }
 
     function _isSupportedForCollections(item) {
@@ -124,7 +96,7 @@
     // -------------------------------------------------------------------------
 
     function _tryIncludedIn() {
-        var itemId = _currentDetailItemId();
+        var itemId = window.JuxCore.currentDetailItemId();
         if (!itemId) {
             return;
         }
@@ -244,7 +216,7 @@
     // -------------------------------------------------------------------------
 
     function _tryCollectionSort() {
-        var itemId = _currentDetailItemId();
+        var itemId = window.JuxCore.currentDetailItemId();
         if (!itemId) {
             return;
         }
@@ -400,7 +372,7 @@
             _sortFields: _sortFields,
             _storageKeys: _storageKeys,
             _buildCollectionsSectionSkeleton: _buildCollectionsSectionSkeleton,
-            _currentDetailItemId: _currentDetailItemId,
+            _currentDetailItemId: window.JuxCore.currentDetailItemId,
             _syncObserver: _syncObserver
         };
     }
