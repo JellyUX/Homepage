@@ -246,6 +246,36 @@ public sealed class WidgetLayoutResolverTests
     }
 
     [Fact]
+    public async Task BuildDescriptors_NamesAPresetByItsTranslatedKey_UnlessTheAdminNamedIt()
+    {
+        // TODO_V4.md 9.4 (F-64).
+        var registry = new WidgetRegistry();
+        registry.Register(MakeWidget("jux.test.widget", totalRecordCount: 10));
+        static WidgetConfig Row(int order, string? name) => new()
+        {
+            WidgetType = "jux.test.widget",
+            Order = order,
+            Enabled = true,
+            CustomDisplayName = name,
+            ExtraParams = [new WidgetExtraParam { Key = "nameKey", Value = "jux.seasonal.christmas" }]
+        };
+        var resolver = new WidgetLayoutResolver(
+            registry,
+            new Mock<IUserConfigurationStore>().Object,
+            new LocalizationService(new Dictionary<string, IReadOnlyDictionary<string, string>>
+            {
+                ["en"] = new Dictionary<string, string> { ["jux.seasonal.christmas"] = "Christmas" },
+                ["fr"] = new Dictionary<string, string> { ["jux.seasonal.christmas"] = "Noël" }
+            }),
+            () => new PluginConfiguration { Widgets = [Row(10, null), Row(20, "Our Christmas")] },
+            NullLogger<WidgetLayoutResolver>.Instance);
+
+        var descriptors = await resolver.BuildDescriptors(Guid.NewGuid(), lang: "fr", CancellationToken.None);
+
+        Assert.Equal(["Noël", "Our Christmas"], descriptors.Select(d => d.DisplayName));
+    }
+
+    [Fact]
     public void ResolveConfigRow_UnknownSectionKey_FallsBackToTheFirstRowOfTheType()
     {
         var row = new WidgetConfig { WidgetType = "jux.test.widget", Order = 10 };

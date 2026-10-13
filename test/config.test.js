@@ -470,6 +470,29 @@ describe('configuration page controller (F-33)', () => {
         expect(help).toEqual(['admin.tmdbstatus.nowplaying.help']);
     });
 
+    it('names a preset row by its translated key and keeps the key on save (F-64)', async () => {
+        const named = JSON.parse(JSON.stringify(config));
+        named.Widgets[2].ExtraParams.push({ Key: 'nameKey', Value: 'jux.seasonal.halloween-horror' });
+        window.ApiClient.getPluginConfiguration = vi.fn(() => Promise.resolve(named));
+        window.ApiClient.getJSON = vi.fn((url) => url === 'JuxHomepage/Localizations'
+            ? Promise.resolve({ 'jux.seasonal.halloween-horror': "Horreur d'Halloween" })
+            : getJSON(url));
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+
+        expect(card(2).querySelector('.checkboxLabel').textContent).toBe("Horreur d'Halloween");
+
+        window.ApiClient.updatePluginConfiguration = vi.fn(() => Promise.resolve({}));
+        window.Dashboard.processPluginConfigurationUpdateResult = vi.fn();
+        view.querySelector('.juxConfigForm').dispatchEvent(new Event('submit', { cancelable: true }));
+        await settle();
+
+        const saved = window.ApiClient.updatePluginConfiguration.mock.calls[0][1].Widgets[2];
+        expect(saved.CustomDisplayName).toBeNull();
+        expect(saved.ExtraParams).toContainEqual({ Key: 'nameKey', Value: 'jux.seasonal.halloween-horror' });
+    });
+
     it('gives the Admin-category Seasonal row its own editor, not the admin value picker', async () => {
         createController(view);
         view.dispatchEvent(new Event('viewshow'));

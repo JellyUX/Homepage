@@ -73,4 +73,10 @@ public sealed class WidgetConfig
 
     /// <summary>Gets or sets optional extra parameters for widget-specific configuration.</summary>
     public WidgetExtraParam[] ExtraParams { get; set; } = [];
+
+    /// <summary>
+    /// The <see cref="ExtraParams"/> key of a preset row's name: a translation key, shown in the
+    /// user's language when <see cref="CustomDisplayName"/> is empty (TODO_V4.md 9.4, F-64).
+    /// </summary>
+    public const string NameKeyParam = "nameKey";
 }

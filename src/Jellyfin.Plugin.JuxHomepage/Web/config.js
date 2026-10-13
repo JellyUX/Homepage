@@ -451,7 +451,9 @@ function createConfigPage() {
             } else {
                 widgets.forEach(function (w, i) {
                     var desc = self.getDescriptor(w.WidgetType);
-                    var defaultName = self.translatedWidgetName(w.WidgetType, desc);
+                    // A preset row is named by a translated key (TODO_V4.md 9.4, F-64).
+                    var nameKey = self.getExtraParam(w, 'nameKey');
+                    var defaultName = nameKey ? self.t(nameKey) : self.translatedWidgetName(w.WidgetType, desc);
                     var category = desc ? desc.Category : '';
                     var isFirst = i === 0;
                     var isLast = i === widgets.length - 1;
@@ -1193,6 +1195,8 @@ function createConfigPage() {
 
                     var seasonalInstanceId = self.getExtraParam(w, 'value');
                     var seasonalParams = [{ Key: 'value', Value: seasonalInstanceId }];
+                    var seasonalNameKey = self.getExtraParam(w, 'nameKey');
+                    if (seasonalNameKey) { seasonalParams.push({ Key: 'nameKey', Value: seasonalNameKey }); }
 
                     if (seasonalStartEl) { seasonalParams.push({ Key: 'startDate', Value: seasonalStartEl.value.trim() }); }
                     if (seasonalEndEl) { seasonalParams.push({ Key: 'endDate', Value: seasonalEndEl.value.trim() }); }

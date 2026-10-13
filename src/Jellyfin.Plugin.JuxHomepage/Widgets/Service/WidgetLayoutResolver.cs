@@ -419,7 +419,9 @@ public sealed class WidgetLayoutResolver
         extra.TryGetValue("value", out var additionalData);
         return new WidgetInstanceConfig
         {
-            DisplayName = config.CustomDisplayName ?? localizationService.Translate(widget.WidgetType, lang),
+            // A preset names itself by a translated key (TODO_V4.md 9.4, F-64); a name the admin typed wins.
+            DisplayName = config.CustomDisplayName
+                ?? localizationService.Translate(extra.TryGetValue(WidgetConfig.NameKeyParam, out var nameKey) ? nameKey : widget.WidgetType, lang),
             MinItems = config.MinItems,
             MaxItems = config.MaxItems,
             ViewMode = config.ViewMode,

@@ -17,6 +17,14 @@
   "jux.connected.rewards": "Récompenses",
   "jux.connected.seasonal": "Saisonnier",
 
+  "jux.seasonal.halloween": "Halloween",
+  "jux.seasonal.halloween-horror": "Horreur d'Halloween",
+  "jux.seasonal.halloween-thrillers": "Thrillers d'Halloween",
+  "jux.seasonal.christmas": "Noël",
+  "jux.seasonal.valentines": "Saint-Valentin",
+  "jux.seasonal.valentines-romance": "Romances de la Saint-Valentin",
+  "jux.seasonal.newyear": "Nouvel An",
+
   "jux.admin.genre": "Genre",
   "jux.admin.actor": "Acteur",
   "jux.admin.director": "Réalisateur",

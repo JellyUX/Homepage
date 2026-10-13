@@ -40,6 +40,18 @@ public static class SeasonalWidgetDefaults
     public static readonly Guid ValentinesRomanceId = Guid.Parse("8f3a1b2c-0007-4b1e-9c3a-1f2e3d4c5b6a");
 
     /// <summary>
+    /// The English names the first four presets were saved with before their names became translated
+    /// keys (TODO_V4.md 9.4, F-64): schema tier 11 replaces a name still equal to it by the preset's key.
+    /// </summary>
+    public static readonly IReadOnlyDictionary<Guid, string> ShippedNames = new Dictionary<Guid, string>
+    {
+        [HalloweenId] = "Halloween",
+        [ChristmasId] = "Christmas",
+        [ValentinesId] = "Valentine's Day",
+        [NewYearId] = "New Year"
+    };
+
+    /// <summary>
     /// The presets added by schema tier 11 (TODO_V4.md 9.2), the only ones that tier appends to an
     /// existing configuration.
     /// </summary>
@@ -52,18 +64,18 @@ public static class SeasonalWidgetDefaults
     /// <returns>A fixed-order array of seven <see cref="WidgetConfig"/> entries.</returns>
     public static WidgetConfig[] Build() =>
     [
-        BuildRow(HalloweenId, "Halloween", "10-01", "10-31", "halloween", ("tag", "halloween"), order: 200),
-        BuildRow(HalloweenHorrorId, "Halloween Horror", "10-01", "10-31", "halloween", ("genre", "Horror|Horreur"), order: 201),
-        BuildRow(HalloweenThrillerId, "Halloween Thrillers", "10-01", "10-31", "halloween", ("genre", "Thriller"), order: 202),
-        BuildRow(ChristmasId, "Christmas", "12-01", "12-25", "christmas", ("tag", "christmas"), order: 210),
-        BuildRow(ValentinesId, "Valentine's Day", "02-07", "02-14", "valentines", ("tag", "valentine's day"), order: 220),
-        BuildRow(ValentinesRomanceId, "Valentine's Romance", "02-07", "02-14", "valentines", ("genre", "Romance"), order: 221),
-        BuildRow(NewYearId, "New Year", "12-26", "01-06", "newyear", ("tag", "new year's eve"), order: 230)
+        BuildRow(HalloweenId, "jux.seasonal.halloween", "10-01", "10-31", "halloween", ("tag", "halloween"), order: 200),
+        BuildRow(HalloweenHorrorId, "jux.seasonal.halloween-horror", "10-01", "10-31", "halloween", ("genre", "Horror|Horreur"), order: 201),
+        BuildRow(HalloweenThrillerId, "jux.seasonal.halloween-thrillers", "10-01", "10-31", "halloween", ("genre", "Thriller"), order: 202),
+        BuildRow(ChristmasId, "jux.seasonal.christmas", "12-01", "12-25", "christmas", ("tag", "christmas"), order: 210),
+        BuildRow(ValentinesId, "jux.seasonal.valentines", "02-07", "02-14", "valentines", ("tag", "valentine's day"), order: 220),
+        BuildRow(ValentinesRomanceId, "jux.seasonal.valentines-romance", "02-07", "02-14", "valentines", ("genre", "Romance"), order: 221),
+        BuildRow(NewYearId, "jux.seasonal.newyear", "12-26", "01-06", "newyear", ("tag", "new year's eve"), order: 230)
     ];
 
     private static WidgetConfig BuildRow(
         Guid id,
-        string displayName,
+        string nameKey,
         string startDate,
         string endDate,
         string theme,
@@ -71,7 +83,6 @@ public static class SeasonalWidgetDefaults
         int order) => new()
     {
         WidgetType = "jux.connected.seasonal",
-        CustomDisplayName = displayName,
         Enabled = false,
         Order = order,
         MinItems = 4,
@@ -83,6 +94,7 @@ public static class SeasonalWidgetDefaults
         ExtraParams =
         [
             new WidgetExtraParam { Key = "value", Value = id.ToString() },
+            new WidgetExtraParam { Key = WidgetConfig.NameKeyParam, Value = nameKey },
             new WidgetExtraParam { Key = "startDate", Value = startDate },
             new WidgetExtraParam { Key = "endDate", Value = endDate },
             new WidgetExtraParam { Key = "theme", Value = theme },

@@ -190,6 +190,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
             config.Widgets = AppendLocalPresetsIfMissing(config.Widgets);
             config.Widgets = AppendSeasonalPresetsIfMissing(config.Widgets, SeasonalWidgetDefaults.AddedInSchema11);
             FillSeasonalPresetFilters(config.Widgets);
+            KeySeasonalPresetNames(config.Widgets);
         }
 
         // Add future migrations here as additional `if (config.SchemaVersion < N) { ... }` blocks,
@@ -230,6 +231,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
         if (config.SchemaVersion < 11)
         {
             FillSeasonalPresetFilters(config.WidgetOverrides);
+            KeySeasonalPresetNames(config.WidgetOverrides);
         }
 
         // See MigrateConfiguration for the chain-extension pattern to follow for future tiers; user
@@ -432,6 +434,40 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
             [
                 .. extra.Where(e => e.Key != "genre" && e.Key != "tag"),
                 .. preset.ExtraParams.Where(e => e.Key == "genre" || e.Key == "tag")
+            ];
+        }
+    }
+
+    /// <summary>
+    /// V10-to-V11 migration step (TODO_V4.md 9.4, F-64): a seasonal preset row still named with the
+    /// English name it shipped with (<see cref="SeasonalWidgetDefaults.ShippedNames"/>) loses that name
+    /// for its preset's translated key, so it reads in the user's language; a name the admin changed
+    /// is kept. Idempotent.
+    /// </summary>
+    /// <param name="widgets">The widget configuration rows to migrate in place.</param>
+    private static void KeySeasonalPresetNames(WidgetConfig[] widgets)
+    {
+        var presets = SeasonalWidgetDefaults.Build()
+            .ToDictionary(p => p.ExtraParams.First(e => e.Key == "value").Value, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var widget in widgets.Where(w => w.WidgetType == "jux.connected.seasonal"))
+        {
+            var extra = widget.ExtraParams ?? [];
+            var id = extra.FirstOrDefault(e => e.Key == "value")?.Value;
+            if (id is null
+                || !Guid.TryParse(id, out var guid)
+                || !SeasonalWidgetDefaults.ShippedNames.TryGetValue(guid, out var shippedName)
+                || widget.CustomDisplayName != shippedName
+                || !presets.TryGetValue(id, out var preset))
+            {
+                continue;
+            }
+
+            widget.CustomDisplayName = null;
+            widget.ExtraParams =
+            [
+                .. extra.Where(e => e.Key != WidgetConfig.NameKeyParam),
+                .. preset.ExtraParams.Where(e => e.Key == WidgetConfig.NameKeyParam)
             ];
         }
     }

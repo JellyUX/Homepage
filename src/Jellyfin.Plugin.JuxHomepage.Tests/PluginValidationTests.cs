@@ -191,6 +191,29 @@ public sealed class PluginValidationTests
     }
 
     [Fact]
+    public void MigrateConfiguration_FromTierTen_NamesAPresetByItsKeyUnlessTheAdminRenamedIt()
+    {
+        static WidgetConfig Preset(Guid id, string name) => new()
+        {
+            WidgetType = "jux.connected.seasonal",
+            CustomDisplayName = name,
+            ExtraParams = [new WidgetExtraParam { Key = "value", Value = id.ToString() }, new WidgetExtraParam { Key = "tag", Value = "x" }]
+        };
+        var halloween = Preset(SeasonalWidgetDefaults.HalloweenId, "Halloween");
+        var christmas = Preset(SeasonalWidgetDefaults.ChristmasId, "Our Christmas");
+        var config = new PluginConfiguration { SchemaVersion = 10, Widgets = [halloween, christmas] };
+
+        Plugin.MigrateConfiguration(config);
+        config.SchemaVersion = 10;
+        Plugin.MigrateConfiguration(config);
+
+        Assert.Null(halloween.CustomDisplayName);
+        Assert.Equal("jux.seasonal.halloween", Assert.Single(halloween.ExtraParams, e => e.Key == "nameKey").Value);
+        Assert.Equal("Our Christmas", christmas.CustomDisplayName);
+        Assert.DoesNotContain(christmas.ExtraParams, e => e.Key == "nameKey");
+    }
+
+    [Fact]
     public void MigrateConfiguration_FreshInstall_EndsWithTheLocalPresetsDisabled()
     {
         var config = new PluginConfiguration();

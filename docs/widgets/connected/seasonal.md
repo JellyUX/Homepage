@@ -49,3 +49,7 @@ filters to fit your library and timezone.
 
 When upgrading, a preset section you never gave a filter receives the filter of its preset (it used to
 show the whole library); a section you filtered yourself is left unchanged.
+
+A preset section shows its name in each user's language (English or French today) until you type a
+name of your own; on upgrade, a preset still carrying its original English name switches to the
+translated one.
