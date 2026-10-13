@@ -192,6 +192,18 @@ describe('createListTab (F-35)', () => {
         expect(document.querySelector('.jux-things-items [data-jux-loading]')).not.toBeNull();
     });
 
+    it('places the title, the controls and the items on the same native gutters (F-46)', () => {
+        mountPane();
+        window.ApiClient = apiClient(new Promise(() => {}));
+
+        makeTab().render();
+
+        for (const selector of ['h2.sectionTitle', '.jux-view-controls', '.jux-things-items']) {
+            const el = document.querySelector(selector);
+            expect(el.classList.contains('padded-left') && el.classList.contains('padded-right'), selector).toBe(true);
+        }
+    });
+
     it('shows the empty state when the endpoint returns no row', async () => {
         mountPane();
         window.ApiClient = apiClient(Promise.resolve({ Items: [] }));

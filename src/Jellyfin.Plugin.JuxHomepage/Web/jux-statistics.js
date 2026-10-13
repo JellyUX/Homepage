@@ -79,14 +79,14 @@
     };
 
     function _buildTitleHtml(lang) {
-        return '<h2 class="sectionTitle sectionTitle-cards jux-section-title-container">' + window.JuxCore.escHtml(_labels[lang].title) + '</h2>';
+        return '<h2 class="sectionTitle sectionTitle-cards jux-section-title-container padded-left padded-right">' + window.JuxCore.escHtml(_labels[lang].title) + '</h2>';
     }
 
     function _buildTilesHtml(stats, lang) {
         var t = _labels[lang];
         var buildCard = (typeof window !== 'undefined' && window.JuxUI) ? window.JuxUI.buildStatCard : _fallbackTile;
 
-        return '<div class="jux-statistics-tiles">' +
+        return '<div class="jux-statistics-tiles padded-left padded-right">' +
             buildCard('movie', stats.MoviesWatched, t.moviesWatched) +
             buildCard('live_tv', stats.SeriesTracked, t.seriesTracked) +
             buildCard('check_circle', stats.SeriesCompleted, t.seriesCompleted) +

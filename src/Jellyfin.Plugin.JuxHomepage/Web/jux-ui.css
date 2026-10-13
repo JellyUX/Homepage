@@ -24,7 +24,7 @@
  * ------------------------------------------------------------------------- */
 
 .jux-section-title-container {
-    padding: 0 2em 0.5em;
+    padding-bottom: 0.5em;
 }
 
 /* -------------------------------------------------------------------------
@@ -35,7 +35,7 @@
     display: flex;
     align-items: center;
     gap: 0.75em;
-    padding: 0 2em 1em;
+    padding-bottom: 1em;
     flex-wrap: wrap;
 }
 
@@ -181,7 +181,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 1.25em;
-    padding: 0 2em 2em;
+    padding-bottom: 2em;
 }
 
 .jux-stat-card {

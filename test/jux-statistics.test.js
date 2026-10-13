@@ -33,3 +33,15 @@ describe('_buildTilesHtml', () => {
         expect(htmlFr).toContain('Épisodes vus');
     });
 });
+
+describe('gutters (F-46)', () => {
+    it('places the title and the tiles on the native page gutters', () => {
+        const container = document.createElement('div');
+        container.innerHTML = juxStatistics._buildTitleHtml('en') +
+            juxStatistics._buildTilesHtml({ MoviesWatched: 1, SeriesTracked: 2, SeriesCompleted: 3, EpisodesWatched: 4 }, 'en');
+
+        for (const el of container.children) {
+            expect(el.classList.contains('padded-left') && el.classList.contains('padded-right')).toBe(true);
+        }
+    });
+});

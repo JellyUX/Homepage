@@ -109,8 +109,8 @@
 
             buildShellHtml: function (lang, state) {
                 var t = config.labels[lang];
-                var html = '<h2 class="sectionTitle sectionTitle-cards jux-section-title-container">' + window.JuxCore.escHtml(t.title) + '</h2>' +
-                    '<div class="jux-view-controls">' +
+                var html = '<h2 class="sectionTitle sectionTitle-cards jux-section-title-container padded-left padded-right">' + window.JuxCore.escHtml(t.title) + '</h2>' +
+                    '<div class="jux-view-controls padded-left padded-right">' +
                     _listButtonHtml('jux-' + config.id + '-sort-btn', 'sort', labelFor(config.sortOptions(t), state.sortBy));
                 filters.forEach(function (filter) {
                     html += _listButtonHtml('jux-' + config.id + '-' + filter.name + '-btn', filter.icon, labelFor(filter.options(t), state[filter.key]));
