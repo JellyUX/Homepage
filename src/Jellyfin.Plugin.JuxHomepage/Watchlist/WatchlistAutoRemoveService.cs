@@ -1,15 +1,12 @@
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Entities;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.JuxHomepage.Watchlist;
 
 /// <summary>
 /// Hosted service that removes an item from a user's Watchlist (<c>UserData.Likes = false</c>) as
-/// soon as they finish watching it. Subscribes to <see cref="IUserDataManager.UserDataSaved"/> in
-/// <see cref="StartAsync"/>, unsubscribes in <see cref="StopAsync"/> -- same pattern as
-/// <see cref="Configuration.ConfigurationChangeListener"/>/<see cref="Inject.StartupService"/>.
+/// soon as they finish watching it (<see cref="UserDataSavedListener"/>).
 /// <para>
 /// Deliberately server-side rather than a client-side WebSocket listener: this event fires in the
 /// Jellyfin server process itself regardless of which client (web, mobile, TV, another plugin)
@@ -17,12 +14,10 @@ namespace Jellyfin.Plugin.JuxHomepage.Watchlist;
 /// the moment a client-side listener would be most likely to miss it (TODO_V3.md Phase 5.3).
 /// </para>
 /// </summary>
-public sealed class WatchlistAutoRemoveService : IHostedService
+public sealed class WatchlistAutoRemoveService : UserDataSavedListener
 {
-    private readonly IUserDataManager _userDataManager;
     private readonly IUserManager _userManager;
     private readonly ILogger<WatchlistAutoRemoveService> _logger;
-    private EventHandler<UserDataSaveEventArgs>? _handler;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WatchlistAutoRemoveService"/> class.
@@ -34,29 +29,10 @@ public sealed class WatchlistAutoRemoveService : IHostedService
         IUserDataManager userDataManager,
         IUserManager userManager,
         ILogger<WatchlistAutoRemoveService> logger)
+        : base(userDataManager, logger)
     {
-        _userDataManager = userDataManager;
         _userManager = userManager;
         _logger = logger;
-    }
-
-    /// <inheritdoc/>
-    public Task StartAsync(CancellationToken cancellationToken)
-    {
-        _handler = OnUserDataSaved;
-        _userDataManager.UserDataSaved += _handler;
-        return Task.CompletedTask;
-    }
-
-    /// <inheritdoc/>
-    public Task StopAsync(CancellationToken cancellationToken)
-    {
-        if (_handler is not null)
-        {
-            _userDataManager.UserDataSaved -= _handler;
-        }
-
-        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -68,10 +44,7 @@ public sealed class WatchlistAutoRemoveService : IHostedService
     /// <c>PlaybackFinished</c>) means this handler's own write can never re-trigger itself: the guard
     /// below rejects any reason other than <c>PlaybackFinished</c> before it would ever recurse.
     /// </summary>
-    private void OnUserDataSaved(object? sender, UserDataSaveEventArgs e) =>
-        EventHandlerGuard.Run(_logger, nameof(OnUserDataSaved), () => RemoveFinishedItem(e));
-
-    private void RemoveFinishedItem(UserDataSaveEventArgs e)
+    protected override void OnUserDataSaved(UserDataSaveEventArgs e)
     {
         if (e.SaveReason != UserDataSaveReason.PlaybackFinished)
         {
@@ -91,7 +64,7 @@ public sealed class WatchlistAutoRemoveService : IHostedService
         }
 
         userData.Likes = false;
-        _userDataManager.SaveUserData(user, e.Item, userData, UserDataSaveReason.UpdateUserRating, CancellationToken.None);
+        UserDataManager.SaveUserData(user, e.Item, userData, UserDataSaveReason.UpdateUserRating, CancellationToken.None);
 
         _logger.LogInformation(
             "Removed '{Item}' from {User}'s watchlist after playback finished.",

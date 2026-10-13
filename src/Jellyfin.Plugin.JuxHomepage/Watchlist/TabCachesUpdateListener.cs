@@ -4,7 +4,6 @@ using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Entities;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.JuxHomepage.Watchlist;
@@ -19,17 +18,15 @@ namespace Jellyfin.Plugin.JuxHomepage.Watchlist;
 /// played saves every episode, each with its own event, and they become one update of that series.
 /// </para>
 /// </summary>
-public sealed class TabCachesUpdateListener : IHostedService
+public sealed class TabCachesUpdateListener : UserDataSavedListener
 {
     private static readonly TimeSpan DefaultDelay = TimeSpan.FromSeconds(2);
 
-    private readonly IUserDataManager _userDataManager;
     private readonly ISeriesProgressCacheService _seriesProgressCache;
     private readonly IMovieHistoryCacheService _movieHistoryCache;
     private readonly ILogger<TabCachesUpdateListener> _logger;
     private readonly TimeSpan _delay;
     private readonly ConcurrentDictionary<Guid, PendingChanges> _pending = new();
-    private EventHandler<UserDataSaveEventArgs>? _handler;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="TabCachesUpdateListener"/> class.
@@ -45,31 +42,12 @@ public sealed class TabCachesUpdateListener : IHostedService
         IMovieHistoryCacheService movieHistoryCache,
         ILogger<TabCachesUpdateListener> logger,
         TimeSpan? delay = null)
+        : base(userDataManager, logger)
     {
-        _userDataManager = userDataManager;
         _seriesProgressCache = seriesProgressCache;
         _movieHistoryCache = movieHistoryCache;
         _logger = logger;
         _delay = delay ?? DefaultDelay;
-    }
-
-    /// <inheritdoc/>
-    public Task StartAsync(CancellationToken cancellationToken)
-    {
-        _handler = OnUserDataSaved;
-        _userDataManager.UserDataSaved += _handler;
-        return Task.CompletedTask;
-    }
-
-    /// <inheritdoc/>
-    public Task StopAsync(CancellationToken cancellationToken)
-    {
-        if (_handler is not null)
-        {
-            _userDataManager.UserDataSaved -= _handler;
-        }
-
-        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -131,8 +109,8 @@ public sealed class TabCachesUpdateListener : IHostedService
         }
     }
 
-    private void OnUserDataSaved(object? sender, UserDataSaveEventArgs e) =>
-        EventHandlerGuard.Run(_logger, nameof(OnUserDataSaved), () => Record(e));
+    /// <inheritdoc/>
+    protected override void OnUserDataSaved(UserDataSaveEventArgs e) => Record(e);
 
     private async Task ApplyAfterDelayAsync(Guid userId, PendingChanges pending)
     {

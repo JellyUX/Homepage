@@ -1,6 +1,5 @@
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Entities;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.JuxHomepage.Widgets.Personalized;
@@ -11,12 +10,9 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets.Personalized;
 /// day instead of waiting for the day boundary. Other user-data saves (progress, ratings,
 /// favorites) are ignored: they fire continuously during playback.
 /// </summary>
-public sealed class ScoringInvalidationListener : IHostedService
+public sealed class ScoringInvalidationListener : UserDataSavedListener
 {
-    private readonly IUserDataManager _userDataManager;
     private readonly ScoringService _scoringService;
-    private readonly ILogger<ScoringInvalidationListener> _logger;
-    private EventHandler<UserDataSaveEventArgs>? _handler;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ScoringInvalidationListener"/> class.
@@ -28,37 +24,17 @@ public sealed class ScoringInvalidationListener : IHostedService
         IUserDataManager userDataManager,
         ScoringService scoringService,
         ILogger<ScoringInvalidationListener> logger)
+        : base(userDataManager, logger)
     {
-        _userDataManager = userDataManager;
         _scoringService = scoringService;
-        _logger = logger;
     }
 
     /// <inheritdoc/>
-    public Task StartAsync(CancellationToken cancellationToken)
+    protected override void OnUserDataSaved(UserDataSaveEventArgs e)
     {
-        _handler = OnUserDataSaved;
-        _userDataManager.UserDataSaved += _handler;
-        return Task.CompletedTask;
-    }
-
-    /// <inheritdoc/>
-    public Task StopAsync(CancellationToken cancellationToken)
-    {
-        if (_handler is not null)
+        if (e.SaveReason is UserDataSaveReason.PlaybackFinished or UserDataSaveReason.TogglePlayed)
         {
-            _userDataManager.UserDataSaved -= _handler;
+            _scoringService.MarkStale(e.UserId);
         }
-
-        return Task.CompletedTask;
     }
-
-    private void OnUserDataSaved(object? sender, UserDataSaveEventArgs e) =>
-        EventHandlerGuard.Run(_logger, nameof(OnUserDataSaved), () =>
-        {
-            if (e.SaveReason is UserDataSaveReason.PlaybackFinished or UserDataSaveReason.TogglePlayed)
-            {
-                _scoringService.MarkStale(e.UserId);
-            }
-        });
 }
