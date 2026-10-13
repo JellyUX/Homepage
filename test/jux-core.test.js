@@ -181,3 +181,24 @@ describe('error state (F-40)', () => {
         expect(button.disabled).toBe(true);
     });
 });
+
+describe('turned off for this user (F-36)', () => {
+    afterEach(() => {
+        delete window.ApiClient;
+        window.sessionStorage.clear();
+    });
+
+    it('remembers the answer per user for the session, and unknown means on', () => {
+        window.ApiClient = { getCurrentUserId: () => 'alice' };
+        expect(juxCore.isOffForUser()).toBe(false);
+
+        juxCore.setUserEnabled('alice', false);
+        expect(juxCore.isOffForUser()).toBe(true);
+        window.ApiClient = { getCurrentUserId: () => 'bob' };
+        expect(juxCore.isOffForUser()).toBe(false);
+
+        window.ApiClient = { getCurrentUserId: () => 'alice' };
+        juxCore.setUserEnabled('alice', true);
+        expect(juxCore.isOffForUser()).toBe(false);
+    });
+});

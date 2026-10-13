@@ -169,7 +169,44 @@
         });
     }
 
+    // "Turn JellyUX off for me" (TODO_V4.md 8.3, F-36). The server reports it in answers the
+    // client already reads (Watchlist/Ids on every page, Sections on the home page); the answer is
+    // kept for the browser session, per user, and every module reads it before it arms. Until an
+    // answer arrives (the first page of a session), the modules arm as usual.
+    var USER_OFF_KEY = 'jux-user-off:';
+
+    function _currentUserId() {
+        return window.ApiClient && typeof window.ApiClient.getCurrentUserId === 'function'
+            ? window.ApiClient.getCurrentUserId()
+            : null;
+    }
+
+    function isOffForUser() {
+        var userId = _currentUserId();
+        if (!userId) { return false; }
+        try {
+            return window.sessionStorage.getItem(USER_OFF_KEY + userId) === '1';
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function setUserEnabled(userId, enabled) {
+        if (!userId) { return; }
+        try {
+            if (enabled) {
+                window.sessionStorage.removeItem(USER_OFF_KEY + userId);
+            } else {
+                window.sessionStorage.setItem(USER_OFF_KEY + userId, '1');
+            }
+        } catch (e) {
+            // Storage blocked: the answer is simply read again on the next page.
+        }
+    }
+
     window.JuxCore = {
+        isOffForUser: isOffForUser,
+        setUserEnabled: setUserEnabled,
         escHtml: escHtml,
         cssUrl: cssUrl,
         iconName: iconName,

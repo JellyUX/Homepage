@@ -413,6 +413,22 @@ describe('first render (F-41)', () => {
         expect(api.client.getJSON.mock.calls[0][0]).toBe('JuxHomepage/Sections');
     });
 
+    it('renders the native home without a Sections request when JellyUX is off for the user (F-36)', () => {
+        const api = apiClient();
+        const native = vi.fn();
+        window.JUXHomepage.originalLoadSections = native;
+        window.ApiClient = api.client;
+        window.sessionStorage.setItem('jux-user-off:u1', '1');
+        window.location.hash = '#/home';
+
+        window.JUXHomepage.loadSections(document.createElement('div'), api.client, { Id: 'u1' }, {});
+
+        expect(native).toHaveBeenCalledTimes(1);
+        expect(api.client.getJSON).not.toHaveBeenCalled();
+        window.sessionStorage.clear();
+        delete window.ApiClient;
+    });
+
     it('hands the home screen back to Jellyfin when Sections says the plugin is disabled', async () => {
         const elem = document.createElement('div');
         const api = apiClient();

@@ -228,6 +228,23 @@ describe('_syncSession (F-51)', () => {
         expect([...state.likedIds]).toEqual(['s9']);
     });
 
+    it('removes the buttons and stays off when the answer says JellyUX is off for the user (F-36)', async () => {
+        const api = client({ alice: Promise.resolve({ Ids: ['m1'], Enabled: false }) });
+        window.ApiClient = api;
+        document.body.innerHTML = '<button class="jux-watchlist-toggle"></button><button class="jux-watchlist-detail-toggle"></button>';
+        const state = { likedIds: new Set(), userId: null };
+
+        api.setUser('alice');
+        _syncSession(state);
+        await flush();
+
+        expect(document.querySelectorAll('.jux-watchlist-toggle, .jux-watchlist-detail-toggle')).toHaveLength(0);
+        expect(state.likedIds.size).toBe(0);
+        expect(window.JuxCore.isOffForUser()).toBe(true);
+        window.sessionStorage.clear();
+        document.body.innerHTML = '';
+    });
+
     it('retries on the next view after a failed load', async () => {
         const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
         const api = client({ alice: Promise.reject(new Error('slow')) });

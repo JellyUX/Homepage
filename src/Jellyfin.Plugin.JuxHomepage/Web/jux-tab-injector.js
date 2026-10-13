@@ -44,7 +44,8 @@ if (typeof window.juxTabInjector === 'undefined') {
 
         createTabs: function () {
             var tabsSlider = document.querySelector('.emby-tabs-slider');
-            if (!tabsSlider) {
+            // Turned off for this user (TODO_V4.md 8.3): the home view keeps its native tabs only.
+            if (!tabsSlider || (window.JuxCore && window.JuxCore.isOffForUser())) {
                 return;
             }
 

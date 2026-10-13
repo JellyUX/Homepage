@@ -77,6 +77,14 @@
             if (state.userId !== userId) {
                 return;
             }
+            // Turned off for this user (TODO_V4.md 8.3): the buttons added before the answer go.
+            window.JuxCore.setUserEnabled(userId, !(result && result.Enabled === false));
+            if (window.JuxCore.isOffForUser()) {
+                Array.prototype.forEach.call(
+                    document.querySelectorAll('.jux-watchlist-toggle, .jux-watchlist-detail-toggle'),
+                    function (button) { button.remove(); });
+                return;
+            }
             ((result && result.Ids) || []).forEach(function (id) { state.likedIds.add(id); });
             _resyncAllButtons(state.likedIds);
         }).catch(function (err) {
@@ -139,7 +147,7 @@
     // -------------------------------------------------------------------------
 
     function _hookOverlay(overlayEl, likedIds) {
-        if (overlayEl.getAttribute('data-jux-hooked')) {
+        if (overlayEl.getAttribute('data-jux-hooked') || window.JuxCore.isOffForUser()) {
             return;
         }
 
@@ -239,7 +247,7 @@
 
     function _insertDetailButton(itemId, likedIds) {
         var heart = _currentDetailHeart();
-        if (!heart) {
+        if (!heart || window.JuxCore.isOffForUser()) {
             return;
         }
 
@@ -528,7 +536,7 @@
         }
 
         var mediaType = _infiniteScrollMediaType(location.hash);
-        if (!mediaType) {
+        if (!mediaType || window.JuxCore.isOffForUser()) {
             return;
         }
 

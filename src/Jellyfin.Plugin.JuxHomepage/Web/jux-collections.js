@@ -56,7 +56,7 @@
     // One observer for this module, connected only while a detail page (#...?id=) is shown and
     // disconnected when the user leaves it: on every other page this module costs nothing.
     function _syncObserver() {
-        if (!_currentDetailItemId()) {
+        if (!_currentDetailItemId() || window.JuxCore.isOffForUser()) {
             if (_observer) {
                 _observer.disconnect();
                 _observer = null;

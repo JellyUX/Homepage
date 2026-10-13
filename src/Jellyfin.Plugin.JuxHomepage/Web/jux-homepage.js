@@ -25,7 +25,9 @@
                 return _fallback(self, elem, apiClient, user, userSettings);
             }
 
-            if (!_isHomePage()) {
+            // Turned off for this user (TODO_V4.md 8.3): Jellyfin renders the home screen, without a
+            // Sections request.
+            if (!_isHomePage() || window.JuxCore.isOffForUser()) {
                 return _fallback(self, elem, apiClient, user, userSettings);
             }
 
@@ -154,6 +156,7 @@
             // The plugin was disabled after this page loaded: the layout comes back empty with
             // Enabled = false, and the first page hands the home screen back to Jellyfin.
             if (response && response.Enabled === false) {
+                window.JuxCore.setUserEnabled(userId, false);
                 elem.dataset.juxHasMore = 'false';
                 return typeof onFirstPageFailure === 'function' ? onFirstPageFailure() : undefined;
             }

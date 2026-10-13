@@ -49,7 +49,7 @@
     // disconnected when the user leaves it (same idiom as jux-collections.js). Leaving still runs
     // one render pass, which hides the breadcrumb.
     function _syncObserver() {
-        if (!_currentDetailItemId()) {
+        if (!_currentDetailItemId() || window.JuxCore.isOffForUser()) {
             if (_observer) {
                 _observer.disconnect();
                 _observer = null;
