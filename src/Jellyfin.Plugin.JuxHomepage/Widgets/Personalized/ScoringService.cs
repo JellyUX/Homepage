@@ -167,7 +167,7 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
         // consistent with each other: see the seed/pool-size remarks on RecentlyWatchedPoolSize.
         var pool = snapshot.RecentlyWatched.Take(RecentlyWatchedPoolSize).ToList();
         var seed = unchecked((userId.GetHashCode() * 397) ^ snapshot.Day.DayNumber);
-        Shuffle(pool, seed);
+        SeededShuffle.Shuffle(pool, seed);
 
         var entries = pool.AsEnumerable();
         entries = scope switch
@@ -549,23 +549,6 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
             .Select(kv => new ScoredValue(kv.Key, kv.Key))
             .ToList()
             .AsReadOnly();
-
-    /// <summary>
-    /// Shuffles <paramref name="items"/> in place using the Fisher-Yates algorithm, seeded so the same
-    /// seed always produces the same permutation of the same input (TODO_V3.md Phase 9.2).
-    /// </summary>
-    /// <typeparam name="T">The item type.</typeparam>
-    /// <param name="items">The list to shuffle in place.</param>
-    /// <param name="seed">The random seed.</param>
-    private static void Shuffle<T>(IList<T> items, int seed)
-    {
-        var random = new Random(seed);
-        for (var i = items.Count - 1; i > 0; i--)
-        {
-            var j = random.Next(i + 1);
-            (items[i], items[j]) = (items[j], items[i]);
-        }
-    }
 
     /// <summary>
     /// A recently-watched item retained for "Because You Watched" reference selection, tagged with
