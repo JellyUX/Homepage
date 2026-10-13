@@ -277,32 +277,28 @@
     // their server widget mirrors (identical items and order, measured on 8096): other plugins hook
     // their filters on these routes and never see /JuxHomepage/Section, so Jellyfin Enhanced hidden
     // content, Remove from Continue Watching and Spoiler Guard apply here too (TODO_V4.md 4.3, F-15).
+    // Recently Added reads Items/Latest, the native "Latest" route, so the user's home preferences
+    // apply as on the native home: libraries excluded from latest media, and played items hidden
+    // (TODO_V4.md 8.3, F-36). Shows are episodes grouped by series, as the native Latest of a shows
+    // library: Latest filtered on Series took over 150 s on a 200-series library (measured on 8096).
+    // Latest counts its limit in episodes, so the shows read three times MaxItems episodes.
     var NATIVE_ROUTES = {
         'jux.native.continue-watching': { path: 'UserItems/Resume', params: { mediaTypes: 'Video' } },
         'jux.native.next-up': { path: 'Shows/NextUp', params: {} },
-        'jux.native.recently-added-movies': { path: 'Items', params: _latestParams('Movie') },
-        'jux.native.recently-added-shows': { path: 'Items', params: _latestParams('Series') },
-        'jux.native.recently-added-episodes': { path: 'Items', params: _latestParams('Episode') }
+        'jux.native.recently-added-movies': { path: 'Items/Latest', params: { includeItemTypes: 'Movie' } },
+        'jux.native.recently-added-shows': { path: 'Items/Latest', params: { includeItemTypes: 'Episode' }, limitFactor: 3 },
+        'jux.native.recently-added-episodes': { path: 'Items/Latest', params: { includeItemTypes: 'Episode', groupItems: false } }
     };
-
-    function _latestParams(itemType) {
-        return {
-            includeItemTypes: itemType,
-            sortBy: 'DateCreated',
-            sortOrder: 'Descending',
-            recursive: true,
-            isMissing: false
-        };
-    }
 
     function _makeFetchData(apiClient, userId, descriptor) {
         var nativeRoute = NATIVE_ROUTES[descriptor.WidgetType];
         if (nativeRoute) {
             return function () {
+                var maxItems = descriptor.MaxItems || 20;
                 var params = {
                     userId: userId,
                     startIndex: 0,
-                    limit: descriptor.MaxItems || 20,
+                    limit: maxItems * (nativeRoute.limitFactor || 1),
                     fields: 'PrimaryImageAspectRatio,DateCreated',
                     imageTypeLimit: 1,
                     enableImageTypes: 'Primary,Thumb,Backdrop',
@@ -311,7 +307,10 @@
                 Object.keys(nativeRoute.params).forEach(function (key) {
                     params[key] = nativeRoute.params[key];
                 });
-                return apiClient.getJSON(apiClient.getUrl(nativeRoute.path, params));
+                // Items/Latest answers a bare array; the container reads { Items }.
+                return apiClient.getJSON(apiClient.getUrl(nativeRoute.path, params)).then(function (result) {
+                    return Array.isArray(result) ? { Items: result.slice(0, maxItems) } : result;
+                });
             };
         }
 

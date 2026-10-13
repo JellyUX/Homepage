@@ -15,11 +15,13 @@ public sealed class RecentlyAddedEpisodesWidget : RecentlyAddedWidgetBase
     /// <param name="userManager">Jellyfin user manager.</param>
     /// <param name="libraryManager">Jellyfin library manager.</param>
     /// <param name="dtoService">Jellyfin DTO projection service.</param>
+    /// <param name="userViewManager">Jellyfin user view manager, which computes the latest media.</param>
     public RecentlyAddedEpisodesWidget(
         IUserManager userManager,
         ILibraryManager libraryManager,
-        IDtoService dtoService)
-        : base(userManager, libraryManager, dtoService)
+        IDtoService dtoService,
+        IUserViewManager userViewManager)
+        : base(userManager, libraryManager, dtoService, userViewManager)
     {
     }
 

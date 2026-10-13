@@ -1,9 +1,14 @@
+using Jellyfin.Data.Enums;
+using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.JuxHomepage.Watchlist;
-using Jellyfin.Plugin.JuxHomepage.Widgets;
 using Jellyfin.Plugin.JuxHomepage.Widgets.Native;
+using Jellyfin.Plugin.JuxHomepage.Widgets;
 using MediaBrowser.Controller.Dto;
+using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.TV;
+using MediaBrowser.Model.Dto;
+using MediaBrowser.Model.Querying;
 using Moq;
 using Xunit;
 
@@ -56,7 +61,8 @@ public sealed class NativeWidgetTests
         var widget = new RecentlyAddedMoviesWidget(
             new Mock<IUserManager>().Object,
             new Mock<ILibraryManager>().Object,
-            new Mock<IDtoService>().Object);
+            new Mock<IDtoService>().Object,
+            new Mock<IUserViewManager>().Object);
 
         var d = widget.GetDescriptor();
 
@@ -73,7 +79,8 @@ public sealed class NativeWidgetTests
         var widget = new RecentlyAddedShowsWidget(
             new Mock<IUserManager>().Object,
             new Mock<ILibraryManager>().Object,
-            new Mock<IDtoService>().Object);
+            new Mock<IDtoService>().Object,
+            new Mock<IUserViewManager>().Object);
 
         var d = widget.GetDescriptor();
 
@@ -90,7 +97,8 @@ public sealed class NativeWidgetTests
         var widget = new RecentlyAddedEpisodesWidget(
             new Mock<IUserManager>().Object,
             new Mock<ILibraryManager>().Object,
-            new Mock<IDtoService>().Object);
+            new Mock<IDtoService>().Object,
+            new Mock<IUserViewManager>().Object);
 
         var d = widget.GetDescriptor();
 
@@ -202,7 +210,8 @@ public sealed class NativeWidgetTests
         var widget = new RecentlyAddedMoviesWidget(
             TestMocks.UserManagerReturningNull().Object,
             new Mock<ILibraryManager>().Object,
-            new Mock<IDtoService>().Object);
+            new Mock<IDtoService>().Object,
+            new Mock<IUserViewManager>().Object);
 
         var result = await widget.GetItemsAsync(
             new WidgetPayload { UserId = Guid.NewGuid() },
@@ -210,6 +219,37 @@ public sealed class NativeWidgetTests
 
         Assert.Equal(0, result.TotalRecordCount);
         Assert.Empty(result.Items);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task RecentlyAddedShows_ReadsTheNativeLatestMediaGroupedBySeries(bool hidePlayed)
+    {
+        var user = TestMocks.DefaultUser();
+        user.HidePlayedInLatest = hidePlayed;
+        var series = new MediaBrowser.Controller.Entities.TV.Series { Id = Guid.NewGuid(), Name = "Show" };
+        var lone = new MediaBrowser.Controller.Entities.TV.Episode { Id = Guid.NewGuid(), Name = "Lone episode" };
+        LatestItemsQuery? seen = null;
+        var views = new Mock<IUserViewManager>();
+        views.Setup(v => v.GetLatestItems(It.IsAny<LatestItemsQuery>(), It.IsAny<DtoOptions>()))
+            .Callback<LatestItemsQuery, DtoOptions>((q, _) => seen = q)
+            .Returns(
+            [
+                new Tuple<BaseItem, List<BaseItem>>(series, [new MediaBrowser.Controller.Entities.TV.Episode(), new MediaBrowser.Controller.Entities.TV.Episode()]),
+                new Tuple<BaseItem, List<BaseItem>>(series, [lone])
+            ]);
+        var dtos = new Mock<IDtoService>();
+        dtos.Setup(m => m.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
+            .Returns<IReadOnlyList<BaseItem>, DtoOptions, User, BaseItem>((items, _, _, _) => items.Select(i => new BaseItemDto { Id = i.Id }).ToList());
+        var widget = new RecentlyAddedShowsWidget(TestMocks.UserManagerReturning(user).Object, new Mock<ILibraryManager>().Object, dtos.Object, views.Object);
+
+        var result = await widget.GetItemsAsync(new WidgetPayload { UserId = user.Id, Limit = 4 }, CancellationToken.None);
+
+        Assert.Equal([series.Id, lone.Id], result.Items.Select(d => d.Id));
+        Assert.Equal((BaseItemKind.Episode, true, 12), (seen!.IncludeItemTypes.Single(), seen.GroupItems, seen.Limit));
+        Assert.Equal(hidePlayed ? false : null, seen.IsPlayed);
+        Assert.Same(user, seen.User);
     }
 
     [Fact]

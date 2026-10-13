@@ -2,7 +2,12 @@
 
 **Category:** Native
 
-Latest shows added to your library, sorted by creation date, descending.
+Shows that received episodes most recently, one card per show, as the native "Latest" row of a
+shows library.
+
+Each user's home preferences apply as on the native home page: libraries unchecked under
+*Settings > Home > Latest media* are left out, and played items are hidden when *Hide played
+content in latest media* is on.
 
 ## Parameters
 

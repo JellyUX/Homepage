@@ -325,20 +325,27 @@ describe('_makeFetchData', () => {
         enableImageTypes: 'Primary,Thumb,Backdrop',
         enableTotalRecordCount: false
     };
-    const latest = (type) => ({ ...common, includeItemTypes: type, sortBy: 'DateCreated', sortOrder: 'Descending', recursive: true, isMissing: false });
 
     // Native routes carry the filters other plugins hook on them (Jellyfin Enhanced hidden content
     // and Spoiler Guard), which /JuxHomepage/Section never sees (TODO_V4.md 4.3, F-15).
     it.each([
         ['jux.native.continue-watching', 'UserItems/Resume', { ...common, mediaTypes: 'Video' }],
         ['jux.native.next-up', 'Shows/NextUp', common],
-        ['jux.native.recently-added-movies', 'Items', latest('Movie')],
-        ['jux.native.recently-added-shows', 'Items', latest('Series')],
-        ['jux.native.recently-added-episodes', 'Items', latest('Episode')]
+        ['jux.native.recently-added-movies', 'Items/Latest', { ...common, includeItemTypes: 'Movie' }],
+        ['jux.native.recently-added-shows', 'Items/Latest', { ...common, limit: 60, includeItemTypes: 'Episode' }],
+        ['jux.native.recently-added-episodes', 'Items/Latest', { ...common, includeItemTypes: 'Episode', groupItems: false }]
     ])('reads %s from the native route %s', async (widgetType, path, params) => {
         const request = await _makeFetchData(apiClient, 'u1', { WidgetType: widgetType })();
 
         expect(request).toEqual({ path, params });
+    });
+
+    it('turns the bare array of Items/Latest into the rows of the section, at most MaxItems (F-36)', async () => {
+        const latestClient = { getUrl: (path) => path, getJSON: () => Promise.resolve([{ Id: 'a' }, { Id: 'b' }, { Id: 'c' }]) };
+
+        const result = await _makeFetchData(latestClient, 'u1', { WidgetType: 'jux.native.recently-added-shows', MaxItems: 2 })();
+
+        expect(result).toEqual({ Items: [{ Id: 'a' }, { Id: 'b' }] });
     });
 
     it('reads the other widgets from the JellyUX section endpoint', async () => {

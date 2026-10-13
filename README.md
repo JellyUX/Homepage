@@ -89,7 +89,7 @@ JellyUX Homepage is built to coexist cleanly with other popular Jellyfin customi
 | Continue Watching | Native | Items you started watching but haven't finished |
 | Next Up | Native | Next unwatched episode for shows you're following |
 | Recently Added Movies | Native | Latest movies added to your library |
-| Recently Added Shows | Native | Latest shows added to your library |
+| Recently Added Shows | Native | Shows that received episodes most recently |
 | Recently Added Episodes | Native | Latest episodes added to your library |
 | My Media | Native | Quick links to your library sections |
 | Watchlist | Native | Items you've added to your Watchlist |
