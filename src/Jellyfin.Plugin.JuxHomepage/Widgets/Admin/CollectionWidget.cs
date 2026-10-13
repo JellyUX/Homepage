@@ -39,7 +39,7 @@ public sealed class CollectionWidget : AdminWidgetBase
     public override string DefaultViewMode => WidgetViewMode.Portrait;
 
     /// <inheritdoc/>
-    public override int DefaultMinItems => 2;
+    public override int DefaultMinItems => 4;
 
     /// <inheritdoc/>
     protected override string? Route => WidgetRoutes.Item;

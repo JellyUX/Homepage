@@ -91,6 +91,9 @@ public sealed class AdminWidgetTests
 
         Assert.Equal("jux.admin.collection", d.WidgetType);
         Assert.Equal(WidgetCategory.Admin, d.Category);
+
+        // A new Collection row starts at 4 cards like every library section (TODO_V4.md 9.3, F-57).
+        Assert.Equal(4, d.MinItems);
     }
 
     [Fact]
