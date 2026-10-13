@@ -73,11 +73,11 @@
         _resyncAllButtons(state.likedIds);
 
         var url = window.ApiClient.getUrl('JuxHomepage/Watchlist/Ids', { userId: userId });
-        window.ApiClient.getJSON(url).then(function (ids) {
+        window.ApiClient.getJSON(url).then(function (result) {
             if (state.userId !== userId) {
                 return;
             }
-            (ids || []).forEach(function (id) { state.likedIds.add(id); });
+            ((result && result.Ids) || []).forEach(function (id) { state.likedIds.add(id); });
             _resyncAllButtons(state.likedIds);
         }).catch(function (err) {
             console.error('[JellyUX] Failed to preload watchlist ids:', err);

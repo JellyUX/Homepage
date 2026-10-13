@@ -194,7 +194,7 @@ describe('_syncSession (F-51)', () => {
     }
 
     it('waits for a signed-in user, then loads the ids of that user once', async () => {
-        const api = client({ alice: Promise.resolve(['m1']) });
+        const api = client({ alice: Promise.resolve({ Ids: ['m1'], Enabled: true }) });
         window.ApiClient = api;
         const state = { likedIds: new Set(), userId: null };
 
@@ -212,7 +212,7 @@ describe('_syncSession (F-51)', () => {
 
     it('empties the set at once for another user and drops a late answer for the previous one', async () => {
         let answerAlice;
-        const api = client({ alice: new Promise((r) => { answerAlice = r; }), bob: Promise.resolve(['s9']) });
+        const api = client({ alice: new Promise((r) => { answerAlice = r; }), bob: Promise.resolve({ Ids: ['s9'], Enabled: true }) });
         window.ApiClient = api;
         const state = { likedIds: new Set(['old']), userId: null };
 
@@ -221,7 +221,7 @@ describe('_syncSession (F-51)', () => {
         expect(state.likedIds.size).toBe(0);
         api.setUser('bob');
         _syncSession(state);
-        answerAlice(['m1']);
+        answerAlice({ Ids: ['m1'], Enabled: true });
         await flush();
 
         expect(state.userId).toBe('bob');

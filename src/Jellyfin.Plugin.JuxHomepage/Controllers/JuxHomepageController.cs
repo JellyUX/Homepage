@@ -198,7 +198,8 @@ public class JuxHomepageController : ControllerBase
 
         userId = resolvedUserId.Value;
 
-        if (!(Plugin.Instance?.Configuration ?? new PluginConfiguration()).Enabled)
+        // Off globally or for this user alone (TODO_V4.md 8.3, F-36): Jellyfin renders the home screen.
+        if (!_widgetService.IsEnabledFor(userId))
         {
             return Ok(new SectionsPage([], HasMore: false, Enabled: false));
         }
@@ -324,12 +325,12 @@ public class JuxHomepageController : ControllerBase
     /// </summary>
     /// <param name="userId">The requesting user's Jellyfin identifier.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Every item id currently liked by this user.</returns>
+    /// <returns>Every item id currently liked by this user, and whether JellyUX runs for them.</returns>
     [HttpGet("Watchlist/Ids")]
     [Authorize]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<ActionResult<IReadOnlyList<Guid>>> GetWatchlistIds(
+    public async Task<ActionResult<WatchlistIdsResult>> GetWatchlistIds(
         [FromQuery] Guid userId,
         CancellationToken cancellationToken = default)
     {
@@ -341,7 +342,12 @@ public class JuxHomepageController : ControllerBase
 
         userId = resolvedUserId.Value;
 
-        return ReadView("Watchlist ids", userId, () => _watchlistService.GetLikedItemIds(userId, cancellationToken));
+        if (!_widgetService.IsEnabledFor(userId))
+        {
+            return Ok(new WatchlistIdsResult([], Enabled: false));
+        }
+
+        return ReadView("Watchlist ids", userId, () => new WatchlistIdsResult(_watchlistService.GetLikedItemIds(userId, cancellationToken), Enabled: true));
     }
 
     /// <summary>

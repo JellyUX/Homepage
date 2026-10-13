@@ -154,6 +154,21 @@ public sealed class WidgetService
         }
     }
 
+    /// <summary>
+    /// Returns whether JellyUX runs for the user: enabled globally and not turned off by the user
+    /// (TODO_V4.md 8.3, F-36).
+    /// </summary>
+    /// <param name="userId">The user.</param>
+    /// <returns>True when JellyUX runs for this user.</returns>
+    public bool IsEnabledFor(Guid userId) => _layoutResolver.IsEnabledFor(userId);
+
+    /// <summary>
+    /// Drops the cached layout of a user whose own settings changed, so the next home screen shows
+    /// them at once.
+    /// </summary>
+    /// <param name="userId">The user.</param>
+    public void InvalidateUser(Guid userId) => _sessionCache.Invalidate(userId);
+
     internal static SectionsPage Paginate(IReadOnlyList<WidgetDescriptor> all, int page)
     {
         var skip = Math.Max(0, page) * PageSize;

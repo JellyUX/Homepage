@@ -61,7 +61,15 @@ public sealed class WidgetLayoutResolver
         var userConfig = _userConfigStore.GetUserConfiguration(userId);
         var overrides = userConfig?.WidgetOverrides ?? [];
 
-        var effectiveConfigs = MergeOverrides(globalConfig, overrides)
+        // A section the user hid (TODO_V4.md 8.3, F-36) is left out by the key of its global row.
+        // Hiding changes none of the row's settings, so it does not depend on AllowUserOverride.
+        var hidden = new HashSet<string>(userConfig?.HiddenSections ?? [], StringComparer.Ordinal);
+        var keys = SectionKeys(globalConfig);
+        var effectiveConfigs = globalConfig
+            .OrderBy(g => g.Order)
+            .Zip(MergeOverrides(globalConfig, overrides))
+            .Where(pair => !hidden.Contains(keys[pair.First]))
+            .Select(pair => pair.Second)
             .Where(c => c.Enabled)
             .OrderBy(c => c.Order)
             .ToList();
@@ -123,6 +131,29 @@ public sealed class WidgetLayoutResolver
             yield return match;
         }
     }
+
+    /// <summary>
+    /// Identifies each global row for the user's hidden sections (TODO_V4.md 8.3, F-36), the way
+    /// <see cref="MergeOverrides"/> pairs rows: by instance id (a GUID in <c>ExtraParams["value"]</c>)
+    /// when the row has one, otherwise by widget type and rank within the type, ordered by
+    /// <see cref="WidgetConfig.Order"/> (e.g. <c>jux.personalized.favorite-genre#2</c>).
+    /// </summary>
+    /// <param name="globalRows">The global widget rows.</param>
+    /// <returns>The key of each row.</returns>
+    public static IReadOnlyDictionary<WidgetConfig, string> SectionKeys(WidgetConfig[] globalRows) =>
+        globalRows
+            .GroupBy(r => r.WidgetType)
+            .SelectMany(g => g.OrderBy(r => r.Order).Select((r, i) => (Row: r, Key: InstanceId(r)?.ToString() ?? $"{g.Key}#{i + 1}")))
+            .ToDictionary(x => x.Row, x => x.Key);
+
+    /// <summary>
+    /// Returns whether JellyUX runs for the user: enabled globally and not turned off by the user
+    /// for themselves (TODO_V4.md 8.3, F-36).
+    /// </summary>
+    /// <param name="userId">The user.</param>
+    /// <returns>True when the home screen, tabs and card add-ons are JellyUX's for this user.</returns>
+    public bool IsEnabledFor(Guid userId) =>
+        (_getConfiguration()?.Enabled ?? true) && _userConfigStore.GetUserConfiguration(userId)?.Enabled != false;
 
     private static Guid? InstanceId(WidgetConfig row)
     {

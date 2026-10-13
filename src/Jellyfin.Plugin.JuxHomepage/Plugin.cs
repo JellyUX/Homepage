@@ -26,7 +26,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
     /// <see cref="CurrentSchemaVersion"/>. Starts at 8, above the plugin constant (7) that earlier
     /// versions stamped on user files, so no existing file reads as newer than it is.
     /// </summary>
-    private const int CurrentUserSchemaVersion = 9;
+    private const int CurrentUserSchemaVersion = 10;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Plugin"/> class.
@@ -210,8 +210,14 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
             NormalizeSort(config.WidgetOverrides);
         }
 
+        // Hidden sections (TODO_V4.md 8.3, F-36): an explicit null in a user's JSON file means none.
+        if (config.SchemaVersion < 10)
+        {
+            config.HiddenSections ??= [];
+        }
+
         // See MigrateConfiguration for the chain-extension pattern to follow for future tiers; user
-        // tiers are numbered against CurrentUserSchemaVersion, the next one being 10.
+        // tiers are numbered against CurrentUserSchemaVersion, the next one being 11.
         config.SchemaVersion = CurrentUserSchemaVersion;
     }
 

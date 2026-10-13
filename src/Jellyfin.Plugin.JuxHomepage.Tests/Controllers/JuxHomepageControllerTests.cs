@@ -12,6 +12,7 @@ using Jellyfin.Plugin.JuxHomepage.Rewards;
 using Jellyfin.Plugin.JuxHomepage.TMDb;
 using Jellyfin.Plugin.JuxHomepage.TMDb.Models;
 using Jellyfin.Plugin.JuxHomepage.Watchlist;
+using Jellyfin.Plugin.JuxHomepage.Watchlist.Models;
 using Jellyfin.Plugin.JuxHomepage.Widgets;
 using Jellyfin.Plugin.JuxHomepage.Widgets.Admin;
 using MediaBrowser.Common.Api;
@@ -506,6 +507,25 @@ public sealed class JuxHomepageControllerTests
         Assert.False(sessionCache.TryGet(caller.Id, "zz", TimeSpan.FromMinutes(5), out _));
     }
 
+    [Fact]
+    public async Task UserWhoTurnedJellyUxOff_GetsDisabledSectionsAndWatchlistIds()
+    {
+        var caller = TestMocks.DefaultUser();
+        var store = new Mock<IUserConfigurationStore>();
+        store.Setup(s => s.GetUserConfiguration(caller.Id)).Returns(new UserConfiguration { UserId = caller.Id, Enabled = false });
+        var watchlist = new Mock<IWatchlistService>();
+        var controller = BuildUserController(caller, isAdministrator: false, watchlistServiceMock: watchlist, userConfigStore: store.Object);
+
+        var sections = Assert.IsType<OkObjectResult>((await controller.GetSections(Guid.Empty)).Result).Value as SectionsPage;
+        var ids = Assert.IsType<OkObjectResult>((await controller.GetWatchlistIds(Guid.Empty)).Result).Value as WatchlistIdsResult;
+
+        Assert.False(sections!.Enabled);
+        Assert.Empty(sections.Sections);
+        Assert.False(ids!.Enabled);
+        Assert.Empty(ids.Ids);
+        watchlist.Verify(w => w.GetLikedItemIds(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     private static async Task<int?> InvokeAsUser(MethodInfo action, User caller, Guid requestedUserId)
     {
         var controller = BuildUserController(caller, isAdministrator: false);
@@ -527,7 +547,8 @@ public sealed class JuxHomepageControllerTests
         User caller,
         bool isAdministrator,
         Mock<IWatchlistService>? watchlistServiceMock = null,
-        SessionCache? sessionCache = null)
+        SessionCache? sessionCache = null,
+        IUserConfigurationStore? userConfigStore = null)
     {
         var authContextMock = new Mock<IAuthorizationContext>();
         authContextMock
@@ -538,7 +559,8 @@ public sealed class JuxHomepageControllerTests
             userManagerMock: TestMocks.UserManagerReturning(caller),
             watchlistServiceMock: watchlistServiceMock,
             authContextMock: authContextMock,
-            sessionCache: sessionCache);
+            sessionCache: sessionCache,
+            userConfigStore: userConfigStore);
 
         var roles = isAdministrator ? new[] { new Claim(ClaimTypes.Role, "Administrator") } : [];
         controller.ControllerContext = new ControllerContext
@@ -572,7 +594,8 @@ public sealed class JuxHomepageControllerTests
         Mock<ICollectionsIndexCacheService>? collectionsIndexCacheServiceMock = null,
         Mock<IAuthorizationContext>? authContextMock = null,
         ILogger<JuxHomepageController>? logger = null,
-        SessionCache? sessionCache = null)
+        SessionCache? sessionCache = null,
+        IUserConfigurationStore? userConfigStore = null)
     {
         var registry = new WidgetRegistry();
         var widgetService = new WidgetService(
@@ -580,7 +603,7 @@ public sealed class JuxHomepageControllerTests
             sessionCache ?? new SessionCache(),
             new WidgetLayoutResolver(
                 registry,
-                Mock.Of<IUserConfigurationStore>(),
+                userConfigStore ?? Mock.Of<IUserConfigurationStore>(),
                 new LocalizationService(new Dictionary<string, IReadOnlyDictionary<string, string>>()),
                 () => new PluginConfiguration(),
                 NullLogger<WidgetLayoutResolver>.Instance),
