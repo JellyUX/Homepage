@@ -82,6 +82,13 @@
     border-color: rgb(var(--jf-palette-text-primaryChannel, 255 255 255) / 0.3);
 }
 
+/* The native focus ring of a button is a 1px dark outline, invisible on the dark page (F-49). */
+.jux-sort-button:focus-visible,
+.jux-progress-mark-watched:focus-visible {
+    outline: 2px solid var(--jf-palette-primary-main, #00a4dc);
+    outline-offset: 2px;
+}
+
 .jux-sort-button .material-icons {
     font-size: 1.15em;
 }

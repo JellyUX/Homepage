@@ -58,6 +58,18 @@ describe('buildProgressBar', () => {
         expect(html).not.toContain('jux-progress-complete-badge');
     });
 
+    it.each([
+        ['en', '21/30 episodes'],
+        ['fr-FR', '21/30 épisodes']
+    ])('names the bar with the episode count for lang "%s" (F-49)', (lang, label) => {
+        document.documentElement.lang = lang;
+        const div = document.createElement('div');
+        div.innerHTML = buildProgressBar(21, 30);
+
+        expect(div.querySelector('[role="progressbar"]').getAttribute('aria-label')).toBe(label);
+        document.documentElement.lang = 'en';
+    });
+
     it('handles a zero-total series without throwing', () => {
         const html = buildProgressBar(0, 0);
         expect(html).toContain('jux-progress-bar');

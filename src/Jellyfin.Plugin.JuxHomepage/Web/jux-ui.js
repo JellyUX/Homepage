@@ -271,7 +271,7 @@
         total = Math.max(0, total || 0);
 
         if (total === 0) {
-            return '<div class="jux-progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="0"></div>';
+            return '<div class="jux-progress-bar" role="progressbar" aria-label="' + _progressLabel(0, 0) + '" aria-valuenow="0" aria-valuemin="0" aria-valuemax="0"></div>';
         }
 
         var chunks = '';
@@ -289,10 +289,15 @@
             (total > MAX_PROGRESS_CHUNKS ? ' jux-progress-bar-continuous' : '') +
             (completed ? ' jux-progress-bar-completed' : '');
 
-        return '<div class="' + barClass + '" role="progressbar" aria-valuenow="' + watched + '" aria-valuemin="0" aria-valuemax="' + total + '">' +
+        return '<div class="' + barClass + '" role="progressbar" aria-label="' + _progressLabel(watched, total) + '" aria-valuenow="' + watched + '" aria-valuemin="0" aria-valuemax="' + total + '">' +
             chunks +
             '</div>' +
             (completed ? '<span class="jux-progress-complete-badge">' + window.JuxCore.escHtml(_completeLabel()) + '</span>' : '');
+    }
+
+    // Accessible name of the bar, e.g. "21/30 episodes" (F-49): numbers only, nothing to escape.
+    function _progressLabel(watched, total) {
+        return watched + '/' + total + (window.JuxCore.resolveLang() === 'fr' ? ' épisodes' : ' episodes');
     }
 
     function _completeLabel() {
