@@ -40,9 +40,12 @@
     var PAGE_SIZE = 50;
 
     var _listLabels = {
-        en: { count: '{shown} of {total}', more: 'Load more' },
-        fr: { count: '{shown} sur {total}', more: 'Charger plus' }
+        en: { count: '{shown} of {total}', more: 'Load more', search: 'Search', noResults: 'No results for "{term}"' },
+        fr: { count: '{shown} sur {total}', more: 'Charger plus', search: 'Rechercher', noResults: 'Aucun résultat pour « {term} »' }
     };
+
+    // The search field waits this long after the last keystroke before asking the server (F-55).
+    var SEARCH_DELAY_MS = 300;
 
     window.JuxUI = {
         showEmpty: showEmpty,
@@ -99,12 +102,22 @@
 
                 var lang = window.JuxCore.resolveLang();
                 sections.innerHTML = tab.buildShellHtml(lang, tab.state);
-                var itemsContainer = sections.querySelector('.jux-' + config.id + '-items');
                 _wireListControls(sections, tab, config, filters, lang);
+                tab.reload(sections, userId, lang);
+            },
+
+            // Reads the list again from its first row, under the controls already on screen, so the
+            // search field keeps its focus while the user types.
+            reload: function (sections, userId, lang) {
+                var itemsContainer = sections.querySelector('.jux-' + config.id + '-items');
+                var footer = sections.querySelector('.jux-list-footer');
+                if (footer) {
+                    footer.innerHTML = '';
+                }
                 showLoading(itemsContainer);
 
-                // A new token per render: a "load more" answer arriving after a sort or filter change
-                // belongs to the old list and is dropped.
+                // A new token per load: a "load more" answer arriving after a sort, filter or search
+                // change belongs to the old list and is dropped.
                 tab._list = { token: {}, rows: [], total: 0, userId: userId, lang: lang, sections: sections, items: itemsContainer };
                 tab.loadPage(tab._list);
             },
@@ -112,6 +125,9 @@
             loadPage: function (list) {
                 var query = { userId: list.userId, sortBy: tab.state.sortBy, sortOrder: tab.state.sortOrder };
                 filters.forEach(function (filter) { query[filter.key] = tab.state[filter.key]; });
+                if (tab.state.searchTerm) {
+                    query.searchTerm = tab.state.searchTerm;
+                }
                 query.startIndex = list.rows.length;
                 query.limit = PAGE_SIZE;
 
@@ -186,6 +202,13 @@
                 filters.forEach(function (filter) {
                     html += _listButtonHtml('jux-' + config.id + '-' + filter.name + '-btn', filter.icon, labelFor(filter.options(t), state[filter.key]));
                 });
+                var searchLabel = (_listLabels[lang] || _listLabels.en).search;
+                html += '<label class="jux-list-search">' +
+                    '<span class="material-icons search" aria-hidden="true"></span>' +
+                    '<input type="search" class="jux-list-search-input" id="jux-' + config.id + '-search" autocomplete="off" maxlength="100"' +
+                    ' placeholder="' + window.JuxCore.escHtml(searchLabel) + '" aria-label="' + window.JuxCore.escHtml(searchLabel) + '"' +
+                    ' value="' + window.JuxCore.escHtml(state.searchTerm || '') + '">' +
+                    '</label>';
                 return html + '</div>' +
                     '<div class="jux-' + config.id + '-items itemsContainer vertical-wrap padded-left padded-right"></div>' +
                     '<div class="jux-list-footer padded-left padded-right" aria-live="polite"></div>';
@@ -198,7 +221,12 @@
 
                 var t = config.labels[lang];
                 if (rows.length === 0) {
-                    showEmpty(itemsContainer, { icon: config.emptyIcon, title: t.empty, subtitle: t.emptySubtitle });
+                    if (tab.state.searchTerm) {
+                        var noResults = (_listLabels[lang] || _listLabels.en).noResults.replace('{term}', tab.state.searchTerm);
+                        showEmpty(itemsContainer, { icon: 'search_off', title: noResults });
+                    } else {
+                        showEmpty(itemsContainer, { icon: config.emptyIcon, title: t.empty, subtitle: t.emptySubtitle });
+                    }
                     return;
                 }
 
@@ -256,6 +284,22 @@
                         tab.render();
                     }
                 });
+            });
+        }
+
+        var search = sections.querySelector('#jux-' + config.id + '-search');
+        if (search) {
+            var timer = null;
+            search.addEventListener('input', function () {
+                clearTimeout(timer);
+                timer = setTimeout(function () {
+                    var term = search.value.trim();
+                    if (term === (tab.state.searchTerm || '')) {
+                        return;
+                    }
+                    tab.state.searchTerm = term;
+                    tab.reload(sections, tab._list.userId, lang);
+                }, SEARCH_DELAY_MS);
             });
         }
 

@@ -27,7 +27,7 @@ public sealed class MovieHistoryViewServiceTests
             new Mock<IDtoService>().Object,
             NullLogger<MovieHistoryViewService>.Instance);
 
-        var result = service.GetItems(Guid.NewGuid(), null, null, 0, 50, CancellationToken.None);
+        var result = service.GetItems(Guid.NewGuid(), null, null, null, 0, 50, CancellationToken.None);
 
         Assert.Empty(result.Items);
         Assert.Equal(0, result.TotalRecordCount);
@@ -68,7 +68,7 @@ public sealed class MovieHistoryViewServiceTests
             dtoServiceMock.Object,
             NullLogger<MovieHistoryViewService>.Instance);
 
-        var result = service.GetItems(user.Id, null, null, 0, 50, CancellationToken.None);
+        var result = service.GetItems(user.Id, null, null, null, 0, 50, CancellationToken.None);
 
         Assert.Equal(2, result.TotalRecordCount);
         Assert.Equal(movieB.Id, result.Items[0].Id);
@@ -110,10 +110,51 @@ public sealed class MovieHistoryViewServiceTests
             dtoServiceMock.Object,
             NullLogger<MovieHistoryViewService>.Instance);
 
-        var result = service.GetItems(user.Id, "Name", "Ascending", 0, 50, CancellationToken.None);
+        var result = service.GetItems(user.Id, "Name", "Ascending", null, 0, 50, CancellationToken.None);
 
         Assert.Equal(movieA.Id, result.Items[0].Id);
         Assert.Equal(movieZ.Id, result.Items[1].Id);
+    }
+
+    [Fact]
+    public void GetItems_SearchTerm_KeepsMatchingNamesIgnoringCaseAndAccents()
+    {
+        var user = new User("test", "Default", "Default");
+        var amelie = new TestMovie { Id = Guid.NewGuid(), Name = "Le Fabuleux Destin d'Amélie Poulain" };
+        var brazil = new TestMovie { Id = Guid.NewGuid(), Name = "Brazil" };
+
+        var entries = new List<MovieHistoryEntry>
+        {
+            new() { ItemId = amelie.Id, Name = amelie.Name },
+            new() { ItemId = brazil.Id, Name = brazil.Name }
+        };
+
+        var cacheMock = new Mock<IMovieHistoryCacheService>();
+        cacheMock.Setup(m => m.GetHistory(user.Id)).Returns(entries);
+
+        var userManagerMock = new Mock<IUserManager>();
+        userManagerMock.Setup(m => m.GetUserById(user.Id)).Returns(user);
+
+        var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([amelie, brazil]);
+
+        var dtoServiceMock = new Mock<IDtoService>();
+        dtoServiceMock
+            .Setup(m => m.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
+            .Returns((IReadOnlyList<BaseItem> items, DtoOptions _, User _, BaseItem? _) =>
+                items.Select(i => new BaseItemDto { Id = i.Id, Name = i.Name }).ToList());
+
+        var service = new MovieHistoryViewService(
+            cacheMock.Object,
+            userManagerMock.Object,
+            libraryManagerMock.Object,
+            dtoServiceMock.Object,
+            NullLogger<MovieHistoryViewService>.Instance);
+
+        var result = service.GetItems(user.Id, null, null, "  AMELIE ", 0, 50, CancellationToken.None);
+
+        Assert.Equal(1, result.TotalRecordCount);
+        Assert.Equal(amelie.Id, Assert.Single(result.Items).Id);
     }
 
     [Fact]
@@ -138,7 +179,7 @@ public sealed class MovieHistoryViewServiceTests
             new Mock<IDtoService>().Object,
             NullLogger<MovieHistoryViewService>.Instance);
 
-        var result = service.GetItems(user.Id, null, null, 0, 50, CancellationToken.None);
+        var result = service.GetItems(user.Id, null, null, null, 0, 50, CancellationToken.None);
 
         Assert.Empty(result.Items);
 
@@ -176,7 +217,7 @@ public sealed class MovieHistoryViewServiceTests
             dtoServiceMock.Object,
             NullLogger<MovieHistoryViewService>.Instance);
 
-        var result = service.GetItems(user.Id, null, null, 0, 50, CancellationToken.None);
+        var result = service.GetItems(user.Id, null, null, null, 0, 50, CancellationToken.None);
 
         Assert.Equal(1, result.TotalRecordCount);
         Assert.Equal(allowed.Id, Assert.Single(result.Items).Id);

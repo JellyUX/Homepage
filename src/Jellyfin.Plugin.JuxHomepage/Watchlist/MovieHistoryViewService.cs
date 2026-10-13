@@ -43,6 +43,7 @@ public sealed class MovieHistoryViewService : IMovieHistoryViewService
         Guid userId,
         string? sortBy,
         string? sortOrder,
+        string? searchTerm,
         int startIndex,
         int limit,
         CancellationToken cancellationToken)
@@ -53,7 +54,7 @@ public sealed class MovieHistoryViewService : IMovieHistoryViewService
             return WidgetResult.Empty;
         }
 
-        var entries = _movieHistoryCache.GetHistory(userId);
+        var entries = NameSearch.Filter(_movieHistoryCache.GetHistory(userId), e => e.Name, NameSearch.Normalize(searchTerm));
         var sorted = Sort(entries, sortBy, sortOrder);
 
         // The whole history is checked against the user's current rights before paginating, so a

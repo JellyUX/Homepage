@@ -289,6 +289,7 @@ public class JuxHomepageController : ControllerBase
     /// <param name="sortBy">One of "Name", "DateAdded", "ReleaseDate", "CommunityRating". Defaults to "DateAdded".</param>
     /// <param name="sortOrder">"Ascending" or "Descending". Defaults to "Descending".</param>
     /// <param name="includeItemTypes">One of "Movie", "Series", "All". Defaults to "All".</param>
+    /// <param name="searchTerm">Name filter (case and accents ignored, TODO_V4.md 8.5); blank keeps every row.</param>
     /// <param name="startIndex">Zero-based start index for pagination.</param>
     /// <param name="limit">Maximum number of items to return.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
@@ -302,6 +303,7 @@ public class JuxHomepageController : ControllerBase
         [FromQuery] string? sortBy = null,
         [FromQuery] string? sortOrder = null,
         [FromQuery] string? includeItemTypes = null,
+        [FromQuery] string? searchTerm = null,
         [FromQuery] int startIndex = 0,
         [FromQuery] int limit = 50,
         CancellationToken cancellationToken = default)
@@ -315,7 +317,7 @@ public class JuxHomepageController : ControllerBase
         userId = resolvedUserId.Value;
 
         (startIndex, limit) = BoundPage(startIndex, limit);
-        return ReadView("Watchlist", userId, () => _watchlistService.GetItems(userId, sortBy, sortOrder, includeItemTypes, startIndex, limit, includeTotalRecordCount: true, cancellationToken));
+        return ReadView("Watchlist", userId, () => _watchlistService.GetItems(userId, sortBy, sortOrder, includeItemTypes, searchTerm, startIndex, limit, includeTotalRecordCount: true, cancellationToken));
     }
 
     /// <summary>
@@ -357,6 +359,7 @@ public class JuxHomepageController : ControllerBase
     /// <param name="userId">The requesting user's Jellyfin identifier.</param>
     /// <param name="sortBy">"Name" or "LastPlayed". Defaults to "LastPlayed".</param>
     /// <param name="sortOrder">"Ascending" or "Descending". Defaults to "Descending".</param>
+    /// <param name="searchTerm">Name filter (case and accents ignored, TODO_V4.md 8.5); blank keeps every row.</param>
     /// <param name="startIndex">Zero-based start index for pagination.</param>
     /// <param name="limit">Maximum number of items to return.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
@@ -369,6 +372,7 @@ public class JuxHomepageController : ControllerBase
         [FromQuery] Guid userId,
         [FromQuery] string? sortBy = null,
         [FromQuery] string? sortOrder = null,
+        [FromQuery] string? searchTerm = null,
         [FromQuery] int startIndex = 0,
         [FromQuery] int limit = 50,
         CancellationToken cancellationToken = default)
@@ -382,7 +386,7 @@ public class JuxHomepageController : ControllerBase
         userId = resolvedUserId.Value;
 
         (startIndex, limit) = BoundPage(startIndex, limit);
-        return ReadView("Series Progress", userId, () => _seriesProgressViewService.GetItems(userId, sortBy, sortOrder, startIndex, limit, cancellationToken));
+        return ReadView("Series Progress", userId, () => _seriesProgressViewService.GetItems(userId, sortBy, sortOrder, searchTerm, startIndex, limit, cancellationToken));
     }
 
     /// <summary>
@@ -392,6 +396,7 @@ public class JuxHomepageController : ControllerBase
     /// <param name="userId">The requesting user's Jellyfin identifier.</param>
     /// <param name="sortBy">"Name" or "LastPlayed". Defaults to "LastPlayed".</param>
     /// <param name="sortOrder">"Ascending" or "Descending". Defaults to "Descending".</param>
+    /// <param name="searchTerm">Name filter (case and accents ignored, TODO_V4.md 8.5); blank keeps every row.</param>
     /// <param name="startIndex">Zero-based start index for pagination.</param>
     /// <param name="limit">Maximum number of items to return.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
@@ -404,6 +409,7 @@ public class JuxHomepageController : ControllerBase
         [FromQuery] Guid userId,
         [FromQuery] string? sortBy = null,
         [FromQuery] string? sortOrder = null,
+        [FromQuery] string? searchTerm = null,
         [FromQuery] int startIndex = 0,
         [FromQuery] int limit = 50,
         CancellationToken cancellationToken = default)
@@ -417,7 +423,7 @@ public class JuxHomepageController : ControllerBase
         userId = resolvedUserId.Value;
 
         (startIndex, limit) = BoundPage(startIndex, limit);
-        return ReadView("Movie History", userId, () => _movieHistoryViewService.GetItems(userId, sortBy, sortOrder, startIndex, limit, cancellationToken));
+        return ReadView("Movie History", userId, () => _movieHistoryViewService.GetItems(userId, sortBy, sortOrder, searchTerm, startIndex, limit, cancellationToken));
     }
 
     /// <summary>

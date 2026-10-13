@@ -44,6 +44,7 @@ public sealed class SeriesProgressViewService : ISeriesProgressViewService
         Guid userId,
         string? sortBy,
         string? sortOrder,
+        string? searchTerm,
         int startIndex,
         int limit,
         CancellationToken cancellationToken)
@@ -56,9 +57,10 @@ public sealed class SeriesProgressViewService : ISeriesProgressViewService
 
         // A finished series has nothing left to watch: it leaves Progress and stays in Statistics,
         // which counts the completed series from the same cache (TODO_V4.md 8.2, F-54).
-        var entries = _seriesProgressCache.GetProgress(userId)
-            .Where(e => e.WatchedEpisodes < e.TotalEpisodes)
-            .ToList();
+        var entries = NameSearch.Filter(
+            _seriesProgressCache.GetProgress(userId).Where(e => e.WatchedEpisodes < e.TotalEpisodes).ToList(),
+            e => e.SeriesName,
+            NameSearch.Normalize(searchTerm));
         var sorted = Sort(entries, sortBy, sortOrder);
 
         // Same rights check as MovieHistoryViewService: the whole list is filtered before paginating

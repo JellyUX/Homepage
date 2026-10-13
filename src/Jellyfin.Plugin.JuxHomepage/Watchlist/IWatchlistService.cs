@@ -23,6 +23,7 @@ public interface IWatchlistService
     /// <param name="includeItemTypes">
     /// One of "Movie", "Series", "All" (case-insensitive, default "All").
     /// </param>
+    /// <param name="searchTerm">Name filter (case and accents ignored); null or blank keeps every row.</param>
     /// <param name="startIndex">Zero-based start index for pagination.</param>
     /// <param name="limit">Maximum number of items to return.</param>
     /// <param name="includeTotalRecordCount">
@@ -36,6 +37,7 @@ public interface IWatchlistService
         string? sortBy,
         string? sortOrder,
         string? includeItemTypes,
+        string? searchTerm,
         int startIndex,
         int limit,
         bool includeTotalRecordCount,

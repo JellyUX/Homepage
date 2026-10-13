@@ -56,6 +56,7 @@ public sealed class WatchlistWidget : NativeWidgetBase
             sortBy: null,
             sortOrder: null,
             includeItemTypes: null,
+            searchTerm: null,
             payload.StartIndex,
             payload.Limit,
             includeTotalRecordCount: false,

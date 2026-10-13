@@ -27,7 +27,7 @@ public sealed class SeriesProgressViewServiceTests
             new Mock<IDtoService>().Object,
             NullLogger<SeriesProgressViewService>.Instance);
 
-        var result = service.GetItems(Guid.NewGuid(), null, null, 0, 50, CancellationToken.None);
+        var result = service.GetItems(Guid.NewGuid(), null, null, null, 0, 50, CancellationToken.None);
 
         Assert.Empty(result.Items);
         Assert.Equal(0, result.TotalRecordCount);
@@ -72,7 +72,7 @@ public sealed class SeriesProgressViewServiceTests
             dtoServiceMock.Object,
             NullLogger<SeriesProgressViewService>.Instance);
 
-        var result = service.GetItems(user.Id, null, null, 0, 50, CancellationToken.None);
+        var result = service.GetItems(user.Id, null, null, null, 0, 50, CancellationToken.None);
 
         Assert.Equal(2, result.TotalRecordCount);
         Assert.Equal(2, result.Items.Count);
@@ -110,7 +110,7 @@ public sealed class SeriesProgressViewServiceTests
             dtoServiceMock.Object,
             NullLogger<SeriesProgressViewService>.Instance);
 
-        var result = service.GetItems(user.Id, null, null, 0, 50, CancellationToken.None);
+        var result = service.GetItems(user.Id, null, null, null, 0, 50, CancellationToken.None);
 
         Assert.Equal(ongoing.Id, Assert.Single(result.Items).Item.Id);
         Assert.Equal(1, result.TotalRecordCount);
@@ -151,7 +151,7 @@ public sealed class SeriesProgressViewServiceTests
             dtoServiceMock.Object,
             NullLogger<SeriesProgressViewService>.Instance);
 
-        var result = service.GetItems(user.Id, "Name", "Ascending", 0, 50, CancellationToken.None);
+        var result = service.GetItems(user.Id, "Name", "Ascending", null, 0, 50, CancellationToken.None);
 
         Assert.Equal(seriesA.Id, result.Items[0].Item.Id);
         Assert.Equal(seriesZ.Id, result.Items[1].Item.Id);
@@ -184,7 +184,7 @@ public sealed class SeriesProgressViewServiceTests
             new Mock<IDtoService>().Object,
             NullLogger<SeriesProgressViewService>.Instance);
 
-        var result = service.GetItems(user.Id, null, null, 0, 50, CancellationToken.None);
+        var result = service.GetItems(user.Id, null, null, null, 0, 50, CancellationToken.None);
 
         Assert.Empty(result.Items);
 
@@ -222,7 +222,7 @@ public sealed class SeriesProgressViewServiceTests
             dtoServiceMock.Object,
             NullLogger<SeriesProgressViewService>.Instance);
 
-        var result = service.GetItems(user.Id, null, null, 0, 50, CancellationToken.None);
+        var result = service.GetItems(user.Id, null, null, null, 0, 50, CancellationToken.None);
 
         Assert.Equal(1, result.TotalRecordCount);
         Assert.Equal(allowed.Id, Assert.Single(result.Items).Item.Id);

@@ -26,7 +26,7 @@ public sealed class WatchlistServiceTests
             new Mock<ILibraryManager>().Object,
             new Mock<IDtoService>().Object);
 
-        var result = service.GetItems(Guid.NewGuid(), null, null, null, 0, 50, true, CancellationToken.None);
+        var result = service.GetItems(Guid.NewGuid(), null, null, null, null, 0, 50, true, CancellationToken.None);
 
         Assert.Empty(result.Items);
         Assert.Equal(0, result.TotalRecordCount);
@@ -59,7 +59,7 @@ public sealed class WatchlistServiceTests
 
         var service = new WatchlistService(userManagerMock.Object, libraryManagerMock.Object, dtoServiceMock.Object);
 
-        var result = service.GetItems(user.Id, null, null, null, 0, 50, true, CancellationToken.None);
+        var result = service.GetItems(user.Id, null, null, null, null, 0, 50, true, CancellationToken.None);
 
         Assert.NotNull(capturedQuery);
         Assert.True(capturedQuery!.IsLiked);
@@ -93,7 +93,7 @@ public sealed class WatchlistServiceTests
 
         var service = new WatchlistService(userManagerMock.Object, libraryManagerMock.Object, dtoServiceMock.Object);
 
-        service.GetItems(user.Id, null, null, requested, 0, 50, true, CancellationToken.None);
+        service.GetItems(user.Id, null, null, requested, null, 0, 50, true, CancellationToken.None);
 
         Assert.NotNull(capturedQuery);
         Assert.Equal([expected], capturedQuery!.IncludeItemTypes);
@@ -120,11 +120,42 @@ public sealed class WatchlistServiceTests
 
         var service = new WatchlistService(userManagerMock.Object, libraryManagerMock.Object, dtoServiceMock.Object);
 
-        service.GetItems(user.Id, "Name", "Ascending", null, 0, 50, true, CancellationToken.None);
+        service.GetItems(user.Id, "Name", "Ascending", null, null, 0, 50, true, CancellationToken.None);
 
         Assert.NotNull(capturedQuery);
         Assert.Equal(ItemSortBy.SortName, capturedQuery!.OrderBy[0].Item1);
         Assert.Equal(SortOrder.Ascending, capturedQuery.OrderBy[0].Item2);
+    }
+
+    [Theory]
+    [InlineData("  DUNE ", "dune")]
+    [InlineData("Colère", "colere")]
+    [InlineData("   ", null)]
+    [InlineData(null, null)]
+    public void GetItems_SearchTerm_MapsToFoldedNameContains(string? searchTerm, string? expected)
+    {
+        var user = new User("test", "Default", "Default");
+        var userManagerMock = new Mock<IUserManager>();
+        userManagerMock.Setup(m => m.GetUserById(user.Id)).Returns(user);
+
+        InternalItemsQuery? capturedQuery = null;
+        var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock
+            .Setup(m => m.GetItemsResult(It.IsAny<InternalItemsQuery>()))
+            .Callback<InternalItemsQuery>(q => capturedQuery = q)
+            .Returns(new QueryResult<BaseItem>([]));
+
+        var dtoServiceMock = new Mock<IDtoService>();
+        dtoServiceMock
+            .Setup(m => m.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
+            .Returns([]);
+
+        var service = new WatchlistService(userManagerMock.Object, libraryManagerMock.Object, dtoServiceMock.Object);
+
+        service.GetItems(user.Id, null, null, null, searchTerm, 0, 50, true, CancellationToken.None);
+
+        Assert.NotNull(capturedQuery);
+        Assert.Equal(expected, capturedQuery!.NameContains);
     }
 
     [Fact]

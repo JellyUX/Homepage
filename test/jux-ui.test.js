@@ -304,6 +304,67 @@ describe('createListTab paging (F-54)', () => {
     });
 });
 
+describe('createListTab search (F-55)', () => {
+    const labels = { en: { title: 'Things', empty: 'No things', emptySubtitle: 'Add some.', sortName: 'Name' } };
+
+    beforeEach(() => {
+        vi.useFakeTimers();
+        document.documentElement.lang = 'en';
+        document.body.innerHTML = '<div id="jux-tab-things"><div class="sections"></div></div>';
+        window.JellyfinAPI = {
+            cardBuilder: { getCardsHtml: (o) => o.items.map((it) => '<div class="card" data-id="' + it.Id + '"><a href="#">x</a></div>').join('') },
+            getPortraitShape: () => 'portrait'
+        };
+        window.ApiClient = {
+            getCurrentUserId: () => 'u1',
+            getUrl: (route, query) => route + '?' + new URLSearchParams(query).toString(),
+            getJSON: vi.fn(() => Promise.resolve({ Items: [], TotalRecordCount: 0 }))
+        };
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+        delete window.ApiClient;
+        delete window.JellyfinAPI;
+    });
+
+    function makeTab() {
+        return createListTab({ id: 'things', endpoint: 'E', logName: 'Things', labels, state: { sortBy: 'Name', sortOrder: 'Ascending' }, sortOptions: (t) => [{ value: 'Name', label: t.sortName }], emptyIcon: 'inbox' });
+    }
+
+    it('asks the server 300 ms after the last keystroke, keeping the field and its focus', async () => {
+        makeTab().render();
+        const input = document.querySelector('#jux-things-search');
+        input.focus();
+
+        input.value = 'du';
+        input.dispatchEvent(new Event('input'));
+        vi.advanceTimersByTime(200);
+        input.value = ' dune ';
+        input.dispatchEvent(new Event('input'));
+        vi.advanceTimersByTime(299);
+        expect(window.ApiClient.getJSON).toHaveBeenCalledTimes(1);
+
+        vi.advanceTimersByTime(1);
+        expect(window.ApiClient.getJSON).toHaveBeenCalledTimes(2);
+        expect(window.ApiClient.getJSON).toHaveBeenLastCalledWith('E?userId=u1&sortBy=Name&sortOrder=Ascending&searchTerm=dune&startIndex=0&limit=50');
+        expect(document.querySelector('#jux-things-search')).toBe(input);
+        expect(document.activeElement).toBe(input);
+
+        await vi.runAllTimersAsync();
+        expect(document.querySelector('.jux-empty-title').textContent).toBe('No results for "dune"');
+    });
+
+    it('keeps the search across a new render of the tab', () => {
+        const tab = makeTab();
+        tab.state.searchTerm = 'a"b';
+        tab.render();
+
+        expect(document.querySelector('#jux-things-search').value).toBe('a"b');
+        expect(window.ApiClient.getJSON).toHaveBeenLastCalledWith(expect.stringContaining('searchTerm=a%22b'));
+    });
+});
+
 describe('createListTab failure (F-40)', () => {
     afterEach(() => {
         delete window.ApiClient;
