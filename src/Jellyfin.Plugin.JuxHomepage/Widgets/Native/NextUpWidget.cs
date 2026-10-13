@@ -44,7 +44,7 @@ public sealed class NextUpWidget : NativeWidgetBase
     public override string DefaultViewMode => WidgetViewMode.Landscape;
 
     /// <inheritdoc/>
-    public override string? Route => "nextup";
+    public override string? Route => WidgetRoutes.NextUp;
 
     /// <inheritdoc/>
     public override Task<WidgetResult> GetItemsAsync(WidgetPayload payload, CancellationToken cancellationToken)

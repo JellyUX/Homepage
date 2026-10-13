@@ -177,6 +177,13 @@ public abstract class AdminWidgetBase : IWidget
         DisplayName = DefaultDisplayName,
         Category = Category,
         ViewMode = DefaultViewMode,
+        Route = Route,
         MinItems = DefaultMinItems
     };
+
+    /// <summary>
+    /// Gets the "see all" target of the section (a <see cref="WidgetRoutes"/> value, the row's value
+    /// completing it), or null when Jellyfin has no page listing the same items.
+    /// </summary>
+    protected virtual string? Route => null;
 }

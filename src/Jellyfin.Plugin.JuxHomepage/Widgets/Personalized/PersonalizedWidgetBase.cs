@@ -208,8 +208,15 @@ public abstract class PersonalizedWidgetBase : IWidget
         Category = Category,
         ViewMode = DefaultViewMode,
         AdditionalData = _value,
+        Route = Route,
         MinItems = DefaultMinItems
     };
+
+    /// <summary>
+    /// Gets the "see all" target of the section (a <see cref="WidgetRoutes"/> value, the scored value
+    /// completing it), or null when Jellyfin has no page listing the same items.
+    /// </summary>
+    protected virtual string? Route => null;
 
     /// <summary>
     /// Reads the row-level "exclude already watched" setting from <see cref="WidgetPayload.ExtraParams"/>.

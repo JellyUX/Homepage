@@ -1,16 +1,59 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import juxHomepage from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-homepage.js';
 
-const { _buildSeeAllHref, _fallback, _isHomePage, _hasMorePages, _setupLazyLoader, _chunkState, _repairStaleChunks, _armChunkGuard, _guardFetchData, _guardGetItemsHtml, _renderHome } = juxHomepage;
+const { _seeAllTarget, _fallback, _isHomePage, _hasMorePages, _setupLazyLoader, _chunkState, _repairStaleChunks, _armChunkGuard, _guardFetchData, _guardGetItemsHtml, _renderHome } = juxHomepage;
 
-describe('_buildSeeAllHref', () => {
-    it('resolves a known route to its Jellyfin hash URL', () => {
-        expect(_buildSeeAllHref('movies')).toBe('#/movies.html');
-        expect(_buildSeeAllHref('tvshows')).toBe('#/tv.html');
+describe('_seeAllTarget (F-56)', () => {
+    const replies = {
+        UserViews: { Items: [{ Id: 'lib-shows', CollectionType: 'tvshows' }, { Id: 'lib-movies', CollectionType: 'movies' }] },
+        'Genres/Science%20Fiction': { Id: 'g1' },
+        'Studios/Pixar': { Id: 's1' },
+        'Persons/Tom%20Hanks': { Id: 'p1' }
+    };
+    const client = {
+        serverId: () => 'srv',
+        getUrl: (path) => path,
+        getJSON: vi.fn((path) => Promise.resolve(replies[path]))
+    };
+    const target = (Route, AdditionalData) => _seeAllTarget(client, 'u1', { WidgetType: 'jux.test', Route, AdditionalData });
+
+    beforeEach(() => client.getJSON.mockClear());
+
+    it('links Next Up, a tag and a collection directly, never to the missing #/nextup.html', () => {
+        expect(target('nextup')).toEqual({ href: '#/list?type=nextup&serverId=srv' });
+        expect(target('tag', 'christmas')).toEqual({ href: '#/list?tag=christmas&serverId=srv' });
+        expect(target('item', 'c1')).toEqual({ href: '#/details?id=c1&serverId=srv' });
+        expect(client.getJSON).not.toHaveBeenCalled();
     });
 
-    it('returns null for an unknown route', () => {
-        expect(_buildSeeAllHref('not-a-real-route')).toBeNull();
+    it.each([
+        ['movies', undefined, '#/movies?topParentId=lib-movies&collectionType=movies&tab=1'],
+        ['tvshows', undefined, '#/tv?topParentId=lib-shows&collectionType=tvshows&tab=1'],
+        ['genre', 'Science Fiction', '#/list?genreId=g1&serverId=srv'],
+        ['studio', 'Pixar', '#/list?studioId=s1&serverId=srv'],
+        ['person', 'Tom Hanks', '#/details?id=p1&serverId=srv']
+    ])('resolves %s by id only when the link is clicked', async (route, value, href) => {
+        const seeAll = target(route, value);
+        expect(client.getJSON).not.toHaveBeenCalled();
+
+        await expect(seeAll.resolve()).resolves.toBe(href);
+    });
+
+    it('opens the JellyUX Watchlist tab', async () => {
+        const tab = document.createElement('button');
+        tab.id = 'jux-tabbtn-watchlist';
+        tab.click = vi.fn();
+        document.body.appendChild(tab);
+
+        await expect(target('watchlist').resolve()).resolves.toBeNull();
+        expect(tab.click).toHaveBeenCalledOnce();
+        tab.remove();
+    });
+
+    it('gives no link without a value, for a year or for an unknown route', () => {
+        expect(target('genre', null)).toBeNull();
+        expect(target('year', '2020')).toBeNull();
+        expect(target(null)).toBeNull();
     });
 });
 
@@ -135,6 +178,26 @@ describe('_buildSection (F-11)', () => {
         const sections = [...elem.querySelectorAll('.jux-widget-section')];
         expect(sections.map((s) => s.classList.contains('jux-widget-jux-native-next-up'))).toEqual([true, false]);
         expect(sections.map((s) => s.style.order)).toEqual(['', '']);
+    });
+    it('opens the native list of a genre by its id when its title is clicked (F-56)', async () => {
+        window.JellyfinAPI = { layoutManager: { tv: false } };
+        const client = {
+            serverId: () => 'srv',
+            getUrl: (path) => path,
+            getJSON: vi.fn(() => Promise.resolve({ Id: 'g1' }))
+        };
+        const elem = document.createElement('div');
+
+        await juxHomepage._buildSection(elem, client, 'u', null, { WidgetType: 'jux.admin.genre', DisplayName: 'Thriller', Route: 'genre', AdditionalData: 'Thriller', ViewMode: 'Portrait' });
+        const link = elem.querySelector('.sectionTitleContainer a');
+        expect(link.getAttribute('href')).toBe('#');
+        expect(client.getJSON).not.toHaveBeenCalled();
+
+        link.click();
+        await vi.waitFor(() => expect(window.location.hash).toBe('#/list?genreId=g1&serverId=srv'));
+        expect(client.getJSON).toHaveBeenCalledWith('Genres/Thriller');
+        delete window.JellyfinAPI;
+        window.location.hash = '';
     });
 });
 

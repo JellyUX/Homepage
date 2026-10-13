@@ -29,6 +29,9 @@ public abstract class PersonalizedPersonWidgetBase : PersonalizedWidgetBase
     /// <inheritdoc/>
     public override string DefaultViewMode => WidgetViewMode.Portrait;
 
+    /// <inheritdoc/>
+    protected override string? Route => WidgetRoutes.Person;
+
     /// <summary>
     /// Gets the Jellyfin person type string used to filter the item query.
     /// Typically "Actor" or "Director".

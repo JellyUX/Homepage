@@ -211,25 +211,31 @@
         var titleContainer = document.createElement('div');
         titleContainer.className = 'sectionTitleContainer sectionTitleContainer-cards padded-left';
 
-        if (descriptor.Route && api && !api.layoutManager.tv) {
-            var href = _buildSeeAllHref(descriptor.Route);
-            if (href) {
-                titleContainer.innerHTML =
-                    '<a is="emby-linkbutton" href="' + window.JuxCore.escHtml(href) + '" ' +
-                    'class="button-flat button-flat-mini sectionTitleTextButton">' +
-                    '<h2 class="sectionTitle sectionTitle-cards jux-section-title">' +
-                    window.JuxCore.escHtml(descriptor.DisplayName) + '</h2>' +
-                    '<span class="material-icons chevron_right" aria-hidden="true"></span>' +
-                    '</a>';
-            } else {
-                titleContainer.innerHTML =
-                    '<h2 class="sectionTitle sectionTitle-cards jux-section-title">' +
-                    window.JuxCore.escHtml(descriptor.DisplayName) + '</h2>';
+        var seeAll = descriptor.Route && api && !api.layoutManager.tv
+            ? _seeAllTarget(apiClient, userId, descriptor)
+            : null;
+        var titleHtml = '<h2 class="sectionTitle sectionTitle-cards jux-section-title">' +
+            window.JuxCore.escHtml(descriptor.DisplayName) + '</h2>';
+        if (seeAll) {
+            titleContainer.innerHTML =
+                '<a is="emby-linkbutton" href="' + window.JuxCore.escHtml(seeAll.href || '#') + '" ' +
+                'class="button-flat button-flat-mini sectionTitleTextButton">' + titleHtml +
+                '<span class="material-icons chevron_right" aria-hidden="true"></span>' +
+                '</a>';
+            if (seeAll.resolve) {
+                titleContainer.firstChild.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    seeAll.resolve().then(function (href) {
+                        if (href) {
+                            window.location.hash = href;
+                        }
+                    }).catch(function (err) {
+                        console.error('[JellyUX] See all of ' + descriptor.WidgetType + ' failed:', err);
+                    });
+                });
             }
         } else {
-            titleContainer.innerHTML =
-                '<h2 class="sectionTitle sectionTitle-cards jux-section-title">' +
-                window.JuxCore.escHtml(descriptor.DisplayName) + '</h2>';
+            titleContainer.innerHTML = titleHtml;
         }
 
         sectionEl.appendChild(titleContainer);
@@ -445,22 +451,82 @@
     // Routing helpers
     // -------------------------------------------------------------------------
 
-    // Maps JUX route keys to Jellyfin hash-based page URLs.
-    // appRouter.getRouteUrl cannot be used for library pages (movies, tvshows, music…)
-    // because those strings are not registered named routes - the router tries to resolve
-    // them as item references, producing /Items/undefined errors.
-    var _ROUTE_HREF_MAP = {
-        'movies':  '#/movies.html',
-        'tvshows': '#/tv.html',
-        'nextup':  '#/nextup.html',
-        'music':   '#/music.html',
-        'livetv':  '#/livetv.html',
-        'books':   '#/books.html',
-        'photos':  '#/photos.html'
-    };
+    // The "see all" of a section (TODO_V4.md 9.3, F-56), from its server Route (WidgetRoutes.cs) and
+    // its AdditionalData. Every target was checked live on Jellyfin 10.11 (8097): the native list and
+    // detail pages take ids, never names (a genre name in genreId opens an empty list), #/nextup.html
+    // does not exist, and #/list ignores a year. A target the descriptor fully describes is a plain
+    // link ({ href }); one that needs an id, the user's library or a JellyUX tab is resolved when the
+    // link is clicked ({ resolve }), so the home screen itself sends no request for it.
+    function _seeAllTarget(apiClient, userId, descriptor) {
+        var value = descriptor.AdditionalData;
+        var server = '&serverId=' + encodeURIComponent(apiClient.serverId());
 
-    function _buildSeeAllHref(route) {
-        return _ROUTE_HREF_MAP[route] || null;
+        function byName(path, page, param) {
+            return {
+                resolve: function () {
+                    return apiClient.getJSON(apiClient.getUrl(path + '/' + encodeURIComponent(value), { userId: userId }))
+                        .then(function (item) {
+                            return item && item.Id ? '#/' + page + '?' + param + '=' + encodeURIComponent(item.Id) + server : null;
+                        });
+                }
+            };
+        }
+
+        // The native latest movies and shows links open the library on its Suggestions tab.
+        function library(collectionType, page) {
+            return {
+                resolve: function () {
+                    return apiClient.getJSON(apiClient.getUrl('UserViews', { userId: userId })).then(function (views) {
+                        var view = ((views && views.Items) || []).filter(function (v) {
+                            return v.CollectionType === collectionType;
+                        })[0];
+                        return view
+                            ? '#/' + page + '?topParentId=' + encodeURIComponent(view.Id) + '&collectionType=' + collectionType + '&tab=1'
+                            : null;
+                    });
+                }
+            };
+        }
+
+        switch (descriptor.Route) {
+            case 'nextup':
+                return { href: '#/list?type=nextup' + server };
+            case 'movies':
+                return library('movies', 'movies');
+            case 'tvshows':
+                return library('tvshows', 'tv');
+            case 'watchlist':
+                return {
+                    resolve: function () {
+                        var tab = document.getElementById('jux-tabbtn-watchlist');
+                        if (tab) {
+                            tab.click();
+                        }
+                        return Promise.resolve(null);
+                    }
+                };
+            default:
+                break;
+        }
+
+        if (!value) {
+            return null;
+        }
+
+        switch (descriptor.Route) {
+            case 'tag':
+                return { href: '#/list?tag=' + encodeURIComponent(value) + server };
+            case 'item':
+                return { href: '#/details?id=' + encodeURIComponent(value) + server };
+            case 'genre':
+                return byName('Genres', 'list', 'genreId');
+            case 'studio':
+                return byName('Studios', 'list', 'studioId');
+            case 'person':
+                return byName('Persons', 'details', 'id');
+            default:
+                return null;
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -596,7 +662,7 @@
     // file simply doesn't need that conversion for testing purposes).
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
-            _buildSeeAllHref: _buildSeeAllHref,
+            _seeAllTarget: _seeAllTarget,
             _fallback: _fallback,
             _isHomePage: _isHomePage,
             _hasMorePages: _hasMorePages,

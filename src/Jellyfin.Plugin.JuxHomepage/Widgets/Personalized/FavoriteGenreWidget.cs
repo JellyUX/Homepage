@@ -37,6 +37,9 @@ public sealed class FavoriteGenreWidget : PersonalizedWidgetBase
     public override string WidgetType => "jux.personalized.favorite-genre";
 
     /// <inheritdoc/>
+    protected override string? Route => WidgetRoutes.Genre;
+
+    /// <inheritdoc/>
     public override string DefaultDisplayName => "Favorite Genre";
 
     /// <inheritdoc/>

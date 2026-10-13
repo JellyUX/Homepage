@@ -106,7 +106,7 @@ public sealed class NativeWidgetTests
         Assert.Equal(WidgetCategory.Native, d.Category);
         Assert.Equal(WidgetViewMode.Landscape, d.ViewMode);
         Assert.Equal(4, d.MinItems);
-        Assert.Null(d.Route);
+        Assert.Equal("tvshows", d.Route);
     }
 
     [Fact]
@@ -142,7 +142,7 @@ public sealed class NativeWidgetTests
         Assert.Equal(WidgetCategory.Native, d.Category);
         Assert.Equal(WidgetViewMode.Portrait, d.ViewMode);
         Assert.Equal(1, d.MinItems);
-        Assert.Null(d.Route);
+        Assert.Equal("watchlist", d.Route);
     }
 
     // -------------------------------------------------------------------------

@@ -38,7 +38,7 @@ public sealed class RecentlyAddedEpisodesWidget : RecentlyAddedWidgetBase
     public override string DefaultViewMode => WidgetViewMode.Landscape;
 
     /// <inheritdoc/>
-    public override string? Route => null;
+    public override string? Route => WidgetRoutes.TvShows;
 
     /// <inheritdoc/>
     protected override BaseItemKind ItemKind => BaseItemKind.Episode;

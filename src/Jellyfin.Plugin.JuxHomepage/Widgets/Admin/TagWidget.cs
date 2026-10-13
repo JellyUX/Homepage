@@ -46,6 +46,9 @@ public sealed class TagWidget : AdminWidgetBase
     public override int DefaultMinItems => 4;
 
     /// <inheritdoc/>
+    protected override string? Route => WidgetRoutes.Tag;
+
+    /// <inheritdoc/>
     protected override bool ApplyFilter(InternalItemsQuery query, string value)
     {
         query.Tags = [value];

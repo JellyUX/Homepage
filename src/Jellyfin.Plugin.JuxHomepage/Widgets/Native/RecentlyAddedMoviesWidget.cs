@@ -38,7 +38,7 @@ public sealed class RecentlyAddedMoviesWidget : RecentlyAddedWidgetBase
     public override string DefaultViewMode => WidgetViewMode.Portrait;
 
     /// <inheritdoc/>
-    public override string? Route => "movies";
+    public override string? Route => WidgetRoutes.Movies;
 
     /// <inheritdoc/>
     protected override BaseItemKind ItemKind => BaseItemKind.Movie;

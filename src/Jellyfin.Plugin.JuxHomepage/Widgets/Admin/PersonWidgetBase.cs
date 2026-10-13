@@ -25,6 +25,9 @@ public abstract class PersonWidgetBase : AdminWidgetBase
     public override int DefaultMinItems => 4;
 
     /// <inheritdoc/>
+    protected override string? Route => WidgetRoutes.Person;
+
+    /// <inheritdoc/>
     public override string DefaultViewMode => WidgetViewMode.Portrait;
 
     /// <summary>

@@ -46,7 +46,7 @@ public sealed class WatchlistWidget : NativeWidgetBase
     public override string DefaultViewMode => WidgetViewMode.Portrait;
 
     /// <inheritdoc/>
-    public override string? Route => null;
+    public override string? Route => WidgetRoutes.Watchlist;
 
     /// <inheritdoc/>
     public override Task<WidgetResult> GetItemsAsync(WidgetPayload payload, CancellationToken cancellationToken)

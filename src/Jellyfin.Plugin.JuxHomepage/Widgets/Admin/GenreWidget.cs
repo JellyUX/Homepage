@@ -41,6 +41,9 @@ public sealed class GenreWidget : AdminWidgetBase
     public override int DefaultMinItems => 4;
 
     /// <inheritdoc/>
+    protected override string? Route => WidgetRoutes.Genre;
+
+    /// <inheritdoc/>
     protected override bool ApplyFilter(InternalItemsQuery query, string value)
     {
         query.Genres = [value];

@@ -133,6 +133,7 @@ public sealed class PersonalizedWidgetTests
         var rank1Descriptor = rank1.GetDescriptor();
         Assert.Equal("Action", rank1Descriptor.AdditionalData);
         Assert.Equal("More Action", rank1Descriptor.DisplayName);
+        Assert.Equal("genre", rank1Descriptor.Route);
 
         var rank2Descriptor = rank2.GetDescriptor();
         Assert.Equal("Drama", rank2Descriptor.AdditionalData);

@@ -32,7 +32,7 @@ public sealed class AdminWidgetTests
         Assert.Equal(WidgetCategory.Admin, d.Category);
         Assert.Equal(WidgetViewMode.Portrait, d.ViewMode);
         Assert.Equal(4, d.MinItems);
-        Assert.Null(d.Route);
+        Assert.Equal("genre", d.Route);
     }
 
     [Fact]
@@ -119,6 +119,26 @@ public sealed class AdminWidgetTests
 
         Assert.Equal("jux.admin.year", d.WidgetType);
         Assert.Equal(WidgetCategory.Admin, d.Category);
+    }
+
+    [Fact]
+    public void GetDescriptor_SeeAll_PointsToTheNativePageOfTheValue_ExceptForAYear()
+    {
+        // TODO_V4.md 9.3 (F-56): #/list ignores a year, every other value has a native page.
+        var users = new Mock<IUserManager>().Object;
+        var library = new Mock<ILibraryManager>().Object;
+        var dtos = new Mock<IDtoService>().Object;
+        IWidget[] widgets =
+        [
+            new ActorWidget(users, library, dtos),
+            new DirectorWidget(users, library, dtos),
+            new StudioWidget(users, library, dtos),
+            new TagWidget(users, library, dtos),
+            new CollectionWidget(users, library, dtos),
+            new YearWidget(users, library, dtos)
+        ];
+
+        Assert.Equal(["person", "person", "studio", "tag", "item", null], widgets.Select(w => w.GetDescriptor().Route));
     }
 
     // -------------------------------------------------------------------------

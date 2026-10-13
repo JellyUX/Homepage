@@ -39,7 +39,7 @@ public sealed class RecentlyAddedShowsWidget : RecentlyAddedWidgetBase
     public override string DefaultViewMode => WidgetViewMode.Portrait;
 
     /// <inheritdoc/>
-    public override string? Route => "tvshows";
+    public override string? Route => WidgetRoutes.TvShows;
 
     /// <inheritdoc/>
     protected override BaseItemKind ItemKind => BaseItemKind.Episode;

@@ -41,6 +41,9 @@ public sealed class CollectionWidget : AdminWidgetBase
     /// <inheritdoc/>
     public override int DefaultMinItems => 2;
 
+    /// <inheritdoc/>
+    protected override string? Route => WidgetRoutes.Item;
+
     /// <summary>
     /// Returns <see langword="null"/> so all item types within the collection are included.
     /// </summary>

@@ -74,3 +74,18 @@ test('a user restricted to the movie library sees no show (F-19)', async ({ page
     const episodes = await apiGet(env.restricted, `/JuxHomepage/Section/jux.native.recently-added-episodes?userId=${env.restricted.id}`);
     expect(episodes.Items ?? []).toEqual([]);
 });
+
+test('"see all" opens the native list of the section, never a missing page (F-56)', async ({ page }) => {
+    const errors = watchJuxErrors(page);
+    await login(page, env.admin);
+
+    await page.locator('.jux-widget-jux-native-next-up .sectionTitleContainer a').click();
+    await expect(page).toHaveURL(/#\/list\?type=nextup/);
+    await expect(page.locator('.page:not(.hide) .card').first()).toBeVisible();
+
+    await page.goBack();
+    await page.locator('.jux-widget-jux-native-recently-added-movies .sectionTitleContainer a').click();
+    await expect(page).toHaveURL(/#\/movies\?topParentId=[0-9a-f]+&collectionType=movies&tab=1/);
+    await expect(page.locator('.page:not(.hide) .card').first()).toBeVisible();
+    expect(errors).toEqual([]);
+});

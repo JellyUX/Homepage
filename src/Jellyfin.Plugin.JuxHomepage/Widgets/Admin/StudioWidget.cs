@@ -41,6 +41,9 @@ public sealed class StudioWidget : AdminWidgetBase
     public override int DefaultMinItems => 4;
 
     /// <inheritdoc/>
+    protected override string? Route => WidgetRoutes.Studio;
+
+    /// <inheritdoc/>
     protected override bool ApplyFilter(InternalItemsQuery query, string value)
     {
         var studioId = LibraryManager.GetStudioId(value);
