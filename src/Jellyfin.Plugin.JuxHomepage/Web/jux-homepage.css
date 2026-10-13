@@ -159,3 +159,23 @@
         animation: none;
     }
 }
+
+/* JellyUX block of Preferences > Home (TODO_V4.md 8.3, F-36): native page classes, plus the reset a
+   fieldset needs to sit flush with the page's other checkboxes. */
+
+.jux-user-sections {
+    border: 0;
+    margin: 1.5em 0 0;
+    padding: 0;
+    min-width: 0;
+}
+
+.jux-user-sections-title {
+    padding: 0;
+    margin-bottom: 0.5em;
+    font-size: 1.1em;
+}
+
+.jux-user-sections-off {
+    opacity: 0.5;
+}

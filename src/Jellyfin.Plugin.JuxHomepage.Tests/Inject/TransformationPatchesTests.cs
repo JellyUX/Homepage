@@ -173,7 +173,7 @@ public sealed class TransformationPatchesTests
         // <BaseUrl>/JuxHomepage/; an absolute "/JuxHomepage/" ignores BaseUrl and receives the web
         // client's HTML fallback instead of the asset.
         Assert.DoesNotContain("\"/JuxHomepage/", html, StringComparison.Ordinal);
-        Assert.Equal(14, html.Split("\"../JuxHomepage/").Length - 1);
+        Assert.Equal(15, html.Split("\"../JuxHomepage/").Length - 1);
     }
 
     [Fact]
@@ -191,7 +191,7 @@ public sealed class TransformationPatchesTests
 
     private static readonly string[] AllAssetsInOrder =
     [
-        "jux-homepage.css", "jux-ui.css", "jux-core.js", "jux-homepage.js", "jux-ui.js", "jux-tab-injector.js",
+        "jux-homepage.css", "jux-ui.css", "jux-core.js", "jux-homepage.js", "jux-user-settings.js", "jux-ui.js", "jux-tab-injector.js",
         "jux-watchlist.js", "jux-card-hooks.js", "jux-progress.js", "jux-history.js", "jux-statistics.js",
         "jux-series-flatten.js", "jux-collections.js", "jux-breadcrumb.js",
     ];
@@ -254,7 +254,7 @@ public sealed class TransformationPatchesTests
 
         Assert.DoesNotContain("jux-ui.js", assets);
         Assert.DoesNotContain("jux-ui.css", assets);
-        Assert.Equal(["jux-homepage.css", "jux-core.js", "jux-homepage.js", "jux-card-hooks.js", "jux-series-flatten.js", "jux-breadcrumb.js"], assets);
+        Assert.Equal(["jux-homepage.css", "jux-core.js", "jux-homepage.js", "jux-user-settings.js", "jux-card-hooks.js", "jux-series-flatten.js", "jux-breadcrumb.js"], assets);
     }
 
     [Fact]
