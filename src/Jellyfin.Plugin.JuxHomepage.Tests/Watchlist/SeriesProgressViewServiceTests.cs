@@ -45,7 +45,7 @@ public sealed class SeriesProgressViewServiceTests
         var entries = new List<SeriesProgressEntry>
         {
             new() { SeriesId = seriesB.Id, SeriesName = "B", WatchedEpisodes = 2, TotalEpisodes = 10, LastPlayedDate = new DateTime(2026, 2, 1) },
-            new() { SeriesId = seriesA.Id, SeriesName = "A", WatchedEpisodes = 5, TotalEpisodes = 5, LastPlayedDate = new DateTime(2026, 1, 1) }
+            new() { SeriesId = seriesA.Id, SeriesName = "A", WatchedEpisodes = 4, TotalEpisodes = 5, LastPlayedDate = new DateTime(2026, 1, 1) }
         };
 
         var cacheMock = new Mock<ISeriesProgressCacheService>();
@@ -79,7 +79,41 @@ public sealed class SeriesProgressViewServiceTests
         Assert.Equal(seriesB.Id, result.Items[0].Item.Id);
         Assert.Equal(2, result.Items[0].WatchedEpisodes);
         Assert.Equal(seriesA.Id, result.Items[1].Item.Id);
-        Assert.Equal(5, result.Items[1].WatchedEpisodes);
+        Assert.Equal(4, result.Items[1].WatchedEpisodes);
+    }
+
+    [Fact]
+    public void GetItems_FinishedSeries_LeavesProgressAndItsTotal()
+    {
+        var user = new User("test", "Default", "Default");
+        var ongoing = new TestSeries { Id = Guid.NewGuid(), Name = "Ongoing" };
+        var finished = new TestSeries { Id = Guid.NewGuid(), Name = "Finished" };
+        var cacheMock = new Mock<ISeriesProgressCacheService>();
+        cacheMock.Setup(m => m.GetProgress(user.Id)).Returns(
+        [
+            new() { SeriesId = finished.Id, SeriesName = "Finished", WatchedEpisodes = 3, TotalEpisodes = 3 },
+            new() { SeriesId = ongoing.Id, SeriesName = "Ongoing", WatchedEpisodes = 1, TotalEpisodes = 3 }
+        ]);
+        var userManagerMock = new Mock<IUserManager>();
+        userManagerMock.Setup(m => m.GetUserById(user.Id)).Returns(user);
+        var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([ongoing, finished]);
+        var dtoServiceMock = new Mock<IDtoService>();
+        dtoServiceMock
+            .Setup(m => m.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
+            .Returns((IReadOnlyList<BaseItem> items, DtoOptions _, User _, BaseItem? _) =>
+                items.Select(i => new BaseItemDto { Id = i.Id, Name = i.Name }).ToList());
+        var service = new SeriesProgressViewService(
+            cacheMock.Object,
+            userManagerMock.Object,
+            libraryManagerMock.Object,
+            dtoServiceMock.Object,
+            NullLogger<SeriesProgressViewService>.Instance);
+
+        var result = service.GetItems(user.Id, null, null, 0, 50, CancellationToken.None);
+
+        Assert.Equal(ongoing.Id, Assert.Single(result.Items).Item.Id);
+        Assert.Equal(1, result.TotalRecordCount);
     }
 
     [Fact]
@@ -91,8 +125,8 @@ public sealed class SeriesProgressViewServiceTests
 
         var entries = new List<SeriesProgressEntry>
         {
-            new() { SeriesId = seriesZ.Id, SeriesName = "Z", WatchedEpisodes = 1, TotalEpisodes = 1 },
-            new() { SeriesId = seriesA.Id, SeriesName = "A", WatchedEpisodes = 1, TotalEpisodes = 1 }
+            new() { SeriesId = seriesZ.Id, SeriesName = "Z", WatchedEpisodes = 1, TotalEpisodes = 2 },
+            new() { SeriesId = seriesA.Id, SeriesName = "A", WatchedEpisodes = 1, TotalEpisodes = 2 }
         };
 
         var cacheMock = new Mock<ISeriesProgressCacheService>();
@@ -131,7 +165,7 @@ public sealed class SeriesProgressViewServiceTests
 
         var entries = new List<SeriesProgressEntry>
         {
-            new() { SeriesId = missingSeriesId, SeriesName = "Gone", WatchedEpisodes = 1, TotalEpisodes = 1 }
+            new() { SeriesId = missingSeriesId, SeriesName = "Gone", WatchedEpisodes = 1, TotalEpisodes = 2 }
         };
 
         var cacheMock = new Mock<ISeriesProgressCacheService>();
