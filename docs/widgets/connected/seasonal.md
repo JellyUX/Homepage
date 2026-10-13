@@ -8,9 +8,10 @@ widgets, Seasonal reads only your library (no TMDb or Wikidata call, no API key 
 its own editor in the admin panel (theme, dates, genres, tags) instead of the single-value picker the
 other Admin widgets share.
 
-The plugin ships with four disabled-by-default presets (Halloween, Christmas, Valentine's Day, New
-Year); enable the ones you want, or add your own custom Seasonal section with any date window, theme,
-and genre/tag filter.
+The plugin ships with seven disabled-by-default presets over four seasons (Halloween, Christmas,
+Valentine's Day, New Year); enable the ones you want, or add your own custom Seasonal section with any
+date window, theme, and genre/tag filter. As in KefinTweaks, a season can have several sections, each
+with its own filter.
 
 A section outside its configured date window returns no items and is automatically hidden from the
 home screen, the same generic "not enough items" behavior every widget already relies on -- there is
@@ -30,13 +31,21 @@ In addition to the [common parameters](../../configuration.md#common-per-widget-
 
 ## Presets
 
-| Preset | Default window | Default theme |
-|---|---|---|
-| Halloween | October 1 - October 31 | Halloween |
-| Christmas | December 1 - December 25 | Christmas |
-| Valentine's Day | February 7 - February 14 | Valentine's Day |
-| New Year | December 26 - January 6 | New Year |
+| Preset | Default window | Default theme | Filter |
+|---|---|---|---|
+| Halloween | October 1 - October 31 | Halloween | tag `halloween` |
+| Halloween Horror | October 1 - October 31 | Halloween | genres `Horror\|Horreur` |
+| Halloween Thrillers | October 1 - October 31 | Halloween | genre `Thriller` |
+| Christmas | December 1 - December 25 | Christmas | tag `christmas` |
+| Valentine's Day | February 7 - February 14 | Valentine's Day | tag `valentine's day` |
+| Valentine's Romance | February 7 - February 14 | Valentine's Day | genre `Romance` |
+| New Year | December 26 - January 6 | New Year | tag `new year's eve` |
 
-Each preset ships disabled and with no genre/tag filter (a pre-filled genre like "Horror" could easily
-match nothing in your library, since genre taxonomies vary) -- enable the ones you want and adjust the
-dates or add a filter to fit your own library and timezone.
+The tags are TMDb keyword names, the tags Jellyfin writes from TMDb metadata. Genre names follow the
+language of your metadata: the Horror preset lists the English and the French name; add your own
+spelling if your library uses another language. A preset whose filter matches fewer titles than its
+minimum stays hidden. Each preset ships disabled; enable the ones you want and adjust the dates or the
+filters to fit your library and timezone.
+
+When upgrading, a preset section you never gave a filter receives the filter of its preset (it used to
+show the whole library); a section you filtered yourself is left unchanged.

@@ -2,6 +2,7 @@ using System.IO;
 using System.Xml.Serialization;
 using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.Widgets;
+using Jellyfin.Plugin.JuxHomepage.Widgets.Connected;
 using Xunit;
 
 namespace Jellyfin.Plugin.JuxHomepage.Tests;
@@ -11,6 +12,11 @@ public sealed class PluginValidationTests
     // Rows the V10-to-V11 tier appends to every configuration migrated from an earlier tier
     // (TODO_V4.md 9.1, F-61): the two disabled local library presets.
     private const int LocalPresets = 2;
+
+    // Seasonal presets since TODO_V4.md 9.2 (F-60), of which 3 are new: tier 6 appends all of them to an
+    // older configuration, tier 11 appends the new ones to a configuration from tier 6 to 10.
+    private const int SeasonalPresets = 7;
+    private const int NewSeasonalPresets = 3;
 
     [Fact]
     public void ValidateConfiguration_ClampsCacheValues()
@@ -134,11 +140,54 @@ public sealed class PluginValidationTests
         Plugin.MigrateConfiguration(config);
 
         Assert.Equal(11, config.SchemaVersion);
-        Assert.Equal(["jux.local.top-rated", "jux.local.recently-released"], config.Widgets.Select(w => w.WidgetType));
+        Assert.Equal(["jux.local.top-rated", "jux.local.recently-released"], config.Widgets.Select(w => w.WidgetType).Where(t => t.StartsWith("jux.local.", StringComparison.Ordinal)));
         Assert.Same(existing, config.Widgets[0]);
         var released = config.Widgets[1];
         Assert.False(released.Enabled);
         Assert.Equal("Movie", released.ExtraParams.Single(p => p.Key == "itemTypes").Value);
+    }
+
+    [Fact]
+    public void MigrateConfiguration_FromTierTen_FiltersUnfilteredSeasonalPresetsOnlyAndAddsTheNewOnes()
+    {
+        static WidgetConfig Seasonal(string id, bool enabled, params (string Key, string Value)[] filters) => new()
+        {
+            WidgetType = "jux.connected.seasonal",
+            Enabled = enabled,
+            ExtraParams =
+            [
+                new WidgetExtraParam { Key = "value", Value = id },
+                new WidgetExtraParam { Key = "startDate", Value = "10-01" },
+                new WidgetExtraParam { Key = "endDate", Value = "10-31" },
+                .. filters.Select(f => new WidgetExtraParam { Key = f.Key, Value = f.Value })
+            ]
+        };
+        var halloween = Seasonal(SeasonalWidgetDefaults.HalloweenId.ToString(), enabled: true);
+        var christmas = Seasonal(SeasonalWidgetDefaults.ChristmasId.ToString(), enabled: false, ("genre", "Family"));
+        var custom = Seasonal(Guid.NewGuid().ToString(), enabled: true);
+        var valentines = Seasonal(SeasonalWidgetDefaults.ValentinesId.ToString(), enabled: false);
+        var newYear = Seasonal(SeasonalWidgetDefaults.NewYearId.ToString(), enabled: false);
+        var config = new PluginConfiguration { SchemaVersion = 10, Widgets = [halloween, christmas, custom, valentines, newYear] };
+
+        Plugin.MigrateConfiguration(config);
+        config.SchemaVersion = 10;
+        Plugin.MigrateConfiguration(config);
+
+        static string? Param(WidgetConfig w, string key) => w.ExtraParams.SingleOrDefault(e => e.Key == key)?.Value;
+        Assert.True(halloween.Enabled);
+        Assert.Equal("halloween", Param(halloween, "tag"));
+        Assert.Equal("10-01", Param(halloween, "startDate"));
+        Assert.Equal(("Family", null), (Param(christmas, "genre"), Param(christmas, "tag")));
+        Assert.Equal((null, null), (Param(custom, "genre"), Param(custom, "tag")));
+        Assert.Equal("valentine's day", Param(valentines, "tag"));
+        Assert.Equal("new year's eve", Param(newYear, "tag"));
+
+        var added = config.Widgets.Where(w => w.WidgetType == "jux.connected.seasonal").Skip(5).ToList();
+        Assert.Equal(
+            [SeasonalWidgetDefaults.HalloweenHorrorId.ToString(), SeasonalWidgetDefaults.HalloweenThrillerId.ToString(), SeasonalWidgetDefaults.ValentinesRomanceId.ToString()],
+            added.Select(w => Param(w, "value")));
+        Assert.All(added, w => Assert.False(w.Enabled));
+        Assert.Equal("Horror|Horreur", Param(added[0], "genre"));
     }
 
     [Fact]
@@ -191,7 +240,7 @@ public sealed class PluginValidationTests
         // migrations apply in order -- the fan-out first (3 rows), then the Watchlist widget row (4),
         // then the four seasonal preset rows (8), then the Recently Added Episodes row (9 total).
         Assert.Equal(11, config.SchemaVersion);
-        Assert.Equal(9 + LocalPresets, config.Widgets.Length);
+        Assert.Equal(9 + LocalPresets + NewSeasonalPresets, config.Widgets.Length);
 
         Assert.Equal("jux.personalized.favorite-genre", config.Widgets[0].WidgetType);
         Assert.Equal("My Genres", config.Widgets[0].CustomDisplayName);
@@ -212,7 +261,7 @@ public sealed class PluginValidationTests
 
         Assert.Equal("jux.native.watchlist", config.Widgets[3].WidgetType);
 
-        Assert.Equal(4, config.Widgets.Count(w => w.WidgetType == "jux.connected.seasonal"));
+        Assert.Equal(SeasonalPresets, config.Widgets.Count(w => w.WidgetType == "jux.connected.seasonal"));
         Assert.Contains(config.Widgets, w => w.WidgetType == "jux.native.recently-added-episodes");
     }
 
@@ -232,11 +281,11 @@ public sealed class PluginValidationTests
         // The original row passes through the V1->V2 fan-out untouched (not Personalized), then the
         // V2->V3 migration appends the new native Watchlist widget row, then V5->V6 appends the four
         // seasonal preset rows, then V6->V7 appends the Recently Added Episodes row.
-        Assert.Equal(7 + LocalPresets, config.Widgets.Length);
+        Assert.Equal(7 + LocalPresets + NewSeasonalPresets, config.Widgets.Length);
         var widget = config.Widgets.Single(w => w.WidgetType == "jux.admin.genre");
         Assert.Equal(5, widget.MaxInstances);
         Assert.Contains(config.Widgets, w => w.WidgetType == "jux.native.watchlist");
-        Assert.Equal(4, config.Widgets.Count(w => w.WidgetType == "jux.connected.seasonal"));
+        Assert.Equal(SeasonalPresets, config.Widgets.Count(w => w.WidgetType == "jux.connected.seasonal"));
         Assert.Contains(config.Widgets, w => w.WidgetType == "jux.native.recently-added-episodes");
     }
 
@@ -252,11 +301,11 @@ public sealed class PluginValidationTests
         Plugin.MigrateConfiguration(config);
 
         Assert.Equal(11, config.SchemaVersion);
-        Assert.Equal(7 + LocalPresets, config.Widgets.Length);
+        Assert.Equal(7 + LocalPresets + NewSeasonalPresets, config.Widgets.Length);
         var watchlistWidget = config.Widgets.Single(w => w.WidgetType == "jux.native.watchlist");
         Assert.True(watchlistWidget.Enabled);
         Assert.Equal(50, watchlistWidget.Order);
-        Assert.Equal(4, config.Widgets.Count(w => w.WidgetType == "jux.connected.seasonal"));
+        Assert.Equal(SeasonalPresets, config.Widgets.Count(w => w.WidgetType == "jux.connected.seasonal"));
         Assert.Contains(config.Widgets, w => w.WidgetType == "jux.native.recently-added-episodes");
     }
 
@@ -276,14 +325,14 @@ public sealed class PluginValidationTests
         Plugin.MigrateConfiguration(config);
 
         Assert.Equal(11, config.SchemaVersion);
-        Assert.Equal(7 + LocalPresets, config.Widgets.Length);
+        Assert.Equal(7 + LocalPresets + NewSeasonalPresets, config.Widgets.Length);
         var watchlistWidget = config.Widgets.Single(w => w.WidgetType == "jux.native.watchlist");
 
         // Untouched -- the migration must not overwrite an existing row (e.g. one the admin has
         // already customized), only append one when the type is entirely absent.
         Assert.Equal(99, watchlistWidget.Order);
         Assert.False(watchlistWidget.Enabled);
-        Assert.Equal(4, config.Widgets.Count(w => w.WidgetType == "jux.connected.seasonal"));
+        Assert.Equal(SeasonalPresets, config.Widgets.Count(w => w.WidgetType == "jux.connected.seasonal"));
         Assert.Contains(config.Widgets, w => w.WidgetType == "jux.native.recently-added-episodes");
     }
 
@@ -301,8 +350,8 @@ public sealed class PluginValidationTests
         // Starting at SchemaVersion 6, the seasonal presets are already present (no duplication), but
         // the V6->V7 migration still fires and appends the new Recently Added Episodes row.
         Assert.Equal(11, config.SchemaVersion);
-        Assert.Equal(5 + LocalPresets, config.Widgets.Length);
-        Assert.Equal(4, config.Widgets.Count(w => w.WidgetType == "jux.connected.seasonal"));
+        Assert.Equal(5 + LocalPresets + NewSeasonalPresets, config.Widgets.Length);
+        Assert.Equal(SeasonalPresets, config.Widgets.Count(w => w.WidgetType == "jux.connected.seasonal"));
         Assert.Contains(config.Widgets, w => w.WidgetType == "jux.native.recently-added-episodes");
     }
 
@@ -318,8 +367,8 @@ public sealed class PluginValidationTests
         Plugin.MigrateConfiguration(config);
 
         Assert.Equal(11, config.SchemaVersion);
-        Assert.Equal(6 + LocalPresets, config.Widgets.Length);
-        Assert.Equal(4, config.Widgets.Count(w => w.WidgetType == "jux.connected.seasonal"));
+        Assert.Equal(6 + LocalPresets + NewSeasonalPresets, config.Widgets.Length);
+        Assert.Equal(SeasonalPresets, config.Widgets.Count(w => w.WidgetType == "jux.connected.seasonal"));
         Assert.All(
             config.Widgets.Where(w => w.WidgetType == "jux.connected.seasonal"),
             w => Assert.False(w.Enabled));
@@ -338,7 +387,7 @@ public sealed class PluginValidationTests
         Plugin.MigrateConfiguration(config);
 
         Assert.Equal(11, config.SchemaVersion);
-        Assert.Equal(2 + LocalPresets, config.Widgets.Length);
+        Assert.Equal(2 + LocalPresets + NewSeasonalPresets, config.Widgets.Length);
         var episodesWidget = config.Widgets.Single(w => w.WidgetType == "jux.native.recently-added-episodes");
         Assert.True(episodesWidget.Enabled);
         Assert.Equal(35, episodesWidget.Order);
@@ -360,7 +409,7 @@ public sealed class PluginValidationTests
         Plugin.MigrateConfiguration(config);
 
         Assert.Equal(11, config.SchemaVersion);
-        Assert.Equal(2 + LocalPresets, config.Widgets.Length);
+        Assert.Equal(2 + LocalPresets + NewSeasonalPresets, config.Widgets.Length);
         var episodesWidget = config.Widgets.Single(w => w.WidgetType == "jux.native.recently-added-episodes");
 
         // Untouched -- the migration must not overwrite an existing row, only append one when the

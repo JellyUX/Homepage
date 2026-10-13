@@ -27,7 +27,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
     /// <see cref="CurrentSchemaVersion"/>. Starts at 8, above the plugin constant (7) that earlier
     /// versions stamped on user files, so no existing file reads as newer than it is.
     /// </summary>
-    private const int CurrentUserSchemaVersion = 10;
+    private const int CurrentUserSchemaVersion = 11;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Plugin"/> class.
@@ -188,6 +188,8 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
         if (config.SchemaVersion < 11)
         {
             config.Widgets = AppendLocalPresetsIfMissing(config.Widgets);
+            config.Widgets = AppendSeasonalPresetsIfMissing(config.Widgets, SeasonalWidgetDefaults.AddedInSchema11);
+            FillSeasonalPresetFilters(config.Widgets);
         }
 
         // Add future migrations here as additional `if (config.SchemaVersion < N) { ... }` blocks,
@@ -225,8 +227,13 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
             config.HiddenSections ??= [];
         }
 
+        if (config.SchemaVersion < 11)
+        {
+            FillSeasonalPresetFilters(config.WidgetOverrides);
+        }
+
         // See MigrateConfiguration for the chain-extension pattern to follow for future tiers; user
-        // tiers are numbered against CurrentUserSchemaVersion, the next one being 11.
+        // tiers are numbered against CurrentUserSchemaVersion, the next one being 12.
         config.SchemaVersion = CurrentUserSchemaVersion;
     }
 
@@ -315,7 +322,8 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
     }
 
     /// <summary>
-    /// V5-to-V6 migration step (TODO_V3.md Phase 9.1): appends any of the four seasonal preset rows
+    /// V5-to-V6 migration step (TODO_V3.md Phase 9.1), reused by V10-to-V11 (TODO_V4.md 9.2) for the
+    /// presets added then: appends any of the seasonal preset rows
     /// (see <see cref="SeasonalWidgetDefaults"/>) that are missing from an existing installation's
     /// <see cref="Configuration.PluginConfiguration.Widgets"/> array -- <see cref="Inject.StartupService"/>
     /// only seeds the full default list when the array is empty (brand-new installs), so an existing
@@ -326,8 +334,10 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
     /// practice.
     /// </summary>
     /// <param name="widgets">The widget configuration rows to migrate.</param>
+    /// <param name="onlyIds">The presets this tier introduced, or null for all of them: a later tier
+    /// never re-adds an older preset an admin removed.</param>
     /// <returns>The migrated array of rows, with any missing preset rows appended.</returns>
-    private static WidgetConfig[] AppendSeasonalPresetsIfMissing(WidgetConfig[] widgets)
+    private static WidgetConfig[] AppendSeasonalPresetsIfMissing(WidgetConfig[] widgets, IReadOnlyCollection<Guid>? onlyIds = null)
     {
         var existingIds = widgets
             .Where(w => w.WidgetType == "jux.connected.seasonal")
@@ -336,6 +346,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
             .ToHashSet();
 
         var missingPresets = SeasonalWidgetDefaults.Build()
+            .Where(preset => onlyIds is null || onlyIds.Contains(Guid.Parse(preset.ExtraParams.First(p => p.Key == "value").Value)))
             .Where(preset => !existingIds.Contains(preset.ExtraParams.First(p => p.Key == "value").Value));
 
         return [.. widgets, .. missingPresets];
@@ -392,6 +403,37 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
             .Where(preset => !widgets.Any(w => w.WidgetType == preset.WidgetType));
 
         return [.. widgets, .. missingPresets];
+    }
+
+    /// <summary>
+    /// V10-to-V11 migration step (TODO_V4.md 9.2, F-60): gives each seasonal preset row that has
+    /// neither a genre nor a tag the filter of its preset (<see cref="SeasonalWidgetDefaults"/>), found by
+    /// the preset's fixed instance id. Such a row showed the whole library; a row the admin filtered, or
+    /// a custom season, is left as it is. Idempotent.
+    /// </summary>
+    /// <param name="widgets">The widget configuration rows to migrate in place.</param>
+    private static void FillSeasonalPresetFilters(WidgetConfig[] widgets)
+    {
+        var presets = SeasonalWidgetDefaults.Build()
+            .ToDictionary(p => p.ExtraParams.First(e => e.Key == "value").Value, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var widget in widgets.Where(w => w.WidgetType == "jux.connected.seasonal"))
+        {
+            // A hand-edited file can deserialize the array as null.
+            var extra = widget.ExtraParams ?? [];
+            var id = extra.FirstOrDefault(e => e.Key == "value")?.Value;
+            var unfiltered = !extra.Any(e => (e.Key == "genre" || e.Key == "tag") && !string.IsNullOrWhiteSpace(e.Value));
+            if (id is null || !unfiltered || !presets.TryGetValue(id, out var preset))
+            {
+                continue;
+            }
+
+            widget.ExtraParams =
+            [
+                .. extra.Where(e => e.Key != "genre" && e.Key != "tag"),
+                .. preset.ExtraParams.Where(e => e.Key == "genre" || e.Key == "tag")
+            ];
+        }
     }
 
     /// <summary>

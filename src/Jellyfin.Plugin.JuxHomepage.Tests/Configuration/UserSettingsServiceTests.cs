@@ -74,7 +74,7 @@ public sealed class UserSettingsServiceTests
         Assert.Equal([GenreType + "#2", "jux.admin.genre#1"], _saved!.HiddenSections);
         Assert.False(_saved.Enabled);
         Assert.Equal(_userId, _saved.UserId);
-        Assert.Equal(10, _saved.SchemaVersion);
+        Assert.Equal(11, _saved.SchemaVersion);
         Assert.False(cache.TryGet(_userId, "en", TimeSpan.FromMinutes(5), out _));
         Assert.True(service.Get(_userId, "en").Sections.Single(s => s.Name == "Favorite Genre (2)").Hidden);
     }

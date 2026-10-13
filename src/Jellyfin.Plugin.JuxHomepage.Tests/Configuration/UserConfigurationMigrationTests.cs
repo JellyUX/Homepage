@@ -29,7 +29,7 @@ public sealed class UserConfigurationMigrationTests
 
         Assert.NotNull(config.WidgetOverrides);
         Assert.Empty(config.WidgetOverrides);
-        Assert.Equal(10, config.SchemaVersion);
+        Assert.Equal(11, config.SchemaVersion);
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public sealed class UserConfigurationMigrationTests
         Plugin.MigrateUserConfiguration(config);
 
         Assert.Equal(3, config.WidgetOverrides.Count(w => w.WidgetType == PersonalizedType));
-        Assert.Equal(10, config.SchemaVersion);
+        Assert.Equal(11, config.SchemaVersion);
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public sealed class UserConfigurationMigrationTests
         Plugin.MigrateUserConfiguration(config);
 
         Assert.Single(config.WidgetOverrides);
-        Assert.Equal(10, config.SchemaVersion);
+        Assert.Equal(11, config.SchemaVersion);
     }
 
     [Fact]
@@ -73,7 +73,7 @@ public sealed class UserConfigurationMigrationTests
         Plugin.MigrateUserConfiguration(config);
 
         Assert.Equal(WidgetSort.SortName, row.SortBy);
-        Assert.Equal(10, config.SchemaVersion);
+        Assert.Equal(11, config.SchemaVersion);
     }
 
     [Fact]
@@ -85,18 +85,35 @@ public sealed class UserConfigurationMigrationTests
 
         Assert.NotNull(config.HiddenSections);
         Assert.Empty(config.HiddenSections);
-        Assert.Equal(10, config.SchemaVersion);
+        Assert.Equal(11, config.SchemaVersion);
+    }
+
+    [Fact]
+    public void FromTierTen_GivesAnUnfilteredSeasonalPresetOverrideItsFilter()
+    {
+        // TODO_V4.md 9.2 (F-60): the same transform as the plugin rows, per CLAUDE.md.
+        var halloween = new WidgetConfig
+        {
+            WidgetType = "jux.connected.seasonal",
+            ExtraParams = [new WidgetExtraParam { Key = "value", Value = "8f3a1b2c-0001-4b1e-9c3a-1f2e3d4c5b6a" }]
+        };
+        var config = new UserConfiguration { SchemaVersion = 10, WidgetOverrides = [halloween] };
+
+        Plugin.MigrateUserConfiguration(config);
+
+        Assert.Equal("halloween", halloween.ExtraParams.Single(e => e.Key == "tag").Value);
+        Assert.Equal(11, config.SchemaVersion);
     }
 
     [Fact]
     public void AtCurrentVersion_IsLeftUnchanged()
     {
         var row = new WidgetConfig { WidgetType = PersonalizedType, MaxInstances = 3 };
-        var config = new UserConfiguration { SchemaVersion = 10, WidgetOverrides = [row] };
+        var config = new UserConfiguration { SchemaVersion = 11, WidgetOverrides = [row] };
 
         Plugin.MigrateUserConfiguration(config);
 
         Assert.Same(row, Assert.Single(config.WidgetOverrides));
-        Assert.Equal(10, config.SchemaVersion);
+        Assert.Equal(11, config.SchemaVersion);
     }
 }
