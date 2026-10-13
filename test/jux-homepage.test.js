@@ -396,7 +396,7 @@ describe('_makeFetchData', () => {
         ['jux.native.next-up', 'Shows/NextUp', common],
         ['jux.native.recently-added-movies', 'Items/Latest', { ...common, includeItemTypes: 'Movie' }],
         ['jux.native.recently-added-shows', 'Items/Latest', { ...common, limit: 60, includeItemTypes: 'Episode' }],
-        ['jux.native.recently-added-episodes', 'Items/Latest', { ...common, includeItemTypes: 'Episode', groupItems: false }]
+        ['jux.native.recently-added-episodes', 'Items/Latest', { ...common, limit: 200, includeItemTypes: 'Episode', groupItems: false }]
     ])('reads %s from the native route %s', async (widgetType, path, params) => {
         const request = await _makeFetchData(apiClient, 'u1', { WidgetType: widgetType })();
 
@@ -409,6 +409,16 @@ describe('_makeFetchData', () => {
         const result = await _makeFetchData(latestClient, 'u1', { WidgetType: 'jux.native.recently-added-shows', MaxItems: 2 })();
 
         expect(result).toEqual({ Items: [{ Id: 'a' }, { Id: 'b' }] });
+    });
+
+    it('keeps at most two episodes of a series in Recently Added Episodes, and fills the row with others (F-65)', async () => {
+        const bulk = Array.from({ length: 10 }, (_, i) => ({ Id: 'a' + i, SeriesId: 'A' }));
+        const others = Array.from({ length: 5 }, (_, i) => ({ Id: 'b' + i, SeriesId: 'B' + i }));
+        const latestClient = { getUrl: (path) => path, getJSON: () => Promise.resolve([...bulk, ...others]) };
+
+        const result = await _makeFetchData(latestClient, 'u1', { WidgetType: 'jux.native.recently-added-episodes', MaxItems: 6 })();
+
+        expect(result.Items.map((e) => e.Id)).toEqual(['a0', 'a1', 'b0', 'b1', 'b2', 'b3']);
     });
 
     it('reads the other widgets from the JellyUX section endpoint', async () => {

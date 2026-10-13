@@ -291,13 +291,31 @@
     // (TODO_V4.md 8.3, F-36). Shows are episodes grouped by series, as the native Latest of a shows
     // library: Latest filtered on Series took over 150 s on a 200-series library (measured on 8096).
     // Latest counts its limit in episodes, so the shows read three times MaxItems episodes.
+    // Recently Added Episodes shows at most two episodes of a series (TODO_V4.md 9.3, F-65), like
+    // RecentlyAddedEpisodesWidget.MaxPerSeries, and reads ten times MaxItems so the row stays full (8096:
+    // the first 100 latest episodes held 14 cards, 200 held 28, at about the same cost).
     var NATIVE_ROUTES = {
         'jux.native.continue-watching': { path: 'UserItems/Resume', params: { mediaTypes: 'Video' } },
         'jux.native.next-up': { path: 'Shows/NextUp', params: {} },
         'jux.native.recently-added-movies': { path: 'Items/Latest', params: { includeItemTypes: 'Movie' } },
         'jux.native.recently-added-shows': { path: 'Items/Latest', params: { includeItemTypes: 'Episode' }, limitFactor: 3 },
-        'jux.native.recently-added-episodes': { path: 'Items/Latest', params: { includeItemTypes: 'Episode', groupItems: false } }
+        'jux.native.recently-added-episodes': { path: 'Items/Latest', params: { includeItemTypes: 'Episode', groupItems: false }, limitFactor: 10, perSeries: 2 }
     };
+
+    // Keeps at most perSeries items of each series, in order; every item when perSeries is unset.
+    function _capPerSeries(items, perSeries) {
+        if (!perSeries) {
+            return items;
+        }
+        var seen = {};
+        return items.filter(function (item) {
+            if (!item.SeriesId) {
+                return true;
+            }
+            seen[item.SeriesId] = (seen[item.SeriesId] || 0) + 1;
+            return seen[item.SeriesId] <= perSeries;
+        });
+    }
 
     function _makeFetchData(apiClient, userId, descriptor) {
         var nativeRoute = NATIVE_ROUTES[descriptor.WidgetType];
@@ -318,7 +336,9 @@
                 });
                 // Items/Latest answers a bare array; the container reads { Items }.
                 return apiClient.getJSON(apiClient.getUrl(nativeRoute.path, params)).then(function (result) {
-                    return Array.isArray(result) ? { Items: result.slice(0, maxItems) } : result;
+                    return Array.isArray(result)
+                        ? { Items: _capPerSeries(result, nativeRoute.perSeries).slice(0, maxItems) }
+                        : result;
                 });
             };
         }

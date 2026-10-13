@@ -2,6 +2,7 @@ using Jellyfin.Data.Enums;
 using Jellyfin.Database.Implementations.Entities;
 using MediaBrowser.Controller.Dto;
 using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Querying;
 
@@ -49,6 +50,13 @@ public abstract class RecentlyAddedWidgetBase : NativeWidgetBase
     /// </summary>
     protected virtual int LimitFactor => 1;
 
+    /// <summary>
+    /// Gets how many cards one series may take in the section, or null for no cap. The query then
+    /// reads <see cref="LimitFactor"/> times more items, so a series added in bulk does not leave the
+    /// row short.
+    /// </summary>
+    protected virtual int? MaxPerSeries => null;
+
     /// <inheritdoc/>
     public override Task<WidgetResult> GetItemsAsync(WidgetPayload payload, CancellationToken cancellationToken)
     {
@@ -74,13 +82,32 @@ public abstract class RecentlyAddedWidgetBase : NativeWidgetBase
             },
             dtoOptions);
 
-        var items = latest
-            .Select(group => group.Item1 is not null && group.Item2.Count > 1 ? group.Item1 : group.Item2[0])
+        var items = CapPerSeries(latest.Select(group => group.Item1 is not null && group.Item2.Count > 1 ? group.Item1 : group.Item2[0]))
             .Skip(payload.StartIndex)
             .Take(payload.Limit)
             .ToList();
 
         var dtos = DtoService.GetBaseItemDtos(items, dtoOptions, user);
         return Task.FromResult(new WidgetResult(dtos, dtos.Count));
+    }
+
+    private IEnumerable<BaseItem> CapPerSeries(IEnumerable<BaseItem> items)
+    {
+        if (MaxPerSeries is not { } cap)
+        {
+            return items;
+        }
+
+        var seen = new Dictionary<Guid, int>();
+        return items.Where(item =>
+        {
+            if (item is not Episode episode)
+            {
+                return true;
+            }
+
+            seen[episode.SeriesId] = seen.GetValueOrDefault(episode.SeriesId) + 1;
+            return seen[episode.SeriesId] <= cap;
+        });
     }
 }

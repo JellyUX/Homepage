@@ -253,6 +253,30 @@ public sealed class NativeWidgetTests
     }
 
     [Fact]
+    public async Task RecentlyAddedEpisodes_ShowsAtMostTwoEpisodesOfASeries_AndReadsTenTimesMore()
+    {
+        // TODO_V4.md 9.3 (F-65): a season added at once filled the row (15 + 5 of two series).
+        var user = TestMocks.DefaultUser();
+        var bulkSeries = Guid.NewGuid();
+        var bulk = Enumerable.Range(0, 10).Select(_ => new MediaBrowser.Controller.Entities.TV.Episode { Id = Guid.NewGuid(), SeriesId = bulkSeries }).ToList();
+        var others = Enumerable.Range(0, 5).Select(_ => new MediaBrowser.Controller.Entities.TV.Episode { Id = Guid.NewGuid(), SeriesId = Guid.NewGuid() }).ToList();
+        LatestItemsQuery? seen = null;
+        var views = new Mock<IUserViewManager>();
+        views.Setup(v => v.GetLatestItems(It.IsAny<LatestItemsQuery>(), It.IsAny<DtoOptions>()))
+            .Callback<LatestItemsQuery, DtoOptions>((q, _) => seen = q)
+            .Returns(bulk.Concat(others).Select(e => new Tuple<BaseItem, List<BaseItem>>(null!, [e])).ToList());
+        var dtos = new Mock<IDtoService>();
+        dtos.Setup(m => m.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
+            .Returns<IReadOnlyList<BaseItem>, DtoOptions, User, BaseItem>((items, _, _, _) => items.Select(i => new BaseItemDto { Id = i.Id }).ToList());
+        var widget = new RecentlyAddedEpisodesWidget(TestMocks.UserManagerReturning(user).Object, new Mock<ILibraryManager>().Object, dtos.Object, views.Object);
+
+        var result = await widget.GetItemsAsync(new WidgetPayload { UserId = user.Id, Limit = 6 }, CancellationToken.None);
+
+        Assert.Equal(bulk.Take(2).Concat(others.Take(4)).Select(e => e.Id), result.Items.Select(d => d.Id));
+        Assert.Equal((false, 60), (seen!.GroupItems, seen.Limit));
+    }
+
+    [Fact]
     public async Task MyMedia_UserNotFound_ReturnsEmpty()
     {
         var widget = new MyMediaWidget(

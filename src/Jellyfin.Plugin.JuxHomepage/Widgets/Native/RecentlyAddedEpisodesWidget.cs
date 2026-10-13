@@ -42,4 +42,13 @@ public sealed class RecentlyAddedEpisodesWidget : RecentlyAddedWidgetBase
 
     /// <inheritdoc/>
     protected override BaseItemKind ItemKind => BaseItemKind.Episode;
+
+    /// <summary>
+    /// Gets the cap of one series in the row: at most two of its episodes, so a season added at once
+    /// does not fill it (TODO_V4.md 9.3, F-65). Mirrored by the home script's native route.
+    /// </summary>
+    protected override int? MaxPerSeries => 2;
+
+    /// <inheritdoc/>
+    protected override int LimitFactor => 10;
 }
