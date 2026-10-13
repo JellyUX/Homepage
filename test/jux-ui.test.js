@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import juxUi from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-ui.js';
 
 const { showEmpty, buildProgressBar, buildStatCard, createListTab, labelFor, openSortDialog, openOptionsDialog, _buildRadio, _buildRadioGroup } = juxUi;
@@ -198,7 +198,7 @@ describe('createListTab (F-35)', () => {
 
         makeTab().render();
 
-        expect(window.ApiClient.getJSON).toHaveBeenCalledWith('JuxHomepage/Things/Items?userId=u1&sortBy=Name&sortOrder=Ascending&kind=All&startIndex=0&limit=100');
+        expect(window.ApiClient.getJSON).toHaveBeenCalledWith('JuxHomepage/Things/Items?userId=u1&sortBy=Name&sortOrder=Ascending&kind=All&startIndex=0&limit=50');
         expect(document.querySelector('#jux-things-sort-btn').textContent).toContain('Name');
         expect(document.querySelector('#jux-things-kind-btn .filter_list')).not.toBeNull();
         expect(document.querySelector('.jux-things-items [data-jux-loading]')).not.toBeNull();
@@ -239,6 +239,68 @@ describe('createListTab (F-35)', () => {
 
         expect(getCardsHtml.mock.calls[0][0]).toMatchObject({ items: [{ Id: 'a' }], shape: 'portrait', showParentTitle: true });
         expect(decorate).toHaveBeenCalledWith(document.querySelector('.jux-things-items'), [{ Item: { Id: 'a' } }], labels.en);
+    });
+});
+
+describe('createListTab paging (F-54)', () => {
+    const labels = { en: { title: 'Things', empty: 'No things', emptySubtitle: 'Add some.', sortName: 'Name' } };
+
+    function rows(from, count) {
+        return Array.from({ length: count }, (_, i) => ({ Id: 'i' + (from + i) }));
+    }
+
+    function settle() {
+        return new Promise((resolve) => setTimeout(resolve, 0));
+    }
+
+    beforeEach(() => {
+        document.documentElement.lang = 'en';
+        document.body.innerHTML = '<div id="jux-tab-things"><div class="sections"></div></div>';
+        window.JellyfinAPI = {
+            cardBuilder: { getCardsHtml: (o) => o.items.map((it) => '<div class="card" data-id="' + it.Id + '"><a href="#">x</a></div>').join('') },
+            getPortraitShape: () => 'portrait'
+        };
+    });
+
+    afterEach(() => {
+        delete window.ApiClient;
+        delete window.JellyfinAPI;
+    });
+
+    it('reads 50 rows, counts them against the total and loads the next 50 on demand', async () => {
+        const pages = { 0: { Items: rows(0, 50), TotalRecordCount: 120 }, 50: { Items: rows(50, 50), TotalRecordCount: 120 } };
+        window.ApiClient = {
+            getCurrentUserId: () => 'u1',
+            getUrl: (route, query) => route + '?' + new URLSearchParams(query).toString(),
+            getJSON: vi.fn((url) => Promise.resolve(pages[new URL(url, 'http://x').searchParams.get('startIndex')]))
+        };
+        const tab = createListTab({ id: 'things', endpoint: 'JuxHomepage/Things/Items', logName: 'Things', labels, state: { sortBy: 'Name', sortOrder: 'Ascending' }, sortOptions: (t) => [{ value: 'Name', label: t.sortName }], emptyIcon: 'inbox' });
+
+        tab.render();
+        await settle();
+        expect(document.querySelector('.jux-list-count').textContent).toBe('50 of 120');
+        expect(document.querySelectorAll('.jux-things-items .card')).toHaveLength(50);
+
+        document.querySelector('.jux-list-more').click();
+        await settle();
+
+        expect(window.ApiClient.getJSON).toHaveBeenLastCalledWith(expect.stringContaining('startIndex=50&limit=50'));
+        expect(document.querySelectorAll('.jux-things-items .card')).toHaveLength(100);
+        expect(document.querySelector('.jux-list-count').textContent).toBe('100 of 120');
+        expect(document.activeElement).toBe(document.querySelectorAll('.jux-things-items .card')[50].querySelector('a'));
+    });
+
+    it('shows no Load more once every row is listed', async () => {
+        window.ApiClient = {
+            getCurrentUserId: () => 'u1',
+            getUrl: (route) => route,
+            getJSON: vi.fn(() => Promise.resolve({ Items: rows(0, 3), TotalRecordCount: 3 }))
+        };
+        createListTab({ id: 'things', endpoint: 'E', logName: 'Things', labels, state: { sortBy: 'Name', sortOrder: 'Ascending' }, sortOptions: (t) => [{ value: 'Name', label: t.sortName }], emptyIcon: 'inbox' }).render();
+        await settle();
+
+        expect(document.querySelector('.jux-list-count').textContent).toBe('3 of 3');
+        expect(document.querySelector('.jux-list-more')).toBeNull();
     });
 });
 

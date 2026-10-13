@@ -35,6 +35,15 @@
     var _radioUid = 0;
     var _dialogUid = 0;
 
+    // Rows of a list tab are read 50 at a time (TODO_V4.md 8.2, F-54): the server caps a request at
+    // 100, so the tabs used to stop at the first 100 rows without saying so.
+    var PAGE_SIZE = 50;
+
+    var _listLabels = {
+        en: { count: '{shown} of {total}', more: 'Load more' },
+        fr: { count: '{shown} sur {total}', more: 'Charger plus' }
+    };
+
     window.JuxUI = {
         showEmpty: showEmpty,
         showLoading: showLoading,
@@ -94,17 +103,79 @@
                 _wireListControls(sections, tab, config, filters, lang);
                 showLoading(itemsContainer);
 
-                var query = { userId: userId, sortBy: tab.state.sortBy, sortOrder: tab.state.sortOrder };
+                // A new token per render: a "load more" answer arriving after a sort or filter change
+                // belongs to the old list and is dropped.
+                tab._list = { token: {}, rows: [], total: 0, userId: userId, lang: lang, sections: sections, items: itemsContainer };
+                tab.loadPage(tab._list);
+            },
+
+            loadPage: function (list) {
+                var query = { userId: list.userId, sortBy: tab.state.sortBy, sortOrder: tab.state.sortOrder };
                 filters.forEach(function (filter) { query[filter.key] = tab.state[filter.key]; });
-                query.startIndex = 0;
-                query.limit = 100;
+                query.startIndex = list.rows.length;
+                query.limit = PAGE_SIZE;
 
                 window.ApiClient.getJSON(window.ApiClient.getUrl(config.endpoint, query)).then(function (result) {
-                    tab.renderRows(itemsContainer, (result && result.Items) || [], lang);
+                    if (tab._list !== list) {
+                        return;
+                    }
+                    var firstNew = list.rows.length;
+                    list.rows = list.rows.concat((result && result.Items) || []);
+                    list.total = Math.max((result && result.TotalRecordCount) || 0, list.rows.length);
+                    tab.renderRows(list.items, list.rows, list.lang);
+                    tab.renderFooter(list, firstNew);
                 }).catch(function (err) {
                     console.error('[JellyUX] ' + config.logName + ' fetch failed:', err);
-                    window.JuxCore.showError(itemsContainer, { name: config.labels[lang].title, onRetry: tab.render });
+                    if (tab._list !== list) {
+                        return;
+                    }
+                    if (list.rows.length === 0) {
+                        window.JuxCore.showError(list.items, { name: config.labels[list.lang].title, onRetry: tab.render });
+                    } else {
+                        window.JuxCore.showError(list.sections.querySelector('.jux-list-footer'), {
+                            compact: true,
+                            onRetry: function () { tab.loadPage(list); }
+                        });
+                    }
                 });
+            },
+
+            // "N of M" under the cards, and "Load more" while rows remain; after a load, the focus
+            // moves to the first new card so a keyboard user carries on where the list grew.
+            renderFooter: function (list, firstNew) {
+                var footer = list.sections.querySelector('.jux-list-footer');
+                if (!footer) {
+                    return;
+                }
+                if (list.rows.length === 0) {
+                    footer.innerHTML = '';
+                    return;
+                }
+
+                var t = _listLabels[list.lang] || _listLabels.en;
+                var html = '<span class="jux-list-count">' + window.JuxCore.escHtml(
+                    t.count.replace('{shown}', list.rows.length).replace('{total}', list.total)) + '</span>';
+                if (list.rows.length < list.total) {
+                    html += '<button is="emby-button" type="button" class="raised emby-button jux-list-more"><span>' +
+                        window.JuxCore.escHtml(t.more) + '</span></button>';
+                }
+                footer.innerHTML = html;
+
+                var more = footer.querySelector('.jux-list-more');
+                if (more) {
+                    more.addEventListener('click', function () {
+                        more.disabled = true;
+                        tab.loadPage(list);
+                    });
+                }
+
+                if (firstNew > 0) {
+                    var card = list.items.querySelectorAll('.card')[firstNew];
+                    var target = card && card.querySelector('a, button');
+                    if (target) {
+                        target.focus();
+                    }
+                }
             },
 
             buildShellHtml: function (lang, state) {
@@ -116,7 +187,8 @@
                     html += _listButtonHtml('jux-' + config.id + '-' + filter.name + '-btn', filter.icon, labelFor(filter.options(t), state[filter.key]));
                 });
                 return html + '</div>' +
-                    '<div class="jux-' + config.id + '-items itemsContainer vertical-wrap padded-left padded-right"></div>';
+                    '<div class="jux-' + config.id + '-items itemsContainer vertical-wrap padded-left padded-right"></div>' +
+                    '<div class="jux-list-footer padded-left padded-right" aria-live="polite"></div>';
             },
 
             renderRows: function (itemsContainer, rows, lang) {
