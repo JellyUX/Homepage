@@ -93,7 +93,18 @@ describe('createTabs', () => {
 
         injector().createTabs();
 
-        expect(juxButtons().map((b) => b.textContent)).toEqual(EXPECTED_TABS.map((t) => t[expected]));
+        expect(juxButtons().map((b) => b.querySelector('.jux-tab-label').textContent)).toEqual(EXPECTED_TABS.map((t) => t[expected]));
+    });
+
+    it('gives Statistics a short label for narrow screens, and only Statistics (F-47)', () => {
+        renderHomePage();
+
+        injector().createTabs();
+
+        const withShort = juxButtons().filter((b) => b.querySelector('.jux-tab-label-short'));
+        expect(withShort.map((b) => b.id)).toEqual(['jux-tabbtn-statistics']);
+        expect(withShort[0].querySelector('.jux-tab-label-short').textContent).toBe('Stats');
+        expect(withShort[0].querySelector('.jux-tab-label').classList.contains('jux-tab-label-long')).toBe(true);
     });
 
     it('does not inject twice into the same tab bar', () => {

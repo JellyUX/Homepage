@@ -28,6 +28,25 @@
 }
 
 /* -------------------------------------------------------------------------
+ * Tab bar labels (jux-tab-injector.js): a long tab name gives way to its short form on a narrow
+ * screen, so the native tab bar scrolls less (TODO_V4.md 7.3, F-47)
+ * ------------------------------------------------------------------------- */
+
+.jux-tab-label-short {
+    display: none;
+}
+
+@media (max-width: 40em) {
+    .jux-tab-label-long {
+        display: none;
+    }
+
+    .jux-tab-label-short {
+        display: inline;
+    }
+}
+
+/* -------------------------------------------------------------------------
  * Controls bar (sort button, type filter)
  * ------------------------------------------------------------------------- */
 
@@ -177,9 +196,10 @@
  * Stat tiles
  * ------------------------------------------------------------------------- */
 
+/* Equal columns of at least 12em: one full-width tile per row on a phone, never a stretched orphan. */
 .jux-statistics-tiles {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(12em, 1fr));
     gap: 1.25em;
     padding-bottom: 2em;
 }
@@ -188,7 +208,6 @@
     display: flex;
     align-items: center;
     gap: 0.9em;
-    min-width: 12em;
     padding: 1.1em 1.4em;
     border-radius: 12px;
     background: rgb(var(--jf-palette-text-primaryChannel, 255 255 255) / 0.06);

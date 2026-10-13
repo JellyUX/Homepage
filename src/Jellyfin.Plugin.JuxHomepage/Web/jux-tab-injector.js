@@ -22,7 +22,7 @@ if (typeof window.juxTabInjector === 'undefined') {
             { buttonId: 'jux-tabbtn-watchlist', paneId: 'jux-tab-watchlist', labelEn: 'Watchlist', labelFr: 'Watchlist' },
             { buttonId: 'jux-tabbtn-progress', paneId: 'jux-tab-progress', labelEn: 'Progress', labelFr: 'Progression' },
             { buttonId: 'jux-tabbtn-history', paneId: 'jux-tab-history', labelEn: 'History', labelFr: 'Historique' },
-            { buttonId: 'jux-tabbtn-statistics', paneId: 'jux-tab-statistics', labelEn: 'Statistics', labelFr: 'Statistiques' }
+            { buttonId: 'jux-tabbtn-statistics', paneId: 'jux-tab-statistics', labelEn: 'Statistics', labelFr: 'Statistiques', shortEn: 'Stats', shortFr: 'Stats' }
         ],
 
         init: function () {
@@ -67,7 +67,13 @@ if (typeof window.juxTabInjector === 'undefined') {
 
                 var title = document.createElement('div');
                 title.className = 'emby-button-foreground';
-                title.textContent = lang === 'fr' ? tab.labelFr : tab.labelEn;
+                title.appendChild(_label('jux-tab-label', lang === 'fr' ? tab.labelFr : tab.labelEn));
+                // A narrow screen shows the short label instead (jux-ui.css), so more tabs fit (F-47).
+                var shortLabel = lang === 'fr' ? tab.shortFr : tab.shortEn;
+                if (shortLabel) {
+                    title.appendChild(_label('jux-tab-label-short', shortLabel));
+                    title.firstChild.classList.add('jux-tab-label-long');
+                }
 
                 // NOT document.createElement('button', { is: 'emby-button' }): confirmed live on
                 // jellyux-test that this second-argument form throws ("t.toLowerCase is not a
@@ -102,6 +108,13 @@ if (typeof window.juxTabInjector === 'undefined') {
             _watchActiveTabButton(tabsSlider);
         }
     };
+
+    function _label(className, text) {
+        var span = document.createElement('span');
+        span.className = className;
+        span.textContent = text;
+        return span;
+    }
 
     // Manual pane activation for our own tabs. Confirmed by live DOM inspection on jellyux-test:
     // clicking a freshly-injected tab can leave the corresponding ".tabContent.is-active" pane
