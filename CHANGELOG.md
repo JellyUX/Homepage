@@ -1,3 +1,24 @@
+## [2.13.0](https://github.com/JellyUX/Homepage/compare/v2.12.1...v2.13.0) (2026-10-13)
+
+### Features
+
+* add a JellyUX block to the native Home preferences page ([0708718](https://github.com/JellyUX/Homepage/commit/070871851e80d8107b4e377e1e8887b157ae6b13))
+* add the most watched series to the Statistics tab ([e6249a6](https://github.com/JellyUX/Homepage/commit/e6249a6f1b234bba14633adca534ab7b4e0e3fc7))
+* hand every page back to Jellyfin for a user who turned JellyUX off ([e77ca74](https://github.com/JellyUX/Homepage/commit/e77ca74f31d0c41102b64ee9b090f4f92e38d7ef))
+* let users hide home sections and turn JellyUX off for themselves ([6f9eb9e](https://github.com/JellyUX/Homepage/commit/6f9eb9eab07295bc2c1363377ec11d18177be8a3))
+* list the unwatched episodes of a series from the Progress tab ([9e146a0](https://github.com/JellyUX/Homepage/commit/9e146a01eac66a278a0526cf5aaba782bd301489))
+* load the Watchlist, Progress and History tabs 50 rows at a time ([1942c0f](https://github.com/JellyUX/Homepage/commit/1942c0f30e3c8a7528d52d2654be74ecf353da7b))
+* remove a series from the watchlist after its last episode, behind a switch ([a06668f](https://github.com/JellyUX/Homepage/commit/a06668fe072fd843f5aeeaab1563ee526c65c50e))
+* search the Watchlist, Progress and History tabs by name ([c717d22](https://github.com/JellyUX/Homepage/commit/c717d221a12a1e729ba6b8af2a120e41be4f2d90))
+* show the watch date and two summary tiles in the History tab ([de5d0f0](https://github.com/JellyUX/Homepage/commit/de5d0f03228b138d624aaa25a95dc545541c4534))
+* sort library sections by name, date, rating or a daily random order ([8949854](https://github.com/JellyUX/Homepage/commit/89498544969021f4e304a0b5d1cb0791688cc326))
+
+### Bug Fixes
+
+* drop finished series from the Progress tab ([63ad7e1](https://github.com/JellyUX/Homepage/commit/63ad7e12b1d8d8f1609422b45f6f8fcabd32724c))
+* honor the native latest media preferences in the Recently Added sections ([2d1b01c](https://github.com/JellyUX/Homepage/commit/2d1b01cf9783caf9d0b4a2168c81c4381690302c))
+* update the Progress, History and Statistics tabs after each watch ([ec14917](https://github.com/JellyUX/Homepage/commit/ec149177f82a6d8c97ce75014cbea5022c17da29))
+
 ## [2.12.1](https://github.com/JellyUX/Homepage/compare/v2.12.0...v2.12.1) (2026-10-13)
 
 ### Bug Fixes
