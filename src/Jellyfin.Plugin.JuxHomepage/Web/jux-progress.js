@@ -81,8 +81,12 @@
 
             var button = document.createElement('button');
             button.type = 'button';
-            button.className = 'button-flat jux-progress-mark-watched';
-            button.textContent = t.markWatched;
+            button.className = 'jux-progress-mark-watched';
+            button.title = t.markWatched;
+            var label = document.createElement('span');
+            label.className = 'jux-progress-mark-watched-label';
+            label.textContent = t.markWatched;
+            button.appendChild(label);
             button.addEventListener('click', function (event) {
                 event.preventDefault();
                 event.stopPropagation();
@@ -90,6 +94,7 @@
             });
             info.appendChild(button);
 
+            card.classList.add('jux-progress-card');
             card.appendChild(info);
         });
     }
@@ -152,7 +157,8 @@
             _sortOptions: _sortOptions,
             _buildShellHtml: window.juxProgress.buildShellHtml,
             _formatEpisodeCode: _formatEpisodeCode,
-            _formatTemplate: _formatTemplate
+            _formatTemplate: _formatTemplate,
+            _decorateCards: _decorateCards
         };
     }
 })();

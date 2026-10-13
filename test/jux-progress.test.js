@@ -52,3 +52,29 @@ describe('_formatTemplate', () => {
         expect(_formatTemplate('{missing} thing', { watched: 1 })).toBe('{missing} thing');
     });
 });
+
+describe('_decorateCards', () => {
+    const t = { episodesWatched: '{watched}/{total}', lastEpisode: '{code} {name}', markWatched: 'Mark as watched' };
+
+    function decorate() {
+        const container = document.createElement('div');
+        container.innerHTML = '<div class="card" data-id="s1"><div class="cardBox"></div></div>';
+        juxProgress._decorateCards(container, [{ Item: { Id: 's1' }, WatchedEpisodes: 1, TotalEpisodes: 3 }], t);
+        return container;
+    }
+
+    it('styles the mark-watched control as a JellyUX pill, not as the unstyled native button-flat', () => {
+        const button = decorate().querySelector('.jux-progress-mark-watched');
+
+        expect(button.classList.contains('button-flat')).toBe(false);
+        expect(button.title).toBe('Mark as watched');
+        expect(button.querySelector('.jux-progress-mark-watched-label').textContent).toBe('Mark as watched');
+    });
+
+    it('marks the card so its info block can push the button to a shared baseline', () => {
+        const card = decorate().querySelector('.card');
+
+        expect(card.classList.contains('jux-progress-card')).toBe(true);
+        expect(card.lastElementChild.className).toBe('jux-progress-info');
+    });
+});
