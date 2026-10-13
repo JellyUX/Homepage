@@ -42,6 +42,19 @@ public sealed class WidgetConfig
     public string ViewMode { get; set; } = WidgetViewMode.Landscape;
 
     /// <summary>
+    /// Gets or sets the card order of a library section (a <see cref="WidgetSort"/> value). Read by
+    /// the Admin, Personalized (except Because You Watched) and Seasonal widgets only: the others keep
+    /// their own order (recency, TMDb ranking, daily rotation).
+    /// </summary>
+    public string SortBy { get; set; } = WidgetSort.SortName;
+
+    /// <summary>
+    /// Gets or sets the direction of <see cref="SortBy"/> (<see cref="WidgetSort.Ascending"/> or
+    /// <see cref="WidgetSort.Descending"/>), ignored by <see cref="WidgetSort.Random"/>.
+    /// </summary>
+    public string SortOrder { get; set; } = WidgetSort.Ascending;
+
+    /// <summary>
     /// Gets or sets the minimum number of instances to create for this widget type.
     /// Retained for schema stability but no longer read by the widget engine as of TODO_V2.md
     /// Phase 8: every row is now assigned a rank by <see cref="WidgetLayoutResolver"/>

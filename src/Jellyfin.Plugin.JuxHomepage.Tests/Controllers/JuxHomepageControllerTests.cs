@@ -69,7 +69,8 @@ public sealed class JuxHomepageControllerTests
         var adminWidgetMock = new Mock<AdminWidgetBase>(
             Mock.Of<IUserManager>(),
             Mock.Of<ILibraryManager>(),
-            Mock.Of<MediaBrowser.Controller.Dto.IDtoService>());
+            Mock.Of<MediaBrowser.Controller.Dto.IDtoService>(),
+            null!);
 
         var registryMock = new Mock<IWidgetRegistry>();
         registryMock.Setup(r => r.GetByType("jux.admin.genre")).Returns(adminWidgetMock.Object);

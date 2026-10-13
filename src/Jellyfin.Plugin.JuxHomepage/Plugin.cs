@@ -19,14 +19,14 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
     /// The current configuration schema version. See the "Configuration Schema Versioning" section
     /// in CLAUDE.md for the migration policy.
     /// </summary>
-    private const int CurrentSchemaVersion = 8;
+    private const int CurrentSchemaVersion = 9;
 
     /// <summary>
     /// The current per-user configuration schema version, tracked separately from
     /// <see cref="CurrentSchemaVersion"/>. Starts at 8, above the plugin constant (7) that earlier
     /// versions stamped on user files, so no existing file reads as newer than it is.
     /// </summary>
-    private const int CurrentUserSchemaVersion = 8;
+    private const int CurrentUserSchemaVersion = 9;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="Plugin"/> class.
@@ -175,6 +175,12 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
             config.Modules ??= new ModulesConfig();
         }
 
+        // Rows saved before 8.1 (F-53) have no sort: they keep the alphabetical order they always had.
+        if (config.SchemaVersion < 9)
+        {
+            NormalizeSort(config.Widgets);
+        }
+
         // Add future migrations here as additional `if (config.SchemaVersion < N) { ... }` blocks,
         // each gated on its own target version and never combined with `else if` -- an installation
         // resuming from several versions behind must apply every intermediate transformation in
@@ -199,8 +205,13 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
             config.WidgetOverrides = ExplodePersonalizedFanOut(config.WidgetOverrides);
         }
 
+        if (config.SchemaVersion < 9)
+        {
+            NormalizeSort(config.WidgetOverrides);
+        }
+
         // See MigrateConfiguration for the chain-extension pattern to follow for future tiers; user
-        // tiers are numbered against CurrentUserSchemaVersion, the next one being 9.
+        // tiers are numbered against CurrentUserSchemaVersion, the next one being 10.
         config.SchemaVersion = CurrentUserSchemaVersion;
     }
 
@@ -355,6 +366,20 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
     }
 
     /// <summary>
+    /// V8-to-V9 migration step (TODO_V4.md 8.1, F-53): gives every row a known sort, alphabetical
+    /// when it has none, so the order of existing sections does not change. Idempotent.
+    /// </summary>
+    /// <param name="widgets">The widget rows to migrate in place.</param>
+    private static void NormalizeSort(WidgetConfig[] widgets)
+    {
+        foreach (var widget in widgets)
+        {
+            widget.SortBy = WidgetSort.NormalizeSortBy(widget.SortBy);
+            widget.SortOrder = WidgetSort.NormalizeSortOrder(widget.SortOrder);
+        }
+    }
+
+    /// <summary>
     /// Clamps one widget row to valid ranges in place: the rows of a saved configuration and a row
     /// previewed before it is saved (TODO_V4.md 6.5) go through the same rules.
     /// </summary>
@@ -368,6 +393,9 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
         {
             widget.MinItems = widget.MaxItems;
         }
+
+        widget.SortBy = WidgetSort.NormalizeSortBy(widget.SortBy);
+        widget.SortOrder = WidgetSort.NormalizeSortOrder(widget.SortOrder);
 
         widget.MinInstances = Math.Max(1, widget.MinInstances);
         widget.MaxInstances = Math.Max(1, widget.MaxInstances);

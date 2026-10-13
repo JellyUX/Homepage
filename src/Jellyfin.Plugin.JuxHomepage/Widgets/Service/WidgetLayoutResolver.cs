@@ -136,14 +136,20 @@ public sealed class WidgetLayoutResolver
     /// row whose <c>ExtraParams["value"]</c> matches <paramref name="additionalData"/> is preferred
     /// so each instance's own parameters are forwarded rather than always the first configured row.
     /// Falls back to the first match by type, preserving prior behavior for single-instance widgets.
+    /// The rows are the user's effective ones, overrides merged as for the layout, so a section reads
+    /// the same settings (sort order included, TODO_V4.md 8.1) as the layout probe that showed it.
     /// </summary>
+    /// <param name="userId">The requesting user's identifier.</param>
     /// <param name="widgetType">The widget type identifier.</param>
     /// <param name="additionalData">Optional instance-specific data (e.g. a Discover instance id).</param>
     /// <returns>The matching config row, or null if none is configured for this widget type.</returns>
-    public WidgetConfig? ResolveConfigRow(string widgetType, string? additionalData)
+    public WidgetConfig? ResolveConfigRow(Guid userId, string widgetType, string? additionalData)
     {
-        var candidates = _getConfiguration()?.Widgets?.Where(c => c.WidgetType == widgetType).ToList();
-        if (candidates is null || candidates.Count == 0)
+        var overrides = _userConfigStore.GetUserConfiguration(userId)?.WidgetOverrides ?? [];
+        var candidates = MergeOverrides(_getConfiguration()?.Widgets ?? [], overrides)
+            .Where(c => c.WidgetType == widgetType)
+            .ToList();
+        if (candidates.Count == 0)
         {
             return null;
         }
@@ -238,6 +244,9 @@ public sealed class WidgetLayoutResolver
             UserId = userId,
             AdditionalData = additionalData,
             ExtraParams = instanceConfig.ExtraParams,
+            SortBy = config.SortBy,
+            SortOrder = config.SortOrder,
+            MaxItems = config.MaxItems,
             StartIndex = 0,
             Limit = Math.Max(1, config.MinItems)
         };
@@ -331,6 +340,9 @@ public sealed class WidgetLayoutResolver
             UserId = userId,
             AdditionalData = selfIdentifies ? instanceDescriptor.AdditionalData : instanceConfig.AdditionalData,
             ExtraParams = instanceConfig.ExtraParams,
+            SortBy = config.SortBy,
+            SortOrder = config.SortOrder,
+            MaxItems = config.MaxItems,
             StartIndex = 0,
             Limit = config.MaxItems
         };

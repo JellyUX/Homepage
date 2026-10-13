@@ -106,14 +106,28 @@ public sealed class PluginValidationTests
     }
 
     [Fact]
+    public void MigrateConfiguration_FromTierEight_GivesEveryRowAKnownSortAndKeepsAValidOne()
+    {
+        var unsorted = new WidgetConfig { WidgetType = "jux.admin.genre", SortBy = null!, SortOrder = "Sideways" };
+        var sorted = new WidgetConfig { WidgetType = "jux.admin.year", SortBy = WidgetSort.DateCreated, SortOrder = WidgetSort.Descending };
+        var config = new PluginConfiguration { SchemaVersion = 8, Widgets = [unsorted, sorted] };
+
+        Plugin.MigrateConfiguration(config);
+
+        Assert.Equal(9, config.SchemaVersion);
+        Assert.Equal((WidgetSort.SortName, WidgetSort.Ascending), (unsorted.SortBy, unsorted.SortOrder));
+        Assert.Equal((WidgetSort.DateCreated, WidgetSort.Descending), (sorted.SortBy, sorted.SortOrder));
+    }
+
+    [Fact]
     public void MigrateConfiguration_NoOpForCurrentSchemaVersion_DoesNotThrow()
     {
-        var config = new PluginConfiguration { SchemaVersion = 8 };
+        var config = new PluginConfiguration { SchemaVersion = 9 };
 
         var exception = Record.Exception(() => Plugin.MigrateConfiguration(config));
 
         Assert.Null(exception);
-        Assert.Equal(8, config.SchemaVersion);
+        Assert.Equal(9, config.SchemaVersion);
         Assert.Empty(config.Widgets);
     }
 
@@ -142,7 +156,7 @@ public sealed class PluginValidationTests
         // seasonal presets), and V6->V7 (append Recently Added Episodes) thresholds, all four
         // migrations apply in order -- the fan-out first (3 rows), then the Watchlist widget row (4),
         // then the four seasonal preset rows (8), then the Recently Added Episodes row (9 total).
-        Assert.Equal(8, config.SchemaVersion);
+        Assert.Equal(9, config.SchemaVersion);
         Assert.Equal(9, config.Widgets.Length);
 
         Assert.Equal("jux.personalized.favorite-genre", config.Widgets[0].WidgetType);
@@ -179,7 +193,7 @@ public sealed class PluginValidationTests
 
         Plugin.MigrateConfiguration(config);
 
-        Assert.Equal(8, config.SchemaVersion);
+        Assert.Equal(9, config.SchemaVersion);
 
         // The original row passes through the V1->V2 fan-out untouched (not Personalized), then the
         // V2->V3 migration appends the new native Watchlist widget row, then V5->V6 appends the four
@@ -203,7 +217,7 @@ public sealed class PluginValidationTests
 
         Plugin.MigrateConfiguration(config);
 
-        Assert.Equal(8, config.SchemaVersion);
+        Assert.Equal(9, config.SchemaVersion);
         Assert.Equal(7, config.Widgets.Length);
         var watchlistWidget = config.Widgets.Single(w => w.WidgetType == "jux.native.watchlist");
         Assert.True(watchlistWidget.Enabled);
@@ -227,7 +241,7 @@ public sealed class PluginValidationTests
 
         Plugin.MigrateConfiguration(config);
 
-        Assert.Equal(8, config.SchemaVersion);
+        Assert.Equal(9, config.SchemaVersion);
         Assert.Equal(7, config.Widgets.Length);
         var watchlistWidget = config.Widgets.Single(w => w.WidgetType == "jux.native.watchlist");
 
@@ -252,7 +266,7 @@ public sealed class PluginValidationTests
 
         // Starting at SchemaVersion 6, the seasonal presets are already present (no duplication), but
         // the V6->V7 migration still fires and appends the new Recently Added Episodes row.
-        Assert.Equal(8, config.SchemaVersion);
+        Assert.Equal(9, config.SchemaVersion);
         Assert.Equal(5, config.Widgets.Length);
         Assert.Equal(4, config.Widgets.Count(w => w.WidgetType == "jux.connected.seasonal"));
         Assert.Contains(config.Widgets, w => w.WidgetType == "jux.native.recently-added-episodes");
@@ -269,7 +283,7 @@ public sealed class PluginValidationTests
 
         Plugin.MigrateConfiguration(config);
 
-        Assert.Equal(8, config.SchemaVersion);
+        Assert.Equal(9, config.SchemaVersion);
         Assert.Equal(6, config.Widgets.Length);
         Assert.Equal(4, config.Widgets.Count(w => w.WidgetType == "jux.connected.seasonal"));
         Assert.All(
@@ -289,7 +303,7 @@ public sealed class PluginValidationTests
 
         Plugin.MigrateConfiguration(config);
 
-        Assert.Equal(8, config.SchemaVersion);
+        Assert.Equal(9, config.SchemaVersion);
         Assert.Equal(2, config.Widgets.Length);
         var episodesWidget = config.Widgets.Single(w => w.WidgetType == "jux.native.recently-added-episodes");
         Assert.True(episodesWidget.Enabled);
@@ -311,7 +325,7 @@ public sealed class PluginValidationTests
 
         Plugin.MigrateConfiguration(config);
 
-        Assert.Equal(8, config.SchemaVersion);
+        Assert.Equal(9, config.SchemaVersion);
         Assert.Equal(2, config.Widgets.Length);
         var episodesWidget = config.Widgets.Single(w => w.WidgetType == "jux.native.recently-added-episodes");
 
@@ -350,7 +364,7 @@ public sealed class PluginValidationTests
 
         Plugin.MigrateConfiguration(config);
 
-        Assert.Equal(8, config.SchemaVersion);
+        Assert.Equal(9, config.SchemaVersion);
         Assert.True(config.Modules.Tabs);
         Assert.True(config.Modules.CardEnhancements);
         Assert.True(config.Modules.SeriesFlatten);

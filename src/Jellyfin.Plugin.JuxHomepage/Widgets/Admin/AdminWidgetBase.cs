@@ -30,14 +30,17 @@ public abstract class AdminWidgetBase : IWidget
     /// <param name="userManager">Jellyfin user manager.</param>
     /// <param name="libraryManager">Jellyfin library manager.</param>
     /// <param name="dtoService">Jellyfin DTO projection service.</param>
+    /// <param name="itemFetcher">Runs the section query in its configured order; a private one when null (tests).</param>
     protected AdminWidgetBase(
         IUserManager userManager,
         ILibraryManager libraryManager,
-        IDtoService dtoService)
+        IDtoService dtoService,
+        WidgetItemFetcher? itemFetcher = null)
     {
         UserManager = userManager;
         LibraryManager = libraryManager;
         DtoService = dtoService;
+        ItemFetcher = itemFetcher ?? new WidgetItemFetcher(libraryManager, dtoService);
     }
 
     /// <summary>Gets the Jellyfin user manager.</summary>
@@ -48,6 +51,9 @@ public abstract class AdminWidgetBase : IWidget
 
     /// <summary>Gets the Jellyfin DTO projection service.</summary>
     protected IDtoService DtoService { get; }
+
+    /// <summary>Gets the runner of the section query in its configured order (TODO_V4.md 8.1).</summary>
+    protected WidgetItemFetcher ItemFetcher { get; }
 
     /// <inheritdoc/>
     public abstract string WidgetType { get; }
@@ -159,8 +165,6 @@ public abstract class AdminWidgetBase : IWidget
             Recursive = true,
             IsMissing = false,
             EnableTotalRecordCount = false,
-            StartIndex = payload.StartIndex,
-            Limit = payload.Limit,
             DtoOptions = dtoOptions
         };
 
@@ -174,9 +178,7 @@ public abstract class AdminWidgetBase : IWidget
             return Task.FromResult(WidgetResult.Empty);
         }
 
-        QueryResult<BaseItem> result = LibraryManager.GetItemsResult(query);
-        var dtos = DtoService.GetBaseItemDtos(result.Items, dtoOptions, user);
-        return Task.FromResult(new WidgetResult(dtos, dtos.Count));
+        return Task.FromResult(ItemFetcher.Fetch(WidgetType, user, query, dtoOptions, payload));
     }
 
     /// <inheritdoc/>

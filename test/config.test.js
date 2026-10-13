@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import createController, { dropIndex, editorKind, escHtml, getExtraParam, moveRow, previewHtml, toConfigRow, validateTmdb, widgetSummary } from '../src/Jellyfin.Plugin.JuxHomepage/Web/config.js';
+import createController, { dropIndex, editorKind, escHtml, getExtraParam, moveRow, previewHtml, sortOption, toConfigRow, validateTmdb, widgetSummary } from '../src/Jellyfin.Plugin.JuxHomepage/Web/config.js';
 
 const CONFIG_HTML = readFileSync(resolve(__dirname, '../src/Jellyfin.Plugin.JuxHomepage/Web/config.html'), 'utf8');
 
@@ -75,6 +75,15 @@ describe('toConfigRow', () => {
     it('stores an admin row without user override and clamps its item range', () => {
         const row = toConfigRow({ WidgetType: 'jux.admin.genre', Enabled: true, MinItems: -2, MaxItems: 0, AllowUserOverride: true }, 3, true);
         expect(row).toMatchObject({ Order: 30, MinItems: 0, MaxItems: 1, AllowUserOverride: false, MinInstances: 1, MaxInstances: 1, ExtraParams: [], CustomDisplayName: null });
+    });
+});
+
+describe('sortOption (F-53)', () => {
+    it('keeps a known order, ignores the direction of Random and falls back to the name', () => {
+        expect(toConfigRow({ SortBy: 'DateCreated', SortOrder: 'Descending' }, 0, false)).toMatchObject({ SortBy: 'DateCreated', SortOrder: 'Descending' });
+        expect(sortOption({ SortBy: 'Random', SortOrder: 'Descending' })[2]).toBe('admin.sort.random');
+        expect(toConfigRow({ SortBy: 'Bogus' }, 0, false)).toMatchObject({ SortBy: 'SortName', SortOrder: 'Ascending' });
+        expect(toConfigRow({}, 0, false)).toMatchObject({ SortBy: 'SortName', SortOrder: 'Ascending' });
     });
 });
 
@@ -216,6 +225,25 @@ describe('configuration page controller (F-33)', () => {
             ['jux.admin.genre', 'Drame', 10],
             ['jux.connected.seasonal', 's1', 20]
         ]);
+    });
+
+    it('offers the sort order on library rows and saves the chosen one (F-53)', async () => {
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+
+        const sort = card(0).querySelector('.jux-admin-sort');
+        expect(sort.value).toBe('SortName:Ascending');
+        expect(card(2).querySelector('.jux-admin-sort')).not.toBeNull();
+        sort.value = 'Random:Ascending';
+
+        window.ApiClient.updatePluginConfiguration = vi.fn(() => Promise.resolve({}));
+        window.Dashboard.processPluginConfigurationUpdateResult = vi.fn();
+        view.querySelector('.juxConfigForm').dispatchEvent(new Event('submit', { cancelable: true }));
+        await settle();
+
+        const saved = window.ApiClient.updatePluginConfiguration.mock.calls[0][1].Widgets;
+        expect(saved.map((w) => w.SortBy)).toEqual(['Random', 'SortName', 'SortName']);
     });
 
     it('folds every row into a summary line, and unfolds one with its toggle', async () => {

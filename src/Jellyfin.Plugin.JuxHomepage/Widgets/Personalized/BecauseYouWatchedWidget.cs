@@ -39,6 +39,10 @@ public sealed class BecauseYouWatchedWidget : PersonalizedWidgetBase
     public override string WidgetType => "jux.personalized.because-you-watched";
 
     /// <inheritdoc/>
+    /// <remarks>The recommendations keep their random order (<see cref="ApplyFilter"/>).</remarks>
+    protected override bool UsesConfiguredSort => false;
+
+    /// <inheritdoc/>
     public override string DefaultDisplayName => "Because You Watched";
 
     /// <inheritdoc/>

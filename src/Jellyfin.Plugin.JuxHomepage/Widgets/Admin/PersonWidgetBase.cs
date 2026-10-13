@@ -15,8 +15,9 @@ public abstract class PersonWidgetBase : AdminWidgetBase
     protected PersonWidgetBase(
         IUserManager userManager,
         ILibraryManager libraryManager,
-        IDtoService dtoService)
-        : base(userManager, libraryManager, dtoService)
+        IDtoService dtoService,
+        WidgetItemFetcher? itemFetcher = null)
+        : base(userManager, libraryManager, dtoService, itemFetcher)
     {
     }
 

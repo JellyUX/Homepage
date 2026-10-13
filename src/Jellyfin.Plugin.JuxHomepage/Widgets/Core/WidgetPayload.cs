@@ -22,4 +22,16 @@ public sealed class WidgetPayload
 
     /// <summary>Gets or sets optional extra parameters for widget-specific filtering.</summary>
     public IReadOnlyDictionary<string, string>? ExtraParams { get; set; }
+
+    /// <summary>Gets or sets the configured card order (a <see cref="WidgetSort"/> value).</summary>
+    public string SortBy { get; set; } = WidgetSort.SortName;
+
+    /// <summary>Gets or sets the direction of <see cref="SortBy"/>.</summary>
+    public string SortOrder { get; set; } = WidgetSort.Ascending;
+
+    /// <summary>
+    /// Gets or sets the section's MaxItems: how many items a <see cref="WidgetSort.Random"/> draw
+    /// keeps, whatever page of it this request reads.
+    /// </summary>
+    public int MaxItems { get; set; } = WidgetConfig.MaxItemsCeiling;
 }

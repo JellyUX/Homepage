@@ -198,6 +198,18 @@ public sealed class WidgetLayoutResolverTests
         Assert.Equal(["A", "Mine B"], descriptors.Select(d => d.DisplayName));
     }
 
+    [Fact]
+    public void ResolveConfigRow_ReadsTheUsersOverride_SoASectionKeepsTheOrderOfItsProbe()
+    {
+        var global = new WidgetConfig { WidgetType = "jux.test.widget", Order = 10, AllowUserOverride = true, SortBy = WidgetSort.SortName };
+        var userOverride = new WidgetConfig { WidgetType = "jux.test.widget", Order = 10, AllowUserOverride = true, SortBy = WidgetSort.Random };
+
+        var row = BuildResolverWithOverrides(new WidgetRegistry(), [global], [userOverride])
+            .ResolveConfigRow(Guid.NewGuid(), "jux.test.widget", additionalData: null);
+
+        Assert.Equal(WidgetSort.Random, row!.SortBy);
+    }
+
     private static WidgetLayoutResolver BuildResolverWithOverrides(IWidgetRegistry registry, WidgetConfig[] widgets, WidgetConfig[] overrides)
     {
         var userConfigStoreMock = new Mock<IUserConfigurationStore>();

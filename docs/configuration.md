@@ -31,6 +31,17 @@ Every widget section shares this set of fields, no matter its category:
 Widget pages in this site only document parameters that are specific to that widget, on top of this
 shared set.
 
+## Sort order
+
+Admin, Personalized (except Because You Watched) and Seasonal sections also have a **Sort order**:
+name, date added, release date or rating, in either direction, or **Random**. Sections saved before
+this setting existed keep their alphabetical order.
+
+Random is drawn once a day for each user and section, from the items that user can see, and stays the
+same on every visit of that day; it changes at midnight (server time). Editing the section (its value,
+filters or Max items) draws again at once. Native sections (Continue Watching, Next Up, Recently Added),
+TMDb sections and Because You Watched keep their own order.
+
 ## Cache
 
 | Field | Default | Description |

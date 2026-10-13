@@ -20,8 +20,9 @@ public abstract class PersonalizedPersonWidgetBase : PersonalizedWidgetBase
         ILibraryManager libraryManager,
         IDtoService dtoService,
         ScoringService scoringService,
-        ILocalizationService localizationService)
-        : base(userManager, libraryManager, dtoService, scoringService, localizationService)
+        ILocalizationService localizationService,
+        WidgetItemFetcher? itemFetcher = null)
+        : base(userManager, libraryManager, dtoService, scoringService, localizationService, itemFetcher)
     {
     }
 

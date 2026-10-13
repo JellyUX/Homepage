@@ -19,6 +19,7 @@ public sealed class UserConfigurationMigrationTests
     [InlineData(1)]
     [InlineData(7)]
     [InlineData(8)]
+    [InlineData(9)]
     public void NullOverrides_BecomeEmptyAtEveryTier(int schemaVersion)
     {
         var config = FromJson($$"""{"WidgetOverrides":null,"SchemaVersion":{{schemaVersion}}}""");
@@ -27,7 +28,7 @@ public sealed class UserConfigurationMigrationTests
 
         Assert.NotNull(config.WidgetOverrides);
         Assert.Empty(config.WidgetOverrides);
-        Assert.Equal(8, config.SchemaVersion);
+        Assert.Equal(9, config.SchemaVersion);
     }
 
     [Fact]
@@ -42,7 +43,7 @@ public sealed class UserConfigurationMigrationTests
         Plugin.MigrateUserConfiguration(config);
 
         Assert.Equal(3, config.WidgetOverrides.Count(w => w.WidgetType == PersonalizedType));
-        Assert.Equal(8, config.SchemaVersion);
+        Assert.Equal(9, config.SchemaVersion);
     }
 
     [Fact]
@@ -59,18 +60,30 @@ public sealed class UserConfigurationMigrationTests
         Plugin.MigrateUserConfiguration(config);
 
         Assert.Single(config.WidgetOverrides);
-        Assert.Equal(8, config.SchemaVersion);
+        Assert.Equal(9, config.SchemaVersion);
+    }
+
+    [Fact]
+    public void FromTierEight_GivesEveryOverrideAKnownSort()
+    {
+        var row = new WidgetConfig { WidgetType = PersonalizedType, SortBy = "Bogus" };
+        var config = new UserConfiguration { SchemaVersion = 8, WidgetOverrides = [row] };
+
+        Plugin.MigrateUserConfiguration(config);
+
+        Assert.Equal(WidgetSort.SortName, row.SortBy);
+        Assert.Equal(9, config.SchemaVersion);
     }
 
     [Fact]
     public void AtCurrentVersion_IsLeftUnchanged()
     {
         var row = new WidgetConfig { WidgetType = PersonalizedType, MaxInstances = 3 };
-        var config = new UserConfiguration { SchemaVersion = 8, WidgetOverrides = [row] };
+        var config = new UserConfiguration { SchemaVersion = 9, WidgetOverrides = [row] };
 
         Plugin.MigrateUserConfiguration(config);
 
         Assert.Same(row, Assert.Single(config.WidgetOverrides));
-        Assert.Equal(8, config.SchemaVersion);
+        Assert.Equal(9, config.SchemaVersion);
     }
 }

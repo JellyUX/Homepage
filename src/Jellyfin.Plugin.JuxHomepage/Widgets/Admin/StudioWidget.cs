@@ -18,11 +18,13 @@ public sealed class StudioWidget : AdminWidgetBase
     /// <param name="userManager">Jellyfin user manager.</param>
     /// <param name="libraryManager">Jellyfin library manager.</param>
     /// <param name="dtoService">Jellyfin DTO projection service.</param>
+    /// <param name="itemFetcher">Runs the section query in its configured order; a private one when null (tests).</param>
     public StudioWidget(
         IUserManager userManager,
         ILibraryManager libraryManager,
-        IDtoService dtoService)
-        : base(userManager, libraryManager, dtoService)
+        IDtoService dtoService,
+        WidgetItemFetcher? itemFetcher = null)
+        : base(userManager, libraryManager, dtoService, itemFetcher)
     {
     }
 

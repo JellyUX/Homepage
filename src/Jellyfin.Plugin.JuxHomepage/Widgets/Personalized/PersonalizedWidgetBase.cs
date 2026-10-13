@@ -42,18 +42,21 @@ public abstract class PersonalizedWidgetBase : IWidget
     /// <param name="dtoService">Jellyfin DTO projection service.</param>
     /// <param name="scoringService">User preference scoring service.</param>
     /// <param name="localizationService">Widget display-name translation service.</param>
+    /// <param name="itemFetcher">Runs the section query in its configured order; a private one when null (tests).</param>
     protected PersonalizedWidgetBase(
         IUserManager userManager,
         ILibraryManager libraryManager,
         IDtoService dtoService,
         ScoringService scoringService,
-        ILocalizationService localizationService)
+        ILocalizationService localizationService,
+        WidgetItemFetcher? itemFetcher = null)
     {
         UserManager = userManager;
         LibraryManager = libraryManager;
         DtoService = dtoService;
         ScoringService = scoringService;
         LocalizationService = localizationService;
+        ItemFetcher = itemFetcher ?? new WidgetItemFetcher(libraryManager, dtoService);
     }
 
     /// <summary>Gets the Jellyfin user manager.</summary>
@@ -70,6 +73,15 @@ public abstract class PersonalizedWidgetBase : IWidget
 
     /// <summary>Gets the widget display-name translation service.</summary>
     protected ILocalizationService LocalizationService { get; }
+
+    /// <summary>Gets the runner of the section query in its configured order (TODO_V4.md 8.1).</summary>
+    protected WidgetItemFetcher ItemFetcher { get; }
+
+    /// <summary>
+    /// Gets a value indicating whether the row's configured sort applies. False for a widget whose
+    /// <see cref="ApplyFilter"/> sets an order of its own.
+    /// </summary>
+    protected virtual bool UsesConfiguredSort => true;
 
     /// <inheritdoc/>
     public abstract string WidgetType { get; }
@@ -185,6 +197,10 @@ public abstract class PersonalizedWidgetBase : IWidget
         }
 
         ApplyFilter(query, value, user);
+        if (UsesConfiguredSort)
+        {
+            return Task.FromResult(ItemFetcher.Fetch(WidgetType, user, query, dtoOptions, payload));
+        }
 
         QueryResult<BaseItem> result = LibraryManager.GetItemsResult(query);
         var dtos = DtoService.GetBaseItemDtos(result.Items, dtoOptions, user);

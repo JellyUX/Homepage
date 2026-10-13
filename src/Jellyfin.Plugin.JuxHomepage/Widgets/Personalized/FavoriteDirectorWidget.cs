@@ -19,13 +19,15 @@ public sealed class FavoriteDirectorWidget : PersonalizedPersonWidgetBase
     /// <param name="dtoService">Jellyfin DTO projection service.</param>
     /// <param name="scoringService">User preference scoring service.</param>
     /// <param name="localizationService">Widget display-name translation service.</param>
+    /// <param name="itemFetcher">Runs the section query in its configured order; a private one when null (tests).</param>
     public FavoriteDirectorWidget(
         IUserManager userManager,
         ILibraryManager libraryManager,
         IDtoService dtoService,
         ScoringService scoringService,
-        ILocalizationService localizationService)
-        : base(userManager, libraryManager, dtoService, scoringService, localizationService)
+        ILocalizationService localizationService,
+        WidgetItemFetcher? itemFetcher = null)
+        : base(userManager, libraryManager, dtoService, scoringService, localizationService, itemFetcher)
     {
     }
 

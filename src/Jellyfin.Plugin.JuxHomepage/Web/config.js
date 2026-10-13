@@ -74,6 +74,27 @@ export function dropIndex(from, over, after) {
     return from < to ? to - 1 : to;
 }
 
+// The card orders of a library section (TODO_V4.md 8.1, F-53): stored as SortBy + SortOrder, offered
+// as one list. Random has no direction: it is drawn once a day per user.
+export var SORT_OPTIONS = [
+    ['SortName', 'Ascending', 'admin.sort.name.asc'],
+    ['SortName', 'Descending', 'admin.sort.name.desc'],
+    ['DateCreated', 'Descending', 'admin.sort.added.desc'],
+    ['DateCreated', 'Ascending', 'admin.sort.added.asc'],
+    ['PremiereDate', 'Descending', 'admin.sort.release.desc'],
+    ['PremiereDate', 'Ascending', 'admin.sort.release.asc'],
+    ['CommunityRating', 'Descending', 'admin.sort.rating.desc'],
+    ['CommunityRating', 'Ascending', 'admin.sort.rating.asc'],
+    ['Random', 'Ascending', 'admin.sort.random']
+];
+
+// The SORT_OPTIONS entry of a row, alphabetical when it has none or an unknown one.
+export function sortOption(widget) {
+    var by = widget.SortBy;
+    var order = by === 'Random' ? 'Ascending' : (widget.SortOrder === 'Descending' ? 'Descending' : 'Ascending');
+    return SORT_OPTIONS.filter(function (o) { return o[0] === by && o[1] === order; })[0] || SORT_OPTIONS[0];
+}
+
 // The configuration row stored for a widget row at index i of the page: what Save writes and
 // what Preview sends, so a preview always shows what saving would store.
 export function toConfigRow(widget, i, isAdmin) {
@@ -85,6 +106,8 @@ export function toConfigRow(widget, i, isAdmin) {
         MinItems: Math.max(0, widget.MinItems),
         MaxItems: Math.max(1, widget.MaxItems),
         ViewMode: widget.ViewMode,
+        SortBy: sortOption(widget)[0],
+        SortOrder: sortOption(widget)[1],
         AllowUserOverride: isAdmin ? false : (typeof widget.AllowUserOverride === 'boolean' ? widget.AllowUserOverride : true),
         MinInstances: widget.MinInstances || 1,
         MaxInstances: widget.MaxInstances || 1,
@@ -264,6 +287,13 @@ function createConfigPage() {
 
         isBecauseYouWatched: function (widgetType) {
             return widgetType === this.BECAUSE_YOU_WATCHED_TYPE;
+        },
+
+        // Library sections whose card order is configurable; Because You Watched keeps its random
+        // recommendations, native and TMDb rows their own ranking.
+        isSortable: function (widgetType) {
+            return this.isAdmin(widgetType) || this.isSeasonal(widgetType)
+                || (this.isPersonalized(widgetType) && !this.isBecauseYouWatched(widgetType));
         },
 
         // Per-field autocomplete cache for the Discover widget's person/keyword/company inputs.
@@ -668,6 +698,19 @@ function createConfigPage() {
                     html += '</select>';
                     html += '</div>';
 
+                    if (self.isSortable(w.WidgetType)) {
+                        var currentSort = sortOption(w);
+                        html += '<div class="inputContainer">';
+                        html += '<label class="inputLabel inputLabelUnfocused" for="widgetSort_' + i + '">' + self.escHtml(self.t('admin.sort.label')) + '</label>';
+                        html += '<select id="widgetSort_' + i + '" class="emby-select-withcolor emby-select jux-admin-sort">';
+                        SORT_OPTIONS.forEach(function (opt) {
+                            html += '<option value="' + opt[0] + ':' + opt[1] + '"' + (opt === currentSort ? ' selected' : '') + '>' + self.escHtml(self.t(opt[2])) + '</option>';
+                        });
+                        html += '</select>';
+                        html += '<div class="fieldDescription">' + self.escHtml(self.t('admin.sort.help')) + '</div>';
+                        html += '</div>';
+                    }
+
                     if (isPers) {
                         var excludeWatched = self.getExtraParam(w, 'excludeWatched') !== 'false';
 
@@ -1014,6 +1057,11 @@ function createConfigPage() {
                 var viewEl = card.querySelector('.jux-admin-view-mode');
                 var valueEl = card.querySelector('.jux-admin-widget-value');
                 var excludeWatchedEl = card.querySelector('.jux-admin-exclude-watched');
+                var sortEl = card.querySelector('.jux-admin-sort');
+                if (sortEl) {
+                    w.SortBy = sortEl.value.split(':')[0];
+                    w.SortOrder = sortEl.value.split(':')[1];
+                }
                 if (enabledEl) { w.Enabled = enabledEl.checked; }
                 if (nameEl) { w.CustomDisplayName = nameEl.value.trim() || null; }
                 if (minEl) { w.MinItems = Math.max(0, parseInt(minEl.value, 10) || 0); }

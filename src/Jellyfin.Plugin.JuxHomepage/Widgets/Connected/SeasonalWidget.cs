@@ -29,9 +29,8 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets.Connected;
 public sealed class SeasonalWidget : IWidget
 {
     private readonly IUserManager _userManager;
-    private readonly ILibraryManager _libraryManager;
-    private readonly IDtoService _dtoService;
     private readonly TimeProvider _timeProvider;
+    private readonly WidgetItemFetcher _itemFetcher;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SeasonalWidget"/> class.
@@ -40,12 +39,17 @@ public sealed class SeasonalWidget : IWidget
     /// <param name="libraryManager">Jellyfin library manager.</param>
     /// <param name="dtoService">Jellyfin DTO projection service.</param>
     /// <param name="timeProvider">Time source of the current day (server local time). Defaults to <see cref="TimeProvider.System"/>.</param>
-    public SeasonalWidget(IUserManager userManager, ILibraryManager libraryManager, IDtoService dtoService, TimeProvider? timeProvider = null)
+    /// <param name="itemFetcher">Runs the section query in its configured order; a private one when null (tests).</param>
+    public SeasonalWidget(
+        IUserManager userManager,
+        ILibraryManager libraryManager,
+        IDtoService dtoService,
+        TimeProvider? timeProvider = null,
+        WidgetItemFetcher? itemFetcher = null)
     {
         _userManager = userManager;
-        _libraryManager = libraryManager;
-        _dtoService = dtoService;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _itemFetcher = itemFetcher ?? new WidgetItemFetcher(libraryManager, dtoService, _timeProvider);
     }
 
     /// <inheritdoc/>
@@ -100,8 +104,6 @@ public sealed class SeasonalWidget : IWidget
             IsMissing = false,
             EnableTotalRecordCount = false,
             IncludeItemTypes = [BaseItemKind.Movie, BaseItemKind.Series],
-            StartIndex = payload.StartIndex,
-            Limit = payload.Limit,
             DtoOptions = dtoOptions
         };
 
@@ -115,9 +117,7 @@ public sealed class SeasonalWidget : IWidget
             query.Tags = [tag];
         }
 
-        QueryResult<BaseItem> result = _libraryManager.GetItemsResult(query);
-        var dtos = _dtoService.GetBaseItemDtos(result.Items, dtoOptions, user);
-        return Task.FromResult(new WidgetResult(dtos, dtos.Count));
+        return Task.FromResult(_itemFetcher.Fetch(WidgetType, user, query, dtoOptions, payload));
     }
 
     /// <inheritdoc/>
