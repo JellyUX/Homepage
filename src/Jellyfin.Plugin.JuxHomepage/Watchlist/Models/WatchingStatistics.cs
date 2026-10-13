@@ -23,4 +23,7 @@ public sealed class WatchingStatistics
 
     /// <summary>Gets the total number of episodes this user has watched, across all series.</summary>
     public int EpisodesWatched { get; init; }
+
+    /// <summary>Gets the most watched series, at most five (TODO_V4.md 8.5, F-55).</summary>
+    public IReadOnlyList<TopSeriesEntry> TopSeries { get; init; } = [];
 }

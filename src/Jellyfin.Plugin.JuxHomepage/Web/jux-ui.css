@@ -276,6 +276,76 @@
     padding-bottom: 2em;
 }
 
+/* Top 5 of the Statistics tab (F-55): ranked rows under the tiles, each with the series' progress. */
+.jux-top-series {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75em;
+    padding-bottom: 2em;
+}
+
+.jux-top-series-title {
+    margin: 0;
+    font-size: 1.15em;
+    font-weight: 600;
+}
+
+.jux-top-series-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    max-width: 40em;
+}
+
+.jux-top-series-row {
+    display: flex;
+    align-items: center;
+    gap: 1em;
+    padding: 0.6em 0;
+}
+
+.jux-top-series-row + .jux-top-series-row {
+    border-top: 1px solid rgb(var(--jf-palette-text-primaryChannel, 255 255 255) / 0.08);
+}
+
+.jux-top-series-rank {
+    flex: 0 0 1.5em;
+    font-size: 1.6em;
+    font-weight: 600;
+    text-align: center;
+    color: var(--jf-palette-primary-main, #00a4dc);
+    font-variant-numeric: tabular-nums;
+}
+
+.jux-top-series-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3em;
+}
+
+.jux-top-series-name {
+    color: inherit;
+    font-weight: 600;
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.jux-top-series-name:hover,
+.jux-top-series-name:focus-visible {
+    text-decoration: underline;
+}
+
+.jux-top-series-detail {
+    font-size: 0.85em;
+    opacity: 0.7;
+}
+
 /* The tiles above a list (History) leave less room before the controls than the Statistics tab,
  * and stay side by side on a phone. */
 .jux-list-header {

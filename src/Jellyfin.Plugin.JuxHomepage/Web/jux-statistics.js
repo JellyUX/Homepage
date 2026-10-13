@@ -21,14 +21,20 @@
             moviesWatched: 'Movies watched',
             seriesTracked: 'Series tracked',
             seriesCompleted: 'Series completed',
-            episodesWatched: 'Episodes watched'
+            episodesWatched: 'Episodes watched',
+            topSeries: 'Most watched series',
+            topSeriesEpisodes: '{watched} of {total} episodes ({percent}%)',
+            seeProgress: 'See progress'
         },
         fr: {
             title: 'Statistiques',
             moviesWatched: 'Films vus',
             seriesTracked: 'Séries suivies',
             seriesCompleted: 'Séries terminées',
-            episodesWatched: 'Épisodes vus'
+            episodesWatched: 'Épisodes vus',
+            topSeries: 'Séries les plus regardées',
+            topSeriesEpisodes: '{watched} sur {total} épisodes ({percent} %)',
+            seeProgress: 'Voir la progression'
         }
     };
 
@@ -67,7 +73,11 @@
             var url = window.ApiClient.getUrl('JuxHomepage/Statistics', { userId: userId });
 
             window.ApiClient.getJSON(url).then(function (stats) {
-                body.innerHTML = _buildTilesHtml(stats, lang);
+                body.innerHTML = _buildTilesHtml(stats, lang) + _buildTopSeriesHtml(stats, lang, window.ApiClient.serverId());
+                var seeProgress = body.querySelector('.jux-top-series-more');
+                if (seeProgress) {
+                    seeProgress.addEventListener('click', _openProgressTab);
+                }
             }).catch(function (err) {
                 console.error('[JellyUX] Statistics fetch failed:', err);
                 window.JuxCore.showError(body, {
@@ -94,6 +104,50 @@
             '</div>';
     }
 
+    // The most watched series (TODO_V4.md 8.5, F-55), ranked by the server: each row links to the
+    // series, and "See progress" opens the Progress tab, which lists every series in progress.
+    function _buildTopSeriesHtml(stats, lang, serverId) {
+        var rows = (stats && stats.TopSeries) || [];
+        if (rows.length === 0) {
+            return '';
+        }
+
+        var t = _labels[lang];
+        var esc = window.JuxCore.escHtml;
+        var html = '<section class="jux-top-series padded-left padded-right" aria-labelledby="jux-top-series-title">' +
+            '<h3 class="jux-top-series-title" id="jux-top-series-title">' + esc(t.topSeries) + '</h3>' +
+            '<ol class="jux-top-series-list">';
+        rows.forEach(function (row, index) {
+            var percent = row.TotalEpisodes > 0 ? Math.floor(row.WatchedEpisodes * 100 / row.TotalEpisodes) : 0;
+            var detail = t.topSeriesEpisodes
+                .replace('{watched}', row.WatchedEpisodes)
+                .replace('{total}', row.TotalEpisodes)
+                .replace('{percent}', percent);
+            html += '<li class="jux-top-series-row">' +
+                '<span class="jux-top-series-rank" aria-hidden="true">' + (index + 1) + '</span>' +
+                '<div class="jux-top-series-body">' +
+                '<a class="jux-top-series-name" href="#/details?id=' + encodeURIComponent(row.SeriesId) + '&serverId=' + encodeURIComponent(serverId || '') + '">' + esc(row.Name) + '</a>' +
+                (window.JuxUI ? window.JuxUI.buildProgressBar(row.WatchedEpisodes, row.TotalEpisodes) : '') +
+                '<span class="jux-top-series-detail">' + esc(detail) + '</span>' +
+                '</div>' +
+                '</li>';
+        });
+        html += '</ol>';
+        if (document.getElementById('jux-tabbtn-progress')) {
+            html += '<button type="button" class="jux-sort-button jux-top-series-more">' +
+                '<span class="jux-sort-button-label">' + esc(t.seeProgress) + '</span>' +
+                '<span class="material-icons chevron_right" aria-hidden="true"></span></button>';
+        }
+        return html + '</section>';
+    }
+
+    function _openProgressTab() {
+        var tabButton = document.getElementById('jux-tabbtn-progress');
+        if (tabButton) {
+            tabButton.click();
+        }
+    }
+
     // Only reached if jux-ui.js somehow failed to load -- keeps the tab from rendering nothing.
     function _fallbackTile(icon, value, label) {
         return '<div class="jux-stat-card"><div class="jux-stat-value">' + window.JuxCore.escHtml(String(value)) + '</div>' +
@@ -107,7 +161,8 @@
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
             _buildTitleHtml: _buildTitleHtml,
-            _buildTilesHtml: _buildTilesHtml
+            _buildTilesHtml: _buildTilesHtml,
+            _buildTopSeriesHtml: _buildTopSeriesHtml
         };
     }
 })();
