@@ -21,6 +21,14 @@ public class PluginConfiguration : BasePluginConfiguration
     /// </summary>
     public WidgetConfig[] Widgets { get; set; } = [];
 
+    /// <summary>
+    /// Gets or sets a value indicating whether a title leaves the user's Watchlist once watched: a
+    /// movie at the end of its playback, a series at the end of its last unplayed episode
+    /// (TODO_V4.md 8.4, F-59). The Watchlist is Jellyfin's Likes, shared with other plugins; off,
+    /// JellyUX never writes it on its own.
+    /// </summary>
+    public bool WatchlistAutoRemove { get; set; } = true;
+
     /// <summary>Gets or sets the per-module switches for the client scripts.</summary>
     public ModulesConfig Modules { get; set; } = new();
 

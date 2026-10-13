@@ -42,6 +42,23 @@ same on every visit of that day; it changes at midnight (server time). Editing t
 filters or Max items) draws again at once. Native sections (Continue Watching, Next Up, Recently Added),
 TMDb sections and Because You Watched keep their own order.
 
+## Watchlist
+
+**Remove watched titles from the watchlist** (on by default): a movie leaves the watchlist when its
+playback finishes, a series when its last unwatched episode does. Marking a title as watched by hand
+never removes it. The watchlist is Jellyfin's "liked" list, which other plugins read too: Jellyfin
+Enhanced, for one, syncs it to Seerr, so a removed title also leaves the Seerr watchlist. Untick the
+setting to never change the list automatically.
+
+## User settings
+
+Each user finds a **JellyUX** block in *Settings > Home*: untick **Use JellyUX** to get Jellyfin's own
+home screen, tabs and pages back for that account, or untick a section to hide it from their own home
+screen. A hidden section keeps every setting chosen here; only its display is removed for that user.
+While JellyUX is on, the native *Home screen section* lists of that page are hidden, since the JellyUX
+sections replace them. Recently Added sections also follow the user's native *Latest media* choices
+(excluded libraries, hidden watched items).
+
 ## Cache
 
 | Field | Default | Description |

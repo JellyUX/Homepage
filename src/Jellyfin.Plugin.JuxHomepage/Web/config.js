@@ -1374,6 +1374,7 @@ function createConfigPage() {
                 banner.style.display = warnings.length ? '' : 'none';
 
                 document.getElementById('chkEnabled').checked = !!self.state.config.Enabled;
+                document.getElementById('chkWatchlistAutoRemove').checked = self.state.config.WatchlistAutoRemove !== false;
                 var modules = self.state.config.Modules || {};
                 document.querySelectorAll('.jux-admin-module').forEach(function (el) {
                     el.checked = modules[el.getAttribute('data-module')] !== false;
@@ -1462,6 +1463,7 @@ function createConfigPage() {
 
             ApiClient.getPluginConfiguration(self.PLUGIN_ID).then(function (config) {
                 config.Enabled = document.getElementById('chkEnabled').checked;
+                config.WatchlistAutoRemove = document.getElementById('chkWatchlistAutoRemove').checked;
                 if (!config.Modules) { config.Modules = {}; }
                 document.querySelectorAll('.jux-admin-module').forEach(function (el) {
                     config.Modules[el.getAttribute('data-module')] = el.checked;

@@ -19,7 +19,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
     /// The current configuration schema version. See the "Configuration Schema Versioning" section
     /// in CLAUDE.md for the migration policy.
     /// </summary>
-    private const int CurrentSchemaVersion = 9;
+    private const int CurrentSchemaVersion = 10;
 
     /// <summary>
     /// The current per-user configuration schema version, tracked separately from
@@ -180,6 +180,9 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
         {
             NormalizeSort(config.Widgets);
         }
+
+        // V9-to-V10 (TODO_V4.md 8.4, F-59) adds WatchlistAutoRemove. No transform: a file without the
+        // element deserializes to its default, on, which is the behavior every earlier version had.
 
         // Add future migrations here as additional `if (config.SchemaVersion < N) { ... }` blocks,
         // each gated on its own target version and never combined with `else if` -- an installation

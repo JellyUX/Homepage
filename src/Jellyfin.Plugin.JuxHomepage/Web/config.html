@@ -93,6 +93,21 @@
             </div>
 
             <div class="verticalSection">
+                <h3 class="sectionTitle" data-i18n="admin.watchlist.title">Watchlist</h3>
+                <div class="checkboxContainer checkboxContainer-withDescription">
+                    <label class="emby-checkbox-label">
+                        <input type="checkbox" id="chkWatchlistAutoRemove" class="emby-checkbox" />
+                        <span class="checkboxLabel" data-i18n="admin.watchlist.autoremove.label">Remove watched titles from the watchlist</span>
+                        <span class="checkboxOutline">
+                            <span class="material-icons checkboxIcon checkboxIcon-checked check" aria-hidden="true"></span>
+                            <span class="material-icons checkboxIcon checkboxIcon-unchecked " aria-hidden="true"></span>
+                        </span>
+                    </label>
+                    <div class="fieldDescription" data-i18n="admin.watchlist.autoremove.help">A movie leaves the watchlist when its playback finishes, a series when its last unwatched episode does. The watchlist is Jellyfin's "liked" list, which other plugins read too: Jellyfin Enhanced, for one, syncs it to Seerr, so a removed title also leaves the Seerr watchlist. Untick to never change it automatically.</div>
+                </div>
+            </div>
+
+            <div class="verticalSection">
                 <h3 class="sectionTitle" data-i18n="admin.apikeys.title">API Keys</h3>
                 <div class="inputContainer">
                     <label class="inputLabel inputLabelUnfocused" for="txtTMDb" data-i18n="admin.apikeys.tmdb.label">TMDb API Key</label>
