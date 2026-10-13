@@ -15,27 +15,6 @@
         return;
     }
 
-    var _labels = {
-        en: {
-            includedIn: 'Included In',
-            sortTitle: 'Sort Title',
-            releaseDate: 'Release Date',
-            dateAdded: 'Date Added',
-            communityRating: 'Community Rating',
-            criticRating: 'Critic Rating',
-            sortDialogTitle: 'Sort Collection'
-        },
-        fr: {
-            includedIn: 'Fait partie de',
-            sortTitle: 'Titre',
-            releaseDate: 'Date de sortie',
-            dateAdded: 'Date d’ajout',
-            communityRating: 'Note communauté',
-            criticRating: 'Note critique',
-            sortDialogTitle: 'Trier la collection'
-        }
-    };
-
     var _syncObserver;
 
     window.juxCollections = {
@@ -74,7 +53,7 @@
     }
 
     function _sortFields() {
-        var t = _labels[window.JuxCore.resolveLang()];
+        var t = window.JuxCore.labels('collections');
         return [
             { value: 'SortName', label: t.sortTitle },
             { value: 'PremiereDate', label: t.releaseDate },
@@ -155,7 +134,7 @@
 
                 activePage.dataset.juxCollectionsChecked = itemId;
 
-                var section = _buildCollectionsSectionSkeleton(_labels[window.JuxCore.resolveLang()].includedIn);
+                var section = _buildCollectionsSectionSkeleton(window.JuxCore.labels('collections').includedIn);
                 var itemsContainer = section.querySelector('.itemsContainer');
                 itemsContainer.innerHTML = api.cardBuilder.getCardsHtml({
                     items: boxSets,
@@ -288,7 +267,7 @@
                 }
 
                 window.JuxUI.openSortDialog({
-                    title: _labels[window.JuxCore.resolveLang()].sortDialogTitle,
+                    title: window.JuxCore.labels('collections').sortDialogTitle,
                     sortOptions: _sortFields(),
                     currentSortBy: state.sortBy,
                     currentSortOrder: state.sortOrder,

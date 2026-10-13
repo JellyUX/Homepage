@@ -1,4 +1,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
+import { readdirSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import juxCore from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-core.js';
 
 const { escHtml, cssUrl, iconName, cached, getItem, getIncludedIn, observeCardImages, errorHtml, showError } = juxCore;
@@ -200,5 +202,38 @@ describe('turned off for this user (F-36)', () => {
         window.ApiClient = { getCurrentUserId: () => 'alice' };
         juxCore.setUserEnabled('alice', true);
         expect(juxCore.isOffForUser()).toBe(false);
+    });
+});
+
+describe('labels (F-64)', () => {
+    afterEach(() => {
+        delete window.JuxI18n.de;
+        document.documentElement.lang = '';
+    });
+
+    it('falls back to English for a language without a dictionary, then reads it once one is served', () => {
+        document.documentElement.lang = 'de-DE';
+        expect(juxCore.resolveLang()).toBe('en');
+        expect(juxCore.t('client.list.more')).toBe('Load more');
+
+        window.JuxI18n.de = { 'client.list.more': 'Mehr laden' };
+
+        expect(juxCore.resolveLang()).toBe('de');
+        expect(juxCore.t('client.list.more')).toBe('Mehr laden');
+        // A key the German file lacks still reads in English.
+        expect(juxCore.labels('list').search).toBe('Search');
+    });
+
+    it('fills placeholders and reads the language of another document', () => {
+        expect(juxCore.t('client.list.count', { shown: 50, total: 120 }, 'fr')).toBe('50 sur 120');
+        expect(juxCore.t('client.unknown.key')).toBe('client.unknown.key');
+    });
+
+    it('leaves no label dictionary in the client scripts', () => {
+        const web = resolve(__dirname, '../src/Jellyfin.Plugin.JuxHomepage/Web');
+        const offenders = readdirSync(web)
+            .filter((file) => /^jux-.*\.js$/.test(file))
+            .filter((file) => /\b(en|fr): \{|=== 'fr'|labelFr/.test(readFileSync(resolve(web, file), 'utf8')));
+        expect(offenders).toEqual([]);
     });
 });

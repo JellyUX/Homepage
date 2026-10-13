@@ -98,6 +98,14 @@ rather than contributing to this repository directly.
 
 ---
 
+## Adding a Language
+
+Every label lives in `src/Jellyfin.Plugin.JuxHomepage/Localization/<lang>.json` (`en.json`, `fr.json`):
+widget names, the admin page (`admin.*`) and the client scripts (`client.*`). To add a language, copy
+`en.json` to `<lang>.json` (the short code of the web client language, e.g. `de.json`) and translate the
+values; a key you leave out falls back to English. Every embedded file is picked up as a language, and
+the client scripts receive the `client.*` keys through `jux-i18n.js`. Never write a label in a script.
+
 ## Testing
 
 **Automated tests** (once available):

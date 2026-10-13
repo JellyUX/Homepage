@@ -18,35 +18,6 @@
         return;
     }
 
-    var _labels = {
-        en: {
-            title: 'History',
-            empty: 'No watched movies yet',
-            emptySubtitle: 'Movies you finish watching show up here.',
-            sortLastPlayed: 'Last Watched',
-            sortName: 'Name',
-            sortDialogTitle: 'Sort History',
-            addFavorite: 'Add to favorites',
-            removeFavorite: 'Remove from favorites',
-            watchedOn: 'Watched {date}',
-            moviesWatched: 'Movies watched',
-            moviesThisMonth: 'This month'
-        },
-        fr: {
-            title: 'Historique',
-            empty: 'Aucun film vu pour le moment',
-            emptySubtitle: 'Les films que tu termines apparaissent ici.',
-            sortLastPlayed: 'Dernier vu',
-            sortName: 'Nom',
-            sortDialogTitle: 'Trier l’historique',
-            addFavorite: 'Ajouter aux favoris',
-            removeFavorite: 'Retirer des favoris',
-            watchedOn: 'Vu le {date}',
-            moviesWatched: 'Films vus',
-            moviesThisMonth: 'Ce mois-ci'
-        }
-    };
-
     function _sortOptions(t) {
         return [
             { value: 'LastPlayed', label: t.sortLastPlayed },
@@ -126,7 +97,7 @@
     // Statistics route (the same History cache, no library query). A failure only leaves them out.
     function _renderTiles(container, lang) {
         if (!container || !window.ApiClient) { return; }
-        var t = _labels[lang] || _labels.en;
+        var t = window.JuxCore.labels('history', lang);
         var url = window.ApiClient.getUrl('JuxHomepage/Statistics', { userId: window.ApiClient.getCurrentUserId() });
         window.ApiClient.getJSON(url).then(function (stats) {
             container.innerHTML =
@@ -162,7 +133,7 @@
         id: 'history',
         endpoint: 'JuxHomepage/MovieHistory/Items',
         logName: 'Movie History',
-        labels: _labels,
+        labels: 'history',
         state: { sortBy: 'LastPlayed', sortOrder: 'Descending' },
         sortOptions: _sortOptions,
         emptyIcon: 'movie',

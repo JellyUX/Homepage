@@ -604,15 +604,7 @@
     }
 
     function _showChunkNotice(doc, key, persistent) {
-        var fr = (doc.documentElement.lang || '').toLowerCase().indexOf('fr') === 0;
-        var texts = {
-            reloading: fr
-                ? 'JellyUX : mise à jour des fichiers en cache, rechargement de la page.'
-                : 'JellyUX: updating cached files, reloading the page.',
-            stale: fr
-                ? 'JellyUX ne peut pas afficher son accueil : un cache entre ce navigateur et le serveur (CDN ou proxy) sert encore une ancienne copie de la page. L\'administrateur du serveur doit le purger.'
-                : 'JellyUX cannot show its home page: a cache between this browser and the server (CDN or proxy) still serves an old copy of the page. The server administrator should purge it.'
-        };
+        var lang = doc.documentElement.lang;
 
         var notice = doc.getElementById('jux-chunk-notice');
         if (!notice) {
@@ -623,12 +615,12 @@
             doc.body.appendChild(notice);
         }
 
-        notice.textContent = texts[key];
+        notice.textContent = window.JuxCore.t('client.chunk.' + key, null, lang);
         if (persistent) {
             var close = doc.createElement('button');
             close.type = 'button';
             close.className = 'jux-chunk-notice-close';
-            close.setAttribute('aria-label', fr ? 'Fermer' : 'Close');
+            close.setAttribute('aria-label', window.JuxCore.t('client.chunk.close', null, lang));
             close.textContent = '×';
             close.addEventListener('click', function () { notice.remove(); });
             notice.appendChild(close);

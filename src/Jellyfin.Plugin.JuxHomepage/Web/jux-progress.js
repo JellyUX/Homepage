@@ -18,43 +18,6 @@
         return;
     }
 
-    var _labels = {
-        en: {
-            title: 'Progress',
-            empty: 'No series in progress',
-            emptySubtitle: 'Watch an episode of a series and it will show up here.',
-            sortLastPlayed: 'Last Watched',
-            sortName: 'Name',
-            sortDialogTitle: 'Sort Progress',
-            episodesWatched: '{watched}/{total} episodes',
-            lastEpisode: 'Last: {code} - {name}',
-            markWatched: 'Mark as watched',
-            unwatched: '{count} unwatched',
-            unwatchedTitle: 'Unwatched episodes',
-            unwatchedEmpty: 'Every episode is watched.',
-            unwatchedMore: '{count} more episodes not listed',
-            airDate: 'Aired {date}',
-            markEpisodeWatched: 'Mark {episode} as watched'
-        },
-        fr: {
-            title: 'Progression',
-            empty: 'Aucune série en cours',
-            emptySubtitle: 'Regarde un épisode d’une série et elle apparaîtra ici.',
-            sortLastPlayed: 'Dernier vu',
-            sortName: 'Nom',
-            sortDialogTitle: 'Trier la progression',
-            episodesWatched: '{watched}/{total} épisodes',
-            lastEpisode: 'Dernier : {code} - {name}',
-            markWatched: 'Marquer comme vu',
-            unwatched: '{count} non vus',
-            unwatchedTitle: 'Épisodes non vus',
-            unwatchedEmpty: 'Tous les épisodes sont vus.',
-            unwatchedMore: '{count} autres épisodes non listés',
-            airDate: 'Diffusé le {date}',
-            markEpisodeWatched: 'Marquer {episode} comme vu'
-        }
-    };
-
     function _sortOptions(t) {
         return [
             { value: 'LastPlayed', label: t.sortLastPlayed },
@@ -318,7 +281,7 @@
         id: 'progress',
         endpoint: 'JuxHomepage/SeriesProgress/Items',
         logName: 'Series Progress',
-        labels: _labels,
+        labels: 'progress',
         state: { sortBy: 'LastPlayed', sortOrder: 'Descending' },
         sortOptions: _sortOptions,
         emptyIcon: 'movie_filter',

@@ -1,7 +1,8 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import juxUserSettings from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-user-settings.js';
 
-const { _blockHtml, _render, labels } = juxUserSettings;
+const { _blockHtml, _render } = juxUserSettings;
+const english = () => window.JuxCore.labels('usersettings', 'en');
 
 // The part of the native Preferences > Home form the block anchors on (measured on 10.11.10).
 function nativeForm() {
@@ -33,7 +34,7 @@ describe('JellyUX block of Preferences > Home (F-36)', () => {
     });
 
     it('lists each section with its shown state, names escaped', () => {
-        const html = _blockHtml(settings, labels.en);
+        const html = _blockHtml(settings, english());
 
         expect(html).toContain('&lt;b&gt;Halloween&lt;/b&gt;');
         expect(html).not.toContain('<b>Halloween');
@@ -44,7 +45,7 @@ describe('JellyUX block of Preferences > Home (F-36)', () => {
     it('sits under the native Home section and hides the native section selects while JellyUX is on', () => {
         const form = nativeForm();
 
-        _render(form, settings, 'u1', labels.en);
+        _render(form, settings, 'u1', english());
 
         const block = form.querySelector('.jux-user-settings');
         expect(block.previousElementSibling.querySelector('#selectHomeSection1')).not.toBeNull();
@@ -63,7 +64,7 @@ describe('JellyUX block of Preferences > Home (F-36)', () => {
         const form = nativeForm();
         const ajax = vi.fn(() => Promise.resolve());
         window.ApiClient = { getUrl: (route, query) => route + '?userId=' + query.userId, getCurrentUserId: () => 'u1', ajax };
-        _render(form, settings, 'u1', labels.en);
+        _render(form, settings, 'u1', english());
         form.querySelector('.jux-user-enabled').checked = false;
 
         form.dispatchEvent(new Event('submit', { cancelable: true }));
@@ -83,7 +84,7 @@ describe('JellyUX block of Preferences > Home (F-36)', () => {
         const rebuild = vi.fn();
         home.addEventListener('settingschange', rebuild);
         window.ApiClient = { getUrl: (route) => route, getCurrentUserId: () => 'u1', ajax: () => Promise.resolve() };
-        _render(form, settings, 'u1', labels.en);
+        _render(form, settings, 'u1', english());
 
         form.dispatchEvent(new Event('submit', { cancelable: true }));
         await new Promise((r) => setTimeout(r, 0));
@@ -95,7 +96,7 @@ describe('JellyUX block of Preferences > Home (F-36)', () => {
         const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
         const form = nativeForm();
         window.ApiClient = { getUrl: (route) => route, getCurrentUserId: () => 'u1', ajax: () => Promise.reject(new Error('offline')) };
-        _render(form, settings, 'u1', labels.en);
+        _render(form, settings, 'u1', english());
 
         form.dispatchEvent(new Event('submit', { cancelable: true }));
         await new Promise((r) => setTimeout(r, 0));

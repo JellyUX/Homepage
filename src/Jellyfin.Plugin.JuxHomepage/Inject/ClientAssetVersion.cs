@@ -8,11 +8,13 @@ namespace Jellyfin.Plugin.JuxHomepage.Inject;
 /// Cache key of the client assets: a short hash of their embedded contents. Used as the <c>?v=</c>
 /// parameter of every asset URL in index.html, so the URL changes whenever any asset changes, which
 /// is what makes serving them as <c>immutable</c> safe, including for local builds that keep the
-/// same assembly version.
+/// same assembly version. The language files count too: <c>jux-i18n.js</c> is built from them.
 /// </summary>
 internal static class ClientAssetVersion
 {
     private const string AssetMarker = ".Web.jux-";
+
+    private const string LanguageMarker = ".Localization.";
 
     private const int KeyLength = 12;
 
@@ -36,8 +38,9 @@ internal static class ClientAssetVersion
     {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         var names = assembly.GetManifestResourceNames()
-            .Where(n => n.Contains(AssetMarker, StringComparison.Ordinal)
-                && (n.EndsWith(".js", StringComparison.Ordinal) || n.EndsWith(".css", StringComparison.Ordinal)))
+            .Where(n => (n.Contains(AssetMarker, StringComparison.Ordinal)
+                    && (n.EndsWith(".js", StringComparison.Ordinal) || n.EndsWith(".css", StringComparison.Ordinal)))
+                || (n.Contains(LanguageMarker, StringComparison.Ordinal) && n.EndsWith(".json", StringComparison.Ordinal)))
             .OrderBy(n => n, StringComparer.Ordinal);
 
         foreach (var name in names)

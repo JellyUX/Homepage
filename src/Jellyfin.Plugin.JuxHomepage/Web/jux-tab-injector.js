@@ -19,10 +19,10 @@ if (typeof window.juxTabInjector === 'undefined') {
         // find the (always-present) pane and wrongly conclude the button already existed, so no
         // button was ever created. Bug found by live DOM inspection on jellyux-test.
         tabs: [
-            { buttonId: 'jux-tabbtn-watchlist', paneId: 'jux-tab-watchlist', labelEn: 'Watchlist', labelFr: 'Watchlist' },
-            { buttonId: 'jux-tabbtn-progress', paneId: 'jux-tab-progress', labelEn: 'Progress', labelFr: 'Progression' },
-            { buttonId: 'jux-tabbtn-history', paneId: 'jux-tab-history', labelEn: 'History', labelFr: 'Historique' },
-            { buttonId: 'jux-tabbtn-statistics', paneId: 'jux-tab-statistics', labelEn: 'Statistics', labelFr: 'Statistiques', shortEn: 'Stats', shortFr: 'Stats' }
+            { buttonId: 'jux-tabbtn-watchlist', paneId: 'jux-tab-watchlist', label: 'client.tabs.watchlist' },
+            { buttonId: 'jux-tabbtn-progress', paneId: 'jux-tab-progress', label: 'client.tabs.progress' },
+            { buttonId: 'jux-tabbtn-history', paneId: 'jux-tab-history', label: 'client.tabs.history' },
+            { buttonId: 'jux-tabbtn-statistics', paneId: 'jux-tab-statistics', label: 'client.tabs.statistics', shortLabel: 'client.tabs.statisticsShort' }
         ],
 
         init: function () {
@@ -54,8 +54,6 @@ if (typeof window.juxTabInjector === 'undefined') {
                 return;
             }
 
-            var lang = (document.documentElement.lang || 'en').toLowerCase().indexOf('fr') === 0 ? 'fr' : 'en';
-
             this.tabs.forEach(function (tab) {
                 if (document.getElementById(tab.buttonId)) {
                     return;
@@ -68,11 +66,10 @@ if (typeof window.juxTabInjector === 'undefined') {
 
                 var title = document.createElement('div');
                 title.className = 'emby-button-foreground';
-                title.appendChild(_label('jux-tab-label', lang === 'fr' ? tab.labelFr : tab.labelEn));
+                title.appendChild(_label('jux-tab-label', window.JuxCore.t(tab.label)));
                 // A narrow screen shows the short label instead (jux-ui.css), so more tabs fit (F-47).
-                var shortLabel = lang === 'fr' ? tab.shortFr : tab.shortEn;
-                if (shortLabel) {
-                    title.appendChild(_label('jux-tab-label-short', shortLabel));
+                if (tab.shortLabel) {
+                    title.appendChild(_label('jux-tab-label-short', window.JuxCore.t(tab.shortLabel)));
                     title.firstChild.classList.add('jux-tab-label-long');
                 }
 

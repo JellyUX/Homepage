@@ -79,6 +79,17 @@ public sealed class LocalizationServiceTests
         });
 
     [Fact]
+    public void RealEmbeddedLanguageFiles_AreAllLoaded_AndGiveTheClientTheSameKeys()
+    {
+        // TODO_V4.md 9.4 (F-64): every embedded Localization/<lang>.json is a language, no list to edit.
+        var client = new LocalizationService(NullLogger<LocalizationService>.Instance).GetClientDictionaries();
+
+        Assert.Equal(["en", "fr"], client.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(client["en"].Keys.Order(StringComparer.Ordinal), client["fr"].Keys.Order(StringComparer.Ordinal));
+        Assert.True(client["en"].Count > 80);
+    }
+
+    [Fact]
     public void Translate_KeyPresentInRequestedLanguage_ReturnsTranslatedValue()
     {
         var service = BuildService();

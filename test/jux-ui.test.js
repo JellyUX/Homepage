@@ -3,6 +3,15 @@ import juxUi from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-ui.js';
 
 const { showEmpty, buildProgressBar, buildStatCard, createListTab, labelFor, openSortDialog, openOptionsDialog, _buildRadio, _buildRadioGroup } = juxUi;
 
+// Registers the labels of a test tab as client.<name>.* English keys, as Localization/en.json holds
+// those of the real tabs, and returns the scope createListTab reads them by.
+function scope(name, text) {
+    Object.entries(text).forEach(([key, value]) => {
+        window.JuxI18n.en['client.' + name + '.' + key] = value;
+    });
+    return name;
+}
+
 describe('showEmpty', () => {
     it('renders an icon, title, and subtitle into the container', () => {
         document.body.innerHTML = '<div id="pane"></div>';
@@ -159,7 +168,7 @@ describe('labelFor', () => {
 });
 
 describe('createListTab (F-35)', () => {
-    const labels = { en: { title: 'Things', empty: 'No things', emptySubtitle: 'Add some.', sortName: 'Name', all: 'All', kindDialog: 'Kind' } };
+    const labels = scope('things', { title: 'Things', empty: 'No things', emptySubtitle: 'Add some.', sortName: 'Name', all: 'All', kindDialog: 'Kind' });
 
     function makeTab(extra) {
         return createListTab(Object.assign({
@@ -251,12 +260,12 @@ describe('createListTab (F-35)', () => {
         await Promise.resolve(); await Promise.resolve();
 
         expect(getCardsHtml.mock.calls[0][0]).toMatchObject({ items: [{ Id: 'a' }], shape: 'portrait', showParentTitle: true });
-        expect(decorate).toHaveBeenCalledWith(document.querySelector('.jux-things-items'), [{ Item: { Id: 'a' } }], labels.en);
+        expect(decorate).toHaveBeenCalledWith(document.querySelector('.jux-things-items'), [{ Item: { Id: 'a' } }], window.JuxCore.labels('things'));
     });
 });
 
 describe('createListTab paging (F-54)', () => {
-    const labels = { en: { title: 'Things', empty: 'No things', emptySubtitle: 'Add some.', sortName: 'Name' } };
+    const labels = scope('things', { title: 'Things', empty: 'No things', emptySubtitle: 'Add some.', sortName: 'Name' });
 
     function rows(from, count) {
         return Array.from({ length: count }, (_, i) => ({ Id: 'i' + (from + i) }));
@@ -318,7 +327,7 @@ describe('createListTab paging (F-54)', () => {
 });
 
 describe('createListTab search (F-55)', () => {
-    const labels = { en: { title: 'Things', empty: 'No things', emptySubtitle: 'Add some.', sortName: 'Name' } };
+    const labels = scope('things', { title: 'Things', empty: 'No things', emptySubtitle: 'Add some.', sortName: 'Name' });
 
     beforeEach(() => {
         vi.useFakeTimers();
@@ -393,7 +402,7 @@ describe('createListTab failure (F-40)', () => {
         const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
         const tab = createListTab({
             id: 'things', endpoint: 'JuxHomepage/Things/Items', logName: 'Things',
-            labels: { en: { title: 'Things', empty: 'No things', sortName: 'Name' } },
+            labels: scope('things', { title: 'Things', empty: 'No things', sortName: 'Name' }),
             state: { sortBy: 'Name', sortOrder: 'Ascending' },
             sortOptions: (t) => [{ value: 'Name', label: t.sortName }],
             emptyIcon: 'inbox'

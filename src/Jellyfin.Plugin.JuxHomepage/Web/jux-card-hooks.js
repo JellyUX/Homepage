@@ -19,11 +19,6 @@
         return;
     }
 
-    var _labels = {
-        en: { add: 'Add to watchlist', remove: 'Remove from watchlist' },
-        fr: { add: 'Ajouter à la watchlist', remove: 'Retirer de la watchlist' }
-    };
-
     // How long a captured "More" menu context stays valid -- the action-sheet observer fires
     // within a frame or two of the menu opening; this just bounds how stale a context can be.
     var MENU_CONTEXT_TTL_MS = 5000;
@@ -401,7 +396,8 @@
             icon.className = 'material-icons ' + _iconName(isLiked);
         }
 
-        var label = isLiked ? _labels[lang].remove : _labels[lang].add;
+        var text = window.JuxCore.labels('cardhooks', lang);
+        var label = isLiked ? text.remove : text.add;
         el.title = label;
 
         var textEl = el.querySelector('.actionSheetItemText');

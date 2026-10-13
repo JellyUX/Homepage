@@ -28,11 +28,6 @@
 
     var _supportedTypes = ['Movie', 'Series', 'Season', 'Episode', 'MusicArtist', 'MusicAlbum', 'Audio'];
 
-    var _labels = {
-        en: { seasonFallback: 'Season {number}' },
-        fr: { seasonFallback: 'Saison {number}' }
-    };
-
     window.juxBreadcrumb = {
         init: function () {
             // Leaving a detail page still renders once, which hides the breadcrumb.
@@ -56,7 +51,7 @@
     function _seasonFallbackName(item) {
         var lang = window.JuxCore.resolveLang();
         var number = item && item.IndexNumber != null ? item.IndexNumber : 1;
-        return _labels[lang].seasonFallback.replace('{number}', String(number));
+        return window.JuxCore.labels('breadcrumb', lang).seasonFallback.replace('{number}', String(number));
     }
 
     function _episodeLabel(item) {

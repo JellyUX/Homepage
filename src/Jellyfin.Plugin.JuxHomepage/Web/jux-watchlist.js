@@ -11,37 +11,6 @@
         return;
     }
 
-    var _labels = {
-        en: {
-            title: 'Watchlist',
-            empty: 'Your watchlist is empty',
-            emptySubtitle: 'Items you bookmark from a card, the "More" menu, or the detail page show up here.',
-            sortName: 'Name',
-            sortDateAdded: 'Date Added',
-            sortReleaseDate: 'Release Date',
-            sortCommunityRating: 'Community Rating',
-            sortDialogTitle: 'Sort Watchlist',
-            typeAll: 'All',
-            typeMovie: 'Movies',
-            typeSeries: 'Series',
-            typeDialogTitle: 'Filter by Type'
-        },
-        fr: {
-            title: 'Watchlist',
-            empty: 'Ta watchlist est vide',
-            emptySubtitle: 'Les items que tu ajoutes depuis une carte, le menu "More" ou la page de détail apparaissent ici.',
-            sortName: 'Nom',
-            sortDateAdded: 'Date d’ajout',
-            sortReleaseDate: 'Date de sortie',
-            sortCommunityRating: 'Note communauté',
-            sortDialogTitle: 'Trier la Watchlist',
-            typeAll: 'Tous',
-            typeMovie: 'Films',
-            typeSeries: 'Séries',
-            typeDialogTitle: 'Filtrer par type'
-        }
-    };
-
     function _sortOptions(t) {
         return [
             { value: 'DateAdded', label: t.sortDateAdded },
@@ -63,7 +32,7 @@
         id: 'watchlist',
         endpoint: 'JuxHomepage/Watchlist/Items',
         logName: 'Watchlist',
-        labels: _labels,
+        labels: 'watchlist',
         state: { sortBy: 'DateAdded', sortOrder: 'Descending', includeItemTypes: 'All' },
         sortOptions: _sortOptions,
         filters: [{ name: 'type', key: 'includeItemTypes', icon: 'filter_list', titleKey: 'typeDialogTitle', options: _typeOptions }],

@@ -1,8 +1,8 @@
 namespace Jellyfin.Plugin.JuxHomepage.Localization;
 
 /// <summary>
-/// Resolves translation keys (widget type identifiers and admin UI strings) to French or English
-/// text, loaded from embedded JSON language files.
+/// Resolves translation keys (widget type identifiers, admin UI and client strings) to text, loaded
+/// from the JSON language files embedded in the plugin (<c>Localization/&lt;lang&gt;.json</c>).
 /// </summary>
 public interface ILocalizationService
 {
@@ -41,4 +41,12 @@ public interface ILocalizationService
     /// <param name="lang">The requested language code, or null to use the default (English).</param>
     /// <returns>The merged dictionary for the requested language.</returns>
     IReadOnlyDictionary<string, string> GetDictionary(string? lang);
+
+    /// <summary>
+    /// Returns the strings of the client scripts (the <c>client.*</c> keys) of every loaded language,
+    /// served to the browser as <c>jux-i18n.js</c> (TODO_V4.md 9.4, F-64). Each dictionary holds only
+    /// the keys its file defines: the client falls back to English key by key.
+    /// </summary>
+    /// <returns>The client keys of each language, by short language code.</returns>
+    IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> GetClientDictionaries();
 }

@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Security.Claims;
+using System.Text.Json;
 using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.Controllers;
@@ -354,6 +355,23 @@ public sealed class JuxHomepageControllerTests
     public void GetAsset_MatchesTheFileNameCaseInsensitively()
     {
         Assert.IsType<FileStreamResult>(InvokeGetAsset("JUX-HOMEPAGE.JS", query: null, out _));
+    }
+
+    [Fact]
+    public void GetAsset_ServesTheGeneratedLabelsScript_WithTheClientKeysOfEveryLanguage()
+    {
+        // TODO_V4.md 9.4 (F-64): jux-i18n.js is built from Localization/<lang>.json, not embedded as is.
+        var result = Assert.IsType<ContentResult>(InvokeGetAsset("jux-i18n.js", query: null, out var response));
+        Assert.Equal(JavaScript, result.ContentType);
+        Assert.NotNull(response.Headers.CacheControl.ToString());
+
+        var script = JuxHomepageController.ClientI18nScript(new LocalizationService(NullLogger<LocalizationService>.Instance));
+        const string Prefix = "window.JuxI18n = ";
+        Assert.StartsWith(Prefix, script);
+        using var json = JsonDocument.Parse(script[Prefix.Length..script.LastIndexOf(';')]);
+        Assert.Equal("Load more", json.RootElement.GetProperty("en").GetProperty("client.list.more").GetString());
+        Assert.Equal("Charger plus", json.RootElement.GetProperty("fr").GetProperty("client.list.more").GetString());
+        Assert.All(json.RootElement.GetProperty("en").EnumerateObject(), p => Assert.StartsWith("client.", p.Name, StringComparison.Ordinal));
     }
 
     [Theory]

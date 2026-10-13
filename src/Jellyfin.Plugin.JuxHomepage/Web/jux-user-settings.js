@@ -17,27 +17,6 @@
         return;
     }
 
-    var _labels = {
-        en: {
-            title: 'JellyUX',
-            enabled: 'Use JellyUX',
-            enabledHelp: 'Untick to get Jellyfin’s own home screen, tabs and pages back for your account.',
-            sections: 'Sections on my home screen',
-            sectionsHelp: 'These sections replace the “Home screen section” lists above, which are hidden while JellyUX is on.',
-            empty: 'Your administrator has not let you change any section.',
-            saveFailed: 'JellyUX settings could not be saved. Check your connection, then save again.'
-        },
-        fr: {
-            title: 'JellyUX',
-            enabled: 'Utiliser JellyUX',
-            enabledHelp: 'Décoche pour retrouver l’accueil, les onglets et les pages de Jellyfin sur ton compte.',
-            sections: 'Sections de mon accueil',
-            sectionsHelp: 'Ces sections remplacent les listes « Section de l’écran d’accueil » ci-dessus, masquées tant que JellyUX est actif.',
-            empty: 'Ton administrateur ne t’a laissé modifier aucune section.',
-            saveFailed: 'Impossible d’enregistrer les réglages JellyUX. Vérifie ta connexion, puis enregistre à nouveau.'
-        }
-    };
-
     var _attempts = 0;
 
     window.juxUserSettings = {
@@ -88,7 +67,7 @@
             if (!form.isConnected || form.querySelector('.jux-user-settings')) {
                 return;
             }
-            _render(form, settings, userId, _labels[lang] || _labels.en);
+            _render(form, settings, userId, window.JuxCore.labels('usersettings', lang));
         }).catch(function (err) {
             console.error('[JellyUX] Failed to load the JellyUX settings:', err);
         });
@@ -200,7 +179,7 @@
     }
 
     if (typeof module !== 'undefined' && module.exports) {
-        module.exports = { _blockHtml: _blockHtml, _render: _render, _save: _save, _pageUserId: _pageUserId, labels: _labels };
+        module.exports = { _blockHtml: _blockHtml, _render: _render, _save: _save, _pageUserId: _pageUserId };
     }
 
     window.juxUserSettings.init();

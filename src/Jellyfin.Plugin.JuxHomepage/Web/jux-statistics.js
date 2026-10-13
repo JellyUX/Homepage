@@ -15,29 +15,6 @@
         return;
     }
 
-    var _labels = {
-        en: {
-            title: 'Statistics',
-            moviesWatched: 'Movies watched',
-            seriesTracked: 'Series tracked',
-            seriesCompleted: 'Series completed',
-            episodesWatched: 'Episodes watched',
-            topSeries: 'Most watched series',
-            topSeriesEpisodes: '{watched} of {total} episodes ({percent}%)',
-            seeProgress: 'See progress'
-        },
-        fr: {
-            title: 'Statistiques',
-            moviesWatched: 'Films vus',
-            seriesTracked: 'Séries suivies',
-            seriesCompleted: 'Séries terminées',
-            episodesWatched: 'Épisodes vus',
-            topSeries: 'Séries les plus regardées',
-            topSeriesEpisodes: '{watched} sur {total} épisodes ({percent} %)',
-            seeProgress: 'Voir la progression'
-        }
-    };
-
     window.juxStatistics = {
         init: function () {
             var self = this;
@@ -81,7 +58,7 @@
             }).catch(function (err) {
                 console.error('[JellyUX] Statistics fetch failed:', err);
                 window.JuxCore.showError(body, {
-                    name: _labels[lang].title,
+                    name: window.JuxCore.labels('statistics', lang).title,
                     onRetry: function () { self.render(); }
                 });
             });
@@ -89,11 +66,11 @@
     };
 
     function _buildTitleHtml(lang) {
-        return '<h2 class="sectionTitle sectionTitle-cards jux-section-title-container padded-left padded-right">' + window.JuxCore.escHtml(_labels[lang].title) + '</h2>';
+        return '<h2 class="sectionTitle sectionTitle-cards jux-section-title-container padded-left padded-right">' + window.JuxCore.escHtml(window.JuxCore.labels('statistics', lang).title) + '</h2>';
     }
 
     function _buildTilesHtml(stats, lang) {
-        var t = _labels[lang];
+        var t = window.JuxCore.labels('statistics', lang);
         var buildCard = (typeof window !== 'undefined' && window.JuxUI) ? window.JuxUI.buildStatCard : _fallbackTile;
 
         return '<div class="jux-statistics-tiles padded-left padded-right">' +
@@ -112,7 +89,7 @@
             return '';
         }
 
-        var t = _labels[lang];
+        var t = window.JuxCore.labels('statistics', lang);
         var esc = window.JuxCore.escHtml;
         var html = '<section class="jux-top-series padded-left padded-right" aria-labelledby="jux-top-series-title">' +
             '<h3 class="jux-top-series-title" id="jux-top-series-title">' + esc(t.topSeries) + '</h3>' +

@@ -94,13 +94,15 @@ public static class TransformationPatches
     private static readonly string[] HomeTabIds = ["jux-tab-watchlist", "jux-tab-progress", "jux-tab-history", "jux-tab-statistics"];
 
     // Every client asset index.html can reference, in document order: deferred scripts execute in
-    // this order, so jux-core.js comes first (every script reads window.JuxCore) and jux-ui.js must
+    // this order, so jux-i18n.js and jux-core.js come first (every script reads window.JuxCore, whose
+    // labels come from window.JuxI18n) and jux-ui.js must
     // stay before the scripts that consume window.JuxUI. Module null marks the core assets, loaded
     // whenever the plugin is enabled; jux-ui is loaded only when an active asset declares UsesJuxUi.
     private static readonly ClientAsset[] ClientAssets =
     [
         new("jux-homepage.css", IsStylesheet: true, Module: null),
         new("jux-ui.css", IsStylesheet: true, Module: null, IsJuxUi: true),
+        new(ClientI18nAsset, IsStylesheet: false, Module: null),
         new("jux-core.js", IsStylesheet: false, Module: null),
         new("jux-homepage.js", IsStylesheet: false, Module: null),
         new("jux-user-settings.js", IsStylesheet: false, Module: null),
@@ -117,6 +119,12 @@ public static class TransformationPatches
     ];
 
     private static readonly string[] ServedAssets = [.. ClientAssets.Select(a => a.FileName)];
+
+    /// <summary>
+    /// The client labels script (TODO_V4.md 9.4, F-64): not an embedded file but generated from the
+    /// embedded language files by the asset endpoint.
+    /// </summary>
+    internal const string ClientI18nAsset = "jux-i18n.js";
 
     /// <summary>
     /// Resolves a requested file name against the served client assets, the only embedded files the

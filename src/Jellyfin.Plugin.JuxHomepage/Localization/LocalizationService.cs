@@ -5,8 +5,8 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.JuxHomepage.Localization;
 
 /// <summary>
-/// Reads JSON language files embedded in this plugin's assembly (<c>Localization/fr.json</c>,
-/// <c>Localization/en.json</c>) and resolves translation keys against them.
+/// Reads the JSON language files embedded in this plugin's assembly (<c>Localization/&lt;lang&gt;.json</c>,
+/// every file a language: adding <c>de.json</c> adds German) and resolves translation keys against them.
 /// <para>
 /// Degrades gracefully like <see cref="TMDb.TMDbApiClient"/>: a missing or malformed language file
 /// never throws, it just yields an empty dictionary for that language (logged as a warning), so a
@@ -22,21 +22,25 @@ public sealed class LocalizationService : ILocalizationService
 
     private const string DefaultLanguage = "en";
 
+    private const string ClientKeyPrefix = "client.";
+
+    private static readonly string ResourcePrefix = $"{typeof(LocalizationService).Namespace}.";
+
     private readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> _dictionaries;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="LocalizationService"/> class, loading
-    /// <c>fr.json</c>/<c>en.json</c> from this assembly's embedded resources.
+    /// Initializes a new instance of the <see cref="LocalizationService"/> class, loading every
+    /// <c>Localization/&lt;lang&gt;.json</c> embedded in this assembly.
     /// </summary>
     /// <param name="logger">Logger.</param>
     public LocalizationService(ILogger<LocalizationService> logger)
     {
         var assembly = typeof(LocalizationService).Assembly;
-        _dictionaries = new Dictionary<string, IReadOnlyDictionary<string, string>>
-        {
-            ["fr"] = LoadFromEmbeddedResource(assembly, "fr.json", logger),
-            ["en"] = LoadFromEmbeddedResource(assembly, "en.json", logger)
-        };
+        _dictionaries = assembly.GetManifestResourceNames()
+            .Where(n => n.StartsWith(ResourcePrefix, StringComparison.Ordinal) && n.EndsWith(".json", StringComparison.Ordinal))
+            .ToDictionary(
+                n => n[ResourcePrefix.Length..^".json".Length].ToLowerInvariant(),
+                n => LoadFromEmbeddedResource(assembly, n, logger));
     }
 
     /// <summary>
@@ -87,6 +91,14 @@ public sealed class LocalizationService : ILocalizationService
         return merged;
     }
 
+    /// <inheritdoc/>
+    public IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> GetClientDictionaries() =>
+        _dictionaries.ToDictionary(
+            d => d.Key,
+            d => (IReadOnlyDictionary<string, string>)d.Value
+                .Where(e => e.Key.StartsWith(ClientKeyPrefix, StringComparison.Ordinal))
+                .ToDictionary(e => e.Key, e => e.Value));
+
     /// <inheritdoc />
     public string NormalizeLanguage(string? lang)
     {
@@ -106,20 +118,12 @@ public sealed class LocalizationService : ILocalizationService
 
     private static IReadOnlyDictionary<string, string> LoadFromEmbeddedResource(
         Assembly assembly,
-        string suffix,
+        string name,
         ILogger logger)
     {
+        var suffix = name[ResourcePrefix.Length..];
         try
         {
-            var name = assembly.GetManifestResourceNames()
-                .FirstOrDefault(n => n.EndsWith(suffix, StringComparison.OrdinalIgnoreCase));
-
-            if (name is null)
-            {
-                logger.LogWarning("Localization file '{Suffix}' not found among embedded resources.", suffix);
-                return new Dictionary<string, string>();
-            }
-
             using var stream = assembly.GetManifestResourceStream(name);
             if (stream is null)
             {

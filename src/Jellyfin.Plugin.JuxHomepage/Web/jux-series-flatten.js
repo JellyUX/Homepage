@@ -35,11 +35,6 @@
         }
     };
 
-    var _labels = {
-        en: { seasonFallback: 'Season {number}' },
-        fr: { seasonFallback: 'Saison {number}' }
-    };
-
     function _shouldFlatten(item) {
         return !!item && item.Type === 'Series' && item.ChildCount === 1;
     }
@@ -50,7 +45,7 @@
             return episode.SeasonName;
         }
         var number = episode && episode.ParentIndexNumber != null ? episode.ParentIndexNumber : 1;
-        return _labels[lang].seasonFallback.replace('{number}', String(number));
+        return window.JuxCore.labels('seriesflatten', lang).seasonFallback.replace('{number}', String(number));
     }
 
     function _findSeasonsContainer(activePage) {

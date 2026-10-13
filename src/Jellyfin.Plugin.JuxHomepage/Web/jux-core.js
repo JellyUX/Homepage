@@ -114,42 +114,66 @@
         });
     }
 
-    function resolveLang() {
-        return (document.documentElement.lang || 'en').toLowerCase().indexOf('fr') === 0 ? 'fr' : 'en';
+    // Labels (TODO_V4.md 9.4, F-64): the client strings live in Localization/<lang>.json under
+    // "client.*" keys, served by jux-i18n.js (window.JuxI18n, one dictionary per language), injected
+    // before this script. A key missing from the user's language falls back to English.
+    function _dictionaries() {
+        return window.JuxI18n || {};
+    }
+
+    // The language of the labels: the web client's language when JellyUX has a dictionary for it,
+    // English otherwise. lang overrides the page language (a document other than this one).
+    function resolveLang(lang) {
+        var code = String(lang === undefined ? document.documentElement.lang || 'en' : lang || 'en')
+            .toLowerCase().split('-')[0];
+        return Object.prototype.hasOwnProperty.call(_dictionaries(), code) ? code : 'en';
+    }
+
+    // One label, its {name} placeholders filled from params; the key itself when no language has it.
+    function t(key, params, lang) {
+        var dictionaries = _dictionaries();
+        var own = dictionaries[resolveLang(lang)] || {};
+        var english = dictionaries.en || {};
+        var text = Object.prototype.hasOwnProperty.call(own, key) ? own[key]
+            : Object.prototype.hasOwnProperty.call(english, key) ? english[key] : key;
+        Object.keys(params || {}).forEach(function (name) {
+            text = text.split('{' + name + '}').join(String(params[name]));
+        });
+        return text;
+    }
+
+    // Every label of a script, "client.<scope>.<name>" read as labels(scope).name.
+    function labels(scope, lang) {
+        var prefix = 'client.' + scope + '.';
+        var dictionaries = _dictionaries();
+        var result = {};
+        [dictionaries.en || {}, dictionaries[resolveLang(lang)] || {}].forEach(function (dictionary) {
+            Object.keys(dictionary).forEach(function (key) {
+                if (key.indexOf(prefix) === 0) {
+                    result[key.slice(prefix.length)] = dictionary[key];
+                }
+            });
+        });
+        return result;
     }
 
     // Error state (TODO_V4.md 5.2, F-40): what a failed request shows instead of an empty state, so
     // an outage never reads as "nothing here". Here rather than in jux-ui.js because the home
     // sections need it with the tabs module off. The retry button reuses Jellyfin's own raised
     // button (emby-button), measured live on 10.11.10.
-    var _errorLabels = {
-        en: {
-            title: 'Couldn’t load {name}',
-            section: 'This section couldn’t be loaded.',
-            subtitle: 'The server did not respond. Check your connection, then try again.',
-            retry: 'Retry'
-        },
-        fr: {
-            title: 'Impossible de charger {name}',
-            section: 'Impossible de charger cette section.',
-            subtitle: 'Le serveur n’a pas répondu. Vérifie ta connexion, puis réessaie.',
-            retry: 'Réessayer'
-        }
-    };
-
     // options: { name } for a full-pane error naming what failed, or { compact: true } for one line
     // inside a home section.
     function errorHtml(options) {
-        var t = _errorLabels[resolveLang()];
+        var text = labels('error');
         var compact = !!(options && options.compact);
-        var title = compact ? t.section : t.title.replace('{name}', (options && options.name) || '');
+        var title = compact ? text.section : text.title.replace('{name}', (options && options.name) || '');
         return '<div class="jux-error-state' + (compact ? ' jux-error-state-compact' : '') + '" role="alert">' +
             '<span class="material-icons error jux-error-icon" aria-hidden="true"></span>' +
             '<div class="jux-error-text">' +
             '<div class="jux-error-title">' + escHtml(title) + '</div>' +
-            (compact ? '' : '<div class="jux-error-subtitle">' + escHtml(t.subtitle) + '</div>') +
+            (compact ? '' : '<div class="jux-error-subtitle">' + escHtml(text.subtitle) + '</div>') +
             '</div>' +
-            '<button is="emby-button" type="button" class="raised emby-button jux-error-retry"><span>' + escHtml(t.retry) + '</span></button>' +
+            '<button is="emby-button" type="button" class="raised emby-button jux-error-retry"><span>' + escHtml(text.retry) + '</span></button>' +
             '</div>';
     }
 
@@ -257,6 +281,8 @@
         getIncludedIn: getIncludedIn,
         observeCardImages: observeCardImages,
         resolveLang: resolveLang,
+        t: t,
+        labels: labels,
         errorHtml: errorHtml,
         showError: showError
     };

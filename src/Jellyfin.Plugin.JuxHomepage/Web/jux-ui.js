@@ -39,11 +39,6 @@
     // 100, so the tabs used to stop at the first 100 rows without saying so.
     var PAGE_SIZE = 50;
 
-    var _listLabels = {
-        en: { count: '{shown} of {total}', more: 'Load more', search: 'Search', noResults: 'No results for "{term}"' },
-        fr: { count: '{shown} sur {total}', more: 'Charger plus', search: 'Rechercher', noResults: 'Aucun résultat pour « {term} »' }
-    };
-
     // The search field waits this long after the last keystroke before asking the server (F-55).
     var SEARCH_DELAY_MS = 300;
 
@@ -70,7 +65,7 @@
     //   id          'watchlist' -> #jux-tabbtn-watchlist, #jux-tab-watchlist, .jux-watchlist-items
     //   endpoint    JellyUX route of the rows ({ Items: [...] })
     //   logName     name used in console errors
-    //   labels      { en: {...}, fr: {...} }, with title, empty, emptySubtitle, sortDialogTitle
+    //   labels      the label scope, "watchlist" for the client.watchlist.* keys (JuxCore.labels), with title, empty, emptySubtitle, sortDialogTitle
     //   state       initial { sortBy, sortOrder, <filter keys> }
     //   sortOptions function (t) -> [{ value, label }]
     //   filters     [{ name, key, icon, titleKey, options: function (t) }] (optional)
@@ -152,7 +147,7 @@
                         return;
                     }
                     if (list.rows.length === 0) {
-                        window.JuxCore.showError(list.items, { name: config.labels[list.lang].title, onRetry: tab.render });
+                        window.JuxCore.showError(list.items, { name: window.JuxCore.labels(config.labels, list.lang).title, onRetry: tab.render });
                     } else {
                         window.JuxCore.showError(list.sections.querySelector('.jux-list-footer'), {
                             compact: true,
@@ -174,7 +169,7 @@
                     return;
                 }
 
-                var t = _listLabels[list.lang] || _listLabels.en;
+                var t = window.JuxCore.labels('list', list.lang);
                 var html = '<span class="jux-list-count">' + window.JuxCore.escHtml(
                     t.count.replace('{shown}', list.rows.length).replace('{total}', list.total)) + '</span>';
                 if (list.rows.length < list.total) {
@@ -201,7 +196,7 @@
             },
 
             buildShellHtml: function (lang, state) {
-                var t = config.labels[lang];
+                var t = window.JuxCore.labels(config.labels, lang);
                 var html = '<h2 class="sectionTitle sectionTitle-cards jux-section-title-container padded-left padded-right">' + window.JuxCore.escHtml(t.title) + '</h2>' +
                     (config.header ? '<div class="jux-list-header jux-statistics-tiles padded-left padded-right"></div>' : '') +
                     '<div class="jux-view-controls padded-left padded-right">' +
@@ -209,7 +204,7 @@
                 filters.forEach(function (filter) {
                     html += _listButtonHtml('jux-' + config.id + '-' + filter.name + '-btn', filter.icon, labelFor(filter.options(t), state[filter.key]));
                 });
-                var searchLabel = (_listLabels[lang] || _listLabels.en).search;
+                var searchLabel = window.JuxCore.labels('list', lang).search;
                 html += '<label class="jux-list-search">' +
                     '<span class="material-icons search" aria-hidden="true"></span>' +
                     '<input type="search" class="jux-list-search-input" id="jux-' + config.id + '-search" autocomplete="off" maxlength="100"' +
@@ -226,10 +221,10 @@
                     return;
                 }
 
-                var t = config.labels[lang];
+                var t = window.JuxCore.labels(config.labels, lang);
                 if (rows.length === 0) {
                     if (tab.state.searchTerm) {
-                        var noResults = (_listLabels[lang] || _listLabels.en).noResults.replace('{term}', tab.state.searchTerm);
+                        var noResults = window.JuxCore.labels('list', lang).noResults.replace('{term}', tab.state.searchTerm);
                         showEmpty(itemsContainer, { icon: 'search_off', title: noResults });
                     } else {
                         showEmpty(itemsContainer, { icon: config.emptyIcon, title: t.empty, subtitle: t.emptySubtitle });
@@ -276,7 +271,7 @@
     }
 
     function _wireListControls(sections, tab, config, filters, lang) {
-        var t = config.labels[lang];
+        var t = window.JuxCore.labels(config.labels, lang);
         var sortBtn = sections.querySelector('#jux-' + config.id + '-sort-btn');
         if (sortBtn) {
             sortBtn.addEventListener('click', function () {
@@ -420,11 +415,11 @@
 
     // Accessible name of the bar, e.g. "21/30 episodes" (F-49): numbers only, nothing to escape.
     function _progressLabel(watched, total) {
-        return watched + '/' + total + (window.JuxCore.resolveLang() === 'fr' ? ' épisodes' : ' episodes');
+        return window.JuxCore.t('client.list.progress', { watched: watched, total: total });
     }
 
     function _completeLabel() {
-        return window.JuxCore.resolveLang() === 'fr' ? 'Terminé' : 'Complete';
+        return window.JuxCore.t('client.list.complete');
     }
 
     // -------------------------------------------------------------------------
@@ -577,10 +572,10 @@
     }
 
     function _defaultOrderOptions() {
-        var lang = window.JuxCore.resolveLang();
-        return lang === 'fr'
-            ? [{ value: 'Descending', label: 'Décroissant' }, { value: 'Ascending', label: 'Croissant' }]
-            : [{ value: 'Descending', label: 'Descending' }, { value: 'Ascending', label: 'Ascending' }];
+        return [
+            { value: 'Descending', label: window.JuxCore.t('client.list.descending') },
+            { value: 'Ascending', label: window.JuxCore.t('client.list.ascending') }
+        ];
     }
 
     function _buildRadioGroup(options, currentValue, groupName) {

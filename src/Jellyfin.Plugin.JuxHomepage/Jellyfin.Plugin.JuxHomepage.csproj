@@ -26,8 +26,7 @@
     <EmbeddedResource Include="Web\*.js" />
     <EmbeddedResource Include="Web\*.css" />
     <EmbeddedResource Include="Web\*.html" />
-    <EmbeddedResource Include="Localization\fr.json" />
-    <EmbeddedResource Include="Localization\en.json" />
+    <EmbeddedResource Include="Localization\*.json" />
   </ItemGroup>
 
   <ItemGroup>
