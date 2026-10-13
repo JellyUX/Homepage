@@ -9,11 +9,12 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets.Connected;
 
 /// <summary>
 /// A configurable seasonal widget that shows library items during a recurring, admin-configured
-/// <c>MM-dd</c> date window (e.g. Halloween, Christmas), optionally filtered by genre and/or tag.
+/// <c>MM-dd</c> date window (e.g. Halloween, Christmas), filtered by genres and/or tags. A section with
+/// neither is hidden (TODO_V4.md 9.2, F-60).
 /// <para>
 /// Classified as <see cref="WidgetCategory.Admin"/>: the category names the data source, here the
 /// local library (TODO_V4.md 6.4, F-37). The configuration page picks this widget's custom editor
-/// (theme, start/end date, optional genre, optional tag) by its <see cref="WidgetType"/>, not by its
+/// (theme, start/end date, genres, tags) by its <see cref="WidgetType"/>, not by its
 /// category. The <c>jux.connected.</c> type prefix, the namespace and the documentation URL predate
 /// this and are kept, since saved configuration rows reference the type.
 /// </para>
@@ -100,14 +101,23 @@ public sealed class SeasonalWidget : IWidget
         var dtoOptions = WidgetDtoOptions.Standard();
         var query = LibrarySectionQuery.Create(user, dtoOptions, [BaseItemKind.Movie, BaseItemKind.Series]);
 
-        if (extra.TryGetValue("genre", out var genre) && !string.IsNullOrWhiteSpace(genre))
+        var genres = ParseValues(extra, "genre");
+        var tags = ParseValues(extra, "tag");
+        if (genres.Length == 0 && tags.Length == 0)
         {
-            query.Genres = [genre];
+            // A season without any filter would show the whole library: hidden instead, like an Admin
+            // section whose value does not resolve (TODO_V4.md 9.2, F-60).
+            return Task.FromResult(WidgetResult.Empty);
         }
 
-        if (extra.TryGetValue("tag", out var tag) && !string.IsNullOrWhiteSpace(tag))
+        if (genres.Length > 0)
         {
-            query.Tags = [tag];
+            query.Genres = genres;
+        }
+
+        if (tags.Length > 0)
+        {
+            query.Tags = tags;
         }
 
         return Task.FromResult(_itemFetcher.Fetch(WidgetType, user, query, dtoOptions, payload));
@@ -122,6 +132,18 @@ public sealed class SeasonalWidget : IWidget
         ViewMode = WidgetViewMode.Portrait,
         MinItems = DefaultMinItems
     };
+
+    /// <summary>
+    /// Reads the values of a filter parameter, separated by <c>|</c> as in Jellyfin's own item filters.
+    /// An item matches when it has any of them; a genre and a tag must both match.
+    /// </summary>
+    /// <param name="extra">The section's extra parameters.</param>
+    /// <param name="key">The parameter, <c>genre</c> or <c>tag</c>.</param>
+    /// <returns>The trimmed, non-empty values, none when the parameter is absent.</returns>
+    internal static string[] ParseValues(IReadOnlyDictionary<string, string> extra, string key) =>
+        extra.TryGetValue(key, out var raw) && raw is not null
+            ? raw.Split('|', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            : [];
 
     /// <summary>
     /// Parses a recurring <c>MM-dd</c> date string (e.g. <c>10-31</c>) into a month/day tuple.

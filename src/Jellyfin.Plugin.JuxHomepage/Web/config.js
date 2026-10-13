@@ -692,6 +692,7 @@ function createConfigPage() {
                         html += '<input id="seasonalTag_' + i + '" type="text" class="emby-input jux-seasonal-tag" value="' + self.escHtml(seasonalTagValue) + '" />';
                         html += '</div>';
                         html += '</div>';
+                        html += '<div class="fieldDescription">' + self.escHtml(self.t('admin.seasonal.filter.help')) + '</div>';
                     }
 
                     if (self.isLocal(w.WidgetType)) {

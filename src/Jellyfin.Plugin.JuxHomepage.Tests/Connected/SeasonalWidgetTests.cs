@@ -147,7 +147,7 @@ public sealed class SeasonalWidgetTests
         var widget = BuildWidget(out var libraryManagerMock, items: [new Movie { Name = "A" }]);
 
         var result = await widget.GetItemsAsync(
-            BuildPayload($"{start.Month:D2}-{start.Day:D2}", $"{end.Month:D2}-{end.Day:D2}"),
+            BuildPayload($"{start.Month:D2}-{start.Day:D2}", $"{end.Month:D2}-{end.Day:D2}", tag: "holiday"),
             CancellationToken.None);
 
         Assert.Equal(1, result.TotalRecordCount);
@@ -170,7 +170,7 @@ public sealed class SeasonalWidgetTests
         var widget = BuildWidget(out var libraryManagerMock, items: [new Movie { Name = "A" }]);
 
         var result = await widget.GetItemsAsync(
-            BuildPayload($"{start.Month:D2}-{start.Day:D2}", $"{end.Month:D2}-{end.Day:D2}"),
+            BuildPayload($"{start.Month:D2}-{start.Day:D2}", $"{end.Month:D2}-{end.Day:D2}", tag: "holiday"),
             CancellationToken.None);
 
         Assert.Equal(1, result.TotalRecordCount);
@@ -226,6 +226,40 @@ public sealed class SeasonalWidgetTests
     }
 
     [Fact]
+    public async Task GetItemsAsync_NoGenreNorTag_IsHiddenWithoutQueryingTheLibrary()
+    {
+        // TODO_V4.md 9.2 (F-60): a preset without a filter showed the whole library.
+        var today = DateTime.Now;
+        var widget = BuildWidget(out var libraryManagerMock, items: [new Movie { Name = "A" }]);
+
+        var result = await widget.GetItemsAsync(
+            BuildPayload($"{today.AddDays(-1):MM-dd}", $"{today.AddDays(1):MM-dd}", genre: " | ", tag: ""),
+            CancellationToken.None);
+
+        Assert.Empty(result.Items);
+        libraryManagerMock.Verify(m => m.GetItemsResult(It.IsAny<InternalItemsQuery>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task GetItemsAsync_SeveralValues_MatchAnyGenreAndAnyTag()
+    {
+        var today = DateTime.Now;
+        InternalItemsQuery? capturedQuery = null;
+        var widget = BuildWidget(out var libraryManagerMock);
+        libraryManagerMock
+            .Setup(m => m.GetItemsResult(It.IsAny<InternalItemsQuery>()))
+            .Callback<InternalItemsQuery>(q => capturedQuery = q)
+            .Returns(new QueryResult<BaseItem>([new Movie { Name = "A" }]));
+
+        await widget.GetItemsAsync(
+            BuildPayload($"{today.AddDays(-1):MM-dd}", $"{today.AddDays(1):MM-dd}", genre: "Horror | Horreur", tag: "halloween|"),
+            CancellationToken.None);
+
+        Assert.Equal(["Horror", "Horreur"], capturedQuery!.Genres);
+        Assert.Equal(["halloween"], capturedQuery.Tags);
+    }
+
+    [Fact]
     public async Task GetItemsAsync_UnknownUser_ReturnsEmpty()
     {
         var userManagerMock = new Mock<IUserManager>();
@@ -260,7 +294,7 @@ public sealed class SeasonalWidgetTests
         var clock = new ManualTimeProvider { UtcNowValue = DateTimeOffset.Parse(today + "T12:00:00Z", System.Globalization.CultureInfo.InvariantCulture) };
         var widget = BuildWidget(out _, [new Movie { Id = Guid.NewGuid(), Name = "Fireworks" }], clock);
 
-        var result = await widget.GetItemsAsync(BuildPayload("12-26", "01-06"), CancellationToken.None);
+        var result = await widget.GetItemsAsync(BuildPayload("12-26", "01-06", tag: "new year's eve"), CancellationToken.None);
 
         Assert.Equal(expected, result.Items.Count);
     }

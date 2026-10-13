@@ -183,6 +183,7 @@
   "admin.seasonal.enddate.label": "Date de fin (MM-JJ)",
   "admin.seasonal.date.help": "Récurrent chaque année. Format : MM-JJ (ex. 10-31 pour le 31 octobre). Une date de fin antérieure à la date de début chevauche le passage à la nouvelle année (ex. 12-26 à 01-06).",
   "admin.seasonal.date.error": "Les deux dates sont requises, au format MM-JJ (ex. 10-31).",
-  "admin.seasonal.genre.label": "Genre (optionnel)",
-  "admin.seasonal.tag.label": "Étiquette (optionnelle)"
+  "admin.seasonal.genre.label": "Genres",
+  "admin.seasonal.tag.label": "Étiquettes",
+  "admin.seasonal.filter.help": "Séparez plusieurs valeurs par | (par exemple Horror|Horreur). Un titre correspond s'il a l'une d'elles ; avec des genres et des étiquettes, il lui faut un de chaque. Une section sans aucun des deux reste masquée."
 }

@@ -183,6 +183,7 @@
   "admin.seasonal.enddate.label": "End date (MM-DD)",
   "admin.seasonal.date.help": "Recurring every year. Format: MM-DD (e.g. 10-31 for October 31). An end date earlier than the start date wraps across the new year (e.g. 12-26 to 01-06).",
   "admin.seasonal.date.error": "Both dates are required, in MM-DD format (e.g. 10-31).",
-  "admin.seasonal.genre.label": "Genre (optional)",
-  "admin.seasonal.tag.label": "Tag (optional)"
+  "admin.seasonal.genre.label": "Genres",
+  "admin.seasonal.tag.label": "Tags",
+  "admin.seasonal.filter.help": "Separate several values with | (for example Horror|Horreur). A title matches any of them; with both genres and tags, it needs one of each. A section with neither stays hidden."
 }
