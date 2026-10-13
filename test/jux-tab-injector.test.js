@@ -233,45 +233,28 @@ describe('waitForUI', () => {
 });
 
 describe('navigation re-arming', () => {
-    it('re-injects into the tab bar rebuilt after a pushState navigation', () => {
+    it('re-injects into the tab bar rebuilt for a new view, as soon as the view is shown (F-42)', () => {
         renderHomePage();
         injector().createTabs();
 
         renderHomePage();
-        history.pushState(null, '', '#/home');
-        vi.advanceTimersByTime(799);
-        expect(juxButtons()).toHaveLength(0);
-
-        vi.advanceTimersByTime(1);
+        document.getElementById('indexPage').dispatchEvent(new CustomEvent('viewshow', { bubbles: true }));
 
         expect(juxButtons()).toHaveLength(4);
     });
 
-    it.each([
-        ['replaceState', () => history.replaceState(null, '', '#/home'), 800],
-        ['focus', () => window.dispatchEvent(new Event('focus')), 800],
-        ['popstate', () => window.dispatchEvent(new PopStateEvent('popstate')), 800],
-        ['visibilitychange', () => document.dispatchEvent(new Event('visibilitychange')), 300]
-    ])('re-runs init after %s', (_name, trigger, delay) => {
-        const init = vi.spyOn(injector(), 'init');
-
-        trigger();
-        vi.advanceTimersByTime(delay - 1);
-        expect(init).not.toHaveBeenCalled();
-
-        vi.advanceTimersByTime(1);
-
-        expect(init).toHaveBeenCalledTimes(1);
+    it('leaves the History API untouched', () => {
+        expect(history.pushState).toBe(History.prototype.pushState);
+        expect(history.replaceState).toBe(History.prototype.replaceState);
     });
 
-    it('arms its listeners only once when the script is loaded twice', async () => {
+    it('arms its listener only once when the script is loaded twice', async () => {
         const first = injector();
         vi.resetModules();
         await import(SCRIPT);
         const init = vi.spyOn(injector(), 'init');
 
-        history.pushState(null, '', '#/home');
-        vi.advanceTimersByTime(800);
+        document.dispatchEvent(new CustomEvent('viewshow'));
 
         expect(injector()).toBe(first);
         expect(init).toHaveBeenCalledTimes(1);

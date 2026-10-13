@@ -9,8 +9,8 @@
 // not hardcoded: another plugin's pane before ours would shift it (TODO_V4.md 4.1, F-12).
 //
 // The tab bar is rebuilt from scratch by React on every view mount (home.js calls setTabs(), which
-// replaces .headerTabs innerHTML entirely), so this script must re-run on every navigation, not just
-// once at initial page load -- mirrors the re-arming strategy already used by jux-homepage.js.
+// replaces .headerTabs innerHTML entirely), so this script must re-run each time a view is shown, not
+// just once at initial page load (see the viewshow listener at the end).
 if (typeof window.juxTabInjector === 'undefined') {
     window.juxTabInjector = {
         // buttonId is deliberately distinct from the content pane's id (jux-tab-* -- see
@@ -180,29 +180,9 @@ if (typeof window.juxTabInjector === 'undefined') {
         window.juxTabInjector.init();
     }
 
-    var handleNavigation = function () {
-        setTimeout(function () { window.juxTabInjector.init(); }, 800);
-    };
-
-    window.addEventListener('popstate', handleNavigation);
-    window.addEventListener('pageshow', handleNavigation);
-    window.addEventListener('focus', handleNavigation);
-
-    var originalPushState = history.pushState;
-    history.pushState = function () {
-        originalPushState.apply(history, arguments);
-        handleNavigation();
-    };
-
-    var originalReplaceState = history.replaceState;
-    history.replaceState = function () {
-        originalReplaceState.apply(history, arguments);
-        handleNavigation();
-    };
-
-    document.addEventListener('visibilitychange', function () {
-        if (!document.hidden) {
-            setTimeout(function () { window.juxTabInjector.init(); }, 300);
-        }
-    });
+    // Jellyfin dispatches viewshow (bubbling) on each view it shows, once the view's tab bar is set:
+    // injecting there, without a delay, adds the JellyUX tabs in the same frame as the native ones, so
+    // the centered bar never shifts under the pointer (TODO_V4.md 7.5, F-42: a fixed 800 ms delay
+    // moved the Home button by 217 px). waitForUI still polls if the bar is not rendered yet.
+    document.addEventListener('viewshow', function () { window.juxTabInjector.init(); });
 }
