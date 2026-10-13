@@ -22,7 +22,7 @@ In addition to the [common parameters](../../configuration.md#common-per-widget-
 
 | Field | Description |
 |---|---|
-| Theme | An optional visual theme (`Halloween`, `Christmas`, `Valentine's Day`, `New Year`, or none). Currently only `Christmas` adds a visual effect (a snow overlay on the section); the others are purely labels for your own organization. |
+| Theme | An optional theme label (`Halloween`, `Christmas`, `Valentine's Day`, `New Year`, or none). It has no visual effect today: it is a label for your own organization, kept on the section for a future per-theme look. |
 | Start date / End date | The recurring `MM-DD` window during which this section is shown (e.g. `10-01` to `10-31` for Halloween). A window whose end date is earlier than its start date is treated as wrapping across the new year (e.g. `12-26` to `01-06`). |
 | Genre (optional) | Restricts the section to one genre present in your library. Leave empty to include every genre. |
 | Tag (optional) | Restricts the section to one tag present in your library. Leave empty to include every tag. |

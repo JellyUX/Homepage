@@ -198,8 +198,8 @@
             descriptor.WidgetType.replace(/\./g, '-');
 
         // TODO_V3.md Phase 9.1: generic hook for any widget instance carrying a Theme (currently
-        // only the Seasonal widget's presets set one) -- jux-homepage.css keys visual effects (e.g.
-        // the Christmas snow overlay) off this attribute, scoped to this one section only.
+        // only the Seasonal widget's presets set one). No style reads it today (TODO_V4.md 7.4): it
+        // stays as a stable anchor for a future per-theme look, scoped to this one section only.
         if (descriptor.Theme) {
             sectionEl.setAttribute('data-jux-theme', descriptor.Theme);
         }

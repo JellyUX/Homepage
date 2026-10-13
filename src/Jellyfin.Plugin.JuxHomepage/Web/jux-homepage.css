@@ -18,45 +18,6 @@
     pointer-events: none;
 }
 
-/* -------------------------------------------------------------------------
- * Seasonal widget theme overlay (TODO_V3.md Phase 9.1) -- data-jux-theme is set generically by
- * jux-homepage.js on any section whose descriptor carries a Theme value; only "christmas" currently
- * has a visual effect (a light snowfall), scoped to that one section via the attribute selector so
- * it never bleeds into unrelated sections. Pure CSS, no JS: an animated ::after pseudo-element,
- * absolutely positioned over the section and pointer-events: none so it never intercepts card clicks
- * or the section's native horizontal scroll/drag. White/light-gray only -- no new accent color, so
- * nothing here risks the banned "No AI Slope" palette.
- * ------------------------------------------------------------------------- */
-
-.jux-widget-section[data-jux-theme="christmas"] {
-    position: relative;
-}
-
-.jux-widget-section[data-jux-theme="christmas"]::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    z-index: 1;
-    background-image:
-        radial-gradient(circle, rgb(var(--jf-palette-text-primaryChannel) / 0.85) 1px, transparent 1.5px),
-        radial-gradient(circle, rgb(var(--jf-palette-text-primaryChannel) / 0.6) 1px, transparent 1.5px),
-        radial-gradient(circle, rgb(var(--jf-palette-text-primaryChannel) / 0.4) 1px, transparent 1.5px);
-    background-size: 5em 6em, 8em 9em, 11em 12em;
-    background-position: 0 0, 2em 1em, 5em 3em;
-    animation: jux-snowfall 12s linear infinite;
-}
-
-@keyframes jux-snowfall {
-    from {
-        background-position: 0 0, 2em 1em, 5em 3em;
-    }
-
-    to {
-        background-position: 0 12em, 2em 25em, -5em 18em;
-    }
-}
-
 /* Stale chunk notice (jux-homepage.js, TODO_V4.md 4.2) */
 .jux-chunk-notice {
     position: fixed;
