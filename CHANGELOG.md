@@ -1,3 +1,17 @@
+## [2.12.1](https://github.com/JellyUX/Homepage/compare/v2.12.0...v2.12.1) (2026-10-13)
+
+### Bug Fixes
+
+* add the JellyUX tabs in the same frame as the native tabs ([b1fe806](https://github.com/JellyUX/Homepage/commit/b1fe8067e56fb174affa2243fe71e499e88931ff))
+* align the tab titles, controls and tiles on the native page gutters ([8a766e2](https://github.com/JellyUX/Homepage/commit/8a766e220df4313b1dab55e33bd1d32fc282a92b))
+* keep the JellyUX outlines visible in the light theme ([703345a](https://github.com/JellyUX/Homepage/commit/703345adcd967eed57f2ccc9ee95a3abb4d220e5))
+* remove the snow overlay from the Christmas seasonal section ([437a8f0](https://github.com/JellyUX/Homepage/commit/437a8f01ad16e3c74c0879c4487fc6f38d42ba9a))
+* shorten the Statistics tab on narrow screens and lay the stat tiles on a grid ([0406696](https://github.com/JellyUX/Homepage/commit/04066965575435b4f73f5e4eaf6213dd0c516f94))
+* show a visible keyboard focus ring and name the progress bars ([fbbb0a9](https://github.com/JellyUX/Homepage/commit/fbbb0a98a73566ffa3adf0c9c78ccb7e566b0368))
+* show one radio per option in the sort and filter dialogs ([852b9c5](https://github.com/JellyUX/Homepage/commit/852b9c50824f08ece9a4c978479c80879862138c))
+* style Mark as watched as a pill aligned across the Series Progress row ([f548a0b](https://github.com/JellyUX/Homepage/commit/f548a0b524501f4d4f9d43ea267bc6b67510a2db))
+* toggle a History favorite back and forth without reloading the tab ([6d59fb3](https://github.com/JellyUX/Homepage/commit/6d59fb392e27073c7e0d987b295f5a4007383aa6))
+
 ## [2.12.0](https://github.com/JellyUX/Homepage/compare/v2.11.1...v2.12.0) (2026-10-12)
 
 ### Features
