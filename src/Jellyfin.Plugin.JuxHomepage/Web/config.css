@@ -12,7 +12,7 @@ ul.jux-admin-warning {
     color: var(--error-color, #e5350b);
 }
 .jux-admin-widget-card {
-    border: 1px solid var(--borderColor, rgba(255, 255, 255, 0.1));
+    border: 1px solid rgb(var(--jf-palette-text-primaryChannel, 255 255 255) / 0.1);
     border-radius: 4px;
     padding: 1em;
     margin-bottom: 1em;
@@ -54,7 +54,7 @@ ul.jux-admin-warning {
     margin-top: 1em;
     padding: 0.75em 0;
     background-color: var(--jf-palette-background-default, rgb(16, 16, 16));
-    border-top: 1px solid var(--borderColor, rgba(255, 255, 255, 0.1));
+    border-top: 1px solid rgb(var(--jf-palette-text-primaryChannel, 255 255 255) / 0.1);
 }
 /* The native checkbox label is full width; sized to its text instead, it keeps the category badge
    next to the name and leaves the row buttons a right-aligned column on every card. */
@@ -67,7 +67,7 @@ ul.jux-admin-warning {
     font-size: 0.75em;
     padding: 0.2em 0.6em;
     border-radius: 3px;
-    background-color: var(--hoverBackgroundColor, rgba(255, 255, 255, 0.1));
+    background-color: rgb(var(--jf-palette-text-primaryChannel, 255 255 255) / 0.1);
     color: var(--secondaryTextColor);
 }
 .jux-admin-order-buttons {
@@ -91,7 +91,7 @@ ul.jux-admin-warning {
 }
 .jux-admin-drag-handle {
     cursor: grab;
-    color: var(--jf-palette-text-secondary, rgba(255, 255, 255, 0.7));
+    color: var(--jf-palette-text-secondary, rgb(var(--jf-palette-text-primaryChannel, 255 255 255) / 0.7));
     user-select: none;
 }
 .jux-admin-drag-handle:hover {
@@ -141,7 +141,7 @@ ul.jux-admin-warning {
 .jux-admin-add-section {
     margin-top: 0.5em;
     padding-top: 0.75em;
-    border-top: 1px solid var(--borderColor, rgba(255, 255, 255, 0.1));
+    border-top: 1px solid rgb(var(--jf-palette-text-primaryChannel, 255 255 255) / 0.1);
 }
 .jux-admin-tmdb-status-row {
     display: flex;
@@ -149,7 +149,7 @@ ul.jux-admin-warning {
     justify-content: space-between;
     gap: 1em;
     padding: 0.4em 0;
-    border-bottom: 1px solid var(--borderColor, rgba(255, 255, 255, 0.1));
+    border-bottom: 1px solid rgb(var(--jf-palette-text-primaryChannel, 255 255 255) / 0.1);
 }
 .jux-admin-tmdb-status-row:last-child {
     border-bottom: none;
@@ -198,7 +198,7 @@ ul.jux-admin-warning {
     margin-bottom: 0.6em;
 }
 .jux-admin-preview-count {
-    color: var(--jf-palette-text-secondary, rgba(255, 255, 255, 0.7));
+    color: var(--jf-palette-text-secondary, rgb(var(--jf-palette-text-primaryChannel, 255 255 255) / 0.7));
 }
 .jux-admin-preview-hidden {
     color: var(--jf-palette-warning-main, rgb(255, 167, 38));
