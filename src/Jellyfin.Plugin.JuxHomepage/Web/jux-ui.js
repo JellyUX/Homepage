@@ -55,6 +55,7 @@
         buildStatCard: buildStatCard,
         openSortDialog: openSortDialog,
         openOptionsDialog: openOptionsDialog,
+        openDialog: openDialog,
         createListTab: createListTab,
         labelFor: labelFor
     };
@@ -459,6 +460,50 @@
     function openOptionsDialog(options) {
         var groups = options.groups || [];
         var onChange = options.onChange || function () {};
+
+        var opened = openDialog({
+            title: options.title,
+            className: 'jux-sort-dialog',
+            contentClassName: 'jux-sort-dialog-content',
+            contentHtml: function (titleId) {
+                return groups.map(function (group) {
+                    return _buildRadioGroup(group.options, group.current, _groupInputName(titleId, group.name));
+                }).join('');
+            }
+        });
+        var dialog = opened.dialog;
+
+        var firstRadio = dialog.querySelector('input:checked') || dialog.querySelector('.mdl-radio__button');
+        if (firstRadio) {
+            firstRadio.focus();
+        }
+
+        function currentValues() {
+            var values = {};
+            groups.forEach(function (group) {
+                var checked = dialog.querySelector('input[name="' + _groupInputName(opened.titleId, group.name) + '"]:checked');
+                values[group.name] = checked ? checked.value : group.current;
+            });
+            return values;
+        }
+
+        dialog.querySelectorAll('.mdl-radio__button').forEach(function (input) {
+            input.addEventListener('change', function () {
+                if (input.checked) {
+                    onChange(currentValues());
+                }
+            });
+        });
+
+        return { close: opened.close };
+    }
+
+    // A native-look modal dialog (backdrop, header with a back button, scrolling content): closes on
+    // Escape, on the backdrop and on the back button, then gives the focus back to its opener.
+    // options: title, className (extra class of the dialog), contentClassName, contentHtml (a string,
+    // or a function of the title id), onClose (optional). Returns { dialog, titleId, close }; the
+    // caller moves the focus into the dialog.
+    function openDialog(options) {
         var opener = document.activeElement;
 
         _dialogUid += 1;
@@ -471,11 +516,12 @@
         container.className = 'jux-sort-dialog-container';
 
         var dialog = document.createElement('div');
-        dialog.className = 'focuscontainer dialog formDialog centeredDialog opened jux-sort-dialog';
+        dialog.className = 'focuscontainer dialog formDialog centeredDialog opened ' + (options.className || '');
         dialog.setAttribute('role', 'dialog');
         dialog.setAttribute('aria-modal', 'true');
         dialog.setAttribute('aria-labelledby', titleId);
 
+        var content = typeof options.contentHtml === 'function' ? options.contentHtml(titleId) : (options.contentHtml || '');
         dialog.innerHTML =
             '<div class="formDialogHeader">' +
             '<button is="paper-icon-button-light" class="btnCloseDialog autoSize" tabindex="-1">' +
@@ -483,25 +529,19 @@
             '</button>' +
             '<h3 class="formDialogHeaderTitle" id="' + titleId + '">' + window.JuxCore.escHtml(options.title || '') + '</h3>' +
             '</div>' +
-            '<div class="formDialogContent smoothScrollY jux-sort-dialog-content">' +
-            groups.map(function (group) {
-                return _buildRadioGroup(group.options, group.current, _groupInputName(titleId, group.name));
-            }).join('') +
-            '</div>';
+            '<div class="formDialogContent smoothScrollY ' + (options.contentClassName || '') + '">' + content + '</div>';
 
         container.appendChild(dialog);
         document.body.appendChild(backdrop);
         document.body.appendChild(container);
 
-        var firstRadio = dialog.querySelector('input:checked') || dialog.querySelector('.mdl-radio__button');
-        if (firstRadio) {
-            firstRadio.focus();
-        }
-
         function close() {
             backdrop.remove();
             container.remove();
             document.removeEventListener('keydown', onKeyDown);
+            if (options.onClose) {
+                options.onClose();
+            }
             if (opener && typeof opener.focus === 'function' && document.contains(opener)) {
                 opener.focus();
             }
@@ -522,24 +562,7 @@
         dialog.querySelector('.btnCloseDialog').addEventListener('click', close);
         document.addEventListener('keydown', onKeyDown);
 
-        function currentValues() {
-            var values = {};
-            groups.forEach(function (group) {
-                var checked = dialog.querySelector('input[name="' + _groupInputName(titleId, group.name) + '"]:checked');
-                values[group.name] = checked ? checked.value : group.current;
-            });
-            return values;
-        }
-
-        dialog.querySelectorAll('.mdl-radio__button').forEach(function (input) {
-            input.addEventListener('change', function () {
-                if (input.checked) {
-                    onChange(currentValues());
-                }
-            });
-        });
-
-        return { close: close };
+        return { dialog: dialog, titleId: titleId, close: close };
     }
 
     // Radio names are unique per dialog, so two dialogs never share a group.
