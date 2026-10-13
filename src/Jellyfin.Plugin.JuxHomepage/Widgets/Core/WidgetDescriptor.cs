@@ -30,6 +30,14 @@ public sealed class WidgetDescriptor
     /// </summary>
     public string? AdditionalData { get; set; }
 
+    /// <summary>
+    /// Gets or sets the key of the configuration row this section comes from (its instance GUID, or
+    /// <c>type#rank</c>, see <see cref="WidgetLayoutResolver.SectionKeys"/>). The client sends it back
+    /// when it loads the section, so two rows of one type each read their own settings
+    /// (TODO_V4.md 9.3, F-27). Null outside the home screen layout.
+    /// </summary>
+    public string? SectionKey { get; set; }
+
     /// <summary>Gets or sets the display order on the home screen (lower values appear first).</summary>
     public int Order { get; set; }
 

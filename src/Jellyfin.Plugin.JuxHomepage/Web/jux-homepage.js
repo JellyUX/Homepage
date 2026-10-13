@@ -322,6 +322,7 @@
                 apiClient.getUrl('JuxHomepage/Section/' + descriptor.WidgetType, {
                     userId: userId,
                     additionalData: descriptor.AdditionalData || undefined,
+                    sectionKey: descriptor.SectionKey || undefined,
                     startIndex: 0,
                     limit: descriptor.MaxItems || 20
                 })

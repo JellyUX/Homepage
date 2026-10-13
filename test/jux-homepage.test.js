@@ -356,6 +356,14 @@ describe('_makeFetchData', () => {
             params: { userId: 'u1', additionalData: 'Drama', startIndex: 0, limit: 20 }
         });
     });
+
+    it('sends the key of the section row, so a second Personalized row reads its own settings (F-27)', async () => {
+        const descriptor = { WidgetType: 'jux.personalized.favorite-genre', AdditionalData: 'Drama', SectionKey: 'jux.personalized.favorite-genre#2' };
+
+        const request = await _makeFetchData(apiClient, 'u1', descriptor)();
+
+        expect(request.params.sectionKey).toBe('jux.personalized.favorite-genre#2');
+    });
 });
 
 describe('failed home section (F-40)', () => {

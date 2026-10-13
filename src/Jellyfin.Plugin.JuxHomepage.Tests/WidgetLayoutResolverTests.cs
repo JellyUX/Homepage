@@ -210,6 +210,52 @@ public sealed class WidgetLayoutResolverTests
         Assert.Equal(WidgetSort.Random, row!.SortBy);
     }
 
+    [Fact]
+    public async Task BuildDescriptors_GivesEachSectionTheKeyOfItsRow()
+    {
+        var registry = new WidgetRegistry();
+        registry.Register(MakeWidget("jux.test.widget", totalRecordCount: 10));
+        var first = new WidgetConfig { WidgetType = "jux.test.widget", Order = 10, Enabled = true, CustomDisplayName = "First" };
+        var second = new WidgetConfig { WidgetType = "jux.test.widget", Order = 20, Enabled = true, CustomDisplayName = "Second" };
+
+        var descriptors = await BuildResolverWithOverrides(registry, [second, first], [])
+            .BuildDescriptors(Guid.NewGuid(), lang: null, CancellationToken.None);
+
+        Assert.Equal(["jux.test.widget#1", "jux.test.widget#2"], descriptors.Select(d => d.SectionKey));
+    }
+
+    [Fact]
+    public void ResolveConfigRow_SectionKey_ReadsTheSecondPersonalizedRowNotTheFirst()
+    {
+        // TODO_V4.md 9.3 (F-27): a Personalized section sends its scored value ("Drama"), never the
+        // row's, so without the key the second row read the first row's excludeWatched.
+        static WidgetConfig Row(int order, string excludeWatched) => new()
+        {
+            WidgetType = "jux.personalized.favorite-genre",
+            Order = order,
+            Enabled = true,
+            ExtraParams = [new WidgetExtraParam { Key = "excludeWatched", Value = excludeWatched }]
+        };
+        var resolver = BuildResolverWithOverrides(new WidgetRegistry(), [Row(10, "true"), Row(20, "false")], []);
+
+        var keyed = resolver.ResolveConfigRow(Guid.NewGuid(), "jux.personalized.favorite-genre", "Drama", "jux.personalized.favorite-genre#2");
+        var unkeyed = resolver.ResolveConfigRow(Guid.NewGuid(), "jux.personalized.favorite-genre", "Drama");
+
+        Assert.Equal("false", keyed!.ExtraParams.Single(p => p.Key == "excludeWatched").Value);
+        Assert.Equal("true", unkeyed!.ExtraParams.Single(p => p.Key == "excludeWatched").Value);
+    }
+
+    [Fact]
+    public void ResolveConfigRow_UnknownSectionKey_FallsBackToTheFirstRowOfTheType()
+    {
+        var row = new WidgetConfig { WidgetType = "jux.test.widget", Order = 10 };
+
+        var resolved = BuildResolverWithOverrides(new WidgetRegistry(), [row], [])
+            .ResolveConfigRow(Guid.NewGuid(), "jux.test.widget", additionalData: null, sectionKey: "jux.test.widget#9");
+
+        Assert.Same(row, resolved);
+    }
+
     private static WidgetLayoutResolver BuildResolverWithOverrides(IWidgetRegistry registry, WidgetConfig[] widgets, WidgetConfig[] overrides)
     {
         var userConfigStoreMock = new Mock<IUserConfigurationStore>();

@@ -286,7 +286,7 @@ public sealed class WidgetServiceTests : IDisposable
         var service = BuildService(registeredWidgets: [widget], globalWidgets: []);
 
         var result = await service.GetWidgetItems(
-            Guid.NewGuid(), widgetType, additionalData: null,
+            Guid.NewGuid(), widgetType, additionalData: null, sectionKey: null,
             startIndex: 0, limit: 20, CancellationToken.None);
 
         Assert.NotNull(result);
@@ -298,7 +298,7 @@ public sealed class WidgetServiceTests : IDisposable
         var service = BuildService(registeredWidgets: [], globalWidgets: []);
 
         var result = await service.GetWidgetItems(
-            Guid.NewGuid(), "ghost", additionalData: null,
+            Guid.NewGuid(), "ghost", additionalData: null, sectionKey: null,
             startIndex: 0, limit: 20, CancellationToken.None);
 
         Assert.Null(result);
@@ -345,7 +345,7 @@ public sealed class WidgetServiceTests : IDisposable
             ]);
 
         await service.GetWidgetItems(
-            Guid.NewGuid(), widgetType, additionalData: "instance-b",
+            Guid.NewGuid(), widgetType, additionalData: "instance-b", sectionKey: null,
             startIndex: 0, limit: 20, CancellationToken.None);
 
         Assert.NotNull(capturedPayload);
@@ -450,7 +450,7 @@ public sealed class WidgetServiceTests : IDisposable
             registeredWidgets: [mock.Object],
             globalWidgets: [new WidgetConfig { WidgetType = widgetType, Enabled = true, MaxItems = 7 }]);
 
-        await service.GetWidgetItems(Guid.NewGuid(), widgetType, additionalData: null, startIndex, limit, CancellationToken.None);
+        await service.GetWidgetItems(Guid.NewGuid(), widgetType, additionalData: null, sectionKey: null, startIndex, limit, CancellationToken.None);
 
         Assert.Equal(expectedLimit, captured!.Limit);
         Assert.Equal(expectedStart, captured.StartIndex);

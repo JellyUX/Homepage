@@ -218,6 +218,7 @@ public class JuxHomepageController : ControllerBase
     /// <param name="widgetType">The widget type identifier.</param>
     /// <param name="userId">The requesting user's Jellyfin identifier.</param>
     /// <param name="additionalData">Optional instance-specific data (e.g. library ID).</param>
+    /// <param name="sectionKey">The section's key from the layout, naming its configuration row (TODO_V4.md 9.3, F-27).</param>
     /// <param name="startIndex">Zero-based start index for pagination.</param>
     /// <param name="limit">Maximum number of items to return.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
@@ -231,6 +232,7 @@ public class JuxHomepageController : ControllerBase
         [FromRoute] string widgetType,
         [FromQuery] Guid userId,
         [FromQuery] string? additionalData = null,
+        [FromQuery] string? sectionKey = null,
         [FromQuery] int startIndex = 0,
         [FromQuery] int limit = 20,
         CancellationToken cancellationToken = default)
@@ -244,7 +246,7 @@ public class JuxHomepageController : ControllerBase
         userId = resolvedUserId.Value;
 
         var result = await _widgetService
-            .GetWidgetItems(userId, widgetType, additionalData, startIndex, limit, cancellationToken)
+            .GetWidgetItems(userId, widgetType, additionalData, sectionKey, startIndex, limit, cancellationToken)
             .ConfigureAwait(false);
 
         if (result is null)

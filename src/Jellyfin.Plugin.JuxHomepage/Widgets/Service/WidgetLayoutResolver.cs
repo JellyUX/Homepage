@@ -69,9 +69,9 @@ public sealed class WidgetLayoutResolver
             .OrderBy(g => g.Order)
             .Zip(MergeOverrides(globalConfig, overrides))
             .Where(pair => !hidden.Contains(keys[pair.First]))
-            .Select(pair => pair.Second)
-            .Where(c => c.Enabled)
-            .OrderBy(c => c.Order)
+            .Select(pair => (Config: pair.Second, Key: keys[pair.First]))
+            .Where(c => c.Config.Enabled)
+            .OrderBy(c => c.Config.Order)
             .ToList();
 
         // Assign a 1-indexed rank to each row within its WidgetType group, ordered by Order --
@@ -79,13 +79,14 @@ public sealed class WidgetLayoutResolver
         // not just Personalized ones: Resolve for every other category already ignores the "rank"
         // parameter entirely (returns this unconditionally), so this is a harmless no-op for them.
         var ranks = effectiveConfigs
+            .Select(c => c.Config)
             .GroupBy(c => c.WidgetType)
             .SelectMany(g => g.OrderBy(c => c.Order).Select((c, i) => (Config: c, Rank: i + 1)))
             .ToDictionary(x => x.Config, x => x.Rank);
 
         // Resolve a widget instance for each enabled config entry
         var tasks = effectiveConfigs
-            .Select(config => ResolveAndFetch(userId, config, ranks[config], lang, cancellationToken))
+            .Select(c => ResolveAndFetch(userId, c.Config, c.Key, ranks[c.Config], lang, cancellationToken))
             .ToList();
 
         var results = await Task.WhenAll(tasks).ConfigureAwait(false);
@@ -173,16 +174,29 @@ public sealed class WidgetLayoutResolver
     /// <param name="userId">The requesting user's identifier.</param>
     /// <param name="widgetType">The widget type identifier.</param>
     /// <param name="additionalData">Optional instance-specific data (e.g. a Discover instance id).</param>
+    /// <param name="sectionKey">The section's <see cref="WidgetDescriptor.SectionKey"/>, preferred when it names a row.</param>
     /// <returns>The matching config row, or null if none is configured for this widget type.</returns>
-    public WidgetConfig? ResolveConfigRow(Guid userId, string widgetType, string? additionalData)
+    public WidgetConfig? ResolveConfigRow(Guid userId, string widgetType, string? additionalData, string? sectionKey = null)
     {
         var overrides = _userConfigStore.GetUserConfiguration(userId)?.WidgetOverrides ?? [];
-        var candidates = MergeOverrides(_getConfiguration()?.Widgets ?? [], overrides)
-            .Where(c => c.WidgetType == widgetType)
-            .ToList();
+        var globalRows = _getConfiguration()?.Widgets ?? [];
+        var merged = globalRows.OrderBy(g => g.Order).Zip(MergeOverrides(globalRows, overrides)).ToList();
+        var candidates = merged.Select(pair => pair.Second).Where(c => c.WidgetType == widgetType).ToList();
         if (candidates.Count == 0)
         {
             return null;
+        }
+
+        // The layout's key names the exact row: a Personalized section sends its scored value, not
+        // the row's, so only the key tells its second row from its first (TODO_V4.md 9.3, F-27).
+        if (sectionKey is not null)
+        {
+            var keys = SectionKeys(globalRows);
+            var keyed = merged.FirstOrDefault(pair => pair.Second.WidgetType == widgetType && keys[pair.First] == sectionKey);
+            if (keyed.Second is not null)
+            {
+                return keyed.Second;
+            }
         }
 
         if (additionalData is not null)
@@ -207,6 +221,7 @@ public sealed class WidgetLayoutResolver
     private async Task<WidgetDescriptor?> ResolveAndFetch(
         Guid userId,
         WidgetConfig config,
+        string sectionKey,
         int rank,
         string? lang,
         CancellationToken cancellationToken)
@@ -243,12 +258,18 @@ public sealed class WidgetLayoutResolver
             return null;
         }
 
-        return await FetchInstanceDescriptor(
+        var descriptor = await FetchInstanceDescriptor(
             userId,
             config,
             instanceConfig,
             instance,
             cancellationToken).ConfigureAwait(false);
+        if (descriptor is not null)
+        {
+            descriptor.SectionKey = sectionKey;
+        }
+
+        return descriptor;
     }
 
     private async Task<WidgetDescriptor?> FetchInstanceDescriptor(

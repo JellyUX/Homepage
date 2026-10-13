@@ -104,6 +104,7 @@ public sealed class WidgetService
     /// <param name="userId">The requesting user's identifier.</param>
     /// <param name="widgetType">The widget type identifier.</param>
     /// <param name="additionalData">Optional instance-specific data (e.g. library ID).</param>
+    /// <param name="sectionKey">The section's key from the layout, naming its configuration row (F-27).</param>
     /// <param name="startIndex">Zero-based start index for pagination.</param>
     /// <param name="limit">Maximum number of items to return.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
@@ -112,6 +113,7 @@ public sealed class WidgetService
         Guid userId,
         string widgetType,
         string? additionalData,
+        string? sectionKey,
         int startIndex,
         int limit,
         CancellationToken cancellationToken)
@@ -125,7 +127,7 @@ public sealed class WidgetService
         // Forward the configured ExtraParams (e.g. "excludeWatched" for personalized widgets, or a
         // Discover instance's filter parameters) so on-demand section fetches honor the same
         // settings as the layout probe.
-        var configRow = _layoutResolver.ResolveConfigRow(userId, widgetType, additionalData);
+        var configRow = _layoutResolver.ResolveConfigRow(userId, widgetType, additionalData, sectionKey);
         var extra = configRow?.GetExtraParamsDictionary();
 
         // A section never returns more than its configured MaxItems (TODO_V4.md 5.5, F-21).
