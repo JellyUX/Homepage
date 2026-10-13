@@ -27,7 +27,10 @@
             sortName: 'Name',
             sortDialogTitle: 'Sort History',
             addFavorite: 'Add to favorites',
-            removeFavorite: 'Remove from favorites'
+            removeFavorite: 'Remove from favorites',
+            watchedOn: 'Watched {date}',
+            moviesWatched: 'Movies watched',
+            moviesThisMonth: 'This month'
         },
         fr: {
             title: 'Historique',
@@ -37,7 +40,10 @@
             sortName: 'Nom',
             sortDialogTitle: 'Trier l’historique',
             addFavorite: 'Ajouter aux favoris',
-            removeFavorite: 'Retirer des favoris'
+            removeFavorite: 'Retirer des favoris',
+            watchedOn: 'Vu le {date}',
+            moviesWatched: 'Films vus',
+            moviesThisMonth: 'Ce mois-ci'
         }
     };
 
@@ -53,6 +59,24 @@
         for (var i = 0; i < items.length; i++) {
             byId[items[i].Id] = items[i];
         }
+
+        // "Watched on ...": the absolute date and time of the last play, as KefinTweaks shows it
+        // (TODO_V4.md 8.5, F-58), as one more text line of the card, styled like the line above it
+        // (cardBuilder puts these lines straight in the card box, with no footer around them).
+        var lang = window.JuxCore.resolveLang();
+        Array.prototype.forEach.call(container.querySelectorAll('.card[data-id]'), function (card) {
+            var item = byId[card.getAttribute('data-id')];
+            var date = item && _formatWatchedDate(item.UserData && item.UserData.LastPlayedDate, lang);
+            var lines = card.querySelectorAll('.cardText');
+            var last = lines[lines.length - 1];
+            if (!date || !last) { return; }
+
+            var line = document.createElement('div');
+            line.className = last.className.replace('cardText-first', 'cardText-secondary') + ' jux-history-date';
+            line.textContent = t.watchedOn.replace('{date}', date);
+            line.title = t.watchedOn.replace('{date}', _formatWatchedDate(item.UserData.LastPlayedDate, lang, true));
+            last.parentNode.insertBefore(line, last.nextSibling);
+        });
 
         var overlays = container.querySelectorAll('.cardOverlayContainer');
         Array.prototype.forEach.call(overlays, function (overlay) {
@@ -85,6 +109,35 @@
         });
     }
 
+    // The card shows the day, which fits a phone-width card; the time is in the tooltip.
+    function _formatWatchedDate(value, lang, withTime) {
+        if (!value) { return ''; }
+        var date = new Date(value);
+        if (isNaN(date.getTime())) { return ''; }
+        var options = { day: 'numeric', month: 'short', year: 'numeric' };
+        if (withTime) {
+            options.hour = '2-digit';
+            options.minute = '2-digit';
+        }
+        return date.toLocaleString(lang, options);
+    }
+
+    // The two tiles above the list (F-58): every watched movie and those of this month, from the
+    // Statistics route (the same History cache, no library query). A failure only leaves them out.
+    function _renderTiles(container, lang) {
+        if (!container || !window.ApiClient) { return; }
+        var t = _labels[lang] || _labels.en;
+        var url = window.ApiClient.getUrl('JuxHomepage/Statistics', { userId: window.ApiClient.getCurrentUserId() });
+        window.ApiClient.getJSON(url).then(function (stats) {
+            container.innerHTML =
+                window.JuxUI.buildStatCard('movie', stats.MoviesWatched, t.moviesWatched) +
+                window.JuxUI.buildStatCard('calendar_month', stats.MoviesWatchedThisMonth, t.moviesThisMonth);
+        }).catch(function (err) {
+            console.error('[JellyUX] History tiles fetch failed:', err);
+            container.remove();
+        });
+    }
+
     // Favorite toggle via Jellyfin's own native endpoint (POST/DELETE
     // /Users/{userId}/FavoriteItems/{itemId}) -- no JellyUX endpoint needed, same convention already
     // used for the Watchlist toggle's underlying Likes field.
@@ -113,7 +166,8 @@
         state: { sortBy: 'LastPlayed', sortOrder: 'Descending' },
         sortOptions: _sortOptions,
         emptyIcon: 'movie',
-        decorate: _decorateCards
+        decorate: _decorateCards,
+        header: _renderTiles
     });
 
     window.juxHistory.init();
@@ -124,7 +178,9 @@
         module.exports = {
             _sortOptions: _sortOptions,
             _buildShellHtml: window.juxHistory.buildShellHtml,
-            _decorateCards: _decorateCards
+            _decorateCards: _decorateCards,
+            _formatWatchedDate: _formatWatchedDate,
+            _renderTiles: _renderTiles
         };
     }
 })();

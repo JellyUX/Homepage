@@ -69,3 +69,65 @@ describe('favorite toggle (F-52)', () => {
         expect(updateFavoriteStatus.mock.calls[0][2]).toBe(false);
     });
 });
+
+describe('watch date and tiles (F-58)', () => {
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+    afterEach(() => {
+        delete window.ApiClient;
+    });
+
+    it('adds the absolute watch date to the text block of each card', () => {
+        document.documentElement.lang = 'en';
+        const container = document.createElement('div');
+        container.innerHTML =
+            '<div class="card" data-id="m1"><div class="cardBox"><div class="cardText cardTextCentered cardText-first">Film</div><div class="cardText cardTextCentered cardText-secondary">2024</div></div></div>' +
+            '<div class="card" data-id="m2"><div class="cardBox"><div class="cardText cardText-first">Never</div></div></div>';
+        juxHistory._decorateCards(container, [
+            { Id: 'm1', UserData: { LastPlayedDate: '2026-07-21T22:23:00.000Z' } },
+            { Id: 'm2', UserData: {} }
+        ], { watchedOn: 'Watched {date}', addFavorite: 'a', removeFavorite: 'r' });
+
+        const line = container.querySelector('[data-id="m1"] .jux-history-date');
+        expect(line.className).toBe('cardText cardTextCentered cardText-secondary jux-history-date');
+        expect(line.previousElementSibling.textContent).toBe('2024');
+        expect(line.textContent).toBe('Watched ' + juxHistory._formatWatchedDate('2026-07-21T22:23:00.000Z', 'en'));
+        expect(line.textContent).toMatch(/2026/);
+        expect(line.title).toBe('Watched ' + juxHistory._formatWatchedDate('2026-07-21T22:23:00.000Z', 'en', true));
+        expect(line.title.length).toBeGreaterThan(line.textContent.length);
+        expect(container.querySelector('[data-id="m2"] .jux-history-date')).toBeNull();
+    });
+
+    it('shows the movies watched and those of this month above the list', async () => {
+        window.ApiClient = {
+            getCurrentUserId: () => 'u1',
+            getUrl: (route, query) => route + '?' + new URLSearchParams(query).toString(),
+            getJSON: vi.fn(() => Promise.resolve({ MoviesWatched: 120, MoviesWatchedThisMonth: 4 }))
+        };
+        const container = document.createElement('div');
+
+        juxHistory._renderTiles(container, 'fr');
+        await settle();
+
+        expect(window.ApiClient.getJSON).toHaveBeenCalledWith('JuxHomepage/Statistics?userId=u1');
+        expect([...container.querySelectorAll('.jux-stat-value')].map((el) => el.textContent)).toEqual(['120', '4']);
+        expect([...container.querySelectorAll('.jux-stat-label')].map((el) => el.textContent)).toEqual(['Films vus', 'Ce mois-ci']);
+    });
+
+    it('leaves the tiles out when the counters cannot be read', async () => {
+        window.ApiClient = {
+            getCurrentUserId: () => 'u1',
+            getUrl: (route) => route,
+            getJSON: vi.fn(() => Promise.reject(new Error('down')))
+        };
+        const parent = document.createElement('div');
+        const container = document.createElement('div');
+        parent.appendChild(container);
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        juxHistory._renderTiles(container, 'en');
+        await settle();
+
+        expect(parent.children).toHaveLength(0);
+    });
+});

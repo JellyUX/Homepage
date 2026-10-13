@@ -38,6 +38,32 @@ public sealed class StatisticsServiceTests
     }
 
     [Fact]
+    public void GetStatistics_CountsTheMoviesLastPlayedSinceTheFirstOfTheMonth()
+    {
+        var userId = Guid.NewGuid();
+
+        var progressCacheMock = new Mock<ISeriesProgressCacheService>();
+        progressCacheMock.Setup(m => m.GetProgress(userId)).Returns([]);
+
+        var historyCacheMock = new Mock<IMovieHistoryCacheService>();
+        historyCacheMock.Setup(m => m.GetHistory(userId)).Returns(
+        [
+            new MovieHistoryEntry { ItemId = Guid.NewGuid(), LastPlayedDate = new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc) },
+            new MovieHistoryEntry { ItemId = Guid.NewGuid(), LastPlayedDate = new DateTime(2026, 10, 13, 20, 0, 0, DateTimeKind.Utc) },
+            new MovieHistoryEntry { ItemId = Guid.NewGuid(), LastPlayedDate = new DateTime(2026, 9, 30, 23, 59, 0, DateTimeKind.Utc) },
+            new MovieHistoryEntry { ItemId = Guid.NewGuid(), LastPlayedDate = null }
+        ]);
+
+        var clock = new ManualTimeProvider { UtcNowValue = new DateTimeOffset(2026, 10, 13, 22, 0, 0, TimeSpan.Zero) };
+        var service = new StatisticsService(progressCacheMock.Object, historyCacheMock.Object, clock);
+
+        var stats = service.GetStatistics(userId);
+
+        Assert.Equal(4, stats.MoviesWatched);
+        Assert.Equal(2, stats.MoviesWatchedThisMonth);
+    }
+
+    [Fact]
     public void GetStatistics_NoHistoryYet_ReturnsAllZeroes()
     {
         var userId = Guid.NewGuid();

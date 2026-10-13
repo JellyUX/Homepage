@@ -78,6 +78,8 @@
     //   cardOptions extra cardBuilder options (optional)
     //   itemOf      function (row) -> BaseItemDto (optional, rows are items by default)
     //   decorate    function (container, rows, t) called after the cards are rendered (optional)
+    //   header      function (container, lang) filling a block between the title and the controls
+    //               (optional)
     function createListTab(config) {
         var filters = config.filters || [];
         var itemOf = config.itemOf || function (row) { return row; };
@@ -103,6 +105,9 @@
 
                 var lang = window.JuxCore.resolveLang();
                 sections.innerHTML = tab.buildShellHtml(lang, tab.state);
+                if (config.header) {
+                    config.header(sections.querySelector('.jux-list-header'), lang);
+                }
                 _wireListControls(sections, tab, config, filters, lang);
                 tab.reload(sections, userId, lang);
             },
@@ -198,6 +203,7 @@
             buildShellHtml: function (lang, state) {
                 var t = config.labels[lang];
                 var html = '<h2 class="sectionTitle sectionTitle-cards jux-section-title-container padded-left padded-right">' + window.JuxCore.escHtml(t.title) + '</h2>' +
+                    (config.header ? '<div class="jux-list-header jux-statistics-tiles padded-left padded-right"></div>' : '') +
                     '<div class="jux-view-controls padded-left padded-right">' +
                     _listButtonHtml('jux-' + config.id + '-sort-btn', 'sort', labelFor(config.sortOptions(t), state.sortBy));
                 filters.forEach(function (filter) {

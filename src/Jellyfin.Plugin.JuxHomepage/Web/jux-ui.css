@@ -276,6 +276,28 @@
     padding-bottom: 2em;
 }
 
+/* The tiles above a list (History) leave less room before the controls than the Statistics tab,
+ * and stay side by side on a phone. */
+.jux-list-header {
+    padding-bottom: 1.25em;
+}
+
+@media (max-width: 600px) {
+    .jux-list-header {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.75em;
+    }
+
+    .jux-list-header .jux-stat-card {
+        padding: 0.8em 1em;
+    }
+}
+
+/* The watch date may take two lines on a narrow card rather than lose its year. */
+.jux-history-date {
+    white-space: normal;
+}
+
 .jux-stat-card {
     display: flex;
     align-items: center;

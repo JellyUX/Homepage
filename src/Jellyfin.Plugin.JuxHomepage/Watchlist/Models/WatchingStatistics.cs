@@ -9,6 +9,12 @@ public sealed class WatchingStatistics
     /// <summary>Gets the number of movies this user has watched.</summary>
     public int MoviesWatched { get; init; }
 
+    /// <summary>
+    /// Gets the number of those movies last played since the first day of the current month (server
+    /// time), the second tile of the History tab (TODO_V4.md 8.5, F-58).
+    /// </summary>
+    public int MoviesWatchedThisMonth { get; init; }
+
     /// <summary>Gets the number of series this user has watched at least one episode of.</summary>
     public int SeriesTracked { get; init; }
 

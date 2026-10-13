@@ -204,6 +204,19 @@ describe('createListTab (F-35)', () => {
         expect(document.querySelector('.jux-things-items [data-jux-loading]')).not.toBeNull();
     });
 
+    it('lets the tab fill a header between the title and the controls (F-58)', () => {
+        mountPane();
+        window.ApiClient = apiClient(new Promise(() => {}));
+        const header = vi.fn((el) => { el.textContent = 'tiles'; });
+
+        makeTab({ header }).render();
+
+        const block = document.querySelector('.jux-list-header');
+        expect(header).toHaveBeenCalledWith(block, 'en');
+        expect(block.previousElementSibling.tagName).toBe('H2');
+        expect(block.nextElementSibling.classList.contains('jux-view-controls')).toBe(true);
+    });
+
     it('places the title, the controls and the items on the same native gutters (F-46)', () => {
         mountPane();
         window.ApiClient = apiClient(new Promise(() => {}));
