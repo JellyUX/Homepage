@@ -184,10 +184,7 @@ public sealed class PerfBudgetTests : IDisposable
 
         var scoring = _provider.GetRequiredService<ScoringService>();
         scoring.GetTopGenres(_user.Id, 1);
-        for (var attempt = 0; attempt < 200 && !scoring.HasSnapshotForTesting(_user.Id); attempt++)
-        {
-            await Task.Delay(25);
-        }
+        await scoring.WhenIdleForTesting();
 
         Assert.True(scoring.HasSnapshotForTesting(_user.Id), "The scoring snapshot was not computed during warm-up.");
         await ReadAllSections(controller);

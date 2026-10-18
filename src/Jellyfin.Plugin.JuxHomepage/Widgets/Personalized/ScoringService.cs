@@ -82,6 +82,7 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
     private readonly TimeProvider _timeProvider;
     private readonly TimeSpan _firstComputeTimeout;
     private int _queuedComputes;
+    private int _runningComputes;
     private int _generation;
     private int _lastPurgeDay;
 
@@ -224,20 +225,24 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
     internal bool HasSnapshotForTesting(Guid userId) => _cache.ContainsKey(userId);
 
     /// <summary>
-    /// Test-only seam: completes once no computation is running, including the full computation
-    /// that follows a partial first snapshot. Call it after the computation was started.
+    /// Test-only seam: completes once no computation is queued or running, including the full
+    /// computation that follows a partial first snapshot (counted as running until it is queued, so
+    /// there is no gap between the two). Call it after the computation was started.
     /// </summary>
-    /// <returns>A task that completes when the in-flight table is empty.</returns>
+    /// <returns>A task that completes when no computation is left.</returns>
     internal async Task WhenIdleForTesting()
     {
-        while (!_inFlight.IsEmpty)
+        while (!_inFlight.IsEmpty || Volatile.Read(ref _runningComputes) > 0)
         {
-            foreach (var running in _inFlight.Values)
+            var started = _inFlight.Values.Where(l => l.IsValueCreated).Select(l => l.Value).OfType<Task<ScoreSnapshot>>().ToList();
+            if (started.Count > 0)
             {
-                if (running.Value is { } compute)
-                {
-                    await Task.WhenAny(compute).ConfigureAwait(false);
-                }
+                await Task.WhenAny(Task.WhenAll(started)).ConfigureAwait(false);
+            }
+            else
+            {
+                // A computation is being queued or finishing its follow-up: let it get there.
+                await Task.Yield();
             }
         }
     }
@@ -374,16 +379,24 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
 
     private ScoreSnapshot RunCompute(Guid userId, int peopleScan)
     {
-        var snapshot = RunComputeOnce(userId, peopleScan, out var stored);
-
-        // A partial first snapshot is followed at once by the full one, now that this computation
-        // has left the in-flight table; meanwhile the partial snapshot is served.
-        if (stored && snapshot.Partial)
+        Interlocked.Increment(ref _runningComputes);
+        try
         {
-            StartCompute(userId);
-        }
+            var snapshot = RunComputeOnce(userId, peopleScan, out var stored);
 
-        return snapshot;
+            // A partial first snapshot is followed at once by the full one, now that this computation
+            // has left the in-flight table; meanwhile the partial snapshot is served.
+            if (stored && snapshot.Partial)
+            {
+                StartCompute(userId);
+            }
+
+            return snapshot;
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _runningComputes);
+        }
     }
 
     private ScoreSnapshot RunComputeOnce(Guid userId, int peopleScan, out bool stored)
