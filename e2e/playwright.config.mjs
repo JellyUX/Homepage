@@ -20,12 +20,13 @@ export default defineConfig({
     },
     projects: [
         { name: 'root', testIgnore: /(baseurl|legacy-config)\.spec/ },
-        // A phone-sized viewport for the home page and the outage states (DEC-P03-4), next to root; the
-        // 30 s idle detail page does not depend on the viewport and runs in root only.
+        // A phone-sized viewport, next to root, for the cases whose rendering depends on it (DEC-P03-4,
+        // DEC-P03-12): the home sections, the tabs and the outage states. Request budgets and
+        // navigation do not depend on the viewport and run in root only.
         {
             name: 'mobile',
             testMatch: /(home|errors)\.spec/,
-            grepInvert: /for 30 s/,
+            grep: /F-25|one pane at a time|F-40/,
             use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }
         },
         { name: 'baseurl', testMatch: /baseurl\.spec/ },
