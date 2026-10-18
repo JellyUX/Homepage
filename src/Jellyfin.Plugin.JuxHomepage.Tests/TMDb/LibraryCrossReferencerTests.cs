@@ -190,4 +190,25 @@ public sealed class LibraryCrossReferencerTests
         Assert.Equal(libraryItemId, items[0].LibraryItemId);
         Assert.Equal(0, lookups);
     }
+
+    [Fact(Skip = "PERF-04, phase 06: one library query per item, 600 for 400 items; un-skip with in-memory matching.")]
+    public async Task CrossReference_400Items_UsesAtMostTwoLibraryQueries()
+    {
+        // PERF-04: one library query per item (two when an IMDb id is found) costs hundreds of
+        // queries per refresh. Matching in memory needs at most one read per id provider. This test
+        // bounds the number of library calls only; the matching contract is rewritten with the fix.
+        var library = new TestMocks.CountingLibraryManager();
+        var referencer = new LibraryCrossReferencer(library.Object, NullLogger.Instance);
+        var items = Enumerable.Range(1, 400)
+            .Select(id => new TMDbMovie { Id = id, Title = $"Movie {id}" })
+            .ToList();
+
+        await referencer.CrossReferenceAsync(
+            items,
+            (id, _) => Task.FromResult<string?>(id % 2 == 0 ? $"tt{id:D7}" : null),
+            [BaseItemKind.Movie],
+            CancellationToken.None);
+
+        Assert.True(library.Total <= 2, $"Expected at most 2 library queries, got {library.Total} ({string.Join(", ", library.Counts)}).");
+    }
 }

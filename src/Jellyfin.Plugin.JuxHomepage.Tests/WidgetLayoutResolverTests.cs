@@ -286,6 +286,48 @@ public sealed class WidgetLayoutResolverTests
         Assert.Same(row, resolved);
     }
 
+    [Fact(Skip = "PERF-02, phase 06: the probes run one after another (MaxInFlight 1); un-skip with the bounded fan-out.")]
+    public async Task BuildDescriptors_SlowSynchronousProbes_OverlapUpToTheBound()
+    {
+        // PERF-02: widget probes do their library reads synchronously and return a completed task,
+        // so Task.WhenAll alone runs them one after another. Six rows held 50 ms per library call
+        // must overlap, but never by more than the fan-out bound of 4.
+        var library = new TestMocks.CountingLibraryManager { BlockPerCall = TimeSpan.FromMilliseconds(50) };
+        var registry = new WidgetRegistry();
+        var rows = new List<WidgetConfig>();
+        for (var i = 0; i < 6; i++)
+        {
+            var widgetType = $"jux.test.slow-{i}";
+            registry.Register(MakeSynchronousLibraryWidget(widgetType, library.Object));
+            rows.Add(new WidgetConfig { WidgetType = widgetType, Enabled = true, MinItems = 1, Order = i });
+        }
+
+        var resolver = BuildResolver(registry, [.. rows]);
+
+        var descriptors = await resolver.BuildDescriptors(Guid.NewGuid(), "en", CancellationToken.None);
+
+        Assert.Equal(rows.Select(r => r.WidgetType), descriptors.Select(d => d.WidgetType));
+        Assert.Equal(6, library.Count("GetItemIds"));
+        Assert.InRange(library.MaxInFlight, 2, 4);
+    }
+
+    private static IWidget MakeSynchronousLibraryWidget(string widgetType, ILibraryManager libraryManager)
+    {
+        var mock = new Mock<IWidget>();
+        mock.Setup(w => w.WidgetType).Returns(widgetType);
+        mock.Setup(w => w.DefaultDisplayName).Returns(widgetType);
+        mock.Setup(w => w.Resolve(It.IsAny<Guid>(), It.IsAny<WidgetInstanceConfig>(), It.IsAny<int>()))
+            .Returns((Guid _, WidgetInstanceConfig _, int _) => mock.Object);
+        mock.Setup(w => w.GetItemsAsync(It.IsAny<WidgetPayload>(), It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                libraryManager.GetItemIds(new InternalItemsQuery());
+                return Task.FromResult(new WidgetResult([], 10));
+            });
+        mock.Setup(w => w.GetDescriptor()).Returns(new WidgetDescriptor { WidgetType = widgetType });
+        return mock.Object;
+    }
+
     private static WidgetLayoutResolver BuildResolverWithOverrides(IWidgetRegistry registry, WidgetConfig[] widgets, WidgetConfig[] overrides)
     {
         var userConfigStoreMock = new Mock<IUserConfigurationStore>();

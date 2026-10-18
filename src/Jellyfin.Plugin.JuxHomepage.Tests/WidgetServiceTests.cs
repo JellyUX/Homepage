@@ -353,6 +353,75 @@ public sealed class WidgetServiceTests : IDisposable
     }
 
     // -------------------------------------------------------------------------
+    // Layout expiry (PERF-01): an expired layout is served while one rebuild runs in the background
+    // -------------------------------------------------------------------------
+
+    [Fact(Skip = "PERF-01, phase 06: an expired layout is rebuilt inline before the response; un-skip with stale-while-revalidate.")]
+    public async Task Sections_AfterTtl_ServesPreviousLayoutAndRebuildsOnce()
+    {
+        var clock = new ManualTimeProvider();
+        using var sessionCache = new SessionCache(clock);
+        using var rebuildGate = new ManualResetEventSlim(false);
+        var probes = 0;
+
+        // The first build finds items; the rebuild finds none, so its layout is told apart by being
+        // empty. The rebuild probe is held until both stale reads are done.
+        var widget = new Mock<IWidget>();
+        widget.Setup(w => w.WidgetType).Returns("ttl");
+        widget.Setup(w => w.DefaultDisplayName).Returns("ttl");
+        widget.Setup(w => w.Resolve(It.IsAny<Guid>(), It.IsAny<WidgetInstanceConfig>(), It.IsAny<int>()))
+            .Returns(() => widget.Object);
+        widget.Setup(w => w.GetDescriptor()).Returns(new WidgetDescriptor { WidgetType = "ttl" });
+        widget.Setup(w => w.GetItemsAsync(It.IsAny<WidgetPayload>(), It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                var probe = Interlocked.Increment(ref probes);
+                if (probe > 1)
+                {
+                    rebuildGate.Wait(TimeSpan.FromSeconds(5));
+                }
+
+                return Task.FromResult(new WidgetResult([], probe == 1 ? 10 : 0));
+            });
+        var service = BuildService(
+            [widget.Object],
+            [new WidgetConfig { WidgetType = "ttl", Enabled = true, MinItems = 1 }],
+            sessionCache: sessionCache);
+        var userId = Guid.NewGuid();
+
+        var first = await service.GetWidgetsForUser(userId, page: 0, lang: "en", CancellationToken.None);
+        Assert.Single(first.Sections);
+
+        clock.UtcNowValue += TimeSpan.FromMinutes(16);
+        try
+        {
+            var stale = await Task.Run(() => service.GetWidgetsForUser(userId, page: 0, lang: "en", CancellationToken.None))
+                .WaitAsync(TimeSpan.FromSeconds(2));
+            var staleAgain = await Task.Run(() => service.GetWidgetsForUser(userId, page: 0, lang: "en", CancellationToken.None))
+                .WaitAsync(TimeSpan.FromSeconds(2));
+            Assert.Single(stale.Sections);
+            Assert.Single(staleAgain.Sections);
+        }
+        finally
+        {
+            rebuildGate.Set();
+        }
+
+        var rebuilt = false;
+        for (var attempt = 0; attempt < 100 && !rebuilt; attempt++)
+        {
+            rebuilt = (await service.GetWidgetsForUser(userId, page: 0, lang: "en", CancellationToken.None)).Sections.Count == 0;
+            if (!rebuilt)
+            {
+                await Task.Delay(50);
+            }
+        }
+
+        Assert.True(rebuilt);
+        Assert.Equal(2, Volatile.Read(ref probes));
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 
@@ -360,7 +429,8 @@ public sealed class WidgetServiceTests : IDisposable
         IWidget[] registeredWidgets,
         WidgetConfig[] globalWidgets,
         ILocalizationService? localizationService = null,
-        IPersonalizationState? personalizationState = null)
+        IPersonalizationState? personalizationState = null,
+        SessionCache? sessionCache = null)
     {
         var registry = new WidgetRegistry();
         foreach (var w in registeredWidgets)
@@ -383,7 +453,7 @@ public sealed class WidgetServiceTests : IDisposable
 
         return new WidgetService(
             registry,
-            _sessionCache,
+            sessionCache ?? _sessionCache,
             layoutResolver,
             () => config,
             NullLogger<WidgetService>.Instance,
