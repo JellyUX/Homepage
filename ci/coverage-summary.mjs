@@ -11,7 +11,7 @@ import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 
 const RISKY_CS = ['Inject/', 'Controllers/', 'Personalized/', 'Plugin.cs', 'PluginServiceRegistrator.cs'];
-const RISKY_JS = ['jux-tab-injector.js', 'jux-homepage.js', 'jux-history.js', 'jux-progress.js', 'jux-watchlist.js'];
+const RISKY_JS = ['jux-tab-injector.js', 'jux-homepage.js', 'jux-history.js', 'jux-progress.js', 'jux-watchlist.js', 'jux-card-hooks.js'];
 const PLUGIN_DIR = 'src/Jellyfin.Plugin.JuxHomepage/';
 const CHANGED_LINES_WARNING = 80;
 
