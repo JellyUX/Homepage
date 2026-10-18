@@ -45,7 +45,6 @@
     window.JuxUI = {
         showEmpty: showEmpty,
         showLoading: showLoading,
-        hideLoading: hideLoading,
         buildProgressBar: buildProgressBar,
         buildStatCard: buildStatCard,
         openSortDialog: openSortDialog,
@@ -362,17 +361,6 @@
         }
 
         container.innerHTML = '<div class="jux-loading" data-jux-loading="1"><div class="jux-spinner"></div></div>';
-    }
-
-    function hideLoading(container) {
-        if (!container) {
-            return;
-        }
-
-        var loadingEl = container.querySelector('[data-jux-loading]');
-        if (loadingEl) {
-            loadingEl.remove();
-        }
     }
 
     // -------------------------------------------------------------------------

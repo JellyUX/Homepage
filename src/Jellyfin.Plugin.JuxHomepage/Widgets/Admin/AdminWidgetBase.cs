@@ -141,7 +141,7 @@ public abstract class AdminWidgetBase : IWidget
     public Task<WidgetResult> GetItemsAsync(WidgetPayload payload, CancellationToken cancellationToken)
     {
         // Resolve the instance value: prefer AdditionalData (set from ExtraParams["value"] by
-        // WidgetService.BuildInstanceConfig), fall back to ExtraParams["value"] for direct calls.
+        // WidgetLayoutResolver.BuildInstanceConfig), fall back to ExtraParams["value"] for direct calls.
         string? value = payload.AdditionalData;
         if (string.IsNullOrEmpty(value) && payload.ExtraParams is not null)
         {

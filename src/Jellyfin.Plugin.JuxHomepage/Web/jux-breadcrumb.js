@@ -7,10 +7,10 @@
 // switch on item.Type builds the segment list -- no per-type file/duplication, per the roadmap's own
 // "pas de duplication par type" instruction.
 //
-// Page-hook idiom: same as jux-series-flatten.js/jux-collections.js -- item id read from
-// location.hash, a dedicated MutationObserver on document.body, a hashchange re-arm. Kept for
-// consistency with the rest of the project rather than adopting KefinTweaks' window.Emby.Page
-// monkey-patch (its breadcrumbs.js is used only as a reference for hierarchy-resolution logic, e.g.
+// Page-hook idiom: same as jux-series-flatten.js/jux-collections.js -- JuxCore.watchDetailPages reads
+// the item id from location.hash, observes the DOM only while a detail page is shown and re-syncs on
+// hash changes. Kept for consistency with the rest of the project rather than adopting KefinTweaks'
+// window.Emby.Page monkey-patch (its breadcrumbs.js is used only as a reference for hierarchy-resolution logic, e.g.
 // which BaseItemDto fields are already populated -- SeriesName/SeasonId/AlbumArtists -- so no extra
 // per-level network round trip is needed beyond the single ApiClient.getItem call).
 //

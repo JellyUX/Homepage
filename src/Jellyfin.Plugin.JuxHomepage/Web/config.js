@@ -243,7 +243,7 @@ function createConfigPage() {
 
         // Translates a widget's default display name client-side (WidgetType is used directly
         // as the translation key, see fr.json/en.json), falling back to the English
-        // DisplayName already returned by GET JuxHomepage/Widgets if the key is missing.
+        // DisplayName already returned by GET JuxHomepage/Admin/Catalog if the key is missing.
         translatedWidgetName: function (widgetType, desc) {
             var self = this;
             if (self._i18n && self._i18n[widgetType]) { return self._i18n[widgetType]; }
