@@ -463,6 +463,8 @@ describe('first render (F-41)', () => {
     const originalHook = window.JUXHomepage.originalLoadSections;
 
     afterEach(() => {
+        vi.useRealTimers();
+        vi.restoreAllMocks();
         window.JUXHomepage.originalLoadSections = originalHook;
     });
 
@@ -522,6 +524,27 @@ describe('first render (F-41)', () => {
         document.documentElement.classList.remove('layout-tv');
         expect(native).toHaveBeenCalledTimes(1);
         expect(api.client.getJSON).not.toHaveBeenCalled();
+    });
+
+    it('hands the home screen back to Jellyfin when the first Sections page has not answered in 15 s (FIAB-08)', async () => {
+        vi.useFakeTimers();
+        const elem = document.createElement('div');
+        const api = apiClient();
+        const native = vi.fn();
+        window.JUXHomepage.originalLoadSections = native;
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        _renderHome({}, elem, api.client, {}, {});
+        await vi.advanceTimersByTimeAsync(14999);
+        expect(native).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(1);
+
+        expect(native).toHaveBeenCalledTimes(1);
+        expect(elem.querySelector('.jux-skeleton')).toBeNull();
+        expect(elem.classList.contains('jux-homepage-active')).toBe(false);
+        vi.useRealTimers();
+        await api.answer({ Sections: [{ WidgetType: 'jux.native.my-media', DisplayName: 'Late' }], HasMore: false, Enabled: true });
+        expect(elem.querySelector('.jux-widget-section')).toBeNull();
     });
 
     it('hands the home screen back to Jellyfin when Sections says the plugin is disabled', async () => {

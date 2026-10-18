@@ -327,3 +327,32 @@ describe('runInFlight (QUAL-04)', () => {
         expect(el.dataset.juxPending).toBeUndefined();
     });
 });
+
+describe('fetchWithTimeout (FIAB-08)', () => {
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it('answers with the server, and rejects once the limit passes without an answer', async () => {
+        vi.useFakeTimers();
+        const fast = { getJSON: vi.fn().mockResolvedValue({ ok: 1 }) };
+        await expect(juxCore.fetchWithTimeout(fast, 'a')).resolves.toEqual({ ok: 1 });
+        expect(vi.getTimerCount()).toBe(0);
+
+        let answer;
+        const silent = { getJSON: vi.fn(() => new Promise((resolve) => { answer = resolve; })) };
+        const pending = juxCore.fetchWithTimeout(silent, 'b');
+        const outcome = pending.then(() => 'answered', (err) => err.message);
+        await vi.advanceTimersByTimeAsync(15000);
+        answer({ late: true });
+
+        expect(await outcome).toBe('No answer within 15000 ms: b');
+    });
+
+    it('passes a failed request through, a synchronous throw included', async () => {
+        const failing = { getJSON: vi.fn().mockRejectedValue(new Error('500')) };
+        const throwing = { getJSON: () => { throw new Error('offline'); } };
+        await expect(juxCore.fetchWithTimeout(failing, 'c')).rejects.toThrow('500');
+        await expect(juxCore.fetchWithTimeout(throwing, 'd')).rejects.toThrow('offline');
+    });
+});

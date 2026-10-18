@@ -146,8 +146,10 @@
         });
     }
 
+    // A page that has not answered within 15 s fails like any other (FIAB-08): page 0 then hands the
+    // home screen back to Jellyfin instead of leaving the placeholders up for good.
     function _loadPage(elem, apiClient, userId, userSettings, page, onFirstPageFailure) {
-        return apiClient.getJSON(
+        return window.JuxCore.fetchWithTimeout(apiClient,
             apiClient.getUrl('JuxHomepage/Sections', {
                 userId: userId,
                 page: page,

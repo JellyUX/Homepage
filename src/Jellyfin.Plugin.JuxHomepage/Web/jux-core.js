@@ -68,6 +68,29 @@
         });
     }
 
+    // A JSON request that rejects when the server has not answered within ms (FIAB-08, default 15 s):
+    // a server that accepts the connection but never answers would otherwise keep the page waiting
+    // for good. A late answer is dropped (test: jux-core.test.js "fetchWithTimeout").
+    var REQUEST_TIMEOUT_MS = 15000;
+
+    function fetchWithTimeout(apiClient, url, ms) {
+        var limit = ms || REQUEST_TIMEOUT_MS;
+        return new Promise(function (resolve, reject) {
+            var timer = setTimeout(function () {
+                reject(new Error('No answer within ' + limit + ' ms: ' + url));
+            }, limit);
+            Promise.resolve().then(function () {
+                return apiClient.getJSON(url);
+            }).then(function (value) {
+                clearTimeout(timer);
+                resolve(value);
+            }, function (err) {
+                clearTimeout(timer);
+                reject(err);
+            });
+        });
+    }
+
     // Deferred card images (TODO_V4.md 2.3, F-10). cardBuilder.getCardsHtml emits
     // ".cardImageContainer.lazy[data-src]", but a JellyUX container never gets Jellyfin's native lazy
     // loading, so each image is applied when its card comes near the viewport. One observer per
@@ -343,6 +366,7 @@
         cached: cached,
         getItem: getItem,
         getIncludedIn: getIncludedIn,
+        fetchWithTimeout: fetchWithTimeout,
         observeCardImages: observeCardImages,
         resolveLang: resolveLang,
         t: t,
