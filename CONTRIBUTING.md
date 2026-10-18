@@ -120,6 +120,28 @@ backticks in `README.md`, `CONTRIBUTING.md` and `docs/` must exist (`DocSymbolSy
 3. Check the browser console for errors.
 4. Test widget configuration from the admin panel.
 
+## Failure Paths
+
+Each boundary where the plugin meets something it does not control has a model test: copy its shape
+when you touch that boundary, and add a row (with its test) for a new one. A test drives the failure
+deterministically (a fake that throws, a corrupt file in a temporary directory, a stub HTTP handler, a
+promise that never settles, a gate released by the test), never a sleep or a stopwatch.
+
+| Boundary | Model test | What it proves |
+|---|---|---|
+| File system call that throws (`IFileSystem`) | `TransformationPatchesTests.FindLoadSectionsChunks_UnreadableChunk_IsSkippedAndTheOthersStillScanned` | the unreadable file is skipped, the others are still read |
+| Corrupt file on disk, temporary directory | `UserConfigurationStoreTests.GetUserConfiguration_CorruptFile_ReturnsNullAndTheNextSaveReplacesIt` | a truncated JSON reads as no overrides, the next save replaces it (the plugin XML is read by Jellyfin, not by the plugin) |
+| HTTP 401 and 429 (stub `HttpMessageHandler`) | `TMDbApiClientTests.GetTrendingMoviesAsync_Unauthorized_ReturnsEmptyWithoutRetry`, `WikidataApiClientTests.GetAwardWinnersAsync_RateLimited_ReturnsEmptyWithoutRetry` | an empty result after one call, no retry; a slow response has no model test yet |
+| Request that never settles (client) | `test/jux-ui.test.js`, "shows the error state with a retry that renders again, never the empty state" | partial: a retry that never settles keeps the error state; the client has no request timeout to drive with fake timers yet |
+| Observer re-armed after a reset (client) | `test/jux-tab-injector.test.js`, "re-injects into the tab bar rebuilt for a new view, as soon as the view is shown (F-42)" | partial: re-armed by `viewshow`, not after an explicit teardown |
+| Admin round trip | `e2e/tests/admin.spec.mjs`, "the admin page keeps Save in view and moves a section by drag and drop or by position (F-50)" | saved, read back from the API, shown on the home page; the original configuration is restored |
+| Drift of the Jellyfin web client | `test/native-selectors.test.js`, `JellyfinWebDriftTests.EveryInventoriedNativeToken_AppearsInTheTargetBundle` | every native token the scripts use is inventoried and present in the target bundle |
+| Refresh racing an update (`TaskCompletionSource`) | `CollectionsIndexCacheServiceTests.Invalidate_DuringARefresh_LeavesTheIndexStale` | a change made while the index is computed is not lost when it is written |
+
+Time-dependent code takes a `TimeProvider`; tests pass the test project's `ManualTimeProvider` and call
+`Advance` to fire its timers, and await a signal for background work (`ScoringService.WhenIdleForTesting`,
+a `TaskCompletionSource` set by a mock).
+
 ## Measurement Rules
 
 - **No time threshold in the CI.** CI runners are too noisy for a stopwatch: the CI checks numbers that
