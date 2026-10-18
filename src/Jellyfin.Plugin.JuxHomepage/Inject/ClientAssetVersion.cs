@@ -34,22 +34,24 @@ internal static class ClientAssetVersion
     /// </summary>
     /// <param name="assembly">The assembly holding the embedded assets.</param>
     /// <returns>The first 12 hexadecimal characters of the SHA-256 hash.</returns>
-    internal static string Compute(Assembly assembly)
+    internal static string Compute(Assembly assembly) =>
+        Compute(assembly.GetManifestResourceNames()
+            .Where(IsClientAsset)
+            .ToDictionary(n => n, n => ReadResource(assembly, n), StringComparer.Ordinal));
+
+    /// <summary>
+    /// Hashes the names and contents of the client assets among named resources, in ordinal name
+    /// order; other resources are ignored.
+    /// </summary>
+    /// <param name="resources">Resource contents by manifest resource name.</param>
+    /// <returns>The first 12 hexadecimal characters of the SHA-256 hash.</returns>
+    internal static string Compute(IReadOnlyDictionary<string, byte[]> resources)
     {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        var names = assembly.GetManifestResourceNames()
-            .Where(n => (n.Contains(AssetMarker, StringComparison.Ordinal)
-                    && (n.EndsWith(".js", StringComparison.Ordinal) || n.EndsWith(".css", StringComparison.Ordinal)))
-                || (n.Contains(LanguageMarker, StringComparison.Ordinal) && n.EndsWith(".json", StringComparison.Ordinal)))
-            .OrderBy(n => n, StringComparer.Ordinal);
-
-        foreach (var name in names)
+        foreach (var name in resources.Keys.Where(IsClientAsset).OrderBy(n => n, StringComparer.Ordinal))
         {
             hash.AppendData(Encoding.UTF8.GetBytes(name));
-            using var stream = assembly.GetManifestResourceStream(name)!;
-            using var buffer = new MemoryStream();
-            stream.CopyTo(buffer);
-            hash.AppendData(buffer.ToArray());
+            hash.AppendData(resources[name]);
         }
 
         return Convert.ToHexString(hash.GetHashAndReset())[..KeyLength].ToLowerInvariant();
@@ -64,4 +66,17 @@ internal static class ClientAssetVersion
     /// <returns>The Cache-Control header value.</returns>
     internal static string CacheControlFor(string? requestedKey, string currentKey) =>
         string.Equals(requestedKey, currentKey, StringComparison.Ordinal) ? ImmutableCacheControl : DefaultCacheControl;
+
+    private static bool IsClientAsset(string name) =>
+        (name.Contains(AssetMarker, StringComparison.Ordinal)
+            && (name.EndsWith(".js", StringComparison.Ordinal) || name.EndsWith(".css", StringComparison.Ordinal)))
+        || (name.Contains(LanguageMarker, StringComparison.Ordinal) && name.EndsWith(".json", StringComparison.Ordinal));
+
+    private static byte[] ReadResource(Assembly assembly, string name)
+    {
+        using var stream = assembly.GetManifestResourceStream(name)!;
+        using var buffer = new MemoryStream();
+        stream.CopyTo(buffer);
+        return buffer.ToArray();
+    }
 }
