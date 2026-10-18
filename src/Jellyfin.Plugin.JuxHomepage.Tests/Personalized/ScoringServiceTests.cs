@@ -207,6 +207,42 @@ public sealed class ScoringServiceTests
     }
 
     [Fact]
+    public async Task GetSnapshot_ColdBurstOfOneUserNextToAlmostFullQueue_EveryCallerJoinsTheComputation()
+    {
+        // A-01: seven computations of other users are queued, one place is left. Twenty callers of
+        // one more user arrive together: they all join the one computation started for that user,
+        // so none of them may be refused and served empty before the clock reaches the timeout.
+        var counters = new ComputeCounters();
+        counters.Gate.Reset();
+        var clock = new ManualTimeProvider();
+        var timeout = TimeSpan.FromSeconds(2);
+        var service = BuildSlowService(counters, clock, timeout);
+        var others = Enumerable.Range(0, 7)
+            .Select(_ => OnOwnThread(() => service.GetTopGenres(Guid.NewGuid(), 5)))
+            .ToArray();
+        WaitUntil(() => clock.ActiveTimers == 7);
+
+        var userId = Guid.NewGuid();
+        using var start = new Barrier(20);
+        var burst = Enumerable.Range(0, 20)
+            .Select(_ => OnOwnThread(() =>
+            {
+                start.SignalAndWait();
+                return service.GetTopGenres(userId, 5);
+            }))
+            .ToArray();
+        WaitUntil(() => clock.ActiveTimers + burst.Count(c => c.IsCompleted) == 27);
+
+        Assert.Equal(0, burst.Count(c => c.IsCompleted));
+        counters.Gate.Set();
+        var results = await Task.WhenAll(burst);
+        await Task.WhenAll(others);
+        Assert.All(results, r => Assert.Equal("Drama", Assert.Single(r).Value));
+        await service.WhenIdleForTesting();
+        Assert.Equal(8, counters.Computations);
+    }
+
+    [Fact]
     public async Task GetSnapshot_FirstComputeTimesOut_ServesEmptyAndFlagsPending()
     {
         var counters = new ComputeCounters();

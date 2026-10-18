@@ -74,7 +74,7 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
     private readonly IUserDataManager _userDataManager;
     private readonly Func<PluginConfiguration?> _getConfiguration;
     private readonly ConcurrentDictionary<Guid, ScoreSnapshot> _cache = new();
-    private readonly ConcurrentDictionary<Guid, Lazy<Task<ScoreSnapshot>>> _inFlight = new();
+    private readonly ConcurrentDictionary<Guid, Lazy<Task<ScoreSnapshot>?>> _inFlight = new();
     private readonly ConcurrentDictionary<Guid, byte> _pendingServed = new();
     private readonly SemaphoreSlim _computeGate = new(1, 1);
     private readonly CancellationTokenSource _shutdown = new();
@@ -234,7 +234,10 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
         {
             foreach (var running in _inFlight.Values)
             {
-                await Task.WhenAny(running.Value).ConfigureAwait(false);
+                if (running.Value is { } compute)
+                {
+                    await Task.WhenAny(compute).ConfigureAwait(false);
+                }
             }
         }
     }
@@ -332,28 +335,33 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
             return running.Value;
         }
 
-        if (Interlocked.Increment(ref _queuedComputes) > MaxQueuedComputes)
-        {
-            Interlocked.Decrement(ref _queuedComputes);
-            return null;
-        }
-
-        // A dedicated thread, not the thread pool: callers block on this task (WaitForFirstCompute),
-        // and under load a pool-scheduled computation would wait for a pool thread held by those
-        // very callers. The bounded queue caps how many of these threads can exist.
+        // Only the one computation that enters the table takes a place in the queue, decided once
+        // inside it: a caller that joins it never counts (A-01, a burst of callers counted each
+        // other and was refused next to an almost full queue), and every caller of a refused
+        // computation sees the same null.
         var peopleScan = _cache.ContainsKey(userId) ? MaxPeopleScan : InitialPeopleScan;
-        var created = new Lazy<Task<ScoreSnapshot>>(() => Task.Factory.StartNew(
-            () => RunCompute(userId, peopleScan),
-            CancellationToken.None,
-            TaskCreationOptions.LongRunning,
-            TaskScheduler.Default));
-        var actual = _inFlight.GetOrAdd(userId, created);
-        if (!ReferenceEquals(actual, created))
+        Lazy<Task<ScoreSnapshot>?>? created = null;
+        created = new Lazy<Task<ScoreSnapshot>?>(() =>
         {
-            Interlocked.Decrement(ref _queuedComputes);
-        }
+            if (Interlocked.Increment(ref _queuedComputes) > MaxQueuedComputes)
+            {
+                Interlocked.Decrement(ref _queuedComputes);
+                _inFlight.TryRemove(new KeyValuePair<Guid, Lazy<Task<ScoreSnapshot>?>>(userId, created!));
+                return null;
+            }
 
-        return actual.Value;
+            // A dedicated thread, not the thread pool: callers block on this task
+            // (WaitForFirstCompute), and under load a pool-scheduled computation would wait for a
+            // pool thread held by those very callers. The bounded queue caps how many of these
+            // threads can exist.
+            return Task.Factory.StartNew(
+                () => RunCompute(userId, peopleScan),
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default);
+        });
+
+        return _inFlight.GetOrAdd(userId, created).Value;
     }
 
     private ScoreSnapshot RunCompute(Guid userId, int peopleScan)
