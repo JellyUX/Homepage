@@ -170,8 +170,14 @@
                 return;
             }
 
+            // A descriptor that throws loses its own section only (FIAB-08), never the whole page.
             var tasks = descriptors.map(function (descriptor) {
-                return _buildSection(elem, apiClient, userId, userSettings, descriptor);
+                try {
+                    return _buildSection(elem, apiClient, userId, userSettings, descriptor);
+                } catch (err) {
+                    console.error('[JellyUX] Section build failed (' + (descriptor && descriptor.WidgetType) + '):', err);
+                    return null;
+                }
             });
 
             return Promise.all(tasks).then(function () {
@@ -190,6 +196,8 @@
             if (typeof onFirstPageFailure === 'function') {
                 return onFirstPageFailure();
             }
+            // A later page reports its failure, so the lazy loader asks for it again (FIAB-08).
+            throw err;
         });
     }
 
@@ -444,9 +452,12 @@
         var observer = new IntersectionObserver(function (entries) {
             if (finished || loading || !entries[0].isIntersecting) { return; }
             loading = true;
-            currentPage++;
+            var nextPage = currentPage + 1;
 
-            _loadPage(elem, apiClient, userId, userSettings, currentPage).then(function () {
+            // The page counter moves on success only: a failed page is asked for again on the next
+            // intersection instead of being skipped (FIAB-08).
+            _loadPage(elem, apiClient, userId, userSettings, nextPage).then(function () {
+                currentPage = nextPage;
                 loading = false;
 
                 // The server says whether a later page exists: stop as soon as it does not, so the

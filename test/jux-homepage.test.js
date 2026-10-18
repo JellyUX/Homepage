@@ -159,6 +159,27 @@ describe('_setupLazyLoader (F-10)', () => {
         expect(apiClient.getJSON.mock.calls[0][0]).toContain('page=1');
         expect(elem.querySelector('.jux-lazy-sentinel')).toBeNull();
     });
+
+    it('asks for a deferred page again after it failed, instead of skipping it (FIAB-08)', async () => {
+        const elem = document.createElement('div');
+        elem.dataset.juxHasMore = 'true';
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        const apiClient = {
+            getUrl: (path, query) => path + '?page=' + query.page,
+            getJSON: vi.fn()
+                .mockRejectedValueOnce(new Error('503'))
+                .mockResolvedValue({ Sections: [], HasMore: false })
+        };
+
+        _setupLazyLoader(elem, apiClient, 'user1', {});
+        intersect();
+        await flush();
+        intersect();
+        await flush();
+
+        expect(apiClient.getJSON.mock.calls.map((c) => c[0])).toEqual(['JuxHomepage/Sections?page=1', 'JuxHomepage/Sections?page=1']);
+        vi.restoreAllMocks();
+    });
 });
 
 describe('_buildSection (F-11)', () => {
@@ -545,6 +566,20 @@ describe('first render (F-41)', () => {
         vi.useRealTimers();
         await api.answer({ Sections: [{ WidgetType: 'jux.native.my-media', DisplayName: 'Late' }], HasMore: false, Enabled: true });
         expect(elem.querySelector('.jux-widget-section')).toBeNull();
+    });
+
+    it('loses only the section whose descriptor throws, not the page (FIAB-08)', async () => {
+        const elem = document.createElement('div');
+        const api = apiClient();
+        const native = vi.fn();
+        window.JUXHomepage.originalLoadSections = native;
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        _renderHome({}, elem, api.client, {}, {});
+        await api.answer({ Sections: [{ DisplayName: 'Broken' }, { WidgetType: 'jux.native.my-media', DisplayName: 'Fine' }], HasMore: false, Enabled: true });
+
+        expect(native).not.toHaveBeenCalled();
+        expect([...elem.querySelectorAll('.jux-widget-section .sectionTitle')].map((t) => t.textContent)).toEqual(['Fine']);
     });
 
     it('hands the home screen back to Jellyfin when Sections says the plugin is disabled', async () => {
