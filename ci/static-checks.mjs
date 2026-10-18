@@ -278,6 +278,79 @@ export function compareWithBaseline(families, baseline) {
     return { errors, warnings };
 }
 
+/** Smallest clone, in lines, that the pair ratchet tracks on its own (TODO_V5 PROC-07.a). */
+export const LARGE_PAIR_LINES = 15;
+
+const cloneLines = (d) => d.firstFile.end - d.firstFile.start + 1;
+const relativeName = (name) => path.relative(process.cwd(), name).replace(/\\/g, '/');
+
+/**
+ * Whether a clone is only using or import lines (and braces): repeated headers, not repeated logic.
+ * @param {string} fragment
+ * @returns {boolean}
+ */
+export function isImportOnly(fragment) {
+    return fragment.split('\n').every((line) => /^\s*(?:using\s|import\s|[{}()[\];,]*\s*$)/.test(line));
+}
+
+/**
+ * The duplication the ratchet holds besides the 3+ families: clones of at least LARGE_PAIR_LINES lines
+ * counted per pair of files, and duplicated lines per format. Import-only clones are left out.
+ * @param {{format: string, fragment: string, firstFile: {name: string, start: number, end: number}, secondFile: {name: string}}[]} duplicates
+ * @returns {{pairs: {files: string[], count: number}[], totals: Record<string, number>}}
+ */
+export function measureDuplication(duplicates) {
+    const kept = duplicates.filter((d) => !isImportOnly(d.fragment ?? ''));
+    const pairs = new Map();
+    for (const d of kept.filter((c) => cloneLines(c) >= LARGE_PAIR_LINES)) {
+        const files = [relativeName(d.firstFile.name), relativeName(d.secondFile.name)].sort();
+        const key = files.join(' | ');
+        pairs.set(key, { files, count: (pairs.get(key)?.count ?? 0) + 1 });
+    }
+    const totals = {};
+    for (const d of kept) {
+        totals[d.format] = (totals[d.format] ?? 0) + cloneLines(d);
+    }
+    return {
+        pairs: [...pairs.values()].sort((a, b) => a.files.join().localeCompare(b.files.join())),
+        totals: Object.fromEntries(Object.entries(totals).sort(([a], [b]) => a.localeCompare(b)))
+    };
+}
+
+/**
+ * Compares the large pairs and the per-format totals with the baseline: no new pair of files, no more
+ * large clones per pair, no more duplicated lines per format.
+ * @param {{pairs: {files: string[], count: number}[], totals: Record<string, number>}} current
+ * @param {{pairs?: {files: string[], count: number}[], totals?: Record<string, number>}} baseline
+ * @returns {{errors: string[], warnings: string[]}}
+ */
+export function compareDuplication(current, baseline) {
+    const errors = [];
+    const warnings = [];
+    const allowed = new Map((baseline.pairs ?? []).map((p) => [p.files.join(' | '), p.count]));
+    const now = new Map(current.pairs.map((p) => [p.files.join(' | '), p.count]));
+    for (const [key, count] of now) {
+        if (count > (allowed.get(key) ?? 0)) {
+            errors.push(`${count} clone(s) of ${LARGE_PAIR_LINES}+ lines between ${key}, allowed ${allowed.get(key) ?? 0}`);
+        }
+    }
+    for (const [key, count] of allowed) {
+        if ((now.get(key) ?? 0) < count) {
+            warnings.push(`duplication went down, shrink ${BASELINE_PATH}: ${key}`);
+        }
+    }
+    for (const format of new Set([...Object.keys(current.totals), ...Object.keys(baseline.totals ?? {})])) {
+        const lines = current.totals[format] ?? 0;
+        const limit = baseline.totals?.[format] ?? 0;
+        if (lines > limit) {
+            errors.push(`${lines} duplicated ${format} lines, baseline ${limit}`);
+        } else if (lines < limit) {
+            warnings.push(`duplicated ${format} lines went down to ${lines}, shrink ${BASELINE_PATH} (${limit})`);
+        }
+    }
+    return { errors, warnings };
+}
+
 function git(args) {
     return execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 }
@@ -305,13 +378,16 @@ function runJscpd() {
 }
 
 /**
- * Computes the current clone families, as stored in the baseline file.
- * @returns {{files: string[], copies: number}[]}
+ * Computes the current duplication, as stored in the baseline file: the 3+ clone families, the large
+ * pairs and the duplicated lines per format, from one jscpd run.
+ * @returns {{families: {files: string[], copies: number}[], pairs: {files: string[], count: number}[], totals: Record<string, number>}}
  */
-export function currentCloneFamilies() {
-    return groupCloneFamilies(runJscpd())
-        .map((f) => ({ ...f, files: f.files.map((name) => path.relative(process.cwd(), name).replace(/\\/g, '/')) }))
+export function currentDuplication() {
+    const duplicates = runJscpd();
+    const families = groupCloneFamilies(duplicates)
+        .map((f) => ({ ...f, files: f.files.map(relativeName) }))
         .sort((a, b) => a.files.join().localeCompare(b.files.join()) || b.copies - a.copies);
+    return { families, ...measureDuplication(duplicates) };
 }
 
 function main() {
@@ -364,10 +440,12 @@ function main() {
         }
     }
 
-    const baseline = existsSync(BASELINE_PATH) ? JSON.parse(readFileSync(BASELINE_PATH, 'utf8')) : [];
-    const dup = compareWithBaseline(currentCloneFamilies(), baseline);
-    dup.errors.forEach((message) => errors.push({ message }));
-    dup.warnings.forEach((message) => warnings.push({ message }));
+    const baseline = existsSync(BASELINE_PATH) ? JSON.parse(readFileSync(BASELINE_PATH, 'utf8')) : {};
+    const current = currentDuplication();
+    for (const dup of [compareWithBaseline(current.families, baseline.families ?? []), compareDuplication(current, baseline)]) {
+        dup.errors.forEach((message) => errors.push({ message }));
+        dup.warnings.forEach((message) => warnings.push({ message }));
+    }
 
     const annotate = (level, { file, line, message }) =>
         console.log(`::${level}${file ? ` file=${file}${line ? `,line=${line}` : ''}` : ''}::${message}`);
@@ -379,7 +457,7 @@ function main() {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
     if (process.argv.includes('--write-baseline')) {
-        console.log(JSON.stringify(currentCloneFamilies(), null, 2));
+        console.log(JSON.stringify(currentDuplication(), null, 2));
     } else {
         main();
     }

@@ -1,41 +1,71 @@
-[
-  {
-    "files": [
-      "Jellyfin.Plugin.JuxHomepage/Controllers/JuxHomepageController.cs"
-    ],
-    "copies": 3
-  },
-  {
-    "files": [
-      "Jellyfin.Plugin.JuxHomepage/Web/config.js"
-    ],
-    "copies": 3
-  },
-  {
-    "files": [
-      "Jellyfin.Plugin.JuxHomepage/Web/config.js"
-    ],
-    "copies": 3
-  },
-  {
-    "files": [
-      "Jellyfin.Plugin.JuxHomepage/Widgets/Connected/AiringTodayShowsWidget.cs",
-      "Jellyfin.Plugin.JuxHomepage/Widgets/Connected/DiscoverMoviesWidget.cs",
-      "Jellyfin.Plugin.JuxHomepage/Widgets/Connected/NowPlayingMoviesWidget.cs",
-      "Jellyfin.Plugin.JuxHomepage/Widgets/Connected/TopRatedMoviesWidget.cs",
-      "Jellyfin.Plugin.JuxHomepage/Widgets/Connected/TopRatedShowsWidget.cs",
-      "Jellyfin.Plugin.JuxHomepage/Widgets/Connected/TrendingMoviesWidget.cs",
-      "Jellyfin.Plugin.JuxHomepage/Widgets/Connected/TrendingShowsWidget.cs"
-    ],
-    "copies": 7
-  },
-  {
-    "files": [
-      "Jellyfin.Plugin.JuxHomepage/Widgets/Native/ContinueWatchingWidget.cs",
-      "Jellyfin.Plugin.JuxHomepage/Widgets/Native/MyMediaWidget.cs",
-      "Jellyfin.Plugin.JuxHomepage/Widgets/Native/NextUpWidget.cs",
-      "Jellyfin.Plugin.JuxHomepage/Widgets/Native/RecentlyAddedWidgetBase.cs"
-    ],
-    "copies": 4
+{
+  "families": [
+    {
+      "files": [
+        "Jellyfin.Plugin.JuxHomepage/Controllers/JuxHomepageController.cs"
+      ],
+      "copies": 3
+    },
+    {
+      "files": [
+        "Jellyfin.Plugin.JuxHomepage/Web/config.js"
+      ],
+      "copies": 3
+    },
+    {
+      "files": [
+        "Jellyfin.Plugin.JuxHomepage/Web/config.js"
+      ],
+      "copies": 3
+    },
+    {
+      "files": [
+        "Jellyfin.Plugin.JuxHomepage/Widgets/Connected/AiringTodayShowsWidget.cs",
+        "Jellyfin.Plugin.JuxHomepage/Widgets/Connected/DiscoverMoviesWidget.cs",
+        "Jellyfin.Plugin.JuxHomepage/Widgets/Connected/NowPlayingMoviesWidget.cs",
+        "Jellyfin.Plugin.JuxHomepage/Widgets/Connected/TopRatedMoviesWidget.cs",
+        "Jellyfin.Plugin.JuxHomepage/Widgets/Connected/TopRatedShowsWidget.cs",
+        "Jellyfin.Plugin.JuxHomepage/Widgets/Connected/TrendingMoviesWidget.cs",
+        "Jellyfin.Plugin.JuxHomepage/Widgets/Connected/TrendingShowsWidget.cs"
+      ],
+      "copies": 7
+    },
+    {
+      "files": [
+        "Jellyfin.Plugin.JuxHomepage/Widgets/Native/ContinueWatchingWidget.cs",
+        "Jellyfin.Plugin.JuxHomepage/Widgets/Native/MyMediaWidget.cs",
+        "Jellyfin.Plugin.JuxHomepage/Widgets/Native/NextUpWidget.cs",
+        "Jellyfin.Plugin.JuxHomepage/Widgets/Native/RecentlyAddedWidgetBase.cs"
+      ],
+      "copies": 4
+    }
+  ],
+  "pairs": [
+    {
+      "files": [
+        "Jellyfin.Plugin.JuxHomepage/Controllers/JuxHomepageController.cs",
+        "Jellyfin.Plugin.JuxHomepage/Controllers/JuxHomepageController.cs"
+      ],
+      "count": 2
+    },
+    {
+      "files": [
+        "Jellyfin.Plugin.JuxHomepage/Watchlist/MovieHistoryCacheService.cs",
+        "Jellyfin.Plugin.JuxHomepage/Watchlist/SeriesProgressCacheService.cs"
+      ],
+      "count": 2
+    },
+    {
+      "files": [
+        "Jellyfin.Plugin.JuxHomepage/Widgets/Native/ContinueWatchingWidget.cs",
+        "Jellyfin.Plugin.JuxHomepage/Widgets/Native/MyMediaWidget.cs"
+      ],
+      "count": 1
+    }
+  ],
+  "totals": {
+    "csharp": 254,
+    "css": 6,
+    "javascript": 90
   }
-]
+}

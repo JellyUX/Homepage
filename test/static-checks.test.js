@@ -8,7 +8,10 @@ import {
     checkCommit,
     checkBudget,
     groupCloneFamilies,
-    compareWithBaseline
+    compareWithBaseline,
+    isImportOnly,
+    measureDuplication,
+    compareDuplication
 } from '../ci/static-checks.mjs';
 
 describe('findEmDashes', () => {
@@ -197,5 +200,39 @@ describe('duplication ratchet', () => {
         expect(compareWithBaseline([{ files: ['d.js', 'e.js', 'f.js'], copies: 3 }], baseline).errors).toHaveLength(1);
         const shrunk = compareWithBaseline([{ files: ['a.js', 'b.js', 'c.js'], copies: 3 }], baseline);
         expect(shrunk).toEqual({ errors: [], warnings: [expect.stringContaining('x.js')] });
+    });
+});
+
+describe('duplication pairs and totals', () => {
+    const clone = (format, a, b, lines, fragment = 'var x = compute(a, b);') => ({
+        format,
+        fragment,
+        firstFile: { name: a, start: 1, end: lines },
+        secondFile: { name: b, start: 1, end: lines }
+    });
+
+    it('leaves out clones of using or import lines only', () => {
+        expect(isImportOnly('using System;\nusing System.Linq;\n\n{')).toBe(true);
+        expect(isImportOnly("import { a } from './a.js';\nconst b = a();")).toBe(false);
+    });
+
+    it('counts clones of 15+ lines per pair of files and duplicated lines per format', () => {
+        const measured = measureDuplication([
+            clone('csharp', 'B.cs', 'A.cs', 20),
+            clone('csharp', 'A.cs', 'B.cs', 15),
+            clone('csharp', 'A.cs', 'C.cs', 14),
+            clone('csharp', 'A.cs', 'D.cs', 30, 'using System;\nusing System.IO;'),
+            clone('javascript', 'a.js', 'b.js', 6)
+        ]);
+        expect(measured).toEqual({ pairs: [{ files: ['A.cs', 'B.cs'], count: 2 }], totals: { csharp: 49, javascript: 6 } });
+    });
+
+    it('fails on a new large pair or more duplicated lines, and warns when they went down', () => {
+        const baseline = { pairs: [{ files: ['A.cs', 'B.cs'], count: 2 }], totals: { csharp: 49, javascript: 6 } };
+        const grown = compareDuplication({ pairs: [...baseline.pairs, { files: ['A.cs', 'E.cs'], count: 1 }], totals: { csharp: 70, javascript: 6 } }, baseline);
+        expect(grown.errors).toEqual([expect.stringContaining('A.cs | E.cs'), expect.stringContaining('70 duplicated csharp lines')]);
+        const shrunk = compareDuplication({ pairs: [{ files: ['A.cs', 'B.cs'], count: 1 }], totals: { csharp: 30, javascript: 6 } }, baseline);
+        expect(shrunk.errors).toEqual([]);
+        expect(shrunk.warnings).toHaveLength(2);
     });
 });
