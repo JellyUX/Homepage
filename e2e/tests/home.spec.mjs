@@ -81,11 +81,11 @@ test('an open detail page issues no JellyUX request once loaded, for 30 s (PROC-
     await includedIn;
     await page.waitForTimeout(2000);
 
-    // JellyUX API requests only: the detail page's own library queries (Users/{id}/Items) can still
-    // arrive after the mark on a slow runner, and no JellyUX script issues them there.
+    // The detail page's own playable-items query (Users/{id}/Items with Filters=IsNotFolder, a filter
+    // no JellyUX script sends) can still arrive after the mark on a slow runner: it alone is left out.
     const opened = requests.mark();
     await page.waitForTimeout(30000);
-    expect(requests.since(opened).filter((r) => r.path.includes('/JuxHomepage/'))).toEqual([]);
+    expect(requests.since(opened).filter((r) => !r.url.includes('Filters=IsNotFolder'))).toEqual([]);
 });
 
 test('a fresh install renders the seven native sections, each with cards (F-25)', async ({ page }) => {
