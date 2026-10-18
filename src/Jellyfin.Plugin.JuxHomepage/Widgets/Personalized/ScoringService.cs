@@ -314,7 +314,15 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
     {
         try
         {
-            // Through the time provider, so a test can expire the wait without sleeping.
+            // The system clock keeps Task.Wait(timeout), an OS-level timed wait that needs no pool
+            // thread: under a burst, the pool is starved by the very callers waiting here, and a timer
+            // callback queued to it would stretch the bound. Another clock goes through WaitAsync, so a
+            // test expires the wait by advancing it.
+            if (ReferenceEquals(_timeProvider, TimeProvider.System))
+            {
+                return compute.Wait(_firstComputeTimeout) && compute.IsCompletedSuccessfully;
+            }
+
             compute.WaitAsync(_firstComputeTimeout, _timeProvider).Wait();
             return compute.IsCompletedSuccessfully;
         }
