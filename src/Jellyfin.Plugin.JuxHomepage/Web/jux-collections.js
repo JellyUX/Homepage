@@ -202,8 +202,7 @@
         }
 
         if (activePage.querySelector('.jux-collection-sort-btn') ||
-            activePage.dataset.juxCollectionSortChecked === itemId ||
-            activePage.dataset.juxCollectionSortPending === itemId) {
+            activePage.dataset.juxCollectionSortChecked === itemId) {
             return;
         }
 
@@ -216,12 +215,15 @@
             return;
         }
 
-        // See the matching comment in _tryIncludedIn above -- same synchronous in-flight guard,
-        // needed for the same reason (the button-existence check above can't see a button that
-        // hasn't been created yet by a still-pending earlier call).
-        activePage.dataset.juxCollectionSortPending = itemId;
+        // In-flight guard (JuxCore.runInFlight), as in _tryIncludedIn: the button-existence check
+        // above can't see a button a still-pending earlier call has not created yet.
+        window.JuxCore.runInFlight(activePage, 'juxCollectionSortPending', itemId, function () {
+            return _renderCollectionSort(activePage, userId, itemId);
+        });
+    }
 
-        window.JuxCore.getItem(userId, itemId).then(function (item) {
+    function _renderCollectionSort(activePage, userId, itemId) {
+        return window.JuxCore.getItem(userId, itemId).then(function (item) {
             if (!_isBoxSet(item)) {
                 // Final, same reasoning as in _tryIncludedIn: only a collection gets a sort button.
                 activePage.dataset.juxCollectionSortChecked = itemId;
@@ -297,10 +299,6 @@
             }
         }).catch(function (err) {
             console.error('[JellyUX] Collection sort setup failed:', err);
-        }).finally(function () {
-            if (activePage.dataset.juxCollectionSortPending === itemId) {
-                delete activePage.dataset.juxCollectionSortPending;
-            }
         });
     }
 
