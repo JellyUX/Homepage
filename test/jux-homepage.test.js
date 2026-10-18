@@ -340,6 +340,16 @@ describe('_repairStaleChunks', () => {
         expect(document.getElementById('jux-chunk-notice').querySelector('button')).toBeNull();
     });
 
+    it('shows the message instead of reloading when the session storage refuses the reload flag (Annexe.a)', async () => {
+        const win = fakeWindow({ resources: [{ name: 'http://h/web/home-html.abc.chunk.js', transferSize: 0 }] });
+        win.sessionStorage.setItem = () => { throw new Error('QuotaExceededError'); };
+
+        const outcome = await _repairStaleChunks(win, document);
+
+        expect(outcome).toBe('notice');
+        expect(win.location.reload).not.toHaveBeenCalled();
+    });
+
     it('does not reload a second time in the same session and shows a persistent message', async () => {
         const win = fakeWindow({ resources: [{ name: 'http://h/web/home-html.abc.chunk.js', transferSize: 0 }] });
         await _repairStaleChunks(win, document);

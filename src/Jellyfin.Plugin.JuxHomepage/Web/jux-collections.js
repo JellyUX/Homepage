@@ -70,6 +70,28 @@
         };
     }
 
+    // The saved sort of a collection; blocked storage (Annexe.a) means the default sort, and a change
+    // that cannot be saved still applies to the page shown.
+    function _readSort(keys) {
+        try {
+            return {
+                sortBy: localStorage.getItem(keys.sort) || 'SortName',
+                sortOrder: localStorage.getItem(keys.order) || 'Ascending'
+            };
+        } catch (e) {
+            return { sortBy: 'SortName', sortOrder: 'Ascending' };
+        }
+    }
+
+    function _saveSort(keys, state) {
+        try {
+            localStorage.setItem(keys.sort, state.sortBy);
+            localStorage.setItem(keys.order, state.sortOrder);
+        } catch (e) {
+            // Storage blocked: the sort lasts for this page only.
+        }
+    }
+
     // -------------------------------------------------------------------------
     // "Included In" -- item detail page (Movie/Series only)
     // -------------------------------------------------------------------------
@@ -246,10 +268,7 @@
             }
 
             var keys = _storageKeys(itemId);
-            var state = {
-                sortBy: localStorage.getItem(keys.sort) || 'SortName',
-                sortOrder: localStorage.getItem(keys.order) || 'Ascending'
-            };
+            var state = _readSort(keys);
 
             var button = document.createElement('button');
             button.type = 'button';
@@ -272,8 +291,7 @@
                     onChange: function (sortBy, sortOrder) {
                         state.sortBy = sortBy;
                         state.sortOrder = sortOrder;
-                        localStorage.setItem(keys.sort, sortBy);
-                        localStorage.setItem(keys.order, sortOrder);
+                        _saveSort(keys, state);
                         button.querySelector('.jux-sort-button-label').textContent = window.JuxUI.labelFor(_sortFields(), sortBy);
                         var liveItemsContainer = activePage.querySelector('.itemsContainer.collectionItemsContainer') || itemsContainer;
                         _resortCollection(itemId, liveItemsContainer, state);

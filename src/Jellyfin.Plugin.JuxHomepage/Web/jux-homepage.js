@@ -667,7 +667,13 @@
             return Promise.resolve('notice');
         }
 
-        win.sessionStorage.setItem(CHUNK_RELOAD_KEY, '1');
+        // Without the flag nothing would stop a reload loop: the message is shown instead (Annexe.a).
+        try {
+            win.sessionStorage.setItem(CHUNK_RELOAD_KEY, '1');
+        } catch (e) {
+            _showChunkNotice(doc, 'stale', true);
+            return Promise.resolve('notice');
+        }
         _showChunkNotice(doc, 'reloading', false);
         var refetches = _cachedChunkUrls(win).map(function (url) {
             return win.fetch(url, { cache: 'reload' }).catch(function () { return null; });
