@@ -100,7 +100,9 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
     /// Defaults to <c>Plugin.Instance?.Configuration</c> in production.
     /// </param>
     /// <param name="logger">Logger for background computation failures. Defaults to a null logger.</param>
-    /// <param name="timeProvider">Time source for snapshot expiry. Defaults to <see cref="TimeProvider.System"/>.</param>
+    /// <param name="timeProvider">
+    /// Time source for snapshot expiry and for the first-access wait. Defaults to <see cref="TimeProvider.System"/>.
+    /// </param>
     /// <param name="firstComputeTimeout">
     /// How long a user's first access waits for their first snapshot. Defaults to 2 seconds.
     /// </param>
@@ -221,6 +223,22 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
     /// <returns>True if a snapshot is cached for the user.</returns>
     internal bool HasSnapshotForTesting(Guid userId) => _cache.ContainsKey(userId);
 
+    /// <summary>
+    /// Test-only seam: completes once no computation is running, including the full computation
+    /// that follows a partial first snapshot. Call it after the computation was started.
+    /// </summary>
+    /// <returns>A task that completes when the in-flight table is empty.</returns>
+    internal async Task WhenIdleForTesting()
+    {
+        while (!_inFlight.IsEmpty)
+        {
+            foreach (var running in _inFlight.Values)
+            {
+                await Task.WhenAny(running.Value).ConfigureAwait(false);
+            }
+        }
+    }
+
     private DateTime UtcNow => _timeProvider.GetUtcNow().UtcDateTime;
 
     private DateOnly Today => DateOnly.FromDateTime(_timeProvider.GetLocalNow().DateTime);
@@ -293,7 +311,9 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
     {
         try
         {
-            return compute.Wait(_firstComputeTimeout) && compute.IsCompletedSuccessfully;
+            // Through the time provider, so a test can expire the wait without sleeping.
+            compute.WaitAsync(_firstComputeTimeout, _timeProvider).Wait();
+            return compute.IsCompletedSuccessfully;
         }
         catch (AggregateException)
         {
