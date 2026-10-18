@@ -267,6 +267,8 @@ describe('library infinite scroll, end of the list (FIAB-01)', () => {
     const NativeIO = window.IntersectionObserver;
 
     const viewSwap = () => new Promise((resolve) => setTimeout(resolve, 450));
+    // The user scrolling the sentinel back into view (the last one observed).
+    let reachSentinel = () => {};
 
     async function setUpLibrary(getJSON) {
         localStorage.clear();
@@ -275,11 +277,11 @@ describe('library infinite scroll, end of the list (FIAB-01)', () => {
         // The sentinel is always in view: a list that re-arms queries again at once.
         window.IntersectionObserver = class {
             constructor(callback) { this.callback = callback; }
-            observe(el) { setTimeout(() => this.callback([{ isIntersecting: true, target: el }]), 0); }
+            observe(el) { reachSentinel = () => this.callback([{ isIntersecting: true, target: el }]); setTimeout(reachSentinel, 0); }
             unobserve() {}
             disconnect() {}
         };
-        window.JellyfinAPI = { cardBuilder: { getCardsHtml: () => '' }, getPortraitShape: () => 'portrait' };
+        window.JellyfinAPI = { cardBuilder: { getCardsHtml: ({ items }) => '<div class="card"></div>'.repeat(items.length) }, getPortraitShape: () => 'portrait' };
         window.ApiClient = { getCurrentUserId: () => 'u1', getUrl: (path, query) => path + '?' + new URLSearchParams(query), getJSON };
         location.hash = '#/movies?topParentId=abc1';
         // The view change re-arms 400 ms after the hash change.
@@ -314,6 +316,28 @@ describe('library infinite scroll, end of the list (FIAB-01)', () => {
         await mutate(10);
 
         expect(getJSON.mock.calls.length - listed).toBe(0);
+        expect(document.querySelectorAll('.jux-infinite-sentinel')).toHaveLength(0);
+    });
+
+    it('reads a long list page by page, then stops at its last page', async () => {
+        const page = (n) => ({ Items: Array.from({ length: n }, (_, i) => ({ Id: 'm' + i })), TotalRecordCount: 254 });
+        const getJSON = vi.fn()
+            .mockResolvedValueOnce(page(100))
+            .mockResolvedValueOnce(page(100))
+            .mockResolvedValueOnce(page(50))
+            .mockResolvedValue({ Items: [], TotalRecordCount: 254 });
+        await setUpLibrary(getJSON);
+        for (let i = 0; i < 5; i++) {
+            reachSentinel();
+            await mutate(2);
+        }
+        const calls = getJSON.mock.calls.map((c) => new URLSearchParams(c[0].split('?')[1]).get('StartIndex'));
+
+        reachSentinel();
+        await mutate(10);
+
+        expect(calls.slice(-3)).toEqual(['4', '104', '204']);
+        expect(getJSON.mock.calls.length).toBe(calls.length);
         expect(document.querySelectorAll('.jux-infinite-sentinel')).toHaveLength(0);
     });
 
