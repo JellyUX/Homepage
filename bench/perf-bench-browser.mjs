@@ -4,7 +4,7 @@
 import { chromium } from '@playwright/test';
 import { readFileSync, existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { serverUrl, readCredentials, sleep } from './perf-bench-common.mjs';
+import { serverUrl, readCredentials, sleep, rawDir } from './perf-bench-common.mjs';
 
 export const VIEWPORTS = { desktop: { width: 1920, height: 1080 }, mobile: { width: 390, height: 844 } };
 // Low-end profile network: 150 ms latency, 1.6 Mbit/s down, 750 kbit/s up, both x0.9 as DevTools does.
@@ -52,7 +52,8 @@ const INIT = `(() => {
   requestAnimationFrame(tick);
 })();`;
 
-export function storageStatePath(dir) { return path.join(dir, 'perf-bench-storage-test2.json'); }
+// One signed-in state per server port, so a token is never replayed against another server.
+export function storageStatePath(dir) { return path.join(dir, `perf-bench-storage-test2-${new URL(serverUrl).port || '80'}.json`); }
 
 /** Signs test2 in once through the login form and saves the storage state (token) outside the repo. */
 export async function ensureStorageState(browser, file) {
@@ -245,7 +246,7 @@ export async function launch() {
 }
 
 if (process.argv[1] && process.argv[1].endsWith('perf-bench-browser.mjs')) {
-    const scratch = process.env.PERF_SCRATCH;
+    const scratch = process.env.PERF_SCRATCH || rawDir;
     const browser = await launch();
     try {
         const state = await ensureStorageState(browser, storageStatePath(scratch));

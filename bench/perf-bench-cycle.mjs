@@ -15,7 +15,7 @@ const warm = Number(arg('warm', 5));
 const settleMs = Number(arg('settle', 30000));
 const lowend = profile === 'lowend';
 const timeoutMs = lowend ? 300000 : 120000;
-const scratch = process.env.PERF_SCRATCH;
+const scratch = process.env.PERF_SCRATCH || rawDir;
 const out = path.join(rawDir, `perf-bench-browser-${profile}-${viewport}.json`);
 
 const log = (...a) => console.log(new Date().toISOString(), ...a);

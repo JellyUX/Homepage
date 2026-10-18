@@ -13,6 +13,7 @@ Requirements: Node.js with the repository's `npm ci` done (Playwright Chromium f
 | `JUX_URL` | `http://localhost:8096` | server to measure |
 | `JUX_CONTAINER` | `jellyux-test` | its container, for restarts, `docker stats` and logs |
 | `JUX_BENCH_OUT` | `TODO_V5/mesures/raw` | folder the raw results are written to |
+| `PERF_SCRATCH` | `JUX_BENCH_OUT` | browser scripts: signed-in state (a token, one file per server port) |
 
 ## Performance (main bench, `identifiants.txt`)
 
