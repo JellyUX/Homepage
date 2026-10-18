@@ -99,6 +99,9 @@ jobs:
       - name: Check the client asset budget
         run: node ci/asset-budget.mjs
 
+      - name: Check for dead code
+        run: node ci/dead-code.mjs
+
   e2e:
     name: End-to-end (Jellyfin ${{ matrix.jellyfin }})
     runs-on: ubuntu-latest
