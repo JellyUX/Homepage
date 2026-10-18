@@ -49,6 +49,9 @@
             // at load and again on every view shown: a slow sign-in that leaves no user at load, or a
             // sign-out followed by another account, reloads them on the first view of the new user.
             document.addEventListener('viewshow', function () { _syncSession(self); });
+            // The detail-page modules ask for the user state as soon as a user is signed in, which
+            // can come before the first viewshow (H-09).
+            window.JuxCore.provideUserState(function () { _syncSession(self); });
             _syncSession(self);
         }
     };
@@ -67,7 +70,13 @@
         _resyncAllButtons(state.likedIds);
 
         var url = window.ApiClient.getUrl('JuxHomepage/Watchlist/Ids', { userId: userId });
-        window.ApiClient.getJSON(url).then(function (result) {
+        var request = window.ApiClient.getJSON(url);
+        // The answer also says whether JellyUX runs for the user: the detail-page modules wait for it
+        // instead of asking again (H-09).
+        window.JuxCore.reportUserStateRequest(userId, request.then(function (result) {
+            window.JuxCore.setUserEnabled(userId, !(result && result.Enabled === false));
+        }));
+        request.then(function (result) {
             if (state.userId !== userId) {
                 return;
             }

@@ -248,6 +248,8 @@ describe('onDomMutation (QUAL-04)', () => {
         created = 0;
         document.body.innerHTML = '';
         location.hash = '';
+        delete window.ApiClient;
+        window.sessionStorage.clear();
     });
 
     function countObservers() {
@@ -284,9 +286,12 @@ describe('onDomMutation (QUAL-04)', () => {
 
     it('lets several detail-page modules share that observer', async () => {
         countObservers();
+        window.ApiClient = { getCurrentUserId: () => 's1' };
+        window.sessionStorage.setItem('jux-user-off:s1', '0');
         location.hash = '#/details?id=ab12';
         const modules = [vi.fn(), vi.fn(), vi.fn()];
         const syncs = modules.map((onChange) => juxCore.watchDetailPages(onChange));
+        await flush();
 
         document.body.appendChild(document.createElement('div'));
         await flush();
@@ -354,5 +359,82 @@ describe('fetchWithTimeout (FIAB-08)', () => {
         const throwing = { getJSON: () => { throw new Error('offline'); } };
         await expect(juxCore.fetchWithTimeout(failing, 'c')).rejects.toThrow('500');
         await expect(juxCore.fetchWithTimeout(throwing, 'd')).rejects.toThrow('offline');
+    });
+});
+
+describe('turned off for this user, on a detail page opened directly (H-09)', () => {
+    const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+    const mutate = async () => { document.body.appendChild(document.createElement('div')); await flush(); };
+
+    function signIn(getJSON) {
+        window.sessionStorage.clear();
+        window.ApiClient = { getCurrentUserId: () => 'h1', getUrl: (path) => path, getJSON };
+        location.hash = '#/details?id=ab901';
+    }
+
+    afterEach(() => {
+        location.hash = '';
+        delete window.ApiClient;
+        window.sessionStorage.clear();
+        document.body.innerHTML = '';
+    });
+
+    it('reads UserSettings once when no other answer is coming, and arms nothing for a user who turned JellyUX off', async () => {
+        const getJSON = vi.fn().mockResolvedValue({ Enabled: false, Sections: [] });
+        signIn(getJSON);
+        const modules = [vi.fn(), vi.fn(), vi.fn()];
+        modules.forEach((onChange) => juxCore.watchDetailPages(onChange));
+        await flush();
+        await mutate();
+
+        modules.forEach((onChange) => expect(onChange).not.toHaveBeenCalled());
+        expect(getJSON.mock.calls.map((c) => c[0])).toEqual(['JuxHomepage/UserSettings']);
+    });
+
+    it('waits for the answer another module already asked for, without a request of its own', async () => {
+        const getJSON = vi.fn();
+        signIn(getJSON);
+        let answer;
+        juxCore.reportUserStateRequest('h1', new Promise((resolve) => { answer = resolve; })
+            .then(() => juxCore.setUserEnabled('h1', true)));
+        const onChange = vi.fn();
+        juxCore.watchDetailPages(onChange);
+        await flush();
+        expect(onChange).not.toHaveBeenCalled();
+
+        answer();
+        await flush();
+        expect(onChange).toHaveBeenCalledTimes(1);
+        expect(getJSON).not.toHaveBeenCalled();
+    });
+
+    it('asks a registered provider before reading UserSettings, and reads it only when no provider sent a request', async () => {
+        const getJSON = vi.fn().mockResolvedValue({ Enabled: true, Sections: [] });
+        signIn(getJSON);
+        const provider = vi.fn((userId) => juxCore.reportUserStateRequest(userId, Promise.resolve().then(() => juxCore.setUserEnabled(userId, true))));
+        juxCore.provideUserState(provider);
+        const onChange = vi.fn();
+        juxCore.watchDetailPages(onChange);
+        await flush();
+
+        expect(provider).toHaveBeenCalledWith('h1');
+        expect(getJSON).not.toHaveBeenCalled();
+        expect(onChange).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves the detail page when an off answer arrives after the modules armed', async () => {
+        signIn(vi.fn());
+        juxCore.setUserEnabled('h1', true);
+        const onChange = vi.fn();
+        const onLeave = vi.fn();
+        juxCore.watchDetailPages(onChange, onLeave);
+        await flush();
+        expect(onChange).toHaveBeenCalledTimes(1);
+
+        juxCore.setUserEnabled('h1', false);
+        await flush();
+        await mutate();
+        expect(onLeave).toHaveBeenCalled();
+        expect(onChange).toHaveBeenCalledTimes(1);
     });
 });

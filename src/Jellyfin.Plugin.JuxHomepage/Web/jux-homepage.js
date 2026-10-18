@@ -164,6 +164,7 @@
                 elem.dataset.juxHasMore = 'false';
                 return typeof onFirstPageFailure === 'function' ? onFirstPageFailure() : undefined;
             }
+            window.JuxCore.setUserEnabled(userId, true);
             elem.dataset.juxHasMore = String(_hasMorePages(response));
             var descriptors = (response && response.Sections) || [];
             if (descriptors.length === 0) {

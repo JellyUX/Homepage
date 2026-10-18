@@ -217,10 +217,17 @@
     }
 
     // "Turn JellyUX off for me" (TODO_V4.md 8.3, F-36). The server reports it in answers the
-    // client already reads (Watchlist/Ids on every page, Sections on the home page); the answer is
-    // kept for the browser session, per user, and every module reads it before it arms. Until an
-    // answer arrives (the first page of a session), the modules arm as usual.
+    // client already reads (Watchlist/Ids on every page while the cards module is on, Sections on the
+    // home page); the answer is kept for the browser session, per user: '0' on, '1' off, nothing while
+    // unknown (in memory only when storage is blocked). The detail-page modules wait for it before
+    // they arm (H-09): a tab opened straight on a detail page has no answer yet, so they wait for the
+    // request a module already sent (reportUserStateRequest) or JuxCore reads UserSettings once
+    // (tests: jux-core.test.js "on a detail page opened directly").
     var USER_OFF_KEY = 'jux-user-off:';
+    var _blockedStorageStates = {};
+    var _userStateRequests = {};
+    var _userStateListeners = [];
+    var _userStateProviders = [];
 
     function _currentUserId() {
         return window.ApiClient && typeof window.ApiClient.getCurrentUserId === 'function'
@@ -228,27 +235,88 @@
             : null;
     }
 
+    function _userState(userId) {
+        try {
+            return window.sessionStorage.getItem(USER_OFF_KEY + userId);
+        } catch (e) {
+            return _blockedStorageStates[userId] || null;
+        }
+    }
+
     function isOffForUser() {
         var userId = _currentUserId();
-        if (!userId) { return false; }
-        try {
-            return window.sessionStorage.getItem(USER_OFF_KEY + userId) === '1';
-        } catch (e) {
-            return false;
-        }
+        return !!userId && _userState(userId) === '1';
     }
 
     function setUserEnabled(userId, enabled) {
         if (!userId) { return; }
+        var value = enabled ? '0' : '1';
+        var changed = _userState(userId) !== value;
         try {
-            if (enabled) {
-                window.sessionStorage.removeItem(USER_OFF_KEY + userId);
-            } else {
-                window.sessionStorage.setItem(USER_OFF_KEY + userId, '1');
-            }
+            window.sessionStorage.setItem(USER_OFF_KEY + userId, value);
         } catch (e) {
-            // Storage blocked: the answer is simply read again on the next page.
+            _blockedStorageStates[userId] = value;
         }
+        if (changed) {
+            _userStateListeners.slice().forEach(function (listener) { listener(); });
+        }
+    }
+
+    // A module whose own request also answers the state (the card hooks, Watchlist/Ids) registers a
+    // provider: whenUserStateKnown runs it before reading UserSettings, and the provider reports the
+    // request it sends, so the state costs no request of its own when the card hooks are loaded.
+    function provideUserState(provider) {
+        _userStateProviders.push(provider);
+    }
+
+    // A module that already asked the server for the state reports its request, so
+    // whenUserStateKnown waits for it instead of asking again.
+    function reportUserStateRequest(userId, request) {
+        if (!userId) { return; }
+        _trackUserStateRequest(userId, Promise.resolve(request).catch(function () {}));
+    }
+
+    // Keeps the request in flight for a user until it settles, so a state unknown again later (a
+    // sign-out, cleared storage) asks the providers again.
+    function _trackUserStateRequest(userId, request) {
+        _userStateRequests[userId] = request;
+        request.then(function () {
+            if (_userStateRequests[userId] === request) {
+                delete _userStateRequests[userId];
+            }
+        });
+        return request;
+    }
+
+    // Resolves to whether JellyUX runs for the signed-in user once the server said so. A failed read
+    // resolves to true, as before the state was waited for.
+    function whenUserStateKnown() {
+        var userId = _currentUserId();
+        if (!userId) { return Promise.resolve(true); }
+        if (_userState(userId)) { return Promise.resolve(_userState(userId) !== '1'); }
+
+        if (!_userStateRequests[userId]) {
+            _userStateProviders.forEach(function (provider) {
+                try {
+                    provider(userId);
+                } catch (err) {
+                    console.error('[JellyUX] User state provider failed:', err);
+                }
+            });
+        }
+        var request = _trackUserStateRequest(userId, (_userStateRequests[userId] || Promise.resolve()).then(function () {
+            if (_userState(userId)) { return undefined; }
+            return fetchWithTimeout(window.ApiClient,
+                window.ApiClient.getUrl('JuxHomepage/UserSettings', { userId: userId })
+            ).then(function (settings) {
+                setUserEnabled(userId, !(settings && settings.Enabled === false));
+            });
+        }).catch(function (err) {
+            console.error('[JellyUX] Failed to read the JellyUX settings:', err);
+        }));
+        return request.then(function () {
+            return _userState(userId) !== '1';
+        });
     }
 
     // The item id of the detail page shown (#/details?id=...), or null on any other page.
@@ -320,34 +388,66 @@
         return Promise.resolve(result).finally(release);
     }
 
-    // Runs onChange now and on every DOM mutation while a detail page is shown and JellyUX is on for
-    // the user; it subscribes to the shared observer only then, so on every other page a detail-page
-    // module costs nothing. onLeave (optional) runs on every other page. Returns the sync function,
-    // run again 400 ms after each hash change (the time Jellyfin takes to swap the view).
+    // Runs onChange on every DOM mutation while a detail page is shown and JellyUX is on for the user;
+    // it subscribes to the shared observer only then, so on every other page a detail-page module
+    // costs nothing. A tab opened straight on a detail page loads the scripts before the user is
+    // signed in and before any answer said whether JellyUX runs for them (H-09): each run first waits
+    // for a user, then for that answer. onLeave (optional) runs on every other page and when the user
+    // turns out to be off. Returns the sync function, run again 400 ms after each hash change (the
+    // time Jellyfin takes to swap the view).
     function watchDetailPages(onChange, onLeave) {
         var unsubscribe = null;
 
-        function sync() {
-            if (!currentDetailItemId() || isOffForUser()) {
-                if (unsubscribe) {
-                    unsubscribe();
-                    unsubscribe = null;
-                }
-                if (onLeave) {
-                    onLeave();
-                }
+        function leave() {
+            if (unsubscribe) {
+                unsubscribe();
+                unsubscribe = null;
+            }
+            if (onLeave) {
+                onLeave();
+            }
+        }
+
+        function run() {
+            var userId = _currentUserId();
+            if (!userId) {
                 return;
             }
-
-            if (!unsubscribe) {
-                unsubscribe = onDomMutation(onChange);
+            var state = _userState(userId);
+            if (state === '1') {
+                leave();
+            } else if (state === '0') {
+                onChange();
+            } else {
+                whenUserStateKnown().then(function (enabled) {
+                    if (!enabled) {
+                        leave();
+                    } else if (unsubscribe) {
+                        onChange();
+                    }
+                });
             }
+        }
 
-            onChange();
+        function sync() {
+            if (!currentDetailItemId() || isOffForUser()) {
+                leave();
+                return;
+            }
+            if (!unsubscribe) {
+                unsubscribe = onDomMutation(run);
+            }
+            run();
         }
 
         window.addEventListener('hashchange', function () {
             setTimeout(sync, 400);
+        });
+        // An answer that turns JellyUX off for the user disarms the modules at once.
+        _userStateListeners.push(function () {
+            if (isOffForUser()) {
+                leave();
+            }
         });
         sync();
         return sync;
@@ -360,6 +460,9 @@
         runInFlight: runInFlight,
         isOffForUser: isOffForUser,
         setUserEnabled: setUserEnabled,
+        reportUserStateRequest: reportUserStateRequest,
+        provideUserState: provideUserState,
+        whenUserStateKnown: whenUserStateKnown,
         escHtml: escHtml,
         cssUrl: cssUrl,
         iconName: iconName,

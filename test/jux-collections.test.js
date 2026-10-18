@@ -88,6 +88,8 @@ describe('detail page requests (F-09)', () => {
     function setUpDetailPage(itemId, item, refs) {
         document.body.innerHTML = '<div class="libraryPage"><div class="detailPageContent"></div></div>';
         location.hash = '#/details?id=' + itemId;
+        // JellyUX is known to be on for the user, as after the first answer of a session.
+        window.sessionStorage.setItem('jux-user-off:user1', '0');
         const api = {
             getCurrentUserId: () => 'user1',
             getUrl: path => path,
@@ -112,6 +114,7 @@ describe('detail page requests (F-09)', () => {
         _syncObserver();
         delete window.ApiClient;
         delete window.JellyfinAPI;
+        window.sessionStorage.clear();
         document.body.innerHTML = '';
     });
 

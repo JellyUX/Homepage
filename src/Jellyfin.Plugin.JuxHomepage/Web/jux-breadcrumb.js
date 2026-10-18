@@ -241,7 +241,8 @@
             return;
         }
 
-        if (!_isDetailPage(location.hash)) {
+        // Also run on leave: a page other than a detail page, or JellyUX turned off for the user (H-09).
+        if (!_isDetailPage(location.hash) || window.JuxCore.isOffForUser()) {
             _hideBreadcrumb();
             return;
         }

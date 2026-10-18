@@ -263,3 +263,24 @@ describe('breadcrumb on a detail page reopened from the home page (FIAB-09)', ()
         expect(document.querySelector('.jux-breadcrumb').textContent).toContain('Alder Creek');
     });
 });
+
+describe('breadcrumb for a user who turned JellyUX off (H-09)', () => {
+    afterEach(() => {
+        location.hash = '';
+        delete window.ApiClient;
+        window.sessionStorage.clear();
+        document.body.innerHTML = '';
+    });
+
+    it('hides a breadcrumb already shown and sends no request', () => {
+        document.body.innerHTML = '<div class="skinHeader"><div class="headerLeft"><nav class="jux-breadcrumb">Movies</nav></div></div>';
+        window.ApiClient = { getCurrentUserId: () => 'u9', getItem: vi.fn() };
+        window.sessionStorage.setItem('jux-user-off:u9', '1');
+        location.hash = '#/details?id=bc02';
+
+        _tryRenderBreadcrumb();
+
+        expect(document.querySelector('.jux-breadcrumb').style.display).toBe('none');
+        expect(window.ApiClient.getItem).not.toHaveBeenCalled();
+    });
+});
