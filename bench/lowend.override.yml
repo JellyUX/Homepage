@@ -1,0 +1,7 @@
+# Low-end profile for the bench scripts (1 CPU, 1 GiB):
+# docker compose -f docker/docker-compose.yml -f bench/lowend.override.yml up -d
+services:
+  jellyfin:
+    cpus: 1
+    mem_limit: 1g
+    memswap_limit: 1g

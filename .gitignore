@@ -34,6 +34,10 @@
 !e2e/playwright.config.mjs
 !e2e/tests/
 !e2e/tests/*.spec.mjs
+!bench/
+!bench/*.mjs
+!bench/lowend.override.yml
+!bench/README.md
 !mkdocs.yml
 
 # Documentation assets
