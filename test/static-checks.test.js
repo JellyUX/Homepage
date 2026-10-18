@@ -147,6 +147,24 @@ describe('checkBudget', () => {
         expect(checkBudget(change({ after: budget({ Sections: 9, 'Watchlist/Ids': 1, 'Collections/IncludedIn': 3 }) }))).toEqual([]);
     });
 
+    it('rejects a longer allowlist and more clones per set of files, a new set included', () => {
+        const allowlist = (names) => JSON.stringify({ description: 'x', csharp: Object.fromEntries(names.map((n) => [n, 'route'])) });
+        const longer = checkBudget(change({ file: 'ci/dead-code-allowlist.json', before: allowlist(['A']), after: allowlist(['A', 'B']) }));
+        expect(longer).toEqual([expect.stringContaining('"csharp/#entries" 1 -> 2')]);
+        expect(checkBudget(change({ file: 'ci/dead-code-allowlist.json', before: allowlist(['A', 'B']), after: allowlist(['A']) }))).toEqual([]);
+
+        const baseline = (pairs) => JSON.stringify({ families: [], pairs, totals: { csharp: 10 } });
+        const ab = { files: ['A.cs', 'B.cs'], count: 1 };
+        const more = checkBudget(change({ file: 'ci/duplication-baseline.json', before: baseline([ab]), after: baseline([ab, { files: ['A.cs', 'C.cs'], count: 1 }]) }));
+        expect(more).toEqual([expect.stringContaining('"pairs/A.cs | C.cs" 0 -> 1')]);
+    });
+
+    it('needs no trailer for a table the file did not have before', () => {
+        const before = JSON.stringify([{ files: ['a.js'], copies: 3 }]);
+        const after = JSON.stringify({ families: [{ files: ['a.js'], copies: 3 }], pairs: [{ files: ['A.cs', 'B.cs'], count: 2 }], totals: { csharp: 9 } });
+        expect(checkBudget(change({ file: 'ci/duplication-baseline.json', before, after }))).toEqual([]);
+    });
+
     it('accepts the commit that creates or deletes the budget', () => {
         expect(checkBudget(change({ before: null }))).toEqual([]);
         expect(checkBudget(change({ after: null }))).toEqual([]);

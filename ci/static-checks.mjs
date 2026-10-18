@@ -18,7 +18,7 @@ const FIRST_VERSION_REQUIRING_MIN_ABI = '2.4.0.0';
 const BINARY_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.ico', '.webp', '.dll', '.pdb', '.zip', '.mkv', '.woff', '.woff2']);
 export const BASELINE_PATH = 'ci/duplication-baseline.json';
 // Ratcheted budgets (TODO_V5 rule R3): a value may only rise in a commit carrying a "Budget:" trailer.
-export const BUDGET_FILES = ['ci/perf-budget.json', 'ci/asset-budget.json'];
+export const BUDGET_FILES = ['ci/perf-budget.json', 'ci/asset-budget.json', 'ci/duplication-baseline.json', 'ci/dead-code-allowlist.json'];
 
 const HEX_COLOR = /(?<![\w&#-])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})(?![\w-])/g;
 const COLOR_FUNCTION = /\b(?:rgba?|hsla?)\(\s*[\d.]/g;
@@ -183,25 +183,62 @@ export function checkCommit({ sha, subject, body, files }) {
 }
 
 /**
- * Checks that a commit raising a ratcheted budget says why in a "Budget: <reason>" trailer.
- * Only the numeric entries of the budget's "endpoints" object are compared; a new entry has no
- * previous value to raise, so it needs no trailer.
+ * Measures of a ratcheted file, keyed "table/name", with the tables they come from:
+ * - a table of numbers (endpoints, assets, totals): each number;
+ * - a table of strings (an allowlist): its entry count, as "table/#entries";
+ * - an array of {files, copies|count} (families, pairs): the copies per set of files.
+ * @param {string | null} text
+ * @returns {{values: Record<string, number>, tables: Set<string>, listed: Set<string>}}
+ */
+function ratchetMeasures(text) {
+    const values = {};
+    const tables = new Set();
+    const listed = new Set();
+    for (const [table, content] of Object.entries(text === null ? {} : JSON.parse(text))) {
+        if (Array.isArray(content)) {
+            tables.add(table);
+            for (const item of content) {
+                const key = `${table}/${(item.files ?? []).join(' | ')}`;
+                values[key] = (values[key] ?? 0) + (item.count ?? item.copies ?? 1);
+                listed.add(key);
+            }
+        } else if (content !== null && typeof content === 'object') {
+            tables.add(table);
+            const strings = Object.values(content).filter((v) => typeof v === 'string').length;
+            if (strings > 0) {
+                values[`${table}/#entries`] = strings;
+                listed.add(`${table}/#entries`);
+            }
+            for (const [key, value] of Object.entries(content).filter(([, v]) => typeof v === 'number')) {
+                values[`${table}/${key}`] = value;
+            }
+        }
+    }
+    return { values, tables, listed };
+}
+
+/**
+ * Checks that a commit raising a ratcheted budget says why in a "Budget: <reason>" trailer: a number
+ * that goes up, an allowlist that gets longer, or a set of files with more clones (a new set counts
+ * as a rise from 0). A new number in a table of numbers (a new endpoint or asset), a table the file
+ * did not have before, and the commit that creates or deletes the file need no trailer.
  * @param {{sha: string, file: string, before: string | null, after: string | null, body: string}} change
  *   The budget file's text before and after the commit (null when absent).
  * @returns {string[]} Errors.
  */
 export function checkBudget({ sha, file, before, after, body }) {
-    if (after === null || /^budget:\s*\S/im.test(body)) {
+    if (before === null || after === null || /^budget:\s*\S/im.test(body)) {
         return [];
     }
-    // Every numeric value of every top-level table (endpoints, assets), keyed by table and name.
-    const entries = (text) => Object.fromEntries(Object.entries(text === null ? {} : JSON.parse(text))
-        .filter(([, table]) => table !== null && typeof table === 'object')
-        .flatMap(([table, values]) => Object.entries(values).map(([key, value]) => [`${table}/${key}`, value])));
-    const previous = entries(before);
-    const raised = Object.entries(entries(after))
-        .filter(([key, value]) => typeof previous[key] === 'number' && typeof value === 'number' && value > previous[key])
-        .map(([key, value]) => `"${key}" ${previous[key]} -> ${value}`);
+    const previous = ratchetMeasures(before);
+    const current = ratchetMeasures(after);
+    const raised = Object.entries(current.values)
+        .filter(([key]) => previous.tables.has(key.split('/')[0]))
+        .filter(([key, value]) => {
+            const was = previous.values[key] ?? (current.listed.has(key) ? 0 : undefined);
+            return was !== undefined && value > was;
+        })
+        .map(([key, value]) => `"${key}" ${previous.values[key] ?? 0} -> ${value}`);
     return raised.length === 0
         ? []
         : [`${sha.slice(0, 7)}: ${file} raises ${raised.join(', ')} without a "Budget: <reason>" trailer.`];
