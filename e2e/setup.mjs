@@ -284,7 +284,9 @@ async function loadConfig() {
     }
     const env = JSON.parse(readFileSync(ENV_FILE, 'utf8'));
     docker('stop', CONTAINER);
-    copyFileSync(source, path.join(WORK, 'config', 'plugins', 'configurations', 'Jellyfin.Plugin.JuxHomepage.xml'));
+    // Through Docker, not the bind mount: the server runs as root and owns that file, which a non-root
+    // CI runner could not overwrite from the host.
+    docker('cp', source, `${CONTAINER}:/config/plugins/configurations/Jellyfin.Plugin.JuxHomepage.xml`);
     docker('start', CONTAINER);
     await waitForServer(env.serverUrl);
     // /System/Info/Public answers before the server takes requests: wait for a sign-in to go through.
