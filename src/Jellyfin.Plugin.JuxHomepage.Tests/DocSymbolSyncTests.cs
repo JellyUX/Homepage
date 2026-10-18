@@ -37,7 +37,11 @@ public sealed class DocSymbolSyncTests
     public void EveryCitedIdentifier_ExistsInTheRepository(string document)
     {
         var root = RepoPaths.Root();
-        var sources = ReadAll(root, "src", "*.cs");
+        // Code only: a name that survives in a comment (this file's own header among them) is not a symbol.
+        var sources = Regex.Replace(
+            string.Join('\n', SourceFiles(root, "src", "*.cs").Select(File.ReadAllText)),
+            @"//[^\n]*|/\*[\s\S]*?\*/",
+            string.Empty);
         var keys = sources + ReadAll(root, PluginDir, "*.json") + ReadAll(root, PluginDir, "*.js");
 
         var missing = new List<string>();
@@ -72,11 +76,11 @@ public sealed class DocSymbolSyncTests
     public void NoVersionedFile_PointsToCLAUDEmd()
     {
         var root = RepoPaths.Root();
-        var offenders = new[] { ("src", "*.cs"), ("src", "*.js"), ("docs", "*.md") }
-            .SelectMany(source => SourceFiles(root, source.Item1, source.Item2))
+        var offenders = new[] { "src", "docs", "bench", "e2e", "test", "ci" }
+            .SelectMany(dir => new[] { "*.cs", "*.js", "*.mjs", "*.md" }.SelectMany(pattern => SourceFiles(root, dir, pattern)))
             .Append(Path.Combine(root, "README.md"))
             .Append(Path.Combine(root, "CONTRIBUTING.md"))
-            .Where(file => Path.GetFileName(file) != nameof(DocSymbolSyncTests) + ".cs")
+            .Where(file => !IsThisFile(file))
             .Where(file => File.ReadAllText(file).Contains("CLAUDE.md", StringComparison.Ordinal))
             .Select(file => Path.GetRelativePath(root, file))
             .ToList();
@@ -126,8 +130,10 @@ public sealed class DocSymbolSyncTests
     private static string ReadAll(string root, string dir, string pattern) =>
         string.Join('\n', SourceFiles(root, dir, pattern).Select(File.ReadAllText));
 
+    private static bool IsThisFile(string file) => Path.GetFileName(file) == nameof(DocSymbolSyncTests) + ".cs";
+
     private static IEnumerable<string> SourceFiles(string root, string dir, string pattern) =>
         Directory.GetFiles(Path.Combine(root, dir), pattern, SearchOption.AllDirectories)
-            .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
-                && !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal));
+            .Where(f => !new[] { "bin", "obj", "node_modules", ".work" }
+                .Any(skip => f.Contains($"{Path.DirectorySeparatorChar}{skip}{Path.DirectorySeparatorChar}", StringComparison.Ordinal)));
 }
