@@ -131,7 +131,7 @@ jobs:
         run: node e2e/setup.mjs up --image jellyfin/jellyfin:${{ matrix.jellyfin }}
 
       - name: Run the browser tests
-        run: npx playwright test -c e2e --project root
+        run: npx playwright test -c e2e --project root --project mobile
 
       - name: Move the server under a BaseUrl
         run: node e2e/setup.mjs base-url /jf
