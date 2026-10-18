@@ -1,3 +1,19 @@
+## [2.14.2](https://github.com/JellyUX/Homepage/compare/v2.14.1...v2.14.2) (2026-10-18)
+
+### Bug Fixes
+
+* drop a home section answer that arrives after the user left home ([d372130](https://github.com/JellyUX/Homepage/commit/d3721306335472adfd685a54c3c8a5f740eec373))
+* fall back to the native home screen when Sections never answers ([d179975](https://github.com/JellyUX/Homepage/commit/d1799755aebe0ab7b10afe826c1204b93666c0c7))
+* give the TV layout the native home screen back ([f6e4c28](https://github.com/JellyUX/Homepage/commit/f6e4c28e3f7f079599fcab6641edf0db9b84eca9))
+* hand an empty home screen to Jellyfin and keep the error state safe ([6b6718c](https://github.com/JellyUX/Homepage/commit/6b6718c32c5736ebdf2087430b20ee77e9a905da))
+* keep the detail-page modules off for a user who turned JellyUX off ([da9f04b](https://github.com/JellyUX/Homepage/commit/da9f04b2f3a21a13f96884a1c1a89dc244f7a6b1))
+* keep working when the browser storage is blocked or full ([1afab8f](https://github.com/JellyUX/Homepage/commit/1afab8facd022156732cb29a328b205925e1bc8d))
+* read the user state once per tab when the server cannot answer ([b632cac](https://github.com/JellyUX/Homepage/commit/b632cacc9a3833a12c50bbbeac875c5ef896d38b))
+* retry a failed deferred home page and isolate a failing section ([db3fea5](https://github.com/JellyUX/Homepage/commit/db3fea5bd1204832220c1d18d3ee64b6884389cc))
+* show the breadcrumb again on a detail page reopened from home ([75ebbd1](https://github.com/JellyUX/Homepage/commit/75ebbd1c4a124a350ec350809995d90132a6e6e2))
+* stop the client polls that ran with no bound or on the wrong page ([a29567c](https://github.com/JellyUX/Homepage/commit/a29567cb2b17ecb690b9763062cfba71d3ed9b60))
+* stop the library infinite scroll from re-arming at the end of the list ([ddedf55](https://github.com/JellyUX/Homepage/commit/ddedf55261559be89a88bd92695fac1140f02fb0))
+
 ## [2.14.1](https://github.com/JellyUX/Homepage/compare/v2.14.0...v2.14.1) (2026-10-18)
 
 ### Bug Fixes
