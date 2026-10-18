@@ -255,6 +255,7 @@ describe('_syncSession (F-51)', () => {
         _syncSession(state);
         await flush();
         _syncSession(state);
+        await flush();
 
         expect(api.getJSON).toHaveBeenCalledTimes(2);
         errorSpy.mockRestore();

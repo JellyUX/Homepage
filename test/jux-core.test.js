@@ -366,9 +366,11 @@ describe('turned off for this user, on a detail page opened directly (H-09)', ()
     const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
     const mutate = async () => { document.body.appendChild(document.createElement('div')); await flush(); };
 
-    function signIn(getJSON) {
+    // JuxCore remembers per user, for the page's life, a state it could not read: a test that needs
+    // a fresh user passes its own id.
+    function signIn(getJSON, userId = 'h1') {
         window.sessionStorage.clear();
-        window.ApiClient = { getCurrentUserId: () => 'h1', getUrl: (path) => path, getJSON };
+        window.ApiClient = { getCurrentUserId: () => userId, getUrl: (path) => path, getJSON };
         location.hash = '#/details?id=ab901';
     }
 
@@ -411,7 +413,9 @@ describe('turned off for this user, on a detail page opened directly (H-09)', ()
     it('asks a registered provider before reading UserSettings, and reads it only when no provider sent a request', async () => {
         const getJSON = vi.fn().mockResolvedValue({ Enabled: true, Sections: [] });
         signIn(getJSON);
-        const provider = vi.fn((userId) => juxCore.reportUserStateRequest(userId, Promise.resolve().then(() => juxCore.setUserEnabled(userId, true))));
+        // JuxCore keeps its providers for the page's life: this one stops answering after the test.
+        let active = true;
+        const provider = vi.fn((userId) => active && juxCore.reportUserStateRequest(userId, Promise.resolve().then(() => juxCore.setUserEnabled(userId, true))));
         juxCore.provideUserState(provider);
         const onChange = vi.fn();
         juxCore.watchDetailPages(onChange);
@@ -419,6 +423,40 @@ describe('turned off for this user, on a detail page opened directly (H-09)', ()
 
         expect(provider).toHaveBeenCalledWith('h1');
         expect(getJSON).not.toHaveBeenCalled();
+        expect(onChange).toHaveBeenCalledTimes(1);
+        active = false;
+    });
+
+    it('reads UserSettings once per tab when it fails, however many mutations follow (R11)', async () => {
+        const getJSON = vi.fn().mockRejectedValue(new Error('502'));
+        signIn(getJSON);
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        const onChange = vi.fn();
+        juxCore.watchDetailPages(onChange);
+        await flush();
+        for (let i = 0; i < 5; i++) {
+            await mutate();
+        }
+
+        expect(getJSON).toHaveBeenCalledTimes(1);
+        expect(onChange).toHaveBeenCalledTimes(6);
+        vi.restoreAllMocks();
+    });
+
+    it('runs a module once when the answer arrives, not once per mutation that waited for it (R11)', async () => {
+        signIn(vi.fn(), 'h3');
+        let answer;
+        juxCore.reportUserStateRequest('h3', new Promise((resolve) => { answer = resolve; })
+            .then(() => juxCore.setUserEnabled('h3', true)));
+        const onChange = vi.fn();
+        juxCore.watchDetailPages(onChange);
+        await flush();
+        for (let i = 0; i < 20; i++) {
+            await mutate();
+        }
+
+        answer();
+        await flush();
         expect(onChange).toHaveBeenCalledTimes(1);
     });
 

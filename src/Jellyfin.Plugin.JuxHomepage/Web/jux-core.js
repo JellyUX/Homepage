@@ -230,6 +230,9 @@
     var _userStateRequests = {};
     var _userStateListeners = [];
     var _userStateProviders = [];
+    // Users whose state could not be read in this tab: they count as on, and no request is sent again
+    // until another answer arrives (test: jux-core.test.js "once per tab when it fails").
+    var _userStateUnavailable = {};
 
     function _currentUserId() {
         return window.ApiClient && typeof window.ApiClient.getCurrentUserId === 'function'
@@ -254,6 +257,7 @@
         if (!userId) { return; }
         var value = enabled ? '0' : '1';
         var changed = _userState(userId) !== value;
+        delete _userStateUnavailable[userId];
         try {
             window.sessionStorage.setItem(USER_OFF_KEY + userId, value);
         } catch (e) {
@@ -296,6 +300,7 @@
         var userId = _currentUserId();
         if (!userId) { return Promise.resolve(true); }
         if (_userState(userId)) { return Promise.resolve(_userState(userId) !== '1'); }
+        if (_userStateUnavailable[userId]) { return Promise.resolve(true); }
 
         if (!_userStateRequests[userId]) {
             _userStateProviders.forEach(function (provider) {
@@ -315,6 +320,10 @@
             });
         }).catch(function (err) {
             console.error('[JellyUX] Failed to read the JellyUX settings:', err);
+        }).then(function () {
+            if (!_userState(userId)) {
+                _userStateUnavailable[userId] = true;
+            }
         }));
         return request.then(function () {
             return _userState(userId) !== '1';
@@ -399,6 +408,9 @@
     // time Jellyfin takes to swap the view).
     function watchDetailPages(onChange, onLeave) {
         var unsubscribe = null;
+        // One wait for the user state at a time: the mutations that arrive meanwhile are covered by
+        // the single run that follows the answer (test: jux-core.test.js "runs a module once").
+        var waiting = false;
 
         function leave() {
             if (unsubscribe) {
@@ -420,8 +432,10 @@
                 leave();
             } else if (state === '0') {
                 onChange();
-            } else {
+            } else if (!waiting) {
+                waiting = true;
                 whenUserStateKnown().then(function (enabled) {
+                    waiting = false;
                     if (!enabled) {
                         leave();
                     } else if (unsubscribe) {

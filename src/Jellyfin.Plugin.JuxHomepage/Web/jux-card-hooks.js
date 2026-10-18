@@ -70,7 +70,8 @@
         _resyncAllButtons(state.likedIds);
 
         var url = window.ApiClient.getUrl('JuxHomepage/Watchlist/Ids', { userId: userId });
-        var request = window.ApiClient.getJSON(url);
+        // Time-limited: the detail-page modules wait for this answer (FIAB-08, R11 review).
+        var request = window.JuxCore.fetchWithTimeout(window.ApiClient, url);
         // The answer also says whether JellyUX runs for the user: the detail-page modules wait for it
         // instead of asking again (H-09).
         window.JuxCore.reportUserStateRequest(userId, request.then(function (result) {
