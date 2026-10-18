@@ -78,19 +78,30 @@ export async function apiGet(user, route) {
     return res.json();
 }
 
+// The native queries behind the home page sections (A-08): the library views, Continue Watching, Next Up
+// and one Items/Latest per recently added section, in their 10.11 and older `Users/{id}/...` forms.
+const NATIVE_HOME_QUERY = /\/(UserViews|Users\/[0-9a-f-]+\/Views|UserItems\/Resume|Users\/[0-9a-f-]+\/Items\/Resume|Shows\/NextUp|Items\/Latest)$/i;
+
 /**
- * Records, in order, the JellyUX API requests of a page (the client assets left out) and the native
- * library queries the client scripts issue (`Users/{id}/Items`, infinite scroll). A duplicate is the same
+ * Records, in order, the JellyUX API requests of a page (the client assets left out), the native
+ * library queries the client scripts issue (`Users/{id}/Items`, infinite scroll) and the native home
+ * section queries. Each entry carries its `kind` (`jux`, `library` or `home`). A duplicate is the same
  * method and URL twice. `mark()` returns a position that `count` and `duplicates` can start from.
  */
 export function trackJuxRequests(page) {
     const requests = [];
     page.on('request', (req) => {
         const url = new URL(req.url());
-        const juxApi = url.pathname.includes('/JuxHomepage/') && !/\.(js|css)$/.test(url.pathname);
-        const libraryQuery = /\/Users\/[0-9a-f-]+\/Items$/i.test(url.pathname);
-        if (juxApi || libraryQuery) {
-            requests.push({ method: req.method(), url: req.url(), path: url.pathname });
+        let kind = null;
+        if (url.pathname.includes('/JuxHomepage/') && !/\.(js|css)$/.test(url.pathname)) {
+            kind = 'jux';
+        } else if (/\/Users\/[0-9a-f-]+\/Items$/i.test(url.pathname)) {
+            kind = 'library';
+        } else if (NATIVE_HOME_QUERY.test(url.pathname)) {
+            kind = 'home';
+        }
+        if (kind) {
+            requests.push({ method: req.method(), url: req.url(), path: url.pathname, kind });
         }
     });
     return {

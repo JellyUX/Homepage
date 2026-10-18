@@ -44,7 +44,13 @@ test('the home page reads each JellyUX section once, plus the layout and the wat
     expect(requests.count(/\/JuxHomepage\/Sections$/)).toBe(1);
     expect(sectionPaths.sort()).toEqual(throughSection.sort());
     expect(requests.count(/\/JuxHomepage\/Watchlist\/Ids$/)).toBe(1);
-    expect(requests.since().length).toBe(2 + throughSection.length);
+    expect(requests.since().filter((r) => r.kind === 'jux').length).toBe(2 + throughSection.length);
+    // The native section queries (A-08): one library views read, one per native-routed section.
+    const recentlyAdded = sections.filter((s) => s.startsWith('jux-native-recently-added-')).length;
+    expect(requests.count(/\/(UserViews|Views)$/)).toBe(1);
+    expect(requests.count(/\/Resume$/)).toBe(sections.includes('jux-native-continue-watching') ? 1 : 0);
+    expect(requests.count(/\/Shows\/NextUp$/)).toBe(sections.includes('jux-native-next-up') ? 1 : 0);
+    expect(requests.count(/\/Items\/Latest$/)).toBe(recentlyAdded);
     expect(requests.duplicates()).toEqual([]);
 
     const longFrames = await page.evaluate(() => window.__juxLongFrames);
@@ -54,7 +60,7 @@ test('the home page reads each JellyUX section once, plus the layout and the wat
     expect(longFrames.filter((d) => d > 100)).toEqual([]);
 });
 
-test('coming back to the home page within the app issues no JellyUX request (PROC-03.a)', async ({ page }) => {
+test('coming back to the home page within the app issues no JellyUX or home section request (PROC-03.a, A-08)', async ({ page }) => {
     const requests = trackJuxRequests(page);
     await login(page, env.admin);
     await loadedSections(page);
@@ -66,7 +72,9 @@ test('coming back to the home page within the app issues no JellyUX request (PRO
     await expect(page.locator('.homeSectionsContainer.jux-homepage-active .jux-widget-section').first()).toBeVisible();
     await page.waitForTimeout(3000);
 
-    expect(requests.since(before).filter((r) => r.path.includes('/JuxHomepage/'))).toEqual([]);
+    // The infinite scroll of the library page can still be querying after the hash change (FIAB-01): its
+    // queries are left out until FIAB-01 is fixed.
+    expect(requests.since(before).filter((r) => r.kind !== 'library')).toEqual([]);
 });
 
 test('an open detail page issues no JellyUX request once loaded, for 30 s (PROC-03.a)', async ({ page }) => {
