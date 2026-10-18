@@ -63,6 +63,15 @@ describe('findUntrackedMarkers', () => {
         expect(findUntrackedMarkers(js, '.js')).toEqual([]);
     });
 
+    it('keeps positions after a character outside the basic plane', () => {
+        expect(findUntrackedMarkers('const s = "\u{1F600}"; const label = "TODO";', '.js')).toEqual([]);
+    });
+
+    it('matches the markers whatever their case', () => {
+        expect(findUntrackedMarkers('// todo: Worth Revisiting in a Future Phase', '.js').map((f) => f.match))
+            .toEqual(['todo', 'Worth Revisiting', 'Future Phase']);
+    });
+
     it('reads future phase in a multi-line block comment', () => {
         // Split so that this file's own block-comment-looking string does not trip the check.
         expect(findUntrackedMarkers('/*\n * in a future' + ' phase\n */', '.css')).toEqual([{ line: 2, match: 'future phase' }]);

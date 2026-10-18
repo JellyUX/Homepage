@@ -22,7 +22,7 @@ const HEX_COLOR = /(?<![\w&#-])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4
 const COLOR_FUNCTION = /\b(?:rgba?|hsla?)\(\s*[\d.]/g;
 const VAR_FALLBACK = /var\(\s*--[\w-]+\s*,\s*(?:#[0-9a-fA-F]{3,8}|(?:rgba?|hsla?)\([^()]*\))\s*\)/g;
 // A comment that defers work must name the registry id that tracks it (TODO_V5 rule R8, PROC-04.b).
-const DEFERRED_MARKER = /\bTODO\b|\bFIXME\b|[Ff]uture phase|[Ww]orth revisiting/g;
+const DEFERRED_MARKER = /\bTODO\b|\bFIXME\b|future phase|worth revisiting/gi;
 const REGISTRY_ID = /\b[A-Z]{1,5}-\d{2}\b/;
 const MARKER_EXTENSIONS = new Set(['.cs', '.js', '.mjs', '.css', '.html']);
 
@@ -82,7 +82,8 @@ export function findColorLiterals(text, ext) {
 export function findUntrackedMarkers(text, ext) {
     const stripped = stripComments(text, ext);
     // Keep only what stripComments blanked: the comments, at their original positions.
-    const comments = Array.from(text, (c, i) => (c === stripped[i] || c === '\n' ? (c === '\n' ? '\n' : ' ') : c)).join('');
+    // split(''), not Array.from: UTF-16 units, the indexing stripComments keeps.
+    const comments = text.split('').map((c, i) => (c === '\n' ? '\n' : c === stripped[i] ? ' ' : c)).join('');
     return comments.split('\n').flatMap((line, i) => (REGISTRY_ID.test(line)
         ? []
         : [...line.matchAll(DEFERRED_MARKER)].map((m) => ({ line: i + 1, match: m[0] }))));
