@@ -96,6 +96,9 @@ jobs:
           fi
           node ci/static-checks.mjs --commits "$BEFORE..$HEAD_SHA"
 
+      - name: Check the client asset budget
+        run: node ci/asset-budget.mjs
+
   e2e:
     name: End-to-end (Jellyfin ${{ matrix.jellyfin }})
     runs-on: ubuntu-latest

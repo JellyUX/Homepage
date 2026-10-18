@@ -126,7 +126,14 @@ describe('checkBudget', () => {
     it('rejects a raised value without a Budget trailer, naming it', () => {
         const errors = checkBudget(change({ after: budget({ Sections: 18, 'Watchlist/Ids': 1 }) }));
         expect(errors).toHaveLength(1);
-        expect(errors[0]).toContain('"Sections" 17 -> 18');
+        expect(errors[0]).toContain('"endpoints/Sections" 17 -> 18');
+    });
+
+    it('reads every budget table, the asset sizes included', () => {
+        const assets = (size) => JSON.stringify({ description: 'x', assets: { 'jux-core.js': size } });
+        const raised = checkBudget(change({ file: 'ci/asset-budget.json', before: assets(4140), after: assets(4300) }));
+        expect(raised).toEqual([expect.stringContaining('"assets/jux-core.js" 4140 -> 4300')]);
+        expect(checkBudget(change({ file: 'ci/asset-budget.json', before: assets(4140), after: assets(4000) }))).toEqual([]);
     });
 
     it('accepts a raised value with a Budget trailer', () => {

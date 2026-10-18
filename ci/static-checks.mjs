@@ -18,7 +18,7 @@ const FIRST_VERSION_REQUIRING_MIN_ABI = '2.4.0.0';
 const BINARY_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.ico', '.webp', '.dll', '.pdb', '.zip', '.mkv', '.woff', '.woff2']);
 export const BASELINE_PATH = 'ci/duplication-baseline.json';
 // Ratcheted budgets (TODO_V5 rule R3): a value may only rise in a commit carrying a "Budget:" trailer.
-export const BUDGET_FILES = ['ci/perf-budget.json'];
+export const BUDGET_FILES = ['ci/perf-budget.json', 'ci/asset-budget.json'];
 
 const HEX_COLOR = /(?<![\w&#-])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})(?![\w-])/g;
 const COLOR_FUNCTION = /\b(?:rgba?|hsla?)\(\s*[\d.]/g;
@@ -194,7 +194,10 @@ export function checkBudget({ sha, file, before, after, body }) {
     if (after === null || /^budget:\s*\S/im.test(body)) {
         return [];
     }
-    const entries = (text) => (text === null ? {} : JSON.parse(text).endpoints ?? {});
+    // Every numeric value of every top-level table (endpoints, assets), keyed by table and name.
+    const entries = (text) => Object.fromEntries(Object.entries(text === null ? {} : JSON.parse(text))
+        .filter(([, table]) => table !== null && typeof table === 'object')
+        .flatMap(([table, values]) => Object.entries(values).map(([key, value]) => [`${table}/${key}`, value])));
     const previous = entries(before);
     const raised = Object.entries(entries(after))
         .filter(([key, value]) => typeof previous[key] === 'number' && typeof value === 'number' && value > previous[key])

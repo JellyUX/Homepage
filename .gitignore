@@ -29,6 +29,8 @@
 !ci/duplication-baseline.json
 !ci/coverage-summary.mjs
 !ci/perf-budget.json
+!ci/asset-budget.mjs
+!ci/asset-budget.json
 !e2e/
 !e2e/setup.mjs
 !e2e/helpers.mjs
