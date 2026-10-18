@@ -6,6 +6,7 @@ import {
     findUntrackedMarkers,
     checkTargetAbi,
     checkCommit,
+    checkBudget,
     groupCloneFamilies,
     compareWithBaseline
 } from '../ci/static-checks.mjs';
@@ -108,6 +109,37 @@ describe('checkTargetAbi', () => {
 
     it('fails when the plugin compiles against a newer SDK than targetAbi', () => {
         expect(checkTargetAbi({ ...ok, csproj: `<JellyfinVersion Condition="'$(JellyfinVersion)' == ''">10.11.10</JellyfinVersion>` })).toHaveLength(1);
+    });
+});
+
+describe('checkBudget', () => {
+    const budget = (endpoints) => JSON.stringify({ description: 'x', endpoints });
+    const change = (over) => ({
+        sha: 'abcdef0123',
+        file: 'ci/perf-budget.json',
+        before: budget({ Sections: 17, 'Watchlist/Ids': 1 }),
+        after: budget({ Sections: 17, 'Watchlist/Ids': 1 }),
+        body: '',
+        ...over
+    });
+
+    it('rejects a raised value without a Budget trailer, naming it', () => {
+        const errors = checkBudget(change({ after: budget({ Sections: 18, 'Watchlist/Ids': 1 }) }));
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toContain('"Sections" 17 -> 18');
+    });
+
+    it('accepts a raised value with a Budget trailer', () => {
+        expect(checkBudget(change({ after: budget({ Sections: 18 }), body: 'Budget: a new section type' }))).toEqual([]);
+    });
+
+    it('accepts a lowered value and a new entry without a trailer', () => {
+        expect(checkBudget(change({ after: budget({ Sections: 9, 'Watchlist/Ids': 1, 'Collections/IncludedIn': 3 }) }))).toEqual([]);
+    });
+
+    it('accepts the commit that creates or deletes the budget', () => {
+        expect(checkBudget(change({ before: null }))).toEqual([]);
+        expect(checkBudget(change({ after: null }))).toEqual([]);
     });
 });
 

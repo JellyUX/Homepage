@@ -17,6 +17,8 @@ const MIN_ABI = '10.11.9.0';
 const FIRST_VERSION_REQUIRING_MIN_ABI = '2.4.0.0';
 const BINARY_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.ico', '.webp', '.dll', '.pdb', '.zip', '.mkv', '.woff', '.woff2']);
 export const BASELINE_PATH = 'ci/duplication-baseline.json';
+// Ratcheted budgets (TODO_V5 rule R3): a value may only rise in a commit carrying a "Budget:" trailer.
+export const BUDGET_FILES = ['ci/perf-budget.json'];
 
 const HEX_COLOR = /(?<![\w&#-])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})(?![\w-])/g;
 const COLOR_FUNCTION = /\b(?:rgba?|hsla?)\(\s*[\d.]/g;
@@ -181,6 +183,28 @@ export function checkCommit({ sha, subject, body, files }) {
 }
 
 /**
+ * Checks that a commit raising a ratcheted budget says why in a "Budget: <reason>" trailer.
+ * Only the numeric entries of the budget's "endpoints" object are compared; a new entry has no
+ * previous value to raise, so it needs no trailer.
+ * @param {{sha: string, file: string, before: string | null, after: string | null, body: string}} change
+ *   The budget file's text before and after the commit (null when absent).
+ * @returns {string[]} Errors.
+ */
+export function checkBudget({ sha, file, before, after, body }) {
+    if (after === null || /^budget:\s*\S/im.test(body)) {
+        return [];
+    }
+    const entries = (text) => (text === null ? {} : JSON.parse(text).endpoints ?? {});
+    const previous = entries(before);
+    const raised = Object.entries(entries(after))
+        .filter(([key, value]) => typeof previous[key] === 'number' && typeof value === 'number' && value > previous[key])
+        .map(([key, value]) => `"${key}" ${previous[key]} -> ${value}`);
+    return raised.length === 0
+        ? []
+        : [`${sha.slice(0, 7)}: ${file} raises ${raised.join(', ')} without a "Budget: <reason>" trailer.`];
+}
+
+/**
  * Groups jscpd clone pairs into families of overlapping locations.
  * @param {{firstFile: {name: string, start: number, end: number}, secondFile: {name: string, start: number, end: number}}[]} duplicates
  * @returns {{files: string[], copies: number}[]} Families with at least 3 copies.
@@ -255,6 +279,14 @@ function git(args) {
     return execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 }
 
+function gitShowOrNull(spec) {
+    try {
+        return execFileSync('git', ['show', spec], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    } catch {
+        return null;
+    }
+}
+
 function runJscpd() {
     const out = mkdtempSync(path.join(tmpdir(), 'jscpd-'));
     try {
@@ -316,14 +348,16 @@ function main() {
             if (author.endsWith('[bot]')) {
                 continue;
             }
-            const result = checkCommit({
-                sha,
-                subject: git(['log', '-1', '--format=%s', sha]).trim(),
-                body: git(['log', '-1', '--format=%b', sha]),
-                files: git(['diff-tree', '--no-commit-id', '--name-only', '-r', sha]).split('\n').filter(Boolean)
-            });
+            const body = git(['log', '-1', '--format=%b', sha]);
+            const files = git(['diff-tree', '--no-commit-id', '--name-only', '-r', sha]).split('\n').filter(Boolean);
+            const result = checkCommit({ sha, subject: git(['log', '-1', '--format=%s', sha]).trim(), body, files });
             result.errors.forEach((message) => errors.push({ message }));
             result.warnings.forEach((message) => warnings.push({ message }));
+            for (const file of BUDGET_FILES.filter((f) => files.includes(f))) {
+                const before = gitShowOrNull(`${sha}^:${file}`);
+                const after = gitShowOrNull(`${sha}:${file}`);
+                checkBudget({ sha, file, before, after, body }).forEach((message) => errors.push({ file, message }));
+            }
         }
     }
 
