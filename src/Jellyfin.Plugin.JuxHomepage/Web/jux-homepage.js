@@ -168,7 +168,9 @@
             elem.dataset.juxHasMore = String(_hasMorePages(response));
             var descriptors = (response && response.Sections) || [];
             if (descriptors.length === 0) {
-                return;
+                // A first page with no section (no library, every section turned off) would leave the
+                // home screen blank: Jellyfin renders it instead (Annexe.b, DEC-P04-1).
+                return typeof onFirstPageFailure === 'function' ? onFirstPageFailure() : undefined;
             }
 
             // A descriptor that throws loses its own section only (FIAB-08), never the whole page.

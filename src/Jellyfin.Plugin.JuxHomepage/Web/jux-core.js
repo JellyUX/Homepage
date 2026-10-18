@@ -186,10 +186,12 @@
     // button (emby-button), measured live on 10.11.10.
     // options: { name } for a full-pane error naming what failed, or { compact: true } for one line
     // inside a home section.
+    // A missing dictionary (jux-i18n.js not served) leaves the labels empty instead of throwing inside
+    // the caller's .catch (Annexe.b): the retry button still works.
     function errorHtml(options) {
         var text = labels('error');
         var compact = !!(options && options.compact);
-        var title = compact ? text.section : text.title.replace('{name}', (options && options.name) || '');
+        var title = compact ? text.section : String(text.title || '').replace('{name}', (options && options.name) || '');
         return '<div class="jux-error-state' + (compact ? ' jux-error-state-compact' : '') + '" role="alert">' +
             '<span class="material-icons error jux-error-icon" aria-hidden="true"></span>' +
             '<div class="jux-error-text">' +

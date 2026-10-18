@@ -438,3 +438,16 @@ describe('turned off for this user, on a detail page opened directly (H-09)', ()
         expect(onChange).toHaveBeenCalledTimes(1);
     });
 });
+
+describe('error state without labels (Annexe.b)', () => {
+    it('renders a retry button instead of throwing when the error labels are missing', () => {
+        const dictionaries = window.JuxI18n;
+        window.JuxI18n = {};
+        try {
+            const html = errorHtml({ name: 'Watchlist' });
+            expect(html).toContain('jux-error-retry');
+        } finally {
+            window.JuxI18n = dictionaries;
+        }
+    });
+});
