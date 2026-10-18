@@ -111,6 +111,33 @@ public sealed class CollectionsIndexCacheServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Invalidate_DuringARefresh_LeavesTheIndexStale()
+    {
+        // Failure path "refresh racing an update": a collection change while the index is being
+        // computed must not be lost when that computation is written.
+        var computing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock
+            .Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
+            .Returns(() =>
+            {
+                computing.TrySetResult();
+                release.Task.Wait();
+                return [];
+            });
+        var service = BuildService(libraryManagerMock.Object, Timeout.InfiniteTimeSpan);
+
+        var refresh = Task.Run(() => service.RefreshAsync(CancellationToken.None));
+        await computing.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        service.Invalidate();
+        release.SetResult();
+
+        Assert.True(await refresh);
+        Assert.True(service.IsStale());
+    }
+
+    [Fact]
     public async Task RefreshAsync_ConcurrentCalls_OnlyOneActuallyRuns()
     {
         var started = new ManualResetEventSlim(false);

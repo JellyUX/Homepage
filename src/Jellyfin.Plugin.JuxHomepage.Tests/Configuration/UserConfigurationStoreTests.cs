@@ -49,6 +49,21 @@ public sealed class UserConfigurationStoreTests : IDisposable
     }
 
     [Fact]
+    public void GetUserConfiguration_CorruptFile_ReturnsNullAndTheNextSaveReplacesIt()
+    {
+        // Failure path "corrupt file on disk": a truncated file reads as "no overrides" instead of
+        // throwing into the home request, and saving again recovers the user.
+        var userId = Guid.NewGuid();
+        var usersDir = Path.Combine(_tempDir, "Jellyfin.Plugin.JuxHomepage", "users");
+        File.WriteAllText(Path.Combine(usersDir, $"{userId}.json"), "{\"UserId\": \"" + userId + "\", \"Enabled\": fal");
+
+        Assert.Null(_store.GetUserConfiguration(userId));
+
+        _store.SaveUserConfiguration(new UserConfiguration { UserId = userId, Enabled = false });
+        Assert.Equal(false, _store.GetUserConfiguration(userId)?.Enabled);
+    }
+
+    [Fact]
     public void SaveUserConfiguration_LeavesNoStrayTempFileBehind()
     {
         var userId = Guid.NewGuid();
