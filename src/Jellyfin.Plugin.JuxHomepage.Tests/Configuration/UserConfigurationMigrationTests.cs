@@ -91,7 +91,7 @@ public sealed class UserConfigurationMigrationTests
     [Fact]
     public void FromTierTen_GivesAnUnfilteredSeasonalPresetOverrideItsFilter()
     {
-        // TODO_V4.md 9.2 (F-60): the same transform as the plugin rows, per CLAUDE.md.
+        // TODO_V4.md 9.2 (F-60): the same transform as the plugin rows, per CONTRIBUTING.md "Configuration Schema Versioning".
         var halloween = new WidgetConfig
         {
             WidgetType = "jux.connected.seasonal",

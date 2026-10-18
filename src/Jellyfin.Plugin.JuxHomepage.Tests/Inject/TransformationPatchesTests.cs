@@ -11,7 +11,7 @@ namespace Jellyfin.Plugin.JuxHomepage.Tests.Inject;
 
 // Covers TransformationPatches.TryPatchLoadSections, extracted in Phase 9 of TODO_V2.md from the
 // reflective PatchLoadSections entry point specifically so this splicing logic -- the most fragile
-// mechanism in the project (see CLAUDE.md "Jellyfin Update Procedure") -- could be unit tested without
+// mechanism in the project (see CONTRIBUTING.md "Jellyfin Update Procedure") -- could be unit tested without
 // reflection or embedded-resource I/O. Fixtures below are short representative stand-ins for the real
 // minified chunk; update them if a future Jellyfin Web bump changes the shape of the surrounding code
 // around ",loadSections:".

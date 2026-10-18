@@ -66,6 +66,40 @@ public sealed class DocSymbolSyncTests
         Assert.True(missing.Count == 0, $"{document} cites identifiers that no longer exist: {string.Join(", ", missing)}");
     }
 
+    // TODO_V5 PROC-10.b: three server warnings sent administrators to CLAUDE.md, a file the repository
+    // does not ship. The code and the documents may only point to what a clone contains.
+    [Fact]
+    public void NoVersionedFile_PointsToCLAUDEmd()
+    {
+        var root = RepoPaths.Root();
+        var offenders = new[] { ("src", "*.cs"), ("src", "*.js"), ("docs", "*.md") }
+            .SelectMany(source => SourceFiles(root, source.Item1, source.Item2))
+            .Append(Path.Combine(root, "README.md"))
+            .Append(Path.Combine(root, "CONTRIBUTING.md"))
+            .Where(file => Path.GetFileName(file) != nameof(DocSymbolSyncTests) + ".cs")
+            .Where(file => File.ReadAllText(file).Contains("CLAUDE.md", StringComparison.Ordinal))
+            .Select(file => Path.GetRelativePath(root, file))
+            .ToList();
+
+        Assert.True(offenders.Count == 0, $"These files point to the unversioned CLAUDE.md: {string.Join(", ", offenders)}");
+    }
+
+    [Fact]
+    public void EveryContributingSectionCitedByTheCode_Exists()
+    {
+        var root = RepoPaths.Root();
+        var headings = Regex.Matches(File.ReadAllText(Path.Combine(root, "CONTRIBUTING.md")), @"^## (.+?)\r?$", RegexOptions.Multiline)
+            .Select(m => m.Groups[1].Value)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var cited = SourceFiles(root, "src", "*.cs").Concat(SourceFiles(root, "src", "*.js"))
+            .SelectMany(file => Regex.Matches(File.ReadAllText(file), @"CONTRIBUTING\.md ['""]([^'""]+)['""]").Select(m => m.Groups[1].Value))
+            .ToHashSet(StringComparer.Ordinal);
+
+        Assert.NotEmpty(cited);
+        Assert.All(cited, section => Assert.Contains(section, headings));
+    }
+
     private static IEnumerable<string> CodeSpans(string markdown)
     {
         // Fenced blocks hold commands, not citations.
@@ -90,8 +124,10 @@ public sealed class DocSymbolSyncTests
     }
 
     private static string ReadAll(string root, string dir, string pattern) =>
-        string.Join('\n', Directory.GetFiles(Path.Combine(root, dir), pattern, SearchOption.AllDirectories)
+        string.Join('\n', SourceFiles(root, dir, pattern).Select(File.ReadAllText));
+
+    private static IEnumerable<string> SourceFiles(string root, string dir, string pattern) =>
+        Directory.GetFiles(Path.Combine(root, dir), pattern, SearchOption.AllDirectories)
             .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
-                && !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
-            .Select(File.ReadAllText));
+                && !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal));
 }

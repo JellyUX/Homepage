@@ -17,8 +17,8 @@ namespace Jellyfin.Plugin.JuxHomepage;
 public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, IHasWebPages
 {
     /// <summary>
-    /// The current configuration schema version. See the "Configuration Schema Versioning" section
-    /// in CLAUDE.md for the migration policy.
+    /// The current configuration schema version. See CONTRIBUTING.md "Configuration Schema Versioning"
+    /// for the migration policy.
     /// </summary>
     private const int CurrentSchemaVersion = 11;
 
@@ -124,8 +124,8 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
     /// <summary>
     /// Applies version-gated migrations to a loaded or newly-created configuration, keyed off
     /// <see cref="PluginConfiguration.SchemaVersion"/>, then bumps it to
-    /// <see cref="CurrentSchemaVersion"/> once applied. See the "Configuration Schema Versioning"
-    /// section in CLAUDE.md.
+    /// <see cref="CurrentSchemaVersion"/> once applied. See CONTRIBUTING.md
+    /// "Configuration Schema Versioning".
     /// </summary>
     /// <param name="config">The configuration to migrate in place.</param>
     internal static void MigrateConfiguration(PluginConfiguration config)
@@ -156,8 +156,8 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
         // native tab-switching it depended on turned out to be unreliable in real usage (confirmed by
         // the user) -- so there is no V3-to-V4 tier here anymore. No V4-to-V5 tier is needed either:
         // removing a field is not a data transform an installation needs applied, it simply stops
-        // being read/written. The version is still bumped per the "Configuration Schema Versioning"
-        // policy in CLAUDE.md, since the on-disk schema shape did change.
+        // being read/written. The version is still bumped per the policy of CONTRIBUTING.md
+        // "Configuration Schema Versioning", since the on-disk schema shape did change.
 
         if (config.SchemaVersion < 6)
         {
@@ -196,14 +196,14 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
         // Add future migrations here as additional `if (config.SchemaVersion < N) { ... }` blocks,
         // each gated on its own target version and never combined with `else if` -- an installation
         // resuming from several versions behind must apply every intermediate transformation in
-        // order, not jump straight to the newest one. See CLAUDE.md "Configuration Schema Versioning".
+        // order, not jump straight to the newest one. See CONTRIBUTING.md "Configuration Schema Versioning".
         config.SchemaVersion = CurrentSchemaVersion;
     }
 
     /// <summary>
     /// Applies the same version-gated migrations as <see cref="MigrateConfiguration"/>, but to a
-    /// per-user configuration's <see cref="UserConfiguration.WidgetOverrides"/> -- per the
-    /// "Configuration Schema Versioning" policy in CLAUDE.md, any migration of widget configuration
+    /// per-user configuration's <see cref="UserConfiguration.WidgetOverrides"/> -- per the policy of
+    /// CONTRIBUTING.md "Configuration Schema Versioning", any migration of widget configuration
     /// rows must apply to both models identically.
     /// </summary>
     /// <param name="config">The user configuration to migrate in place.</param>

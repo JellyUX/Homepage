@@ -20,7 +20,7 @@
 // lazily-loaded webpack CSS chunk that Jellyfin fetches on demand when its own native sort dialog
 // component renders -- our tabs never trigger that chunk to load, so the classes are present in our
 // markup but have no matching CSS anywhere in the page. Same class of fragility as the loadSections
-// chunk-hash risk documented in CLAUDE.md, just for a CSS chunk instead of a JS one. Depending on a
+// chunk-hash risk of CONTRIBUTING.md "Jellyfin Update Procedure", just for a CSS chunk instead of a JS one. Depending on a
 // second unstable chunk hash would only compound that risk, so instead of trying to force-load it,
 // the small set of rules actually needed (dialog box sizing/background/shadow, a fixed+flex centering
 // wrapper, and radio-circle sizing) are self-hosted in jux-ui.css under our own

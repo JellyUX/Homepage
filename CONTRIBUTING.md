@@ -150,16 +150,52 @@ A change is done when:
 
 ---
 
-## Jellyfin Update Test Procedure
+## Jellyfin Update Procedure
 
-1. Bump the `jellyfin/jellyfin` image in `docker/docker-compose.yml`, then run `docker compose -f
-   docker/docker-compose.yml up -d`.
-2. Follow the "Jellyfin Update Procedure" in `CLAUDE.md` to confirm the `loadSections` chunk is still
-   detected and patched.
-3. Reload the home page: if the JellyUX sections do not render, check the browser console (prefix
-   `[JellyUX]`) before suspecting the minified hook constants.
-4. Run the E2E suite against the new image (`node e2e/setup.mjs up --image jellyfin/jellyfin:<version>`,
-   then `npx playwright test -c e2e`).
+JellyUX splices its home sections into a minified Jellyfin Web chunk. The splice depends on one
+hardcoded minified name, `HookCardBuilder` in `Inject/TransformationPatches.cs`, and every native class,
+id, attribute and custom element the client scripts use is listed in `Web/jux-native-selectors.json`.
+Any Jellyfin Web build can rename them, so run this procedure after every Jellyfin server update:
+
+1. **Drift checks**: extract `/jellyfin/jellyfin-web` from the new image (as the `drift` job of
+   `.github/workflows/ci.yml` does), set `JELLYFIN_WEB_EXTRACT_PATH` to it and run
+   `dotnet test --filter "Category=RequiresDocker"` (`JellyfinWebDriftTests`: loadSections splice,
+   home-html anchor, every token of `Web/jux-native-selectors.json`).
+2. **E2E suite**: `node e2e/setup.mjs up --image jellyfin/jellyfin:<version>`, then
+   `npx playwright test -c e2e`.
+3. **Server log**: bump the image in `docker/docker-compose.yml`, run
+   `docker compose -f docker/docker-compose.yml up -d`, and read the log after the restart. It must show
+   `Found loadSections chunk: {FileName}.`, then `Registered loadSections chunk transformation for
+   {FileName}` and `Found home-html tab anchor in {FileName}.` A warning that points to this procedure
+   means the home page or the tab panes fall back to native rendering: a silent degradation, not a crash.
+4. **Renamed cardBuilder module**: update `HookCardBuilder` in `Inject/TransformationPatches.cs`. In the
+   chunk found in step 3, find the webpack module that defines `,loadSections:` and the name it binds to
+   the cardBuilder module (`,X=r(id)`, read as `X.default.getCardsHtml`).
+5. **Missing native token**: adapt the script that uses it, then `Web/jux-native-selectors.json`
+   (`test/native-selectors.test.js` fails until both agree). Raise the E2E matrix and the `drift` job
+   image to the new validated version.
+6. **Home page**: if the JellyUX sections do not render, check the browser console (prefix `[JellyUX]`)
+   before suspecting the minified hook constants.
+
+---
+
+## Configuration Schema Versioning
+
+`PluginConfiguration.SchemaVersion` and `UserConfiguration.SchemaVersion` gate one-time migrations of the
+on-disk configuration format. They are two separate tracks, compared with `CurrentSchemaVersion` and
+`CurrentUserSchemaVersion` in `Plugin.cs`.
+
+- **Plugin configuration**: on load (the `Plugin` constructor forces the lazy `Configuration`), the
+  `Plugin.MigrateConfiguration` tiers run, then `Plugin.ValidateConfiguration`; the file is saved at once
+  when the version changed. On save, `Plugin.UpdateConfiguration` validates (clamps) the values but does
+  not migrate: a configuration posted by the admin page is already at the current version.
+- **User configuration**: `Plugin.MigrateUserConfiguration` runs in memory when a user file is read, and
+  again before it is saved. It stamps the user constant, never the plugin one.
+- **Tiers**: each tier is its own `if (config.SchemaVersion < N)` block, never `else if`, so an
+  installation several versions behind applies every intermediate transformation in order. A new tier
+  bumps the matching constant.
+- **Widget rows**: `UserConfiguration.WidgetOverrides` shares the `WidgetConfig[]` structure of
+  `PluginConfiguration.Widgets`, so a migration of widget rows applies the same transformation to both.
 
 ---
 

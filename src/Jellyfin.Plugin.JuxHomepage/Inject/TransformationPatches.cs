@@ -364,7 +364,7 @@ public static class TransformationPatches
         {
             logger.LogWarning(
                 "No home-html chunk found in {WebPath}: the JellyUX tab panes cannot be spliced in. "
-                + "See CLAUDE.md 'Jellyfin Update Procedure'.",
+                + "See CONTRIBUTING.md 'Jellyfin Update Procedure'.",
                 webPath);
             return false;
         }
@@ -392,7 +392,7 @@ public static class TransformationPatches
             {
                 logger.LogWarning(
                     "Chunk {FileName} does not contain the home-html tab anchor: the JellyUX tab panes "
-                    + "fall back to native rendering. See CLAUDE.md 'Jellyfin Update Procedure'.",
+                    + "fall back to native rendering. See CONTRIBUTING.md 'Jellyfin Update Procedure'.",
                     Path.GetFileName(chunk));
             }
         }

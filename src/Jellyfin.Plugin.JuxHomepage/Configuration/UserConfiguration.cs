@@ -35,8 +35,8 @@ public sealed class UserConfiguration
 
     /// <summary>
     /// Gets or sets the configuration schema version. See
-    /// <see cref="PluginConfiguration.SchemaVersion"/> and the "Configuration Schema Versioning"
-    /// section in CLAUDE.md for the migration policy.
+    /// <see cref="PluginConfiguration.SchemaVersion"/> and CONTRIBUTING.md
+    /// "Configuration Schema Versioning" for the migration policy.
     /// </summary>
     public int SchemaVersion { get; set; } = 1;
 }

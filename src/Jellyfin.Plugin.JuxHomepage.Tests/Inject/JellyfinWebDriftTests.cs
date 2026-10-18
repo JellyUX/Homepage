@@ -48,7 +48,7 @@ public sealed class JellyfinWebDriftTests
             var (_, outcome) = TransformationPatches.TryPatchLoadSections(content, template!);
 
             // HookNotFound means a token the splice needs (module self-reference, cardBuilder binding
-            // or its .default read) is gone from this build. See CLAUDE.md "Jellyfin Update Procedure".
+            // or its .default read) is gone from this build. See CONTRIBUTING.md "Jellyfin Update Procedure".
             Assert.Equal(LoadSectionsOutcome.Patched, outcome);
         }
     }

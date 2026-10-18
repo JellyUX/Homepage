@@ -255,7 +255,7 @@ public sealed class StartupService : IHostedService, IDisposable
                 "Chunk {FileName} contains ',loadSections:' but an expected minified token (module "
                 + "self-reference, cardBuilder binding or its .default read) is missing. Jellyfin Web may "
                 + "have drifted; the home page will fall back to native rendering. "
-                + "See CLAUDE.md 'Jellyfin Update Procedure'.",
+                + "See CONTRIBUTING.md 'Jellyfin Update Procedure'.",
                 fileName);
         }
     }
