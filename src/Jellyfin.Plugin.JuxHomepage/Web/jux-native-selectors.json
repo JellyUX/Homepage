@@ -1,5 +1,5 @@
 {
-  "description": "Native Jellyfin web tokens the JellyUX client scripts read or write. Each must appear literally in the target web bundle (JellyfinWebDriftTests); test/native-selectors.test.js keeps the list in step with the scripts.",
+  "description": "Native Jellyfin web tokens the JellyUX client scripts read or write. Each must appear literally in the target web bundle (JellyfinWebDriftTests); test/native-selectors.test.js keeps the list in step with the scripts. carriers: the element a document-level class is set on (layout-tv on <html>, FIAB-05), with the bundle fragment that sets it there.",
   "classes": [
     "actionSheetItemText",
     "actionsheetListItemBody",
@@ -144,5 +144,12 @@
   "anchors": [
     ",loadSections:",
     "id=\"favoritesTab\" data-index=\"1\"> <div class=\"sections\"></div> </div>"
+  ],
+  "carriers": [
+    {
+      "class": "layout-tv",
+      "element": "documentElement",
+      "evidence": "document.documentElement.classList.add(\"layout-\"+"
+    }
   ]
 }

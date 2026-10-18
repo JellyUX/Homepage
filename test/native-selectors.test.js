@@ -45,6 +45,16 @@ export function extractNativeTokens(source) {
     return tokens;
 }
 
+/** Document-level class reads and writes, as "element:class" strings (document.body / documentElement). */
+export function extractCarrierUses(source) {
+    const src = stripComments(source);
+    const uses = new Set();
+    for (const m of src.matchAll(/document\.(body|documentElement)\.classList\.(?:add|remove|contains|toggle)\(\s*(['"])([\w-]+)\2/g)) {
+        uses.add(`${m[1]}:${m[3]}`);
+    }
+    return uses;
+}
+
 function scriptTokens() {
     const tokens = new Set();
     for (const file of readdirSync(WEB_DIR).filter((f) => /^jux-.*\.js$/.test(f) && f !== 'jux-loadsections-inject.js')) {
@@ -85,5 +95,26 @@ describe('Web/jux-native-selectors.json', () => {
     it('lists no token the client scripts no longer use', () => {
         const used = scriptTokens();
         expect([...inventoryTokens()].filter((t) => !used.has(t)).sort()).toEqual([]);
+    });
+
+    it('names the element of every document-level class the scripts read, the splice fragment included (FIAB-05)', () => {
+        const inventory = JSON.parse(readFileSync(INVENTORY, 'utf8'));
+        const listed = new Set(inventory.carriers.map((c) => `${c.element}:${c.class}`));
+        const used = new Set();
+        for (const file of readdirSync(WEB_DIR).filter((f) => /^jux-.*\.js$/.test(f))) {
+            extractCarrierUses(readFileSync(path.join(WEB_DIR, file), 'utf8')).forEach((u) => used.add(u));
+        }
+        expect([...used].sort()).toEqual([...listed].sort());
+        inventory.carriers.forEach((c) => expect(c.evidence).toContain(`${c.element}.classList`));
+    });
+});
+
+describe('extractCarrierUses', () => {
+    it('reads the element a document-level class is read on', () => {
+        expect([...extractCarrierUses(`
+            if (document.body.classList.contains('layout-tv')) {}
+            document.documentElement.classList.add("layout-desktop");
+            el.classList.contains('card');
+        `)].sort()).toEqual(['body:layout-tv', 'documentElement:layout-desktop']);
     });
 });

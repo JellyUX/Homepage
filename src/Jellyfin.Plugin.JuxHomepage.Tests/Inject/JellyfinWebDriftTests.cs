@@ -59,18 +59,21 @@ public sealed class JellyfinWebDriftTests
         Assert.True(TransformationPatches.CheckHomeHtmlChunks(WebPath(), new FileSystem(), NullLogger.Instance));
     }
 
+    private static string Bundle() => string.Concat(Directory
+        .EnumerateFiles(WebPath(), "*", SearchOption.AllDirectories)
+        .Where(f => f.EndsWith(".js", StringComparison.Ordinal)
+            || f.EndsWith(".css", StringComparison.Ordinal)
+            || f.EndsWith(".html", StringComparison.Ordinal))
+        .Select(File.ReadAllText));
+
+    private static JsonDocument Inventory() => JsonDocument.Parse(File.ReadAllText(
+        Path.Combine(RepoPaths.Root(), "src", "Jellyfin.Plugin.JuxHomepage", "Web", "jux-native-selectors.json")));
+
     [Fact]
     public void EveryInventoriedNativeToken_AppearsInTheTargetBundle()
     {
-        var bundle = string.Concat(Directory
-            .EnumerateFiles(WebPath(), "*", SearchOption.AllDirectories)
-            .Where(f => f.EndsWith(".js", StringComparison.Ordinal)
-                || f.EndsWith(".css", StringComparison.Ordinal)
-                || f.EndsWith(".html", StringComparison.Ordinal))
-            .Select(File.ReadAllText));
-
-        using var inventory = JsonDocument.Parse(File.ReadAllText(
-            Path.Combine(RepoPaths.Root(), "src", "Jellyfin.Plugin.JuxHomepage", "Web", "jux-native-selectors.json")));
+        var bundle = Bundle();
+        using var inventory = Inventory();
 
         // A name must stand on its own: "actionSheetScrollerX" does not keep "actionSheetScroller" alive.
         bool IsPresent(string key, string token) => key == "anchors"
@@ -84,5 +87,23 @@ public sealed class JellyfinWebDriftTests
             .ToList();
 
         Assert.Empty(missing);
+    }
+
+    // FIAB-05: a document-level class is read on the element Jellyfin sets it on ("layout-tv" on <html>,
+    // not <body>). Each carrier names that element and the bundle fragment that sets the class there.
+    [Fact]
+    public void EveryInventoriedCarrier_IsSetOnItsElementInTheTargetBundle()
+    {
+        var bundle = Bundle();
+        using var inventory = Inventory();
+
+        var wrong = inventory.RootElement.GetProperty("carriers").EnumerateArray()
+            .Select(c => (Class: c.GetProperty("class").GetString()!, Element: c.GetProperty("element").GetString()!, Evidence: c.GetProperty("evidence").GetString()!))
+            .Where(c => !c.Evidence.Contains(c.Element + ".classList", StringComparison.Ordinal)
+                || !bundle.Contains(c.Evidence, StringComparison.Ordinal))
+            .Select(c => $"{c.Class} on {c.Element}: {c.Evidence}")
+            .ToList();
+
+        Assert.Empty(wrong);
     }
 }

@@ -135,7 +135,7 @@ promise that never settles, a gate released by the test), never a sleep or a sto
 | Request that never settles (client) | `test/jux-ui.test.js`, "shows the error state with a retry that renders again, never the empty state" | partial: a retry that never settles keeps the error state; the client has no request timeout to drive with fake timers yet |
 | Observer re-armed after a reset (client) | `test/jux-tab-injector.test.js`, "re-injects into the tab bar rebuilt for a new view, as soon as the view is shown (F-42)" | partial: re-armed by `viewshow`, not after an explicit teardown |
 | Admin round trip | `e2e/tests/admin.spec.mjs`, "the admin page keeps Save in view and moves a section by drag and drop or by position (F-50)" | saved, read back from the API, shown on the home page; the original configuration is restored |
-| Drift of the Jellyfin web client | `test/native-selectors.test.js`, `JellyfinWebDriftTests.EveryInventoriedNativeToken_AppearsInTheTargetBundle` | every native token the scripts use is inventoried and present in the target bundle |
+| Drift of the Jellyfin web client | `test/native-selectors.test.js`, `JellyfinWebDriftTests.EveryInventoriedNativeToken_AppearsInTheTargetBundle`, `JellyfinWebDriftTests.EveryInventoriedCarrier_IsSetOnItsElementInTheTargetBundle` | every native token the scripts use is inventoried and present in the target bundle; a document-level class is read on the element the bundle sets it on |
 | Refresh racing an update (`TaskCompletionSource`) | `CollectionsIndexCacheServiceTests.Invalidate_DuringARefresh_LeavesTheIndexStale` | a change made while the index is computed is not lost when it is written |
 
 Time-dependent code takes a `TimeProvider`; tests pass the test project's `ManualTimeProvider` and call
@@ -191,13 +191,14 @@ A change is done when:
 
 JellyUX splices its home sections into a minified Jellyfin Web chunk. The splice depends on one
 hardcoded minified name, `HookCardBuilder` in `Inject/TransformationPatches.cs`, and every native class,
-id, attribute and custom element the client scripts use is listed in `Web/jux-native-selectors.json`.
+id, attribute and custom element the client scripts use is listed in `Web/jux-native-selectors.json`,
+with the element a document-level class is set on (`carriers`: `layout-tv` on `<html>`).
 Any Jellyfin Web build can rename them, so run this procedure after every Jellyfin server update:
 
 1. **Drift checks**: extract `/jellyfin/jellyfin-web` from the new image (as the `drift` job of
    `.github/workflows/ci.yml` does), set `JELLYFIN_WEB_EXTRACT_PATH` to it and run
    `dotnet test --filter "Category=RequiresDocker"` (`JellyfinWebDriftTests`: loadSections splice,
-   home-html anchor, every token of `Web/jux-native-selectors.json`).
+   home-html anchor, every token and carrier of `Web/jux-native-selectors.json`).
 2. **E2E suite**: `node e2e/setup.mjs up --image jellyfin/jellyfin:<version>`, then
    `npx playwright test -c e2e`.
 3. **Server log**: bump the image in `docker/docker-compose.yml`, run
@@ -208,8 +209,8 @@ Any Jellyfin Web build can rename them, so run this procedure after every Jellyf
 4. **Renamed cardBuilder module**: update `HookCardBuilder` in `Inject/TransformationPatches.cs`. In the
    chunk found in step 3, find the webpack module that defines `,loadSections:` and the name it binds to
    the cardBuilder module (`,X=r(id)`, read as `X.default.getCardsHtml`).
-5. **Missing native token**: adapt the script that uses it, then `Web/jux-native-selectors.json`
-   (`test/native-selectors.test.js` fails until both agree). Raise the E2E matrix and the `drift` job
+5. **Missing native token or moved carrier**: adapt the script that uses it, then
+   `Web/jux-native-selectors.json` (`test/native-selectors.test.js` fails until both agree). Raise the E2E matrix and the `drift` job
    image to the new validated version.
 6. **Home page**: if the JellyUX sections do not render, check the browser console (prefix `[JellyUX]`)
    before suspecting the minified hook constants.
