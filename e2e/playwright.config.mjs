@@ -1,7 +1,9 @@
 import { defineConfig } from '@playwright/test';
 
 // Runs against the bench started by e2e/setup.mjs. The baseurl project needs the server moved under a
-// BaseUrl first (node e2e/setup.mjs base-url /jf), so the two projects run as separate invocations.
+// BaseUrl first (node e2e/setup.mjs base-url /jf), the legacy-config project a configuration saved by an
+// earlier release (node e2e/setup.mjs load-config e2e/fixtures/config-2.13.0.xml): each project runs as
+// a separate invocation, in that order.
 export default defineConfig({
     testDir: './tests',
     outputDir: './.work/results',
@@ -17,7 +19,8 @@ export default defineConfig({
         screenshot: 'only-on-failure'
     },
     projects: [
-        { name: 'root', testIgnore: /baseurl\.spec/ },
-        { name: 'baseurl', testMatch: /baseurl\.spec/ }
+        { name: 'root', testIgnore: /(baseurl|legacy-config)\.spec/ },
+        { name: 'baseurl', testMatch: /baseurl\.spec/ },
+        { name: 'legacy-config', testMatch: /legacy-config\.spec/ }
     ]
 });

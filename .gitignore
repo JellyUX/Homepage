@@ -37,6 +37,8 @@
 !e2e/playwright.config.mjs
 !e2e/tests/
 !e2e/tests/*.spec.mjs
+!e2e/fixtures/
+!e2e/fixtures/*.xml
 !bench/
 !bench/*.mjs
 !bench/lowend.override.yml

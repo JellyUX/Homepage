@@ -3,6 +3,7 @@
 // user restricted to the movie library. Run from the repository root, after a Release build:
 //   node e2e/setup.mjs up [--image jellyfin/jellyfin:10.11.10] [--port 8098]
 //   node e2e/setup.mjs base-url /jf     (sets a BaseUrl and restarts the server)
+//   node e2e/setup.mjs load-config <plugin configuration .xml>   (replaces it and restarts the server)
 //   node e2e/setup.mjs down
 // State and generated credentials live in e2e/.work (never committed).
 
@@ -272,6 +273,25 @@ async function setBaseUrl() {
     console.log(`BaseUrl set to "${baseUrl}", server at ${env.serverUrl}.`);
 }
 
+/**
+ * Replaces the plugin configuration file with one saved by an earlier release and restarts the server,
+ * so the plugin migrates it on load as it would after an upgrade.
+ */
+async function loadConfig() {
+    const source = process.argv[3] ?? '';
+    if (!source.endsWith('.xml') || !existsSync(source)) {
+        throw new Error(`load-config needs an existing .xml file, got "${source}".`);
+    }
+    const env = JSON.parse(readFileSync(ENV_FILE, 'utf8'));
+    docker('stop', CONTAINER);
+    copyFileSync(source, path.join(WORK, 'config', 'plugins', 'configurations', 'Jellyfin.Plugin.JuxHomepage.xml'));
+    docker('start', CONTAINER);
+    await waitForServer(env.serverUrl);
+    // /System/Info/Public answers before the server takes requests: wait for a sign-in to go through.
+    await api(env, 'POST', '/Users/AuthenticateByName', { body: { Username: env.admin.name, Pw: env.admin.password } });
+    console.log(`Plugin configuration replaced by ${source}, server restarted at ${env.serverUrl}.`);
+}
+
 function down() {
     try {
         docker('rm', '-f', CONTAINER);
@@ -286,9 +306,11 @@ if (command === 'up') {
     await up();
 } else if (command === 'base-url') {
     await setBaseUrl();
+} else if (command === 'load-config') {
+    await loadConfig();
 } else if (command === 'down') {
     down();
 } else {
-    console.error('Usage: node e2e/setup.mjs up|base-url <path>|down');
+    console.error('Usage: node e2e/setup.mjs up|base-url <path>|load-config <xml>|down');
     process.exitCode = 2;
 }

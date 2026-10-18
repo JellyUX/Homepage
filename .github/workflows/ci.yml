@@ -139,6 +139,12 @@ jobs:
       - name: Run the BaseUrl browser tests
         run: npx playwright test -c e2e --project baseurl
 
+      - name: Load a configuration saved by the 2.13.0 release
+        run: node e2e/setup.mjs load-config e2e/fixtures/config-2.13.0.xml
+
+      - name: Run the configuration upgrade browser test
+        run: npx playwright test -c e2e --project legacy-config
+
       - name: Dump the Jellyfin log
         if: failure()
         run: docker logs jux-e2e > e2e/.work/jellyfin.log 2>&1 || true
