@@ -16,6 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The coverage summary diffs against the push or pull request base.
+          fetch-depth: 0
 
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
@@ -41,7 +44,9 @@ jobs:
         run: npx vitest run --coverage
 
       - name: Summarize coverage
-        run: node ci/coverage-summary.mjs "$(find coverage/cs -name coverage.cobertura.xml | head -1)" coverage/js/coverage-summary.json >> "$GITHUB_STEP_SUMMARY"
+        env:
+          DIFF_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: node ci/coverage-summary.mjs "$(find coverage/cs -name coverage.cobertura.xml | head -1)" coverage/js/coverage-summary.json --diff-base "$DIFF_BASE"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

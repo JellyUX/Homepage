@@ -9,11 +9,12 @@ export default defineConfig({
         // e2e/ holds the Playwright browser tests (npx playwright test -c e2e).
         exclude: [...configDefaults.exclude, 'e2e/**'],
         setupFiles: ['test/setup-core.js'],
-        // npx vitest run --coverage; summarized in CI by ci/coverage-summary.mjs, no threshold.
+        // npx vitest run --coverage; summarized in CI by ci/coverage-summary.mjs, no threshold. lcov gives
+        // the per-line hits of the changed lines coverage.
         coverage: {
             provider: 'v8',
             include: ['src/Jellyfin.Plugin.JuxHomepage/Web/*.js'],
-            reporter: ['text-summary', 'json-summary', 'html'],
+            reporter: ['text-summary', 'json-summary', 'lcov', 'html'],
             reportsDirectory: 'coverage/js'
         }
     }
