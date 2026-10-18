@@ -78,6 +78,32 @@ export async function apiGet(user, route) {
     return res.json();
 }
 
+/**
+ * Records, in order, the JellyUX API requests of a page (the client assets left out) and the native
+ * library queries the client scripts issue (`Users/{id}/Items`, infinite scroll). A duplicate is the same
+ * method and URL twice. `mark()` returns a position that `count` and `duplicates` can start from.
+ */
+export function trackJuxRequests(page) {
+    const requests = [];
+    page.on('request', (req) => {
+        const url = new URL(req.url());
+        const juxApi = url.pathname.includes('/JuxHomepage/') && !/\.(js|css)$/.test(url.pathname);
+        const libraryQuery = /\/Users\/[0-9a-f-]+\/Items$/i.test(url.pathname);
+        if (juxApi || libraryQuery) {
+            requests.push({ method: req.method(), url: req.url(), path: url.pathname });
+        }
+    });
+    return {
+        mark: () => requests.length,
+        since: (from = 0) => requests.slice(from),
+        count: (pattern, from = 0) => requests.slice(from).filter((r) => pattern.test(r.path)).length,
+        duplicates(from = 0) {
+            const seen = new Set();
+            return requests.slice(from).map((r) => `${r.method} ${r.url}`).filter((key) => seen.has(key) || !seen.add(key));
+        }
+    };
+}
+
 /** Collects JellyUX console errors and failed JellyUX asset requests for a page. */
 export function watchJuxErrors(page) {
     const errors = [];

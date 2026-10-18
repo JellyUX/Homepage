@@ -1,5 +1,90 @@
 import { test, expect } from '@playwright/test';
-import { env, NATIVE_SECTIONS, TABS, login, loadedSections, apiGet, watchJuxErrors } from '../helpers.mjs';
+import { env, NATIVE_SECTIONS, TABS, login, loadedSections, apiGet, watchJuxErrors, trackJuxRequests } from '../helpers.mjs';
+
+// The native sections the client reads straight from Jellyfin (NATIVE_ROUTES in jux-homepage.js); every
+// other section, native ones included, is read through JuxHomepage/Section/{type}.
+const NATIVE_ROUTED = [
+    'jux-native-continue-watching',
+    'jux-native-next-up',
+    'jux-native-recently-added-movies',
+    'jux-native-recently-added-shows',
+    'jux-native-recently-added-episodes'
+];
+
+/** Records the long animation frames over 50 ms whose scripts include a JellyUX asset. */
+async function watchJuxLongFrames(page) {
+    await page.addInitScript(() => {
+        window.__juxLongFrames = [];
+        try {
+            new PerformanceObserver((list) => {
+                for (const entry of list.getEntries()) {
+                    if (entry.duration > 50 && (entry.scripts || []).some((s) => (s.sourceURL || '').includes('/JuxHomepage/'))) {
+                        window.__juxLongFrames.push(Math.round(entry.duration));
+                    }
+                }
+            }).observe({ type: 'long-animation-frame', buffered: true });
+        } catch {
+            // Browsers without the Long Animation Frames API record nothing.
+        }
+    });
+}
+
+test('the home page reads each JellyUX section once, plus the layout and the watchlist ids (PROC-03.a)', async ({ page }) => {
+    // Budget relative to the configuration: 1 Sections page, 1 Section/{type} per section the client
+    // does not read from a native route, 1 Watchlist/Ids, no request twice. Long frames attributed to a
+    // JellyUX script are reported, and fail the test above 100 ms.
+    await watchJuxLongFrames(page);
+    const requests = trackJuxRequests(page);
+    await login(page, env.admin);
+
+    const sections = await loadedSections(page);
+    const throughSection = sections.filter((s) => !NATIVE_ROUTED.includes(s)).map((s) => s.replace(/^jux-([a-z]+)-/, 'jux.$1.'));
+    const sectionPaths = requests.since().filter((r) => /\/JuxHomepage\/Section\//.test(r.path)).map((r) => r.path.split('/').pop());
+
+    expect(requests.count(/\/JuxHomepage\/Sections$/)).toBe(1);
+    expect(sectionPaths.sort()).toEqual(throughSection.sort());
+    expect(requests.count(/\/JuxHomepage\/Watchlist\/Ids$/)).toBe(1);
+    expect(requests.since().length).toBe(2 + throughSection.length);
+    expect(requests.duplicates()).toEqual([]);
+
+    const longFrames = await page.evaluate(() => window.__juxLongFrames);
+    test.info().annotations.push(
+        { type: 'JellyUX requests', description: requests.since().map((r) => `${r.method} ${r.path}`).join(', ') },
+        { type: 'JellyUX long frames (ms)', description: JSON.stringify(longFrames) });
+    expect(longFrames.filter((d) => d > 100)).toEqual([]);
+});
+
+test('coming back to the home page within the app issues no JellyUX request (PROC-03.a)', async ({ page }) => {
+    const requests = trackJuxRequests(page);
+    await login(page, env.admin);
+    await loadedSections(page);
+
+    const before = requests.mark();
+    await page.evaluate(() => { location.hash = '#/movies'; });
+    await expect(page).toHaveURL(/#\/movies/);
+    await page.evaluate(() => { location.hash = '#/home'; });
+    await expect(page.locator('.homeSectionsContainer.jux-homepage-active .jux-widget-section').first()).toBeVisible();
+    await page.waitForTimeout(3000);
+
+    expect(requests.since(before).filter((r) => r.path.includes('/JuxHomepage/'))).toEqual([]);
+});
+
+test('an open detail page issues no JellyUX request once loaded, for 30 s (PROC-03.a)', async ({ page }) => {
+    test.setTimeout(90000);
+    const requests = trackJuxRequests(page);
+    await login(page, env.admin);
+    await page.locator('.jux-widget-section').first().waitFor();
+    const movies = await apiGet(env.admin, `/Items?recursive=true&includeItemTypes=Movie&limit=1&userId=${env.admin.id}`);
+
+    const includedIn = page.waitForRequest((req) => req.url().includes('/JuxHomepage/Collections/IncludedIn/'));
+    await page.evaluate((id) => { location.hash = `#/details?id=${id}&serverId=${window.ApiClient.serverId()}`; }, movies.Items[0].Id);
+    await includedIn;
+    await page.waitForTimeout(2000);
+
+    const opened = requests.mark();
+    await page.waitForTimeout(30000);
+    expect(requests.since(opened)).toEqual([]);
+});
 
 test('a fresh install renders the seven native sections, each with cards (F-25)', async ({ page }) => {
     const errors = watchJuxErrors(page);
