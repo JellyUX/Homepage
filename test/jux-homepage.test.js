@@ -510,6 +510,20 @@ describe('first render (F-41)', () => {
         delete window.ApiClient;
     });
 
+    it('renders the native home without a Sections request in the TV layout, set on <html> (FIAB-05)', () => {
+        const api = apiClient();
+        const native = vi.fn();
+        window.JUXHomepage.originalLoadSections = native;
+        window.location.hash = '#/home';
+        document.documentElement.classList.add('layout-tv');
+
+        window.JUXHomepage.loadSections(document.createElement('div'), api.client, { Id: 'u1' }, {});
+
+        document.documentElement.classList.remove('layout-tv');
+        expect(native).toHaveBeenCalledTimes(1);
+        expect(api.client.getJSON).not.toHaveBeenCalled();
+    });
+
     it('hands the home screen back to Jellyfin when Sections says the plugin is disabled', async () => {
         const elem = document.createElement('div');
         const api = apiClient();

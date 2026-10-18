@@ -17,11 +17,13 @@
         loadSections: function (elem, apiClient, user, userSettings, page) {
             var self = this;
 
-            // Graceful disable on TV layout only. Windows/Android native apps also expose
-            // window.NativeShell, but they run the exact same jellyfin-web bundle in an embedded
-            // WebView, loaded live from the connected server -- same DOM, same loadSections chunk,
-            // same FileTransformation patches -- so there is no technical reason to bail out there.
-            if (document.body.classList.contains('layout-tv')) {
+            // Graceful disable on TV layout only (D-02 a). layoutManager sets "layout-tv" on the html
+            // element, not on body (jellyfin-web 10.11.10: documentElement.classList.add("layout-"+t)).
+            // Windows/Android native apps also expose window.NativeShell, but they run the exact same
+            // jellyfin-web bundle in an embedded WebView, loaded live from the connected server -- same
+            // DOM, same loadSections chunk, same FileTransformation patches -- so there is no technical
+            // reason to bail out there.
+            if (document.documentElement.classList.contains('layout-tv')) {
                 return _fallback(self, elem, apiClient, user, userSettings);
             }
 
