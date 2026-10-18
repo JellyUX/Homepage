@@ -260,3 +260,76 @@ describe('_syncSession (F-51)', () => {
         errorSpy.mockRestore();
     });
 });
+
+describe('library infinite scroll, end of the list (FIAB-01)', () => {
+    const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+    const NativeIO = window.IntersectionObserver;
+
+    const viewSwap = () => new Promise((resolve) => setTimeout(resolve, 450));
+
+    async function setUpLibrary(getJSON) {
+        localStorage.clear();
+        document.body.innerHTML = '<div class="libraryPage"><div id="moviesTab" class="pageTabContent is-active">' +
+            '<div class="itemsContainer">' + '<div class="card"></div>'.repeat(4) + '</div><div class="paging"></div></div></div>';
+        // The sentinel is always in view: a list that re-arms queries again at once.
+        window.IntersectionObserver = class {
+            constructor(callback) { this.callback = callback; }
+            observe(el) { setTimeout(() => this.callback([{ isIntersecting: true, target: el }]), 0); }
+            unobserve() {}
+            disconnect() {}
+        };
+        window.JellyfinAPI = { cardBuilder: { getCardsHtml: () => '' }, getPortraitShape: () => 'portrait' };
+        window.ApiClient = { getCurrentUserId: () => 'u1', getUrl: (path, query) => path + '?' + new URLSearchParams(query), getJSON };
+        location.hash = '#/movies?topParentId=abc1';
+        // The view change re-arms 400 ms after the hash change.
+        await viewSwap();
+    }
+
+    async function mutate(times) {
+        for (let i = 0; i < times; i++) {
+            document.body.appendChild(document.createElement('div'));
+            await flush();
+            await flush();
+        }
+    }
+
+    afterEach(async () => {
+        location.hash = '#/home';
+        await viewSwap();
+        window.IntersectionObserver = NativeIO;
+        delete window.JellyfinAPI;
+        delete window.ApiClient;
+        document.body.innerHTML = '';
+        localStorage.clear();
+    });
+
+    it('queries a list shorter than one page once, then never again on later mutations', async () => {
+        const getJSON = vi.fn().mockResolvedValue({ Items: [], TotalRecordCount: 4 });
+        await setUpLibrary(getJSON);
+        await mutate(1);
+        const listed = getJSON.mock.calls.length;
+        expect(listed).toBeGreaterThan(0);
+
+        await mutate(10);
+
+        expect(getJSON.mock.calls.length - listed).toBe(0);
+        expect(document.querySelectorAll('.jux-infinite-sentinel')).toHaveLength(0);
+    });
+
+    it('re-arms once on a native sort change, and once on a view change', async () => {
+        const getJSON = vi.fn().mockResolvedValue({ Items: [], TotalRecordCount: 4 });
+        await setUpLibrary(getJSON);
+        await mutate(3);
+        const listed = getJSON.mock.calls.length;
+
+        localStorage.setItem('u1-abc1-movies', JSON.stringify({ SortBy: 'DateCreated', SortOrder: 'Descending' }));
+        await mutate(3);
+        expect(getJSON.mock.calls.length - listed).toBe(1);
+        expect(getJSON.mock.calls[listed][0]).toContain('SortBy=DateCreated');
+
+        location.hash = '#/movies?topParentId=abc1&tab=0';
+        await viewSwap();
+        await mutate(3);
+        expect(getJSON.mock.calls.length - listed).toBe(2);
+    });
+});

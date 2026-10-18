@@ -370,6 +370,7 @@
         window.addEventListener('hashchange', function () {
             setTimeout(function () {
                 _hookDetailButton(state.likedIds);
+                _finishedList = null;
                 _resetLibraryInfiniteScroll();
                 _tryInitLibraryInfiniteScroll();
             }, 400);
@@ -444,7 +445,8 @@
     // Library page infinite scroll (TODO_V3.md Phase 7.3)
     //
     // Driven by this file's subscription to the shared body MutationObserver (see the header
-    // comment). Scoped to the Movies/Series library listing pages only (TODO_V3.md's own stated scope) -- confirmed live on jellyux-test that this Jellyfin Web build shows classic native
+    // comment). Scoped to the Movies/Series library listing pages only (TODO_V3.md's own stated
+    // scope) -- confirmed live on jellyux-test that this Jellyfin Web build shows classic native
     // pagination (.paging with .btnPreviousPage/.btnNextPage) on these pages, which is hidden once
     // infinite scroll takes over. Reads the user's currently active native sort/filter/alpha-picker
     // choice (localStorage keys ${userId}-${parentId}-${mediaType}[-filter], confirmed live to hold
@@ -454,6 +456,36 @@
     // -------------------------------------------------------------------------
 
     var _libraryScroll = null;
+
+    // The list read to its end (FIAB-01): { key, container, count }. Every mutation, the sentinel's own
+    // removal included, calls _tryInitLibraryInfiniteScroll again; without this memory a finished list
+    // re-armed at once and queried its end in a loop (899 requests in 15 s on the 8098 bench). Cleared
+    // on a view change (hashchange); a native sort, filter or letter change gives another key, and a
+    // native re-render another card count, either of which re-arms (test: jux-card-hooks.test.js
+    // "end of the list").
+    var _finishedList = null;
+
+    // The user's native sort and filter choice for a library, null-safe when storage is blocked.
+    function _readSortSettings(userId, parentId, mediaType) {
+        var base = userId + '-' + parentId + '-' + mediaType;
+        var sortRaw = null;
+        var filterRaw = null;
+        try {
+            sortRaw = localStorage.getItem(base);
+            filterRaw = localStorage.getItem(base + '-filter');
+        } catch (e) {
+            // Storage blocked: the native defaults apply.
+        }
+        var settings = _parseSortSettings(sortRaw, filterRaw);
+        var alphaSelected = document.querySelector('.alphaPickerButton-selected');
+        settings.nameStartsWith = alphaSelected ? alphaSelected.getAttribute('data-value') : null;
+        return settings;
+    }
+
+    function _listKey(mediaType, parentId, settings) {
+        return [mediaType, parentId, settings.sortBy, settings.sortOrder, settings.filters, settings.years,
+            settings.genres, settings.tags, settings.nameStartsWith || ''].join('|');
+    }
 
     function _infiniteScrollMediaType(hash) {
         hash = (hash || '').toLowerCase();
@@ -610,6 +642,12 @@
             return;
         }
 
+        var key = _listKey(mediaType, parentId, _readSortSettings(window.ApiClient.getCurrentUserId(), parentId, mediaType));
+        if (_finishedList && _finishedList.key === key && _finishedList.container === container &&
+            _finishedList.count === container.children.length) {
+            return;
+        }
+
         _resetLibraryInfiniteScroll();
 
         // Confirmed live on jellyux-test: a library tab can contain several .paging elements (one per
@@ -644,6 +682,7 @@
             container: container,
             mediaType: mediaType,
             parentId: parentId,
+            key: key,
             includeItemTypes: active.includeItemTypes,
             startIndex: container.children.length,
             totalRecordCount: null,
@@ -694,6 +733,12 @@
         }
     }
 
+    function _finishList(state) {
+        state.finished = true;
+        _finishedList = { key: state.key, container: state.container, count: state.container.children.length };
+        _resetLibraryInfiniteScroll();
+    }
+
     function _loadMoreLibraryItems() {
         var state = _libraryScroll;
         if (!state || state.loading || state.finished) {
@@ -710,12 +755,7 @@
         }
 
         var userId = window.ApiClient.getCurrentUserId();
-        var sortRaw = localStorage.getItem(userId + '-' + state.parentId + '-' + state.mediaType);
-        var filterRaw = localStorage.getItem(userId + '-' + state.parentId + '-' + state.mediaType + '-filter');
-        var settings = _parseSortSettings(sortRaw, filterRaw);
-
-        var alphaSelected = document.querySelector('.alphaPickerButton-selected');
-        var nameStartsWith = alphaSelected ? alphaSelected.getAttribute('data-value') : null;
+        var settings = _readSortSettings(userId, state.parentId, state.mediaType);
 
         state.loading = true;
 
@@ -728,7 +768,7 @@
             years: settings.years,
             genres: settings.genres,
             tags: settings.tags,
-            nameStartsWith: nameStartsWith,
+            nameStartsWith: settings.nameStartsWith,
             startIndex: state.startIndex,
             limit: 100
         });
@@ -741,8 +781,7 @@
             state.totalRecordCount = (result && result.TotalRecordCount) || 0;
 
             if (items.length === 0) {
-                state.finished = true;
-                _resetLibraryInfiniteScroll();
+                _finishList(state);
                 return;
             }
 
@@ -764,8 +803,7 @@
             state.startIndex += items.length;
 
             if (!_hasMoreItems(state.startIndex, state.totalRecordCount)) {
-                state.finished = true;
-                _resetLibraryInfiniteScroll();
+                _finishList(state);
                 return;
             }
 

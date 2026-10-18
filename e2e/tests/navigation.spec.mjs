@@ -6,7 +6,6 @@ async function go(page, hash) {
 }
 
 test('a library shorter than one page stops querying once it is complete (FIAB-01)', async ({ page }) => {
-    test.fixme(true, 'FIAB-01, phase 04: the infinite scroll re-arms at the end of the list, 280 library queries in 5 s on HEAD.');
     // The bench library holds 4 movies, all on the first native page: once the list is shown, the
     // infinite scroll has nothing left to read.
     const requests = trackJuxRequests(page);

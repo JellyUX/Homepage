@@ -72,8 +72,9 @@ test('coming back to the home page within the app issues no JellyUX or home sect
     await expect(page.locator('.homeSectionsContainer.jux-homepage-active .jux-widget-section').first()).toBeVisible();
     await page.waitForTimeout(3000);
 
-    // The infinite scroll of the library page can still be querying after the hash change (FIAB-01): its
-    // queries are left out until FIAB-01 is fixed.
+    // The library page visited on the way sends its own native first-page query (Users/{id}/Items,
+    // StartIndex=0), which can arrive after the mark: library queries are left out here, the infinite
+    // scroll is budgeted by navigation.spec.mjs (FIAB-01).
     expect(requests.since(before).filter((r) => r.kind !== 'library')).toEqual([]);
 });
 
