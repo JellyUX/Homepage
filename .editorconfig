@@ -1,0 +1,9 @@
+# Code style rules enforced at build time (EnforceCodeStyleInBuild in each .csproj; with
+# TreatWarningsAsErrors a hit fails the build).
+root = true
+
+[*.cs]
+# Unused private member.
+dotnet_diagnostic.IDE0051.severity = warning
+# Private member assigned but never read.
+dotnet_diagnostic.IDE0052.severity = warning

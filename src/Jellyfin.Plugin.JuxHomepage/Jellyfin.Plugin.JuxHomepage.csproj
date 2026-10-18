@@ -12,6 +12,7 @@
     <RepositoryType>GitHub</RepositoryType>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <!-- SDK the plugin compiles against: the declared minimum (build.yaml targetAbi). A build
          against a newer SDK references its assembly versions and fails to load on an older server.
          CI also builds against the newest validated server: -p:JellyfinVersion=10.11.10 -->
