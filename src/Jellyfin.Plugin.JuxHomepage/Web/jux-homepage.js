@@ -456,7 +456,8 @@
     // -------------------------------------------------------------------------
 
     // The loader of each home container: Jellyfin reuses a container it emptied for the next render,
-    // and the loader of the previous render is disconnected then (Annexe.a).
+    // and the loader of the previous render is disconnected then (Annexe.a; test: jux-homepage.test.js
+    // "disconnects the previous loader").
     var _lazyLoaders = typeof WeakMap === 'function' ? new WeakMap() : null;
 
     function _setupLazyLoader(elem, apiClient, userId, userSettings) {
@@ -611,7 +612,8 @@
     // The guard does that once per browser session, then reloads; if the home page is still native
     // after that reload, an intermediate cache (CDN, proxy) serves it and a message says so. It polls
     // only while the home page is shown, at most CHUNK_GUARD_MAX_TICKS seconds there; on another page
-    // it pauses until the next view is shown (Annexe.a: it used to poll 300 s on any page).
+    // it pauses until the next view is shown (Annexe.a: it used to poll 300 s on any page; test:
+    // jux-homepage.test.js "does not poll while another page is shown").
     var CHUNK_RELOAD_KEY = 'jux-chunk-reload';
     var CHUNK_GUARD_INTERVAL_MS = 1000;
     var CHUNK_GUARD_MAX_TICKS = 300;

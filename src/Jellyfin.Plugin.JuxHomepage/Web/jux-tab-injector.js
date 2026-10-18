@@ -30,7 +30,8 @@ if (typeof window.juxTabInjector === 'undefined') {
         },
 
         // One poller at a time, every 200 ms for at most 10 s (Annexe.a: init runs at load and on every
-        // viewshow, and each call used to start its own endless poller while the bar was missing).
+        // viewshow, and each call used to start its own endless poller while the bar was missing;
+        // test: jux-tab-injector.test.js "keeps one poller").
         _waitTimer: null,
         _waitTries: 0,
 
