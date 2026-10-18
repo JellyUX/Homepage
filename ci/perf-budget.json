@@ -1,0 +1,23 @@
+{
+  "description": "ILibraryManager calls per home-path request, counted by PerfBudgetTests (PROC-02.c) over a fixed fake library of 20 movies, a fixed clock (2026-10-18) and one enabled row per registered widget type, with the scoring snapshot and collections index warmed first. A count must equal its budget: lower it in the commit that lowers the count; raise it only with a 'Budget: <reason>' trailer (ci/static-checks.mjs). Widget types that render no section on this library (next-up, recently-added rows, my-media, admin collection and studio, favorite actor and director, TMDb rows) are counted in the layout build only.",
+  "endpoints": {
+    "Collections/IncludedIn": 0,
+    "Section/jux.admin.actor": 1,
+    "Section/jux.admin.director": 1,
+    "Section/jux.admin.genre": 1,
+    "Section/jux.admin.tag": 1,
+    "Section/jux.admin.year": 1,
+    "Section/jux.connected.seasonal": 1,
+    "Section/jux.connected.seasonal 8f3a1b2c-0005-4b1e-9c3a-1f2e3d4c5b6a": 1,
+    "Section/jux.connected.seasonal 8f3a1b2c-0006-4b1e-9c3a-1f2e3d4c5b6a": 1,
+    "Section/jux.local.recently-released": 1,
+    "Section/jux.local.top-rated": 1,
+    "Section/jux.native.continue-watching": 1,
+    "Section/jux.native.watchlist": 1,
+    "Section/jux.personalized.because-you-watched": 2,
+    "Section/jux.personalized.favorite-genre": 1,
+    "Sections (cached layout)": 0,
+    "Sections (layout build)": 17,
+    "Watchlist/Ids": 1
+  }
+}
