@@ -363,7 +363,7 @@ public sealed class JuxHomepageControllerTests
         // TODO_V4.md 9.4 (F-64): jux-i18n.js is built from Localization/<lang>.json, not embedded as is.
         var result = Assert.IsType<ContentResult>(InvokeGetAsset("jux-i18n.js", query: null, out var response));
         Assert.Equal(JavaScript, result.ContentType);
-        Assert.NotNull(response.Headers.CacheControl.ToString());
+        Assert.Equal("public, max-age=3600", response.Headers.CacheControl.ToString());
 
         var script = JuxHomepageController.ClientI18nScript(new LocalizationService(NullLogger<LocalizationService>.Instance));
         const string Prefix = "window.JuxI18n = ";
