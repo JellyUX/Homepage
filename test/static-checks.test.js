@@ -3,6 +3,7 @@ import {
     findEmDashes,
     findColorLiterals,
     findBannedFonts,
+    findUntrackedMarkers,
     checkTargetAbi,
     checkCommit,
     groupCloneFamilies,
@@ -44,6 +45,27 @@ describe('findColorLiterals', () => {
     it('keeps URLs while dropping line comments in scripts', () => {
         const js = "var u = 'http://x/y'; // #abcdef\nel.style.color = '#abcdef';";
         expect(findColorLiterals(js, '.js')).toEqual([{ line: 2, match: '#abcdef' }]);
+    });
+});
+
+describe('findUntrackedMarkers', () => {
+    it('reports a marker comment that names no registry id', () => {
+        const cs = 'var a = 1; // TODO: cache this\n/// <summary>Worth revisiting later.</summary>\n// FIXME (PERF-01): one rebuild';
+        expect(findUntrackedMarkers(cs, '.cs')).toEqual([{ line: 1, match: 'TODO' }, { line: 2, match: 'Worth revisiting' }]);
+    });
+
+    it('accepts a marker that names a registry id on the same line', () => {
+        expect(findUntrackedMarkers('/* a later phase, see H-09, worth revisiting */', '.js')).toEqual([]);
+    });
+
+    it('ignores code, strings and roadmap file names', () => {
+        const js = "const label = 'TODO'; // per TODO_V4.md 8.3\nfixme();";
+        expect(findUntrackedMarkers(js, '.js')).toEqual([]);
+    });
+
+    it('reads future phase in a multi-line block comment', () => {
+        // Split so that this file's own block-comment-looking string does not trip the check.
+        expect(findUntrackedMarkers('/*\n * in a future' + ' phase\n */', '.css')).toEqual([{ line: 2, match: 'future phase' }]);
     });
 });
 

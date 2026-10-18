@@ -70,8 +70,8 @@ public sealed class LoadTests
         // Not asserted as exactly 1: WidgetService.GetWidgetsForUser has no lock around its
         // check-cache/compute/store sequence, so a cold-cache stampede can recompute more than
         // once. This is the empirical measurement TODO_V2.md Phase 15.1 asked for -- reported here,
-        // not silently assumed. A high count would be worth revisiting in a future phase; it is not
-        // itself a defect this test fixes.
+        // not silently assumed. The stampede is tracked as PERF-01 (a single rebuild on expiry); it
+        // is not itself a defect this test fixes.
         Assert.True(callCount >= 1 && callCount <= ConcurrentCallers, $"Observed {callCount} recomputations for {ConcurrentCallers} concurrent cold-cache callers.");
     }
 

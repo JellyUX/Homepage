@@ -21,6 +21,10 @@ export const BASELINE_PATH = 'ci/duplication-baseline.json';
 const HEX_COLOR = /(?<![\w&#-])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})(?![\w-])/g;
 const COLOR_FUNCTION = /\b(?:rgba?|hsla?)\(\s*[\d.]/g;
 const VAR_FALLBACK = /var\(\s*--[\w-]+\s*,\s*(?:#[0-9a-fA-F]{3,8}|(?:rgba?|hsla?)\([^()]*\))\s*\)/g;
+// A comment that defers work must name the registry id that tracks it (TODO_V5 rule R8, PROC-04.b).
+const DEFERRED_MARKER = /\bTODO\b|\bFIXME\b|[Ff]uture phase|[Ww]orth revisiting/g;
+const REGISTRY_ID = /\b[A-Z]{1,5}-\d{2}\b/;
+const MARKER_EXTENSIONS = new Set(['.cs', '.js', '.mjs', '.css', '.html']);
 
 /**
  * Blanks out comments while keeping line breaks, so reported line numbers stay right.
@@ -34,7 +38,7 @@ export function stripComments(text, ext) {
     if (ext === '.html') {
         out = out.replace(/<!--[\s\S]*?-->/g, blank);
     }
-    if (ext === '.js' || ext === '.mjs' || ext === '.html') {
+    if (ext === '.js' || ext === '.mjs' || ext === '.html' || ext === '.cs') {
         out = out.replace(/(^|[^:\\'"`])\/\/[^\n]*/g, (m, lead) => lead + blank(m.slice(lead.length)));
     }
     return out;
@@ -67,6 +71,21 @@ export function findColorLiterals(text, ext) {
         }
     });
     return found;
+}
+
+/**
+ * Finds the comments that defer work (marker words) without a registry id on the same line.
+ * @param {string} text
+ * @param {string} ext File extension, including the dot.
+ * @returns {{line: number, match: string}[]}
+ */
+export function findUntrackedMarkers(text, ext) {
+    const stripped = stripComments(text, ext);
+    // Keep only what stripComments blanked: the comments, at their original positions.
+    const comments = Array.from(text, (c, i) => (c === stripped[i] || c === '\n' ? (c === '\n' ? '\n' : ' ') : c)).join('');
+    return comments.split('\n').flatMap((line, i) => (REGISTRY_ID.test(line)
+        ? []
+        : [...line.matchAll(DEFERRED_MARKER)].map((m) => ({ line: i + 1, match: m[0] }))));
 }
 
 /**
@@ -276,6 +295,9 @@ function main() {
         }
         if (['.css', '.html', '.js', '.yml'].includes(ext)) {
             report(errors, file, findBannedFonts(text), 'banned font');
+        }
+        if (MARKER_EXTENSIONS.has(ext)) {
+            report(errors, file, findUntrackedMarkers(text, ext), 'deferred-work comment without a registry id');
         }
     }
 

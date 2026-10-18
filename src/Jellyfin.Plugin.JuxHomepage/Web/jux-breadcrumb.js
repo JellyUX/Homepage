@@ -4,7 +4,7 @@
 //
 // Shows a clickable trail (Library > ... > current item) on item detail pages: Movie (with an
 // optional Collection segment), Series/Season/Episode, and MusicArtist/MusicAlbum/Audio. A single
-// switch on item.Type builds the segment list -- no per-type file/duplication, per the TODO's own
+// switch on item.Type builds the segment list -- no per-type file/duplication, per the roadmap's own
 // "pas de duplication par type" instruction.
 //
 // Page-hook idiom: same as jux-series-flatten.js/jux-collections.js -- item id read from
