@@ -99,8 +99,9 @@ export function addedLines(diff) {
 
 /**
  * Coverage of the added lines that a report instruments: a line no report knows (blank, comment,
- * declaration) counts in neither total. A report path matches a diff path when one ends with the other
- * at a path segment boundary (reports hold absolute paths).
+ * declaration) counts in neither total. A report path matches a diff path when it ends with it at a path
+ * segment boundary (reports hold absolute paths; a shorter report path never matches, so two files
+ * sharing a name cannot swap hits).
  * @param {Map<string, Set<number>>} added
  * @param {Map<string, Map<number, number>>[]} reports
  * @returns {{covered: number, total: number, files: {file: string, covered: number, total: number}[]}}
@@ -110,7 +111,7 @@ export function changedLinesCoverage(added, reports) {
     for (const [file, lines] of added) {
         const hits = reports
             .flatMap((report) => [...report])
-            .find(([path]) => `/${path}`.endsWith(`/${file}`) || `/${file}`.endsWith(`/${path}`))?.[1];
+            .find(([path]) => `/${path}`.endsWith(`/${file}`))?.[1];
         if (!hits) {
             continue;
         }

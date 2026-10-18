@@ -50,18 +50,22 @@ export function builtFromPrefix(name, separator, text) {
  * @returns {Map<string, string[]>} Candidate name -> declaring files.
  */
 export function csUnreferenced(sources) {
+    // Declarations are counted one by one, so two unused overloads in one file are still candidates.
     const declared = new Map();
     for (const [file, text] of sources.filter(([f]) => f.endsWith('.cs'))) {
         for (const match of text.matchAll(CS_DECLARATION)) {
             if (!NOT_A_NAME.has(match[1])) {
-                declared.set(match[1], new Set([...(declared.get(match[1]) ?? []), file]));
+                const entry = declared.get(match[1]) ?? { files: new Set(), count: 0 };
+                entry.files.add(file);
+                entry.count++;
+                declared.set(match[1], entry);
             }
         }
     }
     const corpus = sources.map(([, text]) => text).join('\n');
     return new Map([...declared]
-        .filter(([name, files]) => wordCount(name, corpus) <= files.size)
-        .map(([name, files]) => [name, [...files].sort()]));
+        .filter(([name, entry]) => wordCount(name, corpus) <= entry.count)
+        .map(([name, entry]) => [name, [...entry.files].sort()]));
 }
 
 /**

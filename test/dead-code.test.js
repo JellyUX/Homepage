@@ -13,6 +13,14 @@ describe('csUnreferenced', () => {
         ];
         expect([...csUnreferenced(sources).keys()]).toEqual(['Orphan']);
     });
+
+    it('reports two unused overloads declared in one file', () => {
+        const sources = [
+            ['Lib.cs', 'public static class Lib\n{\n    public static int Parse(int a) => a;\n    public static int Parse(string a) => 0;\n}'],
+            ['Use.cs', 'var lib = typeof(Lib);']
+        ];
+        expect([...csUnreferenced(sources).keys()]).toEqual(['Parse']);
+    });
 });
 
 describe('jsUnused', () => {
