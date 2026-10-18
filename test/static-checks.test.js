@@ -169,11 +169,14 @@ describe('checkCommit', () => {
         expect(errors).toHaveLength(2);
     });
 
-    it('requires an Untestable trailer on a web fix without a test', () => {
+    it('requires a test or an Untestable trailer on any fix, web or server', () => {
         const web = ['src/Jellyfin.Plugin.JuxHomepage/Web/jux-ui.js'];
+        const server = ['src/Jellyfin.Plugin.JuxHomepage/Widgets/Personalized/ScoringService.cs'];
         expect(checkCommit(commit({ files: web })).errors).toHaveLength(1);
+        expect(checkCommit(commit({ files: server })).errors).toHaveLength(1);
         expect(checkCommit(commit({ files: web, body: 'Untestable: needs a live bundle' })).errors).toEqual([]);
         expect(checkCommit(commit({ files: [...web, 'test/jux-ui.test.js'] })).errors).toEqual([]);
+        expect(checkCommit(commit({ files: [...server, 'src/Jellyfin.Plugin.JuxHomepage.Tests/Personalized/ScoringServiceTests.cs'] })).errors).toEqual([]);
     });
 
     it('warns on a large fix without a body', () => {

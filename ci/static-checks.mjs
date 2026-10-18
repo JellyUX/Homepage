@@ -170,10 +170,10 @@ export function checkCommit({ sha, subject, body, files }) {
     }
 
     if (type === 'fix') {
-        const touchesWeb = files.some((f) => f.startsWith(WEB_DIR));
+        // Every fix, server or client, ships the test that proves it (TODO_V5 PROC-mineur.a).
         const touchesTests = files.some((f) => f.startsWith('test/') || f.startsWith('e2e/') || f.includes('.Tests/'));
-        if (touchesWeb && !touchesTests && !/^untestable:\s*\S/im.test(body)) {
-            errors.push(`${short}: a fix: on web assets without a test needs an "Untestable: <reason>" trailer.`);
+        if (!touchesTests && !/^untestable:\s*\S/im.test(body)) {
+            errors.push(`${short}: a fix: without a test needs an "Untestable: <reason>" trailer.`);
         }
         if (files.length > 3 && body.trim() === '') {
             warnings.push(`${short}: a fix: touching ${files.length} files has no body explaining it.`);
