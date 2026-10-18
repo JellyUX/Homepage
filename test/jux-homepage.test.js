@@ -511,6 +511,24 @@ describe('failed home section (F-40)', () => {
         errorSpy.mockRestore();
     });
 
+    it('never answers a section whose container Jellyfin destroyed while it was loading (A-02)', async () => {
+        const settle = (promise) => Promise.race([promise.then(() => 'answered', () => 'failed'), new Promise((r) => setTimeout(() => r('pending'), 20))]);
+        const answers = [];
+        const container = { getItemsHtml: () => 'cards' };
+        container.fetchData = _guardFetchData(() => new Promise((resolve, reject) => answers.push({ resolve, reject })), { WidgetType: 'jux.genre' });
+        const loaded = container.fetchData();
+        const failed = container.fetchData();
+
+        // destroySections (jellyfin-web 10.11.10) nulls the hooks of every container it removes.
+        container.fetchData = null;
+        container.getItemsHtml = null;
+        answers[0].resolve({ Items: [{ Id: 'a' }] });
+        answers[1].reject(new Error('aborted'));
+
+        expect(await settle(loaded)).toBe('pending');
+        expect(await settle(failed)).toBe('pending');
+    });
+
     it('passes successful rows through to the card renderer', async () => {
         const fetchData = _guardFetchData(() => Promise.resolve({ Items: [{ Id: 'a' }] }), { WidgetType: 'jux.genre' });
         const getItemsHtml = _guardGetItemsHtml((items) => 'cards:' + items.length);

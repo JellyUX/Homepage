@@ -377,9 +377,22 @@
     // and renders the error, with a retry button, in place of its cards.
     var SECTION_ERROR = { juxSectionError: true };
 
+    // Leaving the home page runs Jellyfin's destroySections, which nulls fetchData and getItemsHtml on
+    // every container it removes; a section still loading then answered into a dead container, whose
+    // native render threw "this.getItemsHtml is not a function" (A-02, jellyfin-web 10.11.10). Its
+    // answer is dropped instead: the promise never settles (test: jux-homepage.test.js "destroyed").
     function _guardFetchData(fetchData, descriptor) {
         return function () {
-            return fetchData().catch(function (err) {
+            var container = this;
+            var destroyed = function () {
+                return !!container && typeof container.getItemsHtml !== 'function';
+            };
+            return fetchData().then(function (result) {
+                return destroyed() ? new Promise(function () {}) : result;
+            }, function (err) {
+                if (destroyed()) {
+                    return new Promise(function () {});
+                }
                 console.error('[JellyUX] Section fetch failed (' + descriptor.WidgetType + '):', err);
                 return { Items: [SECTION_ERROR] };
             });
@@ -405,6 +418,10 @@
     }
 
     function _resumeContainer(container) {
+        // A container already removed from the page (the user left the home page) is not refreshed.
+        if (!container.isConnected) {
+            return;
+        }
         Promise.resolve(container.resume({ refresh: true })).catch(function (err) {
             console.error('[JellyUX] Section render failed:', err);
         });
