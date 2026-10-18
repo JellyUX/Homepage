@@ -455,6 +455,43 @@ public sealed class WidgetLayoutResolverTests
         Assert.Equal(expected, Assert.Single(descriptors).MaxItems);
     }
 
+    [Theory]
+    [InlineData(WidgetViewMode.Landscape)]
+    [InlineData(WidgetViewMode.Portrait)]
+    public async Task BuildDescriptors_RowViewMode_IsTheSectionViewMode(string viewMode)
+    {
+        var registry = new WidgetRegistry();
+        registry.Register(MakeWidget("jux.test.widget", totalRecordCount: 10));
+        var resolver = BuildResolver(registry, [new WidgetConfig { WidgetType = "jux.test.widget", Enabled = true, MinItems = 1, ViewMode = viewMode }]);
+
+        var descriptors = await resolver.BuildDescriptors(Guid.NewGuid(), lang: null, CancellationToken.None);
+
+        Assert.Equal(viewMode, Assert.Single(descriptors).ViewMode);
+    }
+
+    [Fact]
+    public async Task BuildDescriptors_RowSortByAndSortOrder_ReachTheProbe()
+    {
+        WidgetPayload? probed = null;
+        var widget = new Mock<IWidget>();
+        widget.Setup(w => w.WidgetType).Returns("jux.test.widget");
+        widget.Setup(w => w.DefaultDisplayName).Returns("jux.test.widget");
+        widget.Setup(w => w.Resolve(It.IsAny<Guid>(), It.IsAny<WidgetInstanceConfig>(), It.IsAny<int>())).Returns(() => widget.Object);
+        widget.Setup(w => w.GetDescriptor()).Returns(new WidgetDescriptor { WidgetType = "jux.test.widget" });
+        widget.Setup(w => w.GetItemsAsync(It.IsAny<WidgetPayload>(), It.IsAny<CancellationToken>()))
+            .Callback<WidgetPayload, CancellationToken>((payload, _) => probed = payload)
+            .ReturnsAsync(new WidgetResult([], 10));
+        var registry = new WidgetRegistry();
+        registry.Register(widget.Object);
+        var resolver = BuildResolver(registry,
+            [new WidgetConfig { WidgetType = "jux.test.widget", Enabled = true, MinItems = 1, SortBy = WidgetSort.DateCreated, SortOrder = WidgetSort.Descending }]);
+
+        await resolver.BuildDescriptors(Guid.NewGuid(), lang: null, CancellationToken.None);
+
+        Assert.Equal(WidgetSort.DateCreated, probed?.SortBy);
+        Assert.Equal(WidgetSort.Descending, probed?.SortOrder);
+    }
+
     // TODO_V4.md 6.5 (F-62): a preview reads the row sent by the admin page, never the saved one.
     [Fact]
     public async Task PreviewAsync_ReadsTheUnsavedRowUpToItsMaxItems()

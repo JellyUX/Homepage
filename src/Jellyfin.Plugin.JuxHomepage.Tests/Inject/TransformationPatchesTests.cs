@@ -248,6 +248,23 @@ public sealed class TransformationPatchesTests
     }
 
     [Fact]
+    public void InjectClientAssets_CardEnhancementsOff_DropsOnlyTheCardHooks() =>
+        AssertOnlyDropped("CardEnhancements", "jux-card-hooks.js");
+
+    [Fact]
+    public void InjectClientAssets_SeriesFlattenOff_DropsOnlyTheSeriesFlattener() =>
+        AssertOnlyDropped("SeriesFlatten", "jux-series-flatten.js");
+
+    [Fact]
+    public void InjectClientAssets_BreadcrumbOff_DropsOnlyTheBreadcrumb() =>
+        AssertOnlyDropped("Breadcrumb", "jux-breadcrumb.js");
+
+    private static void AssertOnlyDropped(string module, string asset) =>
+        Assert.Equal(
+            AllAssetsInOrder.Where(a => a != asset),
+            InjectedAssets(TransformationPatches.InjectClientAssets(EmptyIndex, ConfigWithout(module), "k")));
+
+    [Fact]
     public void InjectClientAssets_TabsAndCollectionsOff_DropsJuxUi()
     {
         var assets = InjectedAssets(TransformationPatches.InjectClientAssets(EmptyIndex, ConfigWithout("Tabs", "Collections"), "k"));

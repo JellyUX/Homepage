@@ -44,7 +44,7 @@ public sealed class TMDbApiClientTests
     // -------------------------------------------------------------------------
 
     [Fact]
-    public async Task GetTrendingMoviesAsync_NoApiKeyConfigured_ReturnsEmptyWithoutHttpCall()
+    public async Task GetTrendingMoviesAsync_ApiKeysWithoutTMDbKey_ReturnsEmptyWithoutHttpCall()
     {
         var handler = new StubHttpMessageHandler(() => JsonResponse(new TMDbTrending<TMDbMovie>()));
         var client = BuildClient(handler, apiKey: null);

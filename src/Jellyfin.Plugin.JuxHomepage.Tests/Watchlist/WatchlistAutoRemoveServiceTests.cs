@@ -52,6 +52,33 @@ public sealed class WatchlistAutoRemoveServiceTests
     }
 
     [Fact]
+    public async Task WatchlistAutoRemoveOff_PlaybackFinishedWithLikedAndPlayed_KeepsTheTitle()
+    {
+        var user = new User("test", "Default", "Default");
+        var item = new Movie { Id = Guid.NewGuid(), Name = "Movie" };
+        var userData = new UserItemData { Key = "k1", Played = true, Likes = true };
+        var userManagerMock = new Mock<IUserManager>();
+        userManagerMock.Setup(m => m.GetUserById(user.Id)).Returns(user);
+        var userDataManagerMock = new Mock<IUserDataManager>();
+        var service = new WatchlistAutoRemoveService(
+            userDataManagerMock.Object,
+            userManagerMock.Object,
+            NullLogger<WatchlistAutoRemoveService>.Instance,
+            getConfiguration: () => new PluginConfiguration { WatchlistAutoRemove = false });
+
+        await service.StartAsync(CancellationToken.None);
+        userDataManagerMock.Raise(
+            m => m.UserDataSaved += null,
+            userDataManagerMock.Object,
+            new UserDataSaveEventArgs { Item = item, UserData = userData, UserId = user.Id, SaveReason = UserDataSaveReason.PlaybackFinished });
+
+        Assert.True(userData.Likes);
+        userDataManagerMock.Verify(
+            m => m.SaveUserData(It.IsAny<User>(), It.IsAny<BaseItem>(), It.IsAny<UserItemData>(), It.IsAny<UserDataSaveReason>(), It.IsAny<CancellationToken>()),
+            Times.Never);
+    }
+
+    [Fact]
     public async Task OnUserDataSaved_TogglePlayedManualMarkAsWatched_DoesNotRemoveFromWatchlist()
     {
         var user = new User("test", "Default", "Default");

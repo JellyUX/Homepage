@@ -356,6 +356,41 @@ public sealed class WidgetServiceTests : IDisposable
     // Layout expiry (PERF-01): an expired layout is served while one rebuild runs in the background
     // -------------------------------------------------------------------------
 
+    [Fact]
+    public async Task Sections_SessionTtlMinutes_IsHowLongALayoutIsReused()
+    {
+        var clock = new ManualTimeProvider();
+        using var sessionCache = new SessionCache(clock);
+        var probes = 0;
+        var widget = new Mock<IWidget>();
+        widget.Setup(w => w.WidgetType).Returns("ttl");
+        widget.Setup(w => w.DefaultDisplayName).Returns("ttl");
+        widget.Setup(w => w.Resolve(It.IsAny<Guid>(), It.IsAny<WidgetInstanceConfig>(), It.IsAny<int>()))
+            .Returns(() => widget.Object);
+        widget.Setup(w => w.GetDescriptor()).Returns(new WidgetDescriptor { WidgetType = "ttl" });
+        widget.Setup(w => w.GetItemsAsync(It.IsAny<WidgetPayload>(), It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                Interlocked.Increment(ref probes);
+                return Task.FromResult(new WidgetResult([], 10));
+            });
+        var service = BuildService(
+            [widget.Object],
+            [new WidgetConfig { WidgetType = "ttl", Enabled = true, MinItems = 1 }],
+            sessionCache: sessionCache,
+            cache: new CacheConfig { SessionTtlMinutes = 5 });
+        var userId = Guid.NewGuid();
+
+        await service.GetWidgetsForUser(userId, page: 0, lang: "en", CancellationToken.None);
+        clock.UtcNowValue += TimeSpan.FromMinutes(4);
+        await service.GetWidgetsForUser(userId, page: 0, lang: "en", CancellationToken.None);
+        Assert.Equal(1, probes);
+
+        clock.UtcNowValue += TimeSpan.FromMinutes(2);
+        await service.GetWidgetsForUser(userId, page: 0, lang: "en", CancellationToken.None);
+        Assert.Equal(2, probes);
+    }
+
     [Fact(Skip = "PERF-01, phase 06: an expired layout is rebuilt inline before the response; un-skip with stale-while-revalidate.")]
     public async Task Sections_AfterTtl_ServesPreviousLayoutAndRebuildsOnce()
     {
@@ -430,7 +465,8 @@ public sealed class WidgetServiceTests : IDisposable
         WidgetConfig[] globalWidgets,
         ILocalizationService? localizationService = null,
         IPersonalizationState? personalizationState = null,
-        SessionCache? sessionCache = null)
+        SessionCache? sessionCache = null,
+        CacheConfig? cache = null)
     {
         var registry = new WidgetRegistry();
         foreach (var w in registeredWidgets)
@@ -442,7 +478,7 @@ public sealed class WidgetServiceTests : IDisposable
             .Setup(s => s.GetUserConfiguration(It.IsAny<Guid>()))
             .Returns((UserConfiguration?)null);
 
-        var config = new PluginConfiguration { Widgets = globalWidgets };
+        var config = new PluginConfiguration { Widgets = globalWidgets, Cache = cache ?? new CacheConfig() };
 
         var layoutResolver = new WidgetLayoutResolver(
             registry,

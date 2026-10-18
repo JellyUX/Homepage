@@ -21,7 +21,8 @@ public sealed class TMDbCacheServiceTests : IDisposable
     private TMDbCacheService BuildService(
         ITMDbApiClient apiClient,
         ILibraryManager libraryManager,
-        int refreshIntervalHours = 24)
+        int refreshIntervalHours = 24,
+        TMDbListsConfig? lists = null)
     {
         var applicationPathsMock = new Mock<IApplicationPaths>();
         applicationPathsMock.Setup(p => p.DataPath).Returns(_tempDir);
@@ -31,7 +32,11 @@ public sealed class TMDbCacheServiceTests : IDisposable
             new FileSystem(),
             apiClient,
             libraryManager,
-            () => new PluginConfiguration { Cache = new CacheConfig { TMDbRefreshIntervalHours = refreshIntervalHours } },
+            () => new PluginConfiguration
+            {
+                Cache = new CacheConfig { TMDbRefreshIntervalHours = refreshIntervalHours },
+                TMDbLists = lists ?? new TMDbListsConfig()
+            },
             NullLogger<TMDbCacheService>.Instance);
     }
 
@@ -74,6 +79,24 @@ public sealed class TMDbCacheServiceTests : IDisposable
         var service = BuildService(new Mock<ITMDbApiClient>().Object, new Mock<ILibraryManager>().Object);
 
         Assert.True(service.IsStale(TMDbCacheType.TrendingMovies));
+    }
+
+    [Fact]
+    public async Task TMDbLists_TrendingPages_AreThePagesRequestedFromTMDb()
+    {
+        var apiClientMock = new Mock<ITMDbApiClient>();
+        apiClientMock.Setup(c => c.GetTrendingMoviesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<TMDbMovie>)[]);
+        apiClientMock.Setup(c => c.GetTrendingShowsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<TMDbShow>)[]);
+        var service = BuildService(apiClientMock.Object, NoMatchLibraryManager(),
+            lists: new TMDbListsConfig { TrendingMoviesPages = 3, TrendingShowsPages = 2 });
+
+        await service.RefreshTrendingMoviesAsync(CancellationToken.None);
+        await service.RefreshTrendingShowsAsync(CancellationToken.None);
+
+        apiClientMock.Verify(c => c.GetTrendingMoviesAsync(3, It.IsAny<CancellationToken>()), Times.Once);
+        apiClientMock.Verify(c => c.GetTrendingShowsAsync(2, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
