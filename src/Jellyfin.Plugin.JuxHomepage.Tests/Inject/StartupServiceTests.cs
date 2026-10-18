@@ -12,11 +12,11 @@ namespace Jellyfin.Plugin.JuxHomepage.Tests.Inject;
 // Regression test for the Phase 10.2 fix (TODO_V2.md): StartAsync must never wait for the
 // best-effort TMDb refresh before returning, so FileTransformation registration is never delayed
 // behind a slow or unreachable TMDb. If this behavior regresses (e.g. someone re-adds an await on
-// the refresh), this test times out waiting on the never-completing refresh task instead of passing.
+// the refresh), the task StartAsync returns is not complete and this test fails.
 public sealed class StartupServiceTests
 {
     [Fact]
-    public async Task StartAsync_TMDbRefreshNeverCompletes_StillReturnsPromptly()
+    public void StartAsync_TMDbRefreshNeverCompletes_StillReturnsPromptly()
     {
         var neverCompletes = new TaskCompletionSource().Task;
 
@@ -43,6 +43,7 @@ public sealed class StartupServiceTests
         // Plugin.Instance.SaveConfiguration() call is safely skipped -- the same pattern already
         // relied upon by FileTransformationDetectorTests.
         var detector = new FileTransformationDetector(NullLogger<FileTransformationDetector>.Instance);
+        var lifetime = new FakeLifetime();
 
         var service = new StartupService(
             applicationPathsMock.Object,
@@ -50,25 +51,25 @@ public sealed class StartupServiceTests
             detector,
             tmdbCacheServiceMock.Object,
             fileSystemMock.Object,
-            new FakeLifetime());
+            lifetime);
 
         var startTask = service.StartAsync(CancellationToken.None);
-        var completed = await Task.WhenAny(startTask, Task.Delay(TimeSpan.FromSeconds(2)));
+        lifetime.Start();
 
-        Assert.Same(startTask, completed);
         Assert.True(startTask.IsCompletedSuccessfully);
+        tmdbCacheServiceMock.Verify(s => s.RefreshTrendingMoviesAsync(It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
     public async Task StartAsync_DefersTMDbRefreshUntilApplicationStarted_AndStopCancelsIt()
     {
         // F-07: no TMDb work during the boot; the refresh gets a token that the shutdown cancels.
-        CancellationToken refreshToken = default;
+        var refreshStarted = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
         var tmdbCacheServiceMock = new Mock<ITMDbCacheService>();
         tmdbCacheServiceMock.Setup(s => s.IsStale(It.IsAny<TMDbCacheType>())).Returns(true);
         tmdbCacheServiceMock
             .Setup(s => s.RefreshTrendingMoviesAsync(It.IsAny<CancellationToken>()))
-            .Callback<CancellationToken>(t => refreshToken = t)
+            .Callback<CancellationToken>(t => refreshStarted.TrySetResult(t))
             .Returns(Task.CompletedTask);
         tmdbCacheServiceMock.Setup(s => s.RefreshTrendingShowsAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         tmdbCacheServiceMock.Setup(s => s.RefreshAiringTodayAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
@@ -87,7 +88,7 @@ public sealed class StartupServiceTests
         tmdbCacheServiceMock.Verify(s => s.RefreshTrendingMoviesAsync(It.IsAny<CancellationToken>()), Times.Never);
 
         lifetime.Start();
-        await Task.Delay(100);
+        var refreshToken = await refreshStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
         tmdbCacheServiceMock.Verify(s => s.RefreshTrendingMoviesAsync(It.IsAny<CancellationToken>()), Times.Once);
 
         await service.StopAsync(CancellationToken.None);

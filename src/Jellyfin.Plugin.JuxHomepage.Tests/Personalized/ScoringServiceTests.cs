@@ -87,14 +87,15 @@ public sealed class ScoringServiceTests
     }
 
     /// <summary>
-    /// Builds a service whose computation blocks for <paramref name="computeDelay"/> in the watched
-    /// movies query, and records how many computations ran and the peak number running at once.
+    /// Builds a service whose computation waits on <see cref="ComputeCounters.Gate"/> in the watched
+    /// movies query, and records how many computations ran and the peak number running at once. The
+    /// first-access wait expires only when <paramref name="clock"/> is advanced past
+    /// <paramref name="firstComputeTimeout"/>.
     /// </summary>
     private static ScoringService BuildSlowService(
-        TimeSpan computeDelay,
-        TimeSpan firstComputeTimeout,
         ComputeCounters counters,
-        TimeProvider? timeProvider = null)
+        ManualTimeProvider clock,
+        TimeSpan firstComputeTimeout)
     {
         var userManagerMock = new Mock<IUserManager>();
         userManagerMock
@@ -116,7 +117,7 @@ public sealed class ScoringServiceTests
                     counters.PeakRunning = Math.Max(counters.PeakRunning, running);
                 }
 
-                Thread.Sleep(computeDelay);
+                counters.Gate.Wait();
                 Interlocked.Decrement(ref counters.Running);
                 return [genreMovie];
             });
@@ -131,9 +132,23 @@ public sealed class ScoringServiceTests
             libraryManagerMock.Object,
             new Mock<IUserDataManager>().Object,
             () => new PluginConfiguration(),
-            timeProvider: timeProvider,
+            timeProvider: clock,
             firstComputeTimeout: firstComputeTimeout);
     }
+
+    /// <summary>
+    /// Runs a call that may block on its own thread, so a burst of blocked callers does not wait
+    /// for the thread pool to grow.
+    /// </summary>
+    private static Task<T> OnOwnThread<T>(Func<T> call) =>
+        Task.Factory.StartNew(call, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+
+    /// <summary>
+    /// Waits until <paramref name="condition"/> holds. The 10-second cap only turns a hang into a
+    /// failure; no assertion depends on how long the wait takes.
+    /// </summary>
+    private static void WaitUntil(Func<bool> condition) =>
+        Assert.True(SpinWait.SpinUntil(condition, TimeSpan.FromSeconds(10)), "condition never held");
 
     // -------------------------------------------------------------------------
     // Single-flight, stale-while-revalidate, global bound (F-03)
@@ -143,12 +158,19 @@ public sealed class ScoringServiceTests
     public async Task GetSnapshot_TwoSimultaneousCallsOfOneUser_ComputeOnce()
     {
         var counters = new ComputeCounters();
-        var service = BuildSlowService(TimeSpan.FromMilliseconds(300), TimeSpan.FromSeconds(5), counters);
+        counters.Gate.Reset();
+        var clock = new ManualTimeProvider();
+        var service = BuildSlowService(counters, clock, TimeSpan.FromSeconds(5));
         var userId = Guid.NewGuid();
 
-        var results = await Task.WhenAll(
-            Task.Run(() => service.GetTopGenres(userId, 5)),
-            Task.Run(() => service.GetTopGenres(userId, 5)));
+        var callers = new[]
+        {
+            OnOwnThread(() => service.GetTopGenres(userId, 5)),
+            OnOwnThread(() => service.GetTopGenres(userId, 5))
+        };
+        WaitUntil(() => clock.ActiveTimers == 2);
+        counters.Gate.Set();
+        var results = await Task.WhenAll(callers);
 
         Assert.Equal(1, counters.Computations);
         Assert.All(results, r => Assert.Equal("Drama", Assert.Single(r).Value));
@@ -157,69 +179,98 @@ public sealed class ScoringServiceTests
     [Fact]
     public async Task GetSnapshot_TenUsersFirstAccess_AtMostOneConcurrentComputeAndBoundedWait()
     {
+        // Ten users at once: the queue holds 8 computations, the 2 others are served at once; the
+        // 8 waiting callers return when the clock reaches the timeout, while the computation that
+        // runs is still blocked; the computations then run one at a time.
         var counters = new ComputeCounters();
+        counters.Gate.Reset();
+        var clock = new ManualTimeProvider();
         var timeout = TimeSpan.FromMilliseconds(500);
-        var service = BuildSlowService(TimeSpan.FromMilliseconds(300), timeout, counters);
+        var service = BuildSlowService(counters, clock, timeout);
 
-        var elapsed = await Task.WhenAll(Enumerable.Range(0, 10).Select(_ => Task.Run(() =>
-        {
-            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-            service.GetTopGenres(Guid.NewGuid(), 5);
-            return stopwatch.Elapsed;
-        })));
+        var callers = Enumerable.Range(0, 10)
+            .Select(_ => OnOwnThread(() => service.GetTopGenres(Guid.NewGuid(), 5)))
+            .ToArray();
+        WaitUntil(() => callers.Count(c => c.IsCompleted) == 2 && clock.ActiveTimers == 8);
+        clock.Advance(timeout - TimeSpan.FromMilliseconds(1));
+        Assert.Equal(2, callers.Count(c => c.IsCompleted));
 
+        clock.Advance(TimeSpan.FromMilliseconds(1));
+        var results = await Task.WhenAll(callers);
+        Assert.All(results, Assert.Empty);
+        Assert.Equal(1, counters.Running);
+
+        counters.Gate.Set();
+        await service.WhenIdleForTesting();
+        Assert.Equal(8, counters.Computations);
         Assert.Equal(1, counters.PeakRunning);
-        Assert.All(elapsed, e => Assert.True(e < timeout + TimeSpan.FromMilliseconds(400), $"waited {e}"));
     }
 
     [Fact]
-    public void GetSnapshot_FirstComputeTimesOut_ServesEmptyAndFlagsPending()
+    public async Task GetSnapshot_FirstComputeTimesOut_ServesEmptyAndFlagsPending()
     {
         var counters = new ComputeCounters();
-        var service = BuildSlowService(TimeSpan.FromMilliseconds(600), TimeSpan.FromMilliseconds(100), counters);
+        counters.Gate.Reset();
+        var clock = new ManualTimeProvider();
+        var timeout = TimeSpan.FromMilliseconds(100);
+        var service = BuildSlowService(counters, clock, timeout);
         var userId = Guid.NewGuid();
 
-        var first = service.GetTopGenres(userId, 5);
+        var caller = OnOwnThread(() => service.GetTopGenres(userId, 5));
+        WaitUntil(() => clock.ActiveTimers == 1);
+        clock.Advance(timeout);
+        var first = await caller;
 
         Assert.Empty(first);
         Assert.True(service.TakePendingServed(userId));
         Assert.False(service.TakePendingServed(userId));
 
-        Thread.Sleep(800);
+        counters.Gate.Set();
+        await service.WhenIdleForTesting();
         Assert.Equal("Drama", Assert.Single(service.GetTopGenres(userId, 5)).Value);
         Assert.False(service.TakePendingServed(userId));
     }
 
     [Fact]
-    public void GetSnapshot_StaleSnapshot_ServedImmediatelyWhileRecomputing()
+    public async Task GetSnapshot_StaleSnapshot_ServedImmediatelyWhileRecomputing()
     {
+        // The recomputation is blocked and the clock never moves: the stale read can only return
+        // because it does not wait for it.
         var counters = new ComputeCounters();
-        var service = BuildSlowService(TimeSpan.FromMilliseconds(500), TimeSpan.FromSeconds(5), counters);
+        var clock = new ManualTimeProvider();
+        var service = BuildSlowService(counters, clock, TimeSpan.FromSeconds(5));
         var userId = Guid.NewGuid();
         service.GetTopGenres(userId, 5);
 
+        counters.Gate.Reset();
         service.MarkStale(userId);
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        var stale = service.GetTopGenres(userId, 5);
-        stopwatch.Stop();
+        var stale = await OnOwnThread(() => service.GetTopGenres(userId, 5)).WaitAsync(TimeSpan.FromSeconds(10));
 
         Assert.Equal("Drama", Assert.Single(stale).Value);
-        Assert.True(stopwatch.ElapsedMilliseconds < 50, $"waited {stopwatch.ElapsedMilliseconds} ms");
         Assert.False(service.TakePendingServed(userId));
-        Thread.Sleep(800);
+        Assert.Equal(0, clock.ActiveTimers);
+        counters.Gate.Set();
+        await service.WhenIdleForTesting();
         Assert.Equal(2, counters.Computations);
     }
 
     [Fact]
-    public void Clear_DuringComputation_DoesNotStoreTheOldResult()
+    public async Task Clear_DuringComputation_DoesNotStoreTheOldResult()
     {
         var counters = new ComputeCounters();
-        var service = BuildSlowService(TimeSpan.FromMilliseconds(300), TimeSpan.FromMilliseconds(50), counters);
+        counters.Gate.Reset();
+        var clock = new ManualTimeProvider();
+        var timeout = TimeSpan.FromMilliseconds(50);
+        var service = BuildSlowService(counters, clock, timeout);
         var userId = Guid.NewGuid();
 
-        service.GetTopGenres(userId, 5);
+        var caller = OnOwnThread(() => service.GetTopGenres(userId, 5));
+        WaitUntil(() => clock.ActiveTimers == 1);
+        clock.Advance(timeout);
+        await caller;
         service.Clear();
-        Thread.Sleep(500);
+        counters.Gate.Set();
+        await service.WhenIdleForTesting();
         service.GetTopGenres(userId, 5);
 
         Assert.Equal(2, counters.Computations);
@@ -252,7 +303,7 @@ public sealed class ScoringServiceTests
     {
         var counters = new ComputeCounters();
         var clock = new ManualTimeProvider { UtcNowValue = Noon };
-        var service = BuildSlowService(TimeSpan.Zero, TimeSpan.FromSeconds(5), counters, clock);
+        var service = BuildSlowService(counters, clock, TimeSpan.FromSeconds(5));
         var active = Guid.NewGuid();
         var inactive = Guid.NewGuid();
         service.GetTopGenres(active, 5);
@@ -270,7 +321,7 @@ public sealed class ScoringServiceTests
     }
 
     [Fact]
-    public void GetSnapshot_EmptyHistory_ExpiresAfterSessionTtl()
+    public async Task GetSnapshot_EmptyHistory_ExpiresAfterSessionTtl()
     {
         var clock = new ManualTimeProvider { UtcNowValue = Noon };
         var user = new User("test", "Default", "Default");
@@ -304,7 +355,7 @@ public sealed class ScoringServiceTests
 
         clock.UtcNowValue = Noon.AddMinutes(16);
         service.GetTopGenres(user.Id, 5);
-        Thread.Sleep(200);
+        await service.WhenIdleForTesting();
         Assert.Equal(2, computations);
     }
 
@@ -430,7 +481,7 @@ public sealed class ScoringServiceTests
     }
 
     [Fact]
-    public void GetTopActors_FiveHundredTitles_FirstAccessReads25ThenTheFull100InTheBackground()
+    public async Task GetTopActors_FiveHundredTitles_FirstAccessReads25ThenTheFull100InTheBackground()
     {
         // F-06 / 1.7: one people query per title, bounded; the first access reads 25 titles so it
         // answers fast, the full 100-title computation follows at once; genres count every title.
@@ -453,12 +504,11 @@ public sealed class ScoringServiceTests
         Assert.Equal("Someone", Assert.Single(service.GetTopActors(user.Id, 5)).Value);
         Assert.True(peopleReads >= 25, $"read {peopleReads}");
 
-        SpinWait.SpinUntil(() => Volatile.Read(ref peopleReads) >= 125, TimeSpan.FromSeconds(5));
-        Thread.Sleep(100);
+        await service.WhenIdleForTesting();
         Assert.Equal(125, peopleReads);
 
         Assert.Equal("Drama", Assert.Single(service.GetTopGenres(user.Id, 5)).Value);
-        Thread.Sleep(100);
+        await service.WhenIdleForTesting();
         Assert.Equal(125, peopleReads);
     }
 
@@ -653,5 +703,8 @@ public sealed class ScoringServiceTests
         public int Computations;
         public int Running;
         public int PeakRunning;
+
+        /// <summary>Gets the gate every computation waits on; open unless a test closes it.</summary>
+        public ManualResetEventSlim Gate { get; } = new(true);
     }
 }

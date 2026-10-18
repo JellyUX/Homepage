@@ -51,7 +51,7 @@ public sealed class ScoringInvalidationListenerTests
         _watched.Add(_film);
         Raise(UserDataSaveReason.PlaybackFinished);
         _service.GetTopGenres(_user.Id, 5);
-        Thread.Sleep(200);
+        await _service.WhenIdleForTesting();
 
         Assert.Equal("Drama", Assert.Single(_service.GetTopGenres(_user.Id, 5)).Value);
         await listener.StopAsync(CancellationToken.None);
@@ -67,7 +67,7 @@ public sealed class ScoringInvalidationListenerTests
         _watched.Add(_film);
         Raise(UserDataSaveReason.PlaybackProgress);
         _service.GetTopGenres(_user.Id, 5);
-        Thread.Sleep(200);
+        await _service.WhenIdleForTesting();
 
         Assert.Empty(_service.GetTopGenres(_user.Id, 5));
         await listener.StopAsync(CancellationToken.None);
