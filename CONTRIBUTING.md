@@ -120,6 +120,21 @@ backticks in `README.md`, `CONTRIBUTING.md` and `docs/` must exist (`DocSymbolSy
 3. Check the browser console for errors.
 4. Test widget configuration from the admin panel.
 
+## Measurement Rules
+
+- **No time threshold in the CI.** CI runners are too noisy for a stopwatch: the CI checks numbers that
+  do not depend on the machine (calls to the library, queries, requests, bytes), held by budgets that
+  only go down.
+- **Durations on the bench, before and after.** Measure with the `bench/` scripts (see
+  `bench/README.md`), on the same machine, with the same data and nothing else running, and report the
+  median and the p95. A bench whose files sit on a Windows bind mount (NTFS) is slower than a Docker
+  named volume: compare a change only with a run on the same storage.
+- **The user-facing metric.** An optimization reports the metric a user sees (home page ready, endpoint
+  latency, task duration) before and after, not only the local counter it targets.
+- **A failed measurement is investigated.** Before blaming the environment, break the time down per
+  step, with figures. A value that looks wrong is recorded as a finding to triage, never accepted as a
+  limit.
+
 ## Change Checklist
 
 Each change goes through these steps, in order:
