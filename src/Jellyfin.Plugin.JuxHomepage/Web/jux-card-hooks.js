@@ -7,13 +7,12 @@
 // both menu triggers (card `button[data-action="menu"]` and the detail page's `.btnMoreCommands`)
 // open the exact same native `.actionSheetScroller` component, so a single injector covers both.
 //
-// A single MutationObserver on <body> catches every surface (card overlays, the detail page's
-// button row, and action sheets) without needing window.JellyfinAPI (only populated after a Home
-// visit) or any chunk-level patch of cardBuilder itself.
+// One subscription to the shared body MutationObserver of jux-core.js (JuxCore.onDomMutation) catches
+// every surface (card overlays, the detail page's button row, and action sheets) without needing
+// window.JellyfinAPI (only populated after a Home visit) or any chunk-level patch of cardBuilder itself.
 //
 // TODO_V3.md Phase 7.3 (Infinite Scroll) extends this same file with its own card-level hook (see
-// _initInfiniteScroll below) rather than introducing a second, competing MutationObserver -- it
-// reuses the same _observe() body-level MutationObserver already running here.
+// _initInfiniteScroll below), driven by the same _observe() subscription.
 (function () {
     if (typeof window.juxCardHooks !== 'undefined') {
         return;
@@ -95,7 +94,7 @@
     // -------------------------------------------------------------------------
 
     function _observe(likedIds) {
-        var observer = new MutationObserver(function (mutations) {
+        window.JuxCore.onDomMutation(function (mutations) {
             var mightHaveNewActionSheet = false;
             for (var i = 0; i < mutations.length; i++) {
                 var added = mutations[i].addedNodes;
@@ -111,8 +110,6 @@
             }
             _tryInitLibraryInfiniteScroll();
         });
-
-        observer.observe(document.body, { childList: true, subtree: true });
     }
 
     function _hookExistingCards(likedIds) {
@@ -446,9 +443,8 @@
     // -------------------------------------------------------------------------
     // Library page infinite scroll (TODO_V3.md Phase 7.3)
     //
-    // Extends this file's existing body-level MutationObserver (see the header comment) instead of
-    // adding a second one. Scoped to the Movies/Series library listing pages only (TODO_V3.md's own
-    // stated scope) -- confirmed live on jellyux-test that this Jellyfin Web build shows classic native
+    // Driven by this file's subscription to the shared body MutationObserver (see the header
+    // comment). Scoped to the Movies/Series library listing pages only (TODO_V3.md's own stated scope) -- confirmed live on jellyux-test that this Jellyfin Web build shows classic native
     // pagination (.paging with .btnPreviousPage/.btnNextPage) on these pages, which is hidden once
     // infinite scroll takes over. Reads the user's currently active native sort/filter/alpha-picker
     // choice (localStorage keys ${userId}-${parentId}-${mediaType}[-filter], confirmed live to hold

@@ -255,7 +255,7 @@
             return;
         }
 
-        if (container.dataset.juxBreadcrumbItemId === itemId || container.dataset.juxBreadcrumbPending === itemId) {
+        if (container.dataset.juxBreadcrumbItemId === itemId) {
             return;
         }
 
@@ -268,12 +268,14 @@
             return;
         }
 
-        // Marked synchronously, before any async call -- same in-flight guard pattern as
-        // jux-collections.js/jux-series-flatten.js, needed for the same reason (the body
-        // MutationObserver fires repeatedly while the DOM settles).
-        container.dataset.juxBreadcrumbPending = itemId;
+        // In-flight guard (JuxCore.runInFlight), as in jux-collections.js and jux-series-flatten.js.
+        window.JuxCore.runInFlight(container, 'juxBreadcrumbPending', itemId, function () {
+            return _renderFor(container, userId, itemId);
+        });
+    }
 
-        window.JuxCore.getItem(userId, itemId).then(function (item) {
+    function _renderFor(container, userId, itemId) {
+        return window.JuxCore.getItem(userId, itemId).then(function (item) {
             if (!_isSupportedType(item)) {
                 // Final: an item's Type never changes, so no point re-checking this same id again.
                 if (container.dataset.juxBreadcrumbPending === itemId) {
@@ -301,10 +303,6 @@
             });
         }).catch(function (err) {
             console.error('[JellyUX] Breadcrumb render failed:', err);
-        }).finally(function () {
-            if (container.dataset.juxBreadcrumbPending === itemId) {
-                delete container.dataset.juxBreadcrumbPending;
-            }
         });
     }
 

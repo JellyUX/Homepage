@@ -234,18 +234,81 @@
         return match ? match[1] : null;
     }
 
+    // One MutationObserver on <body> shared by every module (QUAL-04): each subscriber receives the
+    // mutation records of every batch; the observer is connected while at least one subscriber is
+    // left. A subscriber that throws does not stop the others (test: jux-core.test.js "onDomMutation").
+    var _domSubscribers = [];
+    var _domObserver = null;
+
+    function _dispatchMutations(mutations) {
+        _domSubscribers.slice().forEach(function (subscriber) {
+            try {
+                subscriber(mutations);
+            } catch (err) {
+                console.error('[JellyUX] DOM mutation handler failed:', err);
+            }
+        });
+    }
+
+    // Subscribes callback(mutations) to the shared observer; returns the function that unsubscribes it.
+    function onDomMutation(callback) {
+        _domSubscribers.push(callback);
+        if (!_domObserver) {
+            _domObserver = new MutationObserver(_dispatchMutations);
+            _domObserver.observe(document.body, { childList: true, subtree: true });
+        }
+        return function () {
+            var index = _domSubscribers.indexOf(callback);
+            if (index !== -1) {
+                _domSubscribers.splice(index, 1);
+            }
+            if (_domSubscribers.length === 0 && _domObserver) {
+                _domObserver.disconnect();
+                _domObserver = null;
+            }
+        };
+    }
+
+    // In-flight guard of the detail-page renders: the mutation handlers run many times in quick
+    // succession while the DOM settles, each well before the previous call's requests resolve. The
+    // element is marked with dataset[key] = id synchronously, start() runs only when no call for the
+    // same id is in flight, and the mark is cleared when the promise start() returns settles, unless
+    // a newer id took it meanwhile. Returns that promise, or null when a call was already in flight
+    // (test: jux-collections.test.js "in-flight guard").
+    function runInFlight(el, key, id, start) {
+        if (el.dataset[key] === id) {
+            return null;
+        }
+        el.dataset[key] = id;
+
+        function release() {
+            if (el.dataset[key] === id) {
+                delete el.dataset[key];
+            }
+        }
+
+        var result;
+        try {
+            result = start();
+        } catch (err) {
+            release();
+            throw err;
+        }
+        return Promise.resolve(result).finally(release);
+    }
+
     // Runs onChange now and on every DOM mutation while a detail page is shown and JellyUX is on for
-    // the user; the observer is connected only then, so on every other page a detail-page module
-    // costs nothing. onLeave (optional) runs on every other page. Returns the sync function, run
-    // again 400 ms after each hash change (the time Jellyfin takes to swap the view).
+    // the user; it subscribes to the shared observer only then, so on every other page a detail-page
+    // module costs nothing. onLeave (optional) runs on every other page. Returns the sync function,
+    // run again 400 ms after each hash change (the time Jellyfin takes to swap the view).
     function watchDetailPages(onChange, onLeave) {
-        var observer = null;
+        var unsubscribe = null;
 
         function sync() {
             if (!currentDetailItemId() || isOffForUser()) {
-                if (observer) {
-                    observer.disconnect();
-                    observer = null;
+                if (unsubscribe) {
+                    unsubscribe();
+                    unsubscribe = null;
                 }
                 if (onLeave) {
                     onLeave();
@@ -253,9 +316,8 @@
                 return;
             }
 
-            if (!observer) {
-                observer = new MutationObserver(onChange);
-                observer.observe(document.body, { childList: true, subtree: true });
+            if (!unsubscribe) {
+                unsubscribe = onDomMutation(onChange);
             }
 
             onChange();
@@ -271,6 +333,8 @@
     window.JuxCore = {
         currentDetailItemId: currentDetailItemId,
         watchDetailPages: watchDetailPages,
+        onDomMutation: onDomMutation,
+        runInFlight: runInFlight,
         isOffForUser: isOffForUser,
         setUserEnabled: setUserEnabled,
         escHtml: escHtml,

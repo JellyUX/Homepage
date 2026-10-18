@@ -148,4 +148,16 @@ describe('detail page requests (F-09)', () => {
 
         expect(api.getItem).not.toHaveBeenCalled();
     });
+    it('inserts one Included In section when a mutation burst runs it again before the first call resolves (in-flight guard)', async () => {
+        setUpDetailPage('aa04', { Type: 'Movie' }, [{ CollectionId: 'boxset1' }]);
+        window.JellyfinAPI = { cardBuilder: { getCardsHtml: () => '' }, getPortraitShape: () => 'portrait' };
+        for (let i = 0; i < 5; i++) {
+            _syncObserver();
+        }
+        await flush();
+        await flush();
+
+        expect(document.querySelectorAll('.jux-collections-section')).toHaveLength(1);
+        expect(document.querySelector('.libraryPage').dataset.juxCollectionsPending).toBeUndefined();
+    });
 });

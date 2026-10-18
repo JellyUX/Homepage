@@ -3,8 +3,8 @@
 // JellyUX collections: "Included In" section on the item detail page + sort controls on the
 // Collection (BoxSet) page. TODO_V3.md Phase 7.2.
 //
-// Page-hook idiom: same as jux-series-flatten.js -- item id read from location.hash, a dedicated
-// MutationObserver on document.body, a hashchange re-arm. Confirmed with the user to keep this over
+// Page-hook idiom: same as jux-series-flatten.js -- JuxCore.watchDetailPages (item id read from
+// location.hash, the shared body MutationObserver, a hashchange re-arm). Confirmed with the user to keep this over
 // KefinTweaks' window.Emby.Page.onViewShow monkey-patch.
 //
 // Backend: the reverse index (item -> collections it belongs to) already existed since TODO_V3.md
@@ -86,7 +86,6 @@
         }
 
         if (activePage.dataset.juxCollectionsChecked === itemId ||
-            activePage.dataset.juxCollectionsPending === itemId ||
             activePage.querySelector('.jux-collections-section')) {
             return;
         }
@@ -100,15 +99,16 @@
             return;
         }
 
-        // Marked synchronously, before any async call -- the MutationObserver this is called from
-        // fires many times in quick succession while the DOM settles, and each of those calls this
-        // function again well before the first one's async chain below resolves. Without a
-        // synchronous in-flight guard, several concurrent calls would all pass the checks above and
-        // each build/insert their own "Included In" section (confirmed live: produced 2 duplicate
-        // sections). Cleared on failure so a later retry isn't permanently blocked.
-        activePage.dataset.juxCollectionsPending = itemId;
+        // In-flight guard (JuxCore.runInFlight): without it, the calls of one mutation burst would all
+        // pass the checks above and each insert their own "Included In" section (confirmed live:
+        // produced 2 duplicate sections).
+        window.JuxCore.runInFlight(activePage, 'juxCollectionsPending', itemId, function () {
+            return _renderIncludedIn(activePage, userId, itemId);
+        });
+    }
 
-        window.JuxCore.getItem(userId, itemId).then(function (item) {
+    function _renderIncludedIn(activePage, userId, itemId) {
+        return window.JuxCore.getItem(userId, itemId).then(function (item) {
             if (!_isSupportedForCollections(item)) {
                 // Final: an item's Type never changes, so there's no point re-checking on every
                 // future mutation for this same item id.
@@ -163,10 +163,6 @@
             });
         }).catch(function (err) {
             console.error('[JellyUX] Included In check failed:', err);
-        }).finally(function () {
-            if (activePage.dataset.juxCollectionsPending === itemId) {
-                delete activePage.dataset.juxCollectionsPending;
-            }
         });
     }
 

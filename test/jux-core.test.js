@@ -237,3 +237,93 @@ describe('labels (F-64)', () => {
         expect(offenders).toEqual([]);
     });
 });
+
+describe('onDomMutation (QUAL-04)', () => {
+    const flush = () => new Promise(resolve => setTimeout(resolve, 0));
+    let created = 0;
+    const Native = window.MutationObserver;
+
+    afterEach(() => {
+        window.MutationObserver = Native;
+        created = 0;
+        document.body.innerHTML = '';
+        location.hash = '';
+    });
+
+    function countObservers() {
+        window.MutationObserver = class extends Native {
+            constructor(callback) {
+                super(callback);
+                created++;
+            }
+        };
+    }
+
+    it('serves every subscriber from one observer, a throwing one included, and disconnects when none is left', async () => {
+        countObservers();
+        const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const first = vi.fn(() => { throw new Error('boom'); });
+        const second = vi.fn();
+        const offFirst = juxCore.onDomMutation(first);
+        const offSecond = juxCore.onDomMutation(second);
+
+        document.body.appendChild(document.createElement('div'));
+        await flush();
+        expect(created).toBe(1);
+        expect(first).toHaveBeenCalledTimes(1);
+        expect(second).toHaveBeenCalledTimes(1);
+        expect(second.mock.calls[0][0][0].addedNodes).toHaveLength(1);
+
+        offFirst();
+        offSecond();
+        document.body.appendChild(document.createElement('div'));
+        await flush();
+        expect(second).toHaveBeenCalledTimes(1);
+        errors.mockRestore();
+    });
+
+    it('lets several detail-page modules share that observer', async () => {
+        countObservers();
+        location.hash = '#/details?id=ab12';
+        const modules = [vi.fn(), vi.fn(), vi.fn()];
+        const syncs = modules.map((onChange) => juxCore.watchDetailPages(onChange));
+
+        document.body.appendChild(document.createElement('div'));
+        await flush();
+        expect(created).toBe(1);
+        modules.forEach((onChange) => expect(onChange).toHaveBeenCalledTimes(2));
+
+        location.hash = '#/home';
+        syncs.forEach((sync) => sync());
+        document.body.appendChild(document.createElement('div'));
+        await flush();
+        modules.forEach((onChange) => expect(onChange).toHaveBeenCalledTimes(2));
+    });
+});
+
+describe('runInFlight (QUAL-04)', () => {
+    it('starts once per id while in flight, again for a newer id, and clears only its own mark', async () => {
+        const el = document.createElement('div');
+        let resolveFirst;
+        const start = vi.fn(() => new Promise((resolve) => { resolveFirst = resolve; }));
+
+        const first = juxCore.runInFlight(el, 'juxPending', 'a', start);
+        expect(juxCore.runInFlight(el, 'juxPending', 'a', start)).toBeNull();
+        expect(start).toHaveBeenCalledTimes(1);
+
+        let resolveNewer;
+        const newer = juxCore.runInFlight(el, 'juxPending', 'b', () => new Promise((resolve) => { resolveNewer = resolve; }));
+        resolveFirst();
+        await first;
+        expect(el.dataset.juxPending).toBe('b');
+        resolveNewer();
+        await newer;
+        expect(el.dataset.juxPending).toBeUndefined();
+    });
+
+    it('clears the mark when start throws', () => {
+        const el = document.createElement('div');
+        expect(() => juxCore.runInFlight(el, 'juxPending', 'a', () => { throw new Error('boom'); })).toThrow('boom');
+        expect(el.dataset.juxPending).toBeUndefined();
+    });
+});

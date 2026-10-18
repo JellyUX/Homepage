@@ -4,18 +4,18 @@
         "jux-homepage.css": 1632,
         "jux-ui.css": 4323,
         "jux-i18n.js": 9322,
-        "jux-core.js": 4140,
+        "jux-core.js": 4844,
         "jux-homepage.js": 8735,
         "jux-user-settings.js": 2667,
         "jux-ui.js": 7752,
         "jux-tab-injector.js": 3379,
         "jux-watchlist.js": 870,
-        "jux-card-hooks.js": 9178,
+        "jux-card-hooks.js": 9128,
         "jux-progress.js": 4129,
         "jux-history.js": 2676,
         "jux-statistics.js": 2168,
-        "jux-series-flatten.js": 3053,
-        "jux-collections.js": 4359,
-        "jux-breadcrumb.js": 3802
+        "jux-series-flatten.js": 2827,
+        "jux-collections.js": 4238,
+        "jux-breadcrumb.js": 3751
     }
 }

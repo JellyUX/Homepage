@@ -6,12 +6,10 @@
 // episodes shown directly on the series page -- one click saved for the most common "mini-series"/
 // "TV movie in parts" case.
 //
-// Page-hook idiom: reuses the exact detection already proven live by jux-card-hooks.js (item id read
-// from location.hash, a MutationObserver on document.body, a hashchange re-arm) -- confirmed with the
-// user to keep, rather than adopting KefinTweaks' window.Emby.Page.onViewShow monkey-patch, so this
+// Page-hook idiom: JuxCore.watchDetailPages (item id read from location.hash, the shared body
+// MutationObserver of jux-core.js while a detail page is shown, a hashchange re-arm) -- confirmed with
+// the user to keep, rather than adopting KefinTweaks' window.Emby.Page.onViewShow monkey-patch, so this
 // project doesn't grow a second kind of fragile dependency on undocumented Jellyfin Web internals.
-// This file owns its own small MutationObserver instance (not shared with jux-card-hooks.js, whose
-// observer is explicitly reserved for Phase 7.3's infinite scroll).
 //
 // Native seasons container: confirmed live on jellyux-test (Phase 7 planning) that this Jellyfin Web
 // build actually renders #listChildrenCollapsible (not #childrenCollapsible, which is present in the
@@ -64,7 +62,6 @@
         }
 
         if (activePage.dataset.juxFlattenedSeriesId === itemId ||
-            activePage.dataset.juxFlattenPending === itemId ||
             activePage.querySelector('.jux-flattened-season-section')) {
             return;
         }
@@ -78,15 +75,16 @@
             return;
         }
 
-        // Marked synchronously, before any async call -- the MutationObserver this runs from fires
-        // repeatedly while the DOM settles, well before the async chain below resolves. Without this,
-        // several concurrent calls all pass the existence checks above (the section doesn't exist yet)
-        // and each build/insert their own flattened section -- confirmed live as the same duplicate-
-        // section bug found and fixed in jux-collections.js's _tryIncludedIn. Cleared in .finally() so
-        // a genuine retry (e.g. cardBuilder becoming available later) isn't permanently blocked.
-        activePage.dataset.juxFlattenPending = itemId;
+        // In-flight guard (JuxCore.runInFlight): without it, the calls of one mutation burst would all
+        // pass the checks above and each insert their own flattened section (the duplicate-section bug
+        // confirmed live in jux-collections.js).
+        window.JuxCore.runInFlight(activePage, 'juxFlattenPending', itemId, function () {
+            return _renderFlattened(activePage, userId, itemId);
+        });
+    }
 
-        window.JuxCore.getItem(userId, itemId).then(function (item) {
+    function _renderFlattened(activePage, userId, itemId) {
+        return window.JuxCore.getItem(userId, itemId).then(function (item) {
             if (!_shouldFlatten(item)) {
                 // Final: an item's Type/ChildCount never changes, so there's no point re-checking on
                 // every future mutation for this same item id.
@@ -141,10 +139,6 @@
             });
         }).catch(function (err) {
             console.error('[JellyUX] Series flatten check failed:', err);
-        }).finally(function () {
-            if (activePage.dataset.juxFlattenPending === itemId) {
-                delete activePage.dataset.juxFlattenPending;
-            }
         });
     }
 
