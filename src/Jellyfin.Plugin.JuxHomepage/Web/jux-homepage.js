@@ -436,9 +436,19 @@
     // Lazy loading via IntersectionObserver
     // -------------------------------------------------------------------------
 
+    // The loader of each home container: Jellyfin reuses a container it emptied for the next render,
+    // and the loader of the previous render is disconnected then (Annexe.a).
+    var _lazyLoaders = typeof WeakMap === 'function' ? new WeakMap() : null;
+
     function _setupLazyLoader(elem, apiClient, userId, userSettings) {
         if (typeof IntersectionObserver === 'undefined') {
             return;
+        }
+
+        var previous = _lazyLoaders && _lazyLoaders.get(elem);
+        if (previous) {
+            previous.observer.disconnect();
+            previous.sentinel.remove();
         }
 
         var currentPage = 0;
@@ -476,6 +486,9 @@
         }, { rootMargin: '200px' });
 
         observer.observe(sentinel);
+        if (_lazyLoaders) {
+            _lazyLoaders.set(elem, { observer: observer, sentinel: sentinel });
+        }
     }
 
     // Pure lazy-load pagination decision: whether a /Sections response announces a later page.
@@ -577,7 +590,9 @@
     // keep serving that native copy from its heuristic cache; Ctrl+Shift+R does not refetch it
     // because it is loaded dynamically. Only fetch(url, { cache: 'reload' }) replaces it (E8-04).
     // The guard does that once per browser session, then reloads; if the home page is still native
-    // after that reload, an intermediate cache (CDN, proxy) serves it and a message says so.
+    // after that reload, an intermediate cache (CDN, proxy) serves it and a message says so. It polls
+    // only while the home page is shown, at most CHUNK_GUARD_MAX_TICKS seconds there; on another page
+    // it pauses until the next view is shown (Annexe.a: it used to poll 300 s on any page).
     var CHUNK_RELOAD_KEY = 'jux-chunk-reload';
     var CHUNK_GUARD_INTERVAL_MS = 1000;
     var CHUNK_GUARD_MAX_TICKS = 300;
@@ -665,8 +680,17 @@
 
     function _armChunkGuard(win, doc) {
         var ticks = 0;
-        var timer = win.setInterval(function () {
-            ticks++;
+        var timer = null;
+        var done = false;
+
+        function pause() {
+            if (timer !== null) {
+                win.clearInterval(timer);
+                timer = null;
+            }
+        }
+
+        function tick() {
             var state = _chunkState(win, doc);
             if (state === 'ok') {
                 try { win.sessionStorage.removeItem(CHUNK_RELOAD_KEY); } catch (e) { /* no storage, nothing to clear */ }
@@ -674,11 +698,31 @@
                 _repairStaleChunks(win, doc);
             }
 
-            if (state !== null || ticks >= CHUNK_GUARD_MAX_TICKS) {
-                win.clearInterval(timer);
+            if (state !== null) {
+                done = true;
+                pause();
+                return;
             }
-        }, CHUNK_GUARD_INTERVAL_MS);
-        return timer;
+            var home = doc.getElementById('indexPage');
+            if (!home || home.classList.contains('hide')) {
+                pause();
+                return;
+            }
+            ticks++;
+            if (ticks >= CHUNK_GUARD_MAX_TICKS) {
+                done = true;
+                pause();
+            }
+        }
+
+        function start() {
+            if (!done && timer === null) {
+                timer = win.setInterval(tick, CHUNK_GUARD_INTERVAL_MS);
+            }
+        }
+
+        doc.addEventListener('viewshow', start);
+        start();
     }
 
     // Guarded UMD-lite export (TODO_V2.md Phase 15.3): `module` is undefined in a browser, so this

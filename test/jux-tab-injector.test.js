@@ -230,6 +230,19 @@ describe('waitForUI', () => {
 
         expect(juxButtons()).toHaveLength(4);
     });
+
+    it('keeps one poller however often it is started, and stops after 10 s without a tab bar (Annexe.a)', () => {
+        window.location.hash = '#/home';
+        renderHomePage({ withSlider: false });
+
+        injector().waitForUI();
+        injector().waitForUI();
+        injector().waitForUI();
+        expect(vi.getTimerCount()).toBe(1);
+
+        vi.advanceTimersByTime(10200);
+        expect(vi.getTimerCount()).toBe(0);
+    });
 });
 
 describe('navigation re-arming', () => {

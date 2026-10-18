@@ -160,6 +160,24 @@ describe('_setupLazyLoader (F-10)', () => {
         expect(elem.querySelector('.jux-lazy-sentinel')).toBeNull();
     });
 
+    it('disconnects the previous loader when Jellyfin reuses the container for a new render (Annexe.a)', () => {
+        const disconnected = [];
+        globalThis.IntersectionObserver = class {
+            constructor() { this.id = disconnected.length; disconnected.push(false); }
+            observe() {}
+            disconnect() { disconnected[this.id] = true; }
+        };
+        const elem = document.createElement('div');
+        elem.dataset.juxHasMore = 'true';
+        const apiClient = { getUrl: (path) => path, getJSON: vi.fn() };
+
+        _setupLazyLoader(elem, apiClient, 'user1', {});
+        _setupLazyLoader(elem, apiClient, 'user1', {});
+
+        expect(disconnected).toEqual([true, false]);
+        expect(elem.querySelectorAll('.jux-lazy-sentinel')).toHaveLength(1);
+    });
+
     it('asks for a deferred page again after it failed, instead of skipping it (FIAB-08)', async () => {
         const elem = document.createElement('div');
         elem.dataset.juxHasMore = 'true';
@@ -388,9 +406,20 @@ describe('_armChunkGuard', () => {
         expect(win.location.reload).not.toHaveBeenCalled();
 
         renderHomeView({ sections: 2 });
+        document.dispatchEvent(new CustomEvent('viewshow'));
         await vi.advanceTimersByTimeAsync(5000);
 
         expect(win.location.reload).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not poll while another page is shown (Annexe.a)', async () => {
+        const win = fakeWindow();
+        document.body.innerHTML = '<div class="page" id="moviesPage"></div>';
+
+        _armChunkGuard(win, document);
+        await vi.advanceTimersByTimeAsync(3000);
+
+        expect(vi.getTimerCount()).toBe(0);
     });
 });
 

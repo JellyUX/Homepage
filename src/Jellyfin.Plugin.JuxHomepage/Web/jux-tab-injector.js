@@ -29,17 +29,37 @@ if (typeof window.juxTabInjector === 'undefined') {
             this.waitForUI();
         },
 
+        // One poller at a time, every 200 ms for at most 10 s (Annexe.a: init runs at load and on every
+        // viewshow, and each call used to start its own endless poller while the bar was missing).
+        _waitTimer: null,
+        _waitTries: 0,
+
         waitForUI: function () {
+            var self = this;
             var hash = window.location.hash;
             if (hash !== '' && hash !== '#/home' && hash !== '#/home.html' && hash.indexOf('#/home?') !== 0 && hash.indexOf('#/home.html?') !== 0) {
                 return;
             }
 
             if (document.querySelector('.emby-tabs-slider')) {
-                this.createTabs();
-            } else {
-                setTimeout(function () { window.juxTabInjector.waitForUI(); }, 200);
+                self.createTabs();
+                return;
             }
+            if (self._waitTimer !== null) {
+                return;
+            }
+            self._waitTries = 0;
+            self._waitTimer = setInterval(function () {
+                self._waitTries++;
+                var found = !!document.querySelector('.emby-tabs-slider');
+                if (found || self._waitTries >= 50) {
+                    clearInterval(self._waitTimer);
+                    self._waitTimer = null;
+                    if (found) {
+                        self.waitForUI();
+                    }
+                }
+            }, 200);
         },
 
         createTabs: function () {
