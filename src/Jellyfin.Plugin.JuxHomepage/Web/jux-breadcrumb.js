@@ -226,10 +226,13 @@
         container.style.display = '';
     }
 
+    // Hiding also forgets the item shown, so reopening that same item renders it again (FIAB-09: the
+    // kept id made X -> home -> X return early with the breadcrumb hidden).
     function _hideBreadcrumb() {
         var el = document.querySelector('.jux-breadcrumb');
         if (el) {
             el.style.display = 'none';
+            delete el.dataset.juxBreadcrumbItemId;
         }
     }
 
@@ -279,8 +282,8 @@
             if (!_isSupportedType(item)) {
                 // Final: an item's Type never changes, so no point re-checking this same id again.
                 if (container.dataset.juxBreadcrumbPending === itemId) {
-                    container.dataset.juxBreadcrumbItemId = itemId;
                     _hideBreadcrumb();
+                    container.dataset.juxBreadcrumbItemId = itemId;
                 }
                 return;
             }
@@ -319,6 +322,7 @@
             _buildBreadcrumbSegments: _buildBreadcrumbSegments,
             _seasonFallbackName: _seasonFallbackName,
             _episodeLabel: _episodeLabel,
+            _tryRenderBreadcrumb: _tryRenderBreadcrumb,
         };
     }
 })();

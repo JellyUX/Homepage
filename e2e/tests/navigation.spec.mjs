@@ -23,7 +23,6 @@ test('a library shorter than one page stops querying once it is complete (FIAB-0
 });
 
 test('the breadcrumb shows again on a detail page reopened from the home page (FIAB-09)', async ({ page }) => {
-    test.fixme(true, 'FIAB-09, phase 04: the breadcrumb keeps the item id when hidden, so it stays hidden on X -> home -> X.');
     await login(page, env.admin);
     await page.locator('.jux-widget-section').first().waitFor();
     const movies = await apiGet(env.admin, `/Items?recursive=true&includeItemTypes=Movie&userId=${env.admin.id}`);

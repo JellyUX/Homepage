@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import juxBreadcrumb from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-breadcrumb.js';
 
 const {
+    _tryRenderBreadcrumb,
     _currentDetailItemId,
     _isDetailPage,
     _isSupportedType,
@@ -229,3 +230,36 @@ describe('_buildBreadcrumbSegments', () => {
     });
 });
 
+
+describe('breadcrumb on a detail page reopened from the home page (FIAB-09)', () => {
+    const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+    afterEach(() => {
+        location.hash = '';
+        delete window.ApiClient;
+        document.body.innerHTML = '';
+    });
+
+    it('shows the breadcrumb again on X -> home -> X', async () => {
+        document.body.innerHTML = '<div class="skinHeader"><div class="headerLeft"></div></div>';
+        window.ApiClient = {
+            getCurrentUserId: () => 'u1',
+            getUrl: (path) => path,
+            getItem: vi.fn().mockResolvedValue({ Id: 'bc01', Name: 'Alder Creek', Type: 'Movie' }),
+            getAncestorItems: vi.fn().mockResolvedValue([{ Type: 'CollectionFolder', Id: 'lib1', Name: 'Movies' }]),
+            getJSON: vi.fn().mockResolvedValue([])
+        };
+        const visit = async (hash) => {
+            location.hash = hash;
+            _tryRenderBreadcrumb();
+            await flush();
+            await flush();
+            return document.querySelector('.jux-breadcrumb').style.display;
+        };
+
+        expect(await visit('#/details?id=bc01')).toBe('');
+        expect(await visit('#/home')).toBe('none');
+        expect(await visit('#/details?id=bc01')).toBe('');
+        expect(document.querySelector('.jux-breadcrumb').textContent).toContain('Alder Creek');
+    });
+});
