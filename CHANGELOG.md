@@ -1,3 +1,9 @@
+## [2.14.1](https://github.com/JellyUX/Homepage/compare/v2.14.0...v2.14.1) (2026-10-18)
+
+### Bug Fixes
+
+* let cold callers join a scoring computation without taking a queue place ([3dd61b5](https://github.com/JellyUX/Homepage/commit/3dd61b5b9e8b1664d0f978b583da24d0ab27c305))
+
 ## [2.14.0](https://github.com/JellyUX/Homepage/compare/v2.13.0...v2.14.0) (2026-10-13)
 
 ### Features
