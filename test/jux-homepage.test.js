@@ -240,9 +240,9 @@ describe('_buildSection (F-11)', () => {
     });
 });
 
-// A window stand-in for the stale chunk guard: session storage, resource timing, fetch and reload
-// are the only browser services it touches.
-function fakeWindow({ storage = new Map(), noStorage = false, resources = [], patched = false, tabs = false } = {}) {
+// A window stand-in for the stale chunk guard: session storage, resource timing, fetch, reload and the
+// server's patch state are the only services it touches. The server patches by default.
+function fakeWindow({ storage = new Map(), noStorage = false, resources = [], patched = false, tabs = false, server = { LoadSections: 'Patched', TabsAnchor: true } } = {}) {
     const sessionStorage = noStorage
         ? { getItem() { throw new Error('denied'); }, setItem() { throw new Error('denied'); }, removeItem() { throw new Error('denied'); } }
         : {
@@ -259,7 +259,11 @@ function fakeWindow({ storage = new Map(), noStorage = false, resources = [], pa
         setInterval: (fn, ms) => setInterval(fn, ms),
         clearInterval: (id) => clearInterval(id),
         JuxLoadSectionsPatched: patched || undefined,
-        juxTabInjector: tabs ? {} : undefined
+        juxTabInjector: tabs ? {} : undefined,
+        ApiClient: {
+            getUrl: (route) => route,
+            getJSON: vi.fn(() => (server instanceof Error ? Promise.reject(server) : Promise.resolve(server)))
+        }
     };
 }
 
@@ -405,6 +409,47 @@ describe('_armChunkGuard', () => {
         await vi.advanceTimersByTimeAsync(5000);
 
         expect(win.location.reload).toHaveBeenCalledTimes(1);
+    });
+
+    it('asks the server before reloading, and reloads only when it patches the home chunk (FIAB-04)', async () => {
+        const win = fakeWindow({ server: { LoadSections: 'HookNotFound', TabsAnchor: true } });
+        renderHomeView({ sections: 2 });
+
+        _armChunkGuard(win, document);
+        await vi.advanceTimersByTimeAsync(5000);
+
+        expect(win.ApiClient.getJSON).toHaveBeenCalledWith('JuxHomepage/PatchStatus');
+        expect(win.location.reload).not.toHaveBeenCalled();
+        expect(win.fetch).not.toHaveBeenCalled();
+        expect(win.storage.has('jux-chunk-reload')).toBe(false);
+        const notice = document.getElementById('jux-chunk-notice');
+        expect(notice.textContent).toContain('Jellyfin Web has changed');
+        expect(notice.textContent).not.toContain('CDN');
+    });
+
+    it('does not reload for missing JellyUX tabs when the server has no tab anchor (FIAB-04)', async () => {
+        const win = fakeWindow({ patched: true, tabs: true, server: { LoadSections: 'Patched', TabsAnchor: false } });
+        renderHomeView({ sections: 2, juxPanes: false });
+
+        _armChunkGuard(win, document);
+        await vi.advanceTimersByTimeAsync(5000);
+
+        expect(win.location.reload).not.toHaveBeenCalled();
+        expect(document.getElementById('jux-chunk-notice').textContent).toContain('Jellyfin Web has changed');
+    });
+
+    it('neither reloads nor blames a cache when the server does not say it patched (FIAB-04)', async () => {
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const win = fakeWindow({ server: new Error('offline') });
+        renderHomeView({ sections: 2 });
+
+        _armChunkGuard(win, document);
+        await vi.advanceTimersByTimeAsync(5000);
+
+        expect(win.location.reload).not.toHaveBeenCalled();
+        expect(document.getElementById('jux-chunk-notice')).toBeNull();
+        expect(errorSpy).toHaveBeenCalled();
+        errorSpy.mockRestore();
     });
 
     it('waits for the home page, then stops after its first decision', async () => {

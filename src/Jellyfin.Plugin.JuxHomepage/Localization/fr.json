@@ -294,6 +294,7 @@
   "client.tabs.statisticsShort": "Stats",
 
   "client.chunk.close": "Fermer",
+  "client.chunk.drift": "Jellyfin Web a changé, JellyUX est revenu à l'accueil natif.",
   "client.chunk.reloading": "JellyUX : mise à jour des fichiers en cache, rechargement de la page.",
   "client.chunk.stale": "JellyUX ne peut pas afficher son accueil : un cache entre ce navigateur et le serveur (CDN ou proxy) sert encore une ancienne copie de la page. L'administrateur du serveur doit le purger."
 }

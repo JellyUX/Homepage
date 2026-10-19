@@ -610,7 +610,10 @@
     // keep serving that native copy from its heuristic cache; Ctrl+Shift+R does not refetch it
     // because it is loaded dynamically. Only fetch(url, { cache: 'reload' }) replaces it (E8-04).
     // The guard does that once per browser session, then reloads; if the home page is still native
-    // after that reload, an intermediate cache (CDN, proxy) serves it and a message says so. It polls
+    // after that reload, an intermediate cache (CDN, proxy) serves it and a message says so. A native
+    // home page is also what a Jellyfin Web update the server cannot patch gives: the guard asks the
+    // server first and reloads only for a chunk it patches (FIAB-04; tests: jux-homepage.test.js
+    // "asks the server before reloading", "neither reloads nor blames a cache"). It polls
     // only while the home page is shown, at most CHUNK_GUARD_MAX_TICKS seconds there; on another page
     // it pauses until the next view is shown (Annexe.a: it used to poll 300 s on any page; test:
     // jux-homepage.test.js "does not poll while another page is shown").
@@ -705,6 +708,35 @@
         });
     }
 
+    // The server's patch state, or null when it does not answer (no reload then, FIAB-04.b).
+    function _serverPatchStatus(win) {
+        var api = win.ApiClient;
+        if (!api) {
+            return Promise.resolve(null);
+        }
+        return window.JuxCore.fetchWithTimeout(api, api.getUrl('JuxHomepage/PatchStatus')).catch(function (err) {
+            console.error('[JellyUX] Patch state unavailable, the page is not reloaded:', err);
+            return null;
+        });
+    }
+
+    // Returns what was done: 'drift' (the server did not patch what is missing, message shown),
+    // 'unknown' (no answer, nothing done) or the outcome of _repairStaleChunks.
+    function _handleStaleChunks(win, doc) {
+        var tabsMissing = !!win.juxTabInjector && !doc.getElementById('jux-tab-watchlist');
+        return _serverPatchStatus(win).then(function (status) {
+            if (!status) {
+                return 'unknown';
+            }
+            var patched = tabsMissing ? status.TabsAnchor === true : status.LoadSections === 'Patched';
+            if (!patched) {
+                _showChunkNotice(doc, 'drift', true);
+                return 'drift';
+            }
+            return _repairStaleChunks(win, doc);
+        });
+    }
+
     function _armChunkGuard(win, doc) {
         var ticks = 0;
         var timer = null;
@@ -722,7 +754,7 @@
             if (state === 'ok') {
                 try { win.sessionStorage.removeItem(CHUNK_RELOAD_KEY); } catch (e) { /* no storage, nothing to clear */ }
             } else if (state === 'stale') {
-                _repairStaleChunks(win, doc);
+                _handleStaleChunks(win, doc);
             }
 
             if (state !== null) {
