@@ -120,3 +120,22 @@ If you see this line, the home page falls back to Jellyfin's native rendering ra
 broken page. This is a known limitation of patching a third-party bundle that isn't part of JellyUX's
 public API. Check the project's GitHub Issues for a compatibility update, or open a new issue if none
 exists yet.
+
+## A Rewards or Discover section shows nothing, or the admin page refuses to save a Rewards section
+
+Before version 2.15, saving the admin page could drop the filters of a Rewards section (ceremony and
+category) and of a Discover section (person, keyword, company, and the genre when TMDb returned no
+genre list), even when nothing was changed. The update stops this from happening again, but it
+cannot bring back a filter that was already lost: the section stays empty until its filter is set
+again.
+
+A Rewards section with neither a ceremony nor a category is now flagged on the admin page, which
+asks for one before saving, and the server logs this line at startup:
+
+```
+Rewards section '<id>' has no ceremony or category and shows nothing: set one on the JellyUX admin page.
+```
+
+Open the section on the admin page, search for its ceremony or category again, and save. A Discover
+section that lost its filters is not flagged, because a Discover section without a filter is valid:
+check its fields and set them again if needed.
