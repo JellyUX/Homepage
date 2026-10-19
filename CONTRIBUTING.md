@@ -136,6 +136,8 @@ promise that never settles, a gate released by the test), never a sleep or a sto
 | Observer re-armed after a reset (client) | `test/jux-tab-injector.test.js`, "re-injects into the tab bar rebuilt for a new view, as soon as the view is shown (F-42)" | partial: re-armed by `viewshow`, not after an explicit teardown |
 | Admin round trip | `e2e/tests/admin.spec.mjs`, "the admin page keeps Save in view and moves a section by drag and drop or by position (F-50)" | saved, read back from the API, shown on the home page; the original configuration is restored |
 | Drift of the Jellyfin web client | `test/native-selectors.test.js`, `JellyfinWebDriftTests.EveryInventoriedNativeToken_AppearsInTheTargetBundle`, `JellyfinWebDriftTests.EveryInventoriedCarrier_IsSetOnItsElementInTheTargetBundle` | every native token the scripts use is inventoried and present in the target bundle; a document-level class is read on the element the bundle sets it on |
+| Disk that refuses a write or a directory (`FailingFileSystem`) | `PerUserComputedCacheTests.Get_WhenTheDiskRefusesTheWrite_ServesTheComputedListAndComputesOncePerTtl`, `JuxUserSettingsControllerTests.Save_WhenTheSettingsCannotBeWritten_Answers500`, `DiskJsonCacheTests.Constructor_WhenTheDirectoryCannotBeCreated_BuildsADegradedCacheThatRefusesWrites` | a refused write is reported (500 for a user save), a computed list is kept in memory for one time-to-live, an unwritable data directory does not stop the services |
+| Home chunk the server could not patch (client) | `test/jux-homepage.test.js`, "asks the server before reloading, and reloads only when it patches the home chunk (FIAB-04)" | the stale chunk guard reloads only for a chunk the server patched, and does nothing when the server does not answer |
 | Refresh racing an update (`TaskCompletionSource`) | `CollectionsIndexCacheServiceTests.Invalidate_DuringARefresh_LeavesTheIndexStale` | a change made while the index is computed is not lost when it is written |
 
 Time-dependent code takes a `TimeProvider`; tests pass the test project's `ManualTimeProvider` and call
@@ -205,7 +207,9 @@ Any Jellyfin Web build can rename them, so run this procedure after every Jellyf
    `docker compose -f docker/docker-compose.yml up -d`, and read the log after the restart. It must show
    `Found loadSections chunk: {FileName}.`, then `Registered loadSections chunk transformation for
    {FileName}` and `Found home-html tab anchor in {FileName}.` A warning that points to this procedure
-   means the home page or the tab panes fall back to native rendering: a silent degradation, not a crash.
+   means the home page or the tab panes fall back to native rendering: a degradation, not a crash. The
+   same state is on the admin page banner (`HomeHookNotFound`, `HomeChunkMissing`, `TabsAnchorMissing`)
+   and in `GET JuxHomepage/PatchStatus`, which must answer `{"LoadSections":"Patched","TabsAnchor":true}`.
 4. **Renamed cardBuilder module**: update `HookCardBuilder` in `Inject/TransformationPatches.cs`. In the
    chunk found in step 3, find the webpack module that defines `,loadSections:` and the name it binds to
    the cardBuilder module (`,X=r(id)`, read as `X.default.getCardsHtml`).
@@ -213,7 +217,9 @@ Any Jellyfin Web build can rename them, so run this procedure after every Jellyf
    `Web/jux-native-selectors.json` (`test/native-selectors.test.js` fails until both agree). Raise the E2E matrix and the `drift` job
    image to the new validated version.
 6. **Home page**: if the JellyUX sections do not render, check the browser console (prefix `[JellyUX]`)
-   before suspecting the minified hook constants.
+   before suspecting the minified hook constants. A drifted chunk shows "Jellyfin Web has changed:
+   JellyUX went back to the native home screen" and never reloads the page; the cache message (CDN or
+   proxy) only appears when `PatchStatus` says the server patched the chunk.
 
 ---
 

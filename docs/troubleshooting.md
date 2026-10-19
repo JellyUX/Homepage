@@ -117,7 +117,9 @@ Chunk <file>.chunk.js contains ',loadSections:' but the minified hook could not 
 ```
 
 If you see this line, the home page falls back to Jellyfin's native rendering rather than showing a
-broken page. This is a known limitation of patching a third-party bundle that isn't part of JellyUX's
+broken page. The admin page of JellyUX shows the same problem in its banner, and the home page shows
+"Jellyfin Web has changed: JellyUX went back to the native home screen" instead of reloading: purging
+a CDN or proxy cache does not help in this case. This is a known limitation of patching a third-party bundle that isn't part of JellyUX's
 public API. Check the project's GitHub Issues for a compatibility update, or open a new issue if none
 exists yet.
 
