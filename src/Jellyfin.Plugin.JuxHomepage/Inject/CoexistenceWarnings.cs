@@ -5,16 +5,27 @@ namespace Jellyfin.Plugin.JuxHomepage.Inject;
 
 /// <summary>
 /// Computes, on demand, the integration problems the administrator must know about: a missing
-/// FileTransformation plugin, or another installed plugin JellyUX cannot coexist with. Nothing is
-/// persisted, so a warning disappears as soon as its cause is gone (TODO_V4.md 4.1, F-12).
+/// FileTransformation plugin, a home chunk JellyUX could not patch, or another installed
+/// plugin JellyUX cannot coexist with. Nothing is persisted, so a warning disappears as soon as its
+/// cause is gone (TODO_V4.md 4.1, F-12).
 /// </summary>
 public class CoexistenceWarnings
 {
     /// <summary>Warning code: FileTransformation is not loaded, nothing can be injected.</summary>
     public const string FileTransformationMissing = "FileTransformationMissing";
 
+    /// <summary>Warning code: the loadSections chunk drifted, the home page is native (FIAB-04).</summary>
+    public const string HomeHookNotFound = "HomeHookNotFound";
+
+    /// <summary>Warning code: no chunk holds ",loadSections:", the home page is native (FIAB-04).</summary>
+    public const string HomeChunkMissing = "HomeChunkMissing";
+
+    /// <summary>Warning code: the home-html chunk lacks the tab anchor, the JellyUX tabs are absent (FIAB-04).</summary>
+    public const string TabsAnchorMissing = "TabsAnchorMissing";
+
     /// <summary>Warning code: Custom Tabs is installed and competes for the home-html chunk.</summary>
     public const string CustomTabsInstalled = "CustomTabsInstalled";
+
 
     // CustomTabsPlugin.Id in jellyfin-plugin-custom-tabs. FileTransformation runs only one pipeline
     // per file pattern: both plugins patch the home-html chunk, so one of them loses its tabs.
@@ -22,40 +33,65 @@ public class CoexistenceWarnings
 
     private readonly FileTransformationDetector _detector;
     private readonly IPluginManager _pluginManager;
+    private readonly PatchStatus _patchStatus;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CoexistenceWarnings"/> class.
     /// </summary>
     /// <param name="detector">FileTransformation reflection bridge.</param>
     /// <param name="pluginManager">Jellyfin plugin manager, listing the installed plugins.</param>
-    public CoexistenceWarnings(FileTransformationDetector detector, IPluginManager pluginManager)
+    /// <param name="patchStatus">The patch state the startup dry run found.</param>
+    public CoexistenceWarnings(FileTransformationDetector detector, IPluginManager pluginManager, PatchStatus patchStatus)
     {
         _detector = detector;
         _pluginManager = pluginManager;
+        _patchStatus = patchStatus;
     }
 
     /// <summary>
     /// Returns the current warning codes, in display order.
     /// </summary>
     /// <returns>The warning codes; empty when JellyUX can run normally.</returns>
-    public IReadOnlyList<string> Get() => Build(_detector.IsAvailable(), _pluginManager.Plugins);
+    public IReadOnlyList<string> Get() =>
+        Build(_detector.IsAvailable(), _pluginManager.Plugins, _patchStatus.LoadSections, _patchStatus.TabsAnchor);
 
     /// <summary>
-    /// Builds the warning codes from the FileTransformation state and the installed plugins.
+    /// Builds the warning codes from the FileTransformation state, the patch state and the installed plugins.
     /// </summary>
     /// <param name="fileTransformationAvailable">Whether FileTransformation is loaded.</param>
     /// <param name="plugins">The installed plugins.</param>
+    /// <param name="loadSections">The loadSections chunk state.</param>
+    /// <param name="tabsAnchor">Whether the home-html chunk holds the tab anchor; null when not checked.</param>
     /// <returns>The warning codes.</returns>
-    public static IReadOnlyList<string> Build(bool fileTransformationAvailable, IEnumerable<LocalPlugin> plugins)
+    public static IReadOnlyList<string> Build(
+        bool fileTransformationAvailable,
+        IEnumerable<LocalPlugin> plugins,
+        LoadSectionsPatchState loadSections,
+        bool? tabsAnchor)
     {
+        var installed = plugins.ToList();
         var warnings = new List<string>();
         if (!fileTransformationAvailable)
         {
             warnings.Add(FileTransformationMissing);
         }
 
+        if (loadSections == LoadSectionsPatchState.HookNotFound)
+        {
+            warnings.Add(HomeHookNotFound);
+        }
+        else if (loadSections == LoadSectionsPatchState.NoChunk)
+        {
+            warnings.Add(HomeChunkMissing);
+        }
+
+        if (tabsAnchor == false)
+        {
+            warnings.Add(TabsAnchorMissing);
+        }
+
         // Restart covers a Custom Tabs install pending the next restart, which will then take effect.
-        if (plugins.Any(p => p.Id == CustomTabsId
+        if (installed.Any(p => p.Id == CustomTabsId
             && p.Manifest.Status is PluginStatus.Active or PluginStatus.Restart))
         {
             warnings.Add(CustomTabsInstalled);

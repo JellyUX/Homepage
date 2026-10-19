@@ -51,7 +51,8 @@ public sealed class StartupServiceTests
             detector,
             tmdbCacheServiceMock.Object,
             fileSystemMock.Object,
-            lifetime);
+            lifetime,
+            new PatchStatus());
 
         var startTask = service.StartAsync(CancellationToken.None);
         lifetime.Start();
@@ -82,7 +83,8 @@ public sealed class StartupServiceTests
             new FileTransformationDetector(NullLogger<FileTransformationDetector>.Instance),
             tmdbCacheServiceMock.Object,
             new Mock<IFileSystem>().Object,
-            lifetime);
+            lifetime,
+            new PatchStatus());
 
         await service.StartAsync(CancellationToken.None);
         tmdbCacheServiceMock.Verify(s => s.RefreshTrendingMoviesAsync(It.IsAny<CancellationToken>()), Times.Never);

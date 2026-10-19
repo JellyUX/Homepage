@@ -30,6 +30,7 @@ public sealed class StartupService : IHostedService, IDisposable
     private readonly ITMDbCacheService _tmdbCacheService;
     private readonly IFileSystem _fileSystem;
     private readonly IHostApplicationLifetime _lifetime;
+    private readonly PatchStatus _patchStatus;
     private readonly CancellationTokenSource _stopping = new();
     private CancellationTokenRegistration _startedRegistration;
 
@@ -42,13 +43,15 @@ public sealed class StartupService : IHostedService, IDisposable
     /// <param name="tmdbCacheService">TMDb cache service, used to refresh a missing/stale cache immediately.</param>
     /// <param name="fileSystem">File system abstraction, used to locate and read the loadSections chunk.</param>
     /// <param name="lifetime">Host lifetime, used to defer the TMDb refresh until the server has started.</param>
+    /// <param name="patchStatus">Receives the patch state the dry runs find (FIAB-04).</param>
     public StartupService(
         IApplicationPaths applicationPaths,
         ILogger<StartupService> logger,
         FileTransformationDetector detector,
         ITMDbCacheService tmdbCacheService,
         IFileSystem fileSystem,
-        IHostApplicationLifetime lifetime)
+        IHostApplicationLifetime lifetime,
+        PatchStatus patchStatus)
     {
         _applicationPaths = applicationPaths;
         _logger = logger;
@@ -56,6 +59,7 @@ public sealed class StartupService : IHostedService, IDisposable
         _tmdbCacheService = tmdbCacheService;
         _fileSystem = fileSystem;
         _lifetime = lifetime;
+        _patchStatus = patchStatus;
     }
 
     /// <inheritdoc/>
@@ -191,7 +195,7 @@ public sealed class StartupService : IHostedService, IDisposable
     /// </summary>
     private void RegisterHomeHtmlTransformation()
     {
-        TransformationPatches.CheckHomeHtmlChunks(_applicationPaths.WebPath, _fileSystem, _logger);
+        _patchStatus.SetTabsAnchor(TransformationPatches.CheckHomeHtmlChunks(_applicationPaths.WebPath, _fileSystem, _logger));
 
         var payload = new JObject
         {
@@ -212,16 +216,21 @@ public sealed class StartupService : IHostedService, IDisposable
 
         if (chunks.Count == 0)
         {
+            _patchStatus.SetLoadSections(LoadSectionsPatchState.NoChunk);
             return;
         }
 
         var fragmentTemplate = TransformationPatches.LoadInjectFragmentTemplate();
+        var outcomes = new List<LoadSectionsOutcome>();
 
         foreach (var chunkPath in chunks)
         {
             var fileName = Path.GetFileName(chunkPath);
 
-            WarnIfLoadSectionsHookHasDrifted(chunkPath, fileName, fragmentTemplate);
+            if (WarnIfLoadSectionsHookHasDrifted(chunkPath, fileName, fragmentTemplate, _fileSystem, _logger) is { } outcome)
+            {
+                outcomes.Add(outcome);
+            }
 
             // Build a regex pattern that matches the same chunk regardless of content-hash
             // e.g. "56213.a6cde3c8ba80d7030952.chunk.js" -> "56213\.[^.]+\.chunk\.js"
@@ -246,6 +255,11 @@ public sealed class StartupService : IHostedService, IDisposable
                 fileNamePattern,
                 chunkId);
         }
+
+        // An unreadable chunk or a missing fragment leaves nothing known: the guard then never reloads.
+        _patchStatus.SetLoadSections(fragmentTemplate is null || outcomes.Count == 0
+            ? LoadSectionsPatchState.Unknown
+            : PatchStatus.Combine(outcomes));
     }
 
     /// <summary>
@@ -254,33 +268,46 @@ public sealed class StartupService : IHostedService, IDisposable
     /// warning immediately, instead of silently falling back to native rendering and only being
     /// noticed later when the home page fails to show JellyUX sections.
     /// </summary>
-    private void WarnIfLoadSectionsHookHasDrifted(string chunkPath, string fileName, string? fragmentTemplate)
+    /// <param name="chunkPath">The chunk to check.</param>
+    /// <param name="fileName">The chunk's file name, for the log.</param>
+    /// <param name="fragmentTemplate">The inject fragment template, or null when it is missing.</param>
+    /// <param name="fileSystem">File system abstraction.</param>
+    /// <param name="logger">Logger.</param>
+    /// <returns>The splice outcome, or null when the chunk or the fragment could not be read.</returns>
+    internal static LoadSectionsOutcome? WarnIfLoadSectionsHookHasDrifted(
+        string chunkPath,
+        string fileName,
+        string? fragmentTemplate,
+        IFileSystem fileSystem,
+        ILogger logger)
     {
         if (fragmentTemplate is null)
         {
-            return;
+            return null;
         }
 
         string content;
         try
         {
-            content = _fileSystem.ReadAllText(chunkPath);
+            content = fileSystem.ReadAllText(chunkPath);
         }
         catch (IOException ex)
         {
-            _logger.LogWarning(ex, "Could not read chunk file for drift self-check: {File}", chunkPath);
-            return;
+            logger.LogWarning(ex, "Could not read chunk file for drift self-check: {File}", chunkPath);
+            return null;
         }
 
         var outcome = TransformationPatches.TryPatchLoadSections(content, fragmentTemplate).Outcome;
         if (outcome == LoadSectionsOutcome.HookNotFound)
         {
-            _logger.LogWarning(
+            logger.LogWarning(
                 "Chunk {FileName} contains ',loadSections:' but an expected minified token (module "
                 + "self-reference, cardBuilder binding or its .default read) is missing. Jellyfin Web may "
                 + "have drifted; the home page will fall back to native rendering. "
                 + "See CONTRIBUTING.md 'Jellyfin Update Procedure'.",
                 fileName);
         }
+
+        return outcome;
     }
 }

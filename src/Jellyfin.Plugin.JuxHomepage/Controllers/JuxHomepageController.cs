@@ -171,6 +171,20 @@ public class JuxHomepageController : ControllerBase
         return Ok(coexistenceWarnings.Get());
     }
 
+    /// <summary>
+    /// Returns the patch state the startup dry run found (FIAB-04). The client's stale chunk guard asks
+    /// for it before reloading the page, and reloads only when the server patches the home chunk.
+    /// </summary>
+    /// <param name="patchStatus">The patch state.</param>
+    /// <returns>The loadSections state and whether the tab anchor was found.</returns>
+    [HttpGet("PatchStatus")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public ActionResult<PatchStatusView> GetPatchStatus([FromServices] PatchStatus patchStatus)
+    {
+        return Ok(new PatchStatusView(patchStatus.LoadSections.ToString(), patchStatus.TabsAnchor));
+    }
+
     // -------------------------------------------------------------------------
     // Widget layout (authenticated user)
     // -------------------------------------------------------------------------

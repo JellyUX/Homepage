@@ -592,6 +592,21 @@ public sealed class JuxHomepageControllerTests
         return controller;
     }
 
+    [Fact]
+    public void GetPatchStatus_SendsTheStateByName_AndUnknownBeforeStartupRan()
+    {
+        var status = new PatchStatus();
+        var controller = BuildController();
+
+        var before = Assert.IsType<PatchStatusView>(Assert.IsType<OkObjectResult>(controller.GetPatchStatus(status).Result).Value);
+        status.SetLoadSections(LoadSectionsPatchState.HookNotFound);
+        status.SetTabsAnchor(false);
+        var after = Assert.IsType<PatchStatusView>(Assert.IsType<OkObjectResult>(controller.GetPatchStatus(status).Result).Value);
+
+        Assert.Equal(new PatchStatusView("Unknown", null), before);
+        Assert.Equal(new PatchStatusView("HookNotFound", false), after);
+    }
+
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
