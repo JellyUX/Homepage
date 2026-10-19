@@ -275,6 +275,38 @@ describe('configuration page controller (F-33)', () => {
         expect(byKey(saved[4])).toEqual(byKey(rewards));
     });
 
+    it('keeps each row its own id when two people found by a search share a name (FIAB-02, R11)', async () => {
+        const row = (id, person, order) => ({ WidgetType: 'jux.connected.discover-movies', Enabled: true, Order: order, MinItems: 1, MaxItems: 20, ViewMode: 'Portrait', ExtraParams: [{ Key: 'value', Value: id }, { Key: 'personIds', Value: person }] });
+        const catalog = [...descriptors, { WidgetType: 'jux.connected.discover-movies', DisplayName: 'Discover', Category: 3, MinItems: 1, ViewMode: 'Portrait' }];
+        window.ApiClient.getPluginConfiguration = vi.fn(() => Promise.resolve({ ...JSON.parse(JSON.stringify(config)), Widgets: [...JSON.parse(JSON.stringify(config.Widgets)), row('d1', '1', 3), row('d2', '2', 4)] }));
+        window.ApiClient.getJSON = vi.fn((url) => {
+            if (url === 'JuxHomepage/Admin/Catalog') { return Promise.resolve({ WidgetCategories: ['Native', 'Admin', 'Personalized', 'Connected'], Widgets: catalog }); }
+            if (url === 'JuxHomepage/TMDb/Search/Person') { return Promise.resolve([{ Value: '1', Label: 'John Smith' }, { Value: '2', Label: 'John Smith' }]); }
+            return getJSON(url);
+        });
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+
+        const search = card(3).querySelector('.jux-discover-person');
+        search.value = 'John Smith';
+        search.dispatchEvent(new Event('input'));
+        await new Promise((r) => setTimeout(r, 350));
+        await settle();
+        search.value = '1';
+        card(4).querySelector('.jux-admin-btn-toggle').click();
+        await settle();
+        expect(card(4).querySelector('.jux-discover-person').value).toBe('John Smith');
+
+        window.ApiClient.updatePluginConfiguration = vi.fn(() => Promise.resolve({}));
+        window.Dashboard.processPluginConfigurationUpdateResult = vi.fn();
+        view.querySelector('.juxConfigForm').dispatchEvent(new Event('submit', { cancelable: true }));
+        await settle();
+
+        const saved = window.ApiClient.updatePluginConfiguration.mock.calls[0][1].Widgets;
+        expect(saved.slice(3).map((w) => getExtraParam(w, 'personIds'))).toEqual(['1', '2']);
+    });
+
     it('drops a Discover id once its field is cleared or edited to a name with no search match', async () => {
         const discover = { WidgetType: 'jux.connected.discover-movies', Enabled: true, Order: 3, MinItems: 1, MaxItems: 20, ViewMode: 'Portrait', ExtraParams: [{ Key: 'value', Value: 'd1' }, { Key: 'personIds', Value: '525' }, { Key: 'keywordIds', Value: '9715' }] };
         const catalog = [...descriptors, { WidgetType: 'jux.connected.discover-movies', DisplayName: 'Discover', Category: 3, MinItems: 1, ViewMode: 'Portrait' }];

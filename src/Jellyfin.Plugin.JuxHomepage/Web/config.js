@@ -368,13 +368,15 @@ function createConfigPage() {
 
         // An id field shows a label only once a search has cached it, so after a page load it shows the
         // raw id with an empty cache: keep the id set at render while the text is the one rendered
-        // (FIAB-02; test: config.test.js "saves a loaded Discover and Rewards row unchanged").
+        // (FIAB-02; test: config.test.js "saves a loaded Discover and Rewards row unchanged"). The rendered id
+        // comes first: the cache is shared by every row and two results can share a label (test: "keeps each
+        // row its own id when two people found by a search share a name").
         readIdField: function (el, valueForLabel) {
             var label = el.value.trim();
             if (!label) { return ''; }
-            var resolved = valueForLabel(label);
-            if (resolved) { return resolved; }
-            return label === el.defaultValue.trim() ? (el.getAttribute('data-value') || '') : '';
+            var rendered = el.getAttribute('data-value');
+            if (rendered && label === el.defaultValue.trim()) { return rendered; }
+            return valueForLabel(label);
         },
 
         getDescriptor: function (widgetType) {
