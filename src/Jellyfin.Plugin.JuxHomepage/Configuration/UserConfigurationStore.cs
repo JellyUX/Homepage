@@ -117,6 +117,8 @@ public sealed class UserConfigurationStore : IUserConfigurationStore, IDisposabl
             // atomic on the same volume (rename() on Linux, MoveFileEx/MOVEFILE_REPLACE_EXISTING on
             // Windows), so a crash or restart mid-write can never leave a partially-written config
             // file on disk -- readers always see either the old file or the fully-written new one.
+            // Again on each save: a data path that was not writable at startup may be by now (H-07).
+            _fileSystem.CreateDirectory(_usersDir);
             _fileSystem.WriteAllText(tmpPath, json);
             _fileSystem.Move(tmpPath, path, overwrite: true);
             return true;

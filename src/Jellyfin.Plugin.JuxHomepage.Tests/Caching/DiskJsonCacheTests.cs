@@ -76,6 +76,20 @@ public sealed class DiskJsonCacheTests : IDisposable
     }
 
     [Fact]
+    public void Write_CreatesTheDirectoryOnceItCanBeCreated_AfterAFailedStart()
+    {
+        // H-07 (R11): a data path that becomes writable after startup (a late NAS mount) works again
+        // without a restart.
+        var fileSystem = new FailingFileSystem { FailCreateDirectory = true };
+        var cache = new DiskJsonCache<TestItem>(_tempDir, fileSystem, NullLogger.Instance);
+
+        fileSystem.FailCreateDirectory = false;
+
+        Assert.True(cache.Write("items.json", [new TestItem(1, "a")]));
+        Assert.Equal([new TestItem(1, "a")], cache.Read("items.json"));
+    }
+
+    [Fact]
     public void Write_EmptyList_ReplacesContentAndIsNoLongerStale()
     {
         // F-69: an empty library answer is cached like any other.

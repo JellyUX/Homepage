@@ -141,6 +141,8 @@ public sealed class DiskJsonCache<T> : IDisposable
         _lock.EnterWriteLock();
         try
         {
+            // Again on each write: a data path that was not writable at startup may be by now (H-07).
+            _fileSystem.CreateDirectory(_directory);
             _fileSystem.WriteAllText(tmpPath, json);
             _fileSystem.Move(tmpPath, path, overwrite: true);
             _memo[fileName] = new Memo(_fileSystem.GetLastWriteTimeUtc(path), items);
