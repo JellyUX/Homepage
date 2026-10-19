@@ -13,6 +13,7 @@ using Jellyfin.Plugin.JuxHomepage.Widgets.Native;
 using Jellyfin.Plugin.JuxHomepage.Widgets.Personalized;
 using Jellyfin.Plugin.JuxHomepage.Rewards;
 using Jellyfin.Plugin.JuxHomepage.TMDb;
+using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Plugins;
 using Microsoft.Extensions.DependencyInjection;
@@ -33,6 +34,9 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<FileTransformationDetector>();
         serviceCollection.AddSingleton<CoexistenceWarnings>();
         serviceCollection.AddSingleton<PatchStatus>();
+        serviceCollection.AddSingleton(sp => new ConfigurationBackup(
+            Path.Combine(sp.GetRequiredService<IApplicationPaths>().DataPath, Plugin.DataFolderName),
+            sp.GetRequiredService<ILogger<ConfigurationBackup>>()));
         // One time source for every JellyUX service (TODO_V4.md 5.5, F-23), so a test can drive the
         // clock and no service reads DateTime.Now on its own.
         serviceCollection.TryAddSingleton(TimeProvider.System);

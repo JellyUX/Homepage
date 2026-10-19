@@ -1,3 +1,4 @@
+using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.Inject;
 using Jellyfin.Plugin.JuxHomepage.IO;
 using Jellyfin.Plugin.JuxHomepage.TMDb;
@@ -52,7 +53,8 @@ public sealed class StartupServiceTests
             tmdbCacheServiceMock.Object,
             fileSystemMock.Object,
             lifetime,
-            new PatchStatus());
+            new PatchStatus(),
+            new ConfigurationBackup(Path.Combine(Path.GetTempPath(), "jux-startup-tests-" + Guid.NewGuid()), NullLogger.Instance));
 
         var startTask = service.StartAsync(CancellationToken.None);
         lifetime.Start();
@@ -84,7 +86,8 @@ public sealed class StartupServiceTests
             tmdbCacheServiceMock.Object,
             new Mock<IFileSystem>().Object,
             lifetime,
-            new PatchStatus());
+            new PatchStatus(),
+            new ConfigurationBackup(Path.Combine(Path.GetTempPath(), "jux-startup-tests-" + Guid.NewGuid()), NullLogger.Instance));
 
         await service.StartAsync(CancellationToken.None);
         tmdbCacheServiceMock.Verify(s => s.RefreshTrendingMoviesAsync(It.IsAny<CancellationToken>()), Times.Never);

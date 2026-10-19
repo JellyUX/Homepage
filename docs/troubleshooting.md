@@ -106,6 +106,17 @@ If you consistently run into this after every JellyUX update, consider adding a 
 CDN/proxy that bypasses caching for `*.chunk.js`/`*.bundle.js` paths, or that purges automatically as
 part of your plugin update routine.
 
+## All JellyUX settings are gone after a restart
+
+When Jellyfin cannot read a plugin's configuration file (a truncated file after a full disk or a
+crash, for example), it replaces it with a blank configuration and saves it, without a log line. JellyUX
+keeps a copy of the configuration in its data folder (`Jellyfin.Plugin.JuxHomepage/configuration.backup.xml`
+under the Jellyfin data path), written each time the admin page is saved.
+
+When the configuration comes back blank while such a copy exists, the admin page shows a warning with a
+**Restore the saved configuration** button, and the server logs a warning at startup. Nothing is
+restored on its own: restore the copy, or save the page to keep the blank configuration instead.
+
 ## JellyUX or File Transformation disappeared after a restart
 
 On Jellyfin 10.11, **Disable** in **Administration > Plugins** can delete the plugin at the next

@@ -1,3 +1,4 @@
+using Jellyfin.Plugin.JuxHomepage.Configuration;
 using MediaBrowser.Common.Plugins;
 using MediaBrowser.Model.Plugins;
 
@@ -11,6 +12,12 @@ namespace Jellyfin.Plugin.JuxHomepage.Inject;
 /// </summary>
 public class CoexistenceWarnings
 {
+    /// <summary>
+    /// Warning code: the configuration came back blank at startup while a saved copy exists; the admin
+    /// page offers to restore it (FIAB-07).
+    /// </summary>
+    public const string ConfigurationReset = "ConfigurationReset";
+
     /// <summary>Warning code: FileTransformation is not loaded, nothing can be injected.</summary>
     public const string FileTransformationMissing = "FileTransformationMissing";
 
@@ -53,6 +60,7 @@ public class CoexistenceWarnings
     private readonly FileTransformationDetector _detector;
     private readonly IPluginManager _pluginManager;
     private readonly PatchStatus _patchStatus;
+    private readonly ConfigurationBackup _backup;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CoexistenceWarnings"/> class.
@@ -60,11 +68,13 @@ public class CoexistenceWarnings
     /// <param name="detector">FileTransformation reflection bridge.</param>
     /// <param name="pluginManager">Jellyfin plugin manager, listing the installed plugins.</param>
     /// <param name="patchStatus">The patch state the startup dry run found.</param>
-    public CoexistenceWarnings(FileTransformationDetector detector, IPluginManager pluginManager, PatchStatus patchStatus)
+    /// <param name="backup">The saved copy of the configuration.</param>
+    public CoexistenceWarnings(FileTransformationDetector detector, IPluginManager pluginManager, PatchStatus patchStatus, ConfigurationBackup backup)
     {
         _detector = detector;
         _pluginManager = pluginManager;
         _patchStatus = patchStatus;
+        _backup = backup;
     }
 
     /// <summary>
@@ -72,7 +82,7 @@ public class CoexistenceWarnings
     /// </summary>
     /// <returns>The warning codes; empty when JellyUX can run normally.</returns>
     public IReadOnlyList<string> Get() =>
-        Build(_detector.IsAvailable(), _pluginManager.Plugins, _patchStatus.LoadSections, _patchStatus.TabsAnchor);
+        Build(_detector.IsAvailable(), _pluginManager.Plugins, _patchStatus.LoadSections, _patchStatus.TabsAnchor, _backup.IsResetPending);
 
     /// <summary>
     /// Builds the warning codes from the FileTransformation state, the patch state and the installed plugins.
@@ -81,15 +91,22 @@ public class CoexistenceWarnings
     /// <param name="plugins">The installed plugins.</param>
     /// <param name="loadSections">The loadSections chunk state.</param>
     /// <param name="tabsAnchor">Whether the home-html chunk holds the tab anchor; null when not checked.</param>
+    /// <param name="configurationReset">Whether a blank configuration replaced one that has a saved copy.</param>
     /// <returns>The warning codes.</returns>
     public static IReadOnlyList<string> Build(
         bool fileTransformationAvailable,
         IEnumerable<LocalPlugin> plugins,
         LoadSectionsPatchState loadSections,
-        bool? tabsAnchor)
+        bool? tabsAnchor,
+        bool configurationReset)
     {
         var installed = plugins.ToList();
         var warnings = new List<string>();
+        if (configurationReset)
+        {
+            warnings.Add(ConfigurationReset);
+        }
+
         if (!fileTransformationAvailable)
         {
             warnings.Add(FileTransformationMissing);

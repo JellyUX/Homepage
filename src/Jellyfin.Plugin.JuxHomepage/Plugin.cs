@@ -10,6 +10,7 @@ using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Plugins;
 using MediaBrowser.Model.Plugins;
 using MediaBrowser.Model.Serialization;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Jellyfin.Plugin.JuxHomepage;
 
@@ -40,12 +41,21 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
         : base(applicationPaths, xmlSerializer)
     {
         Instance = this;
+        _backup = new ConfigurationBackup(Path.Combine(applicationPaths.DataPath, DataFolderName), NullLogger.Instance);
 
         // Configuration is lazy-loaded by BasePlugin<T>; accessing it here forces the load (or
         // default-instance creation) immediately, so migration and validation apply on load, not
         // only when an admin saves from the dashboard (which previously left a hand-edited XML
         // file's invalid values in effect until the next save).
         var priorSchemaVersion = Configuration.SchemaVersion;
+
+        // A file Jellyfin could not read comes back blank (FIAB-07): offer the last saved copy on the
+        // admin page, never restore it on its own. StartupService logs the warning.
+        if (ConfigurationBackup.LooksReset(priorSchemaVersion, Configuration))
+        {
+            _backup.MarkResetIfBackupExists();
+        }
+
         MigrateConfiguration(Configuration);
         ValidateConfiguration(Configuration);
 
@@ -58,6 +68,13 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
             SaveConfiguration();
         }
     }
+
+    /// <summary>
+    /// The plugin's folder under <c>DataPath</c>, outside the plugins tree Jellyfin scans.
+    /// </summary>
+    internal const string DataFolderName = "Jellyfin.Plugin.JuxHomepage";
+
+    private readonly ConfigurationBackup _backup;
 
     /// <summary>
     /// Gets the singleton plugin instance.
@@ -122,6 +139,11 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
 
         // Call base last so ConfigurationChanged fires with the clamped values.
         base.UpdateConfiguration(configuration);
+
+        if (configuration is PluginConfiguration saved)
+        {
+            _backup.Save(saved);
+        }
     }
 
     /// <summary>

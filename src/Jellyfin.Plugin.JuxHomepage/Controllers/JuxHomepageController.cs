@@ -172,6 +172,35 @@ public class JuxHomepageController : ControllerBase
     }
 
     /// <summary>
+    /// Restores the saved copy of the configuration the admin page offers after a reset (FIAB-07): it goes
+    /// through the plugin's save, so it is validated and becomes the new copy.
+    /// </summary>
+    /// <param name="backup">The saved copy.</param>
+    /// <returns>No content; 404 without a readable copy; 400 when the copy fails validation.</returns>
+    [HttpPost("Admin/RestoreConfiguration")]
+    [Authorize(Policy = Policies.RequiresElevation)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public ActionResult RestoreConfiguration([FromServices] ConfigurationBackup backup)
+    {
+        var plugin = Plugin.Instance;
+        if (plugin is null)
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            return backup.Restore(plugin.UpdateConfiguration) ? NoContent() : NotFound();
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
+    /// <summary>
     /// Returns the patch state the startup dry run found (FIAB-04). The client's stale chunk guard asks
     /// for it before reloading the page, and reloads only when the server patches the home chunk.
     /// </summary>

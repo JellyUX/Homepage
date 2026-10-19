@@ -20,7 +20,7 @@ public sealed class CoexistenceWarningsTests
     [InlineData("3.1.0.0", false)]
     public void Build_FileTransformationBefore3_WarnsOutdated(string version, bool warns)
     {
-        var warnings = CoexistenceWarnings.Build(true, [Plugin(FileTransformationId, PluginStatus.Active, version)], LoadSectionsPatchState.Patched, true);
+        var warnings = CoexistenceWarnings.Build(true, [Plugin(FileTransformationId, PluginStatus.Active, version)], LoadSectionsPatchState.Patched, true, false);
 
         Assert.Equal(warns, warnings.Contains(CoexistenceWarnings.FileTransformationOutdated));
     }
@@ -30,8 +30,16 @@ public sealed class CoexistenceWarningsTests
     [InlineData("5e87cc92-571a-4d8d-8d98-d2d4147f9f90", CoexistenceWarnings.FileTransformationDisabled)]
     public void Build_JellyUXOrFileTransformationDisabled_WarnsOfTheDeletionAtRestart(string id, string code)
     {
-        Assert.Equal([code], CoexistenceWarnings.Build(true, [Plugin(Guid.Parse(id), PluginStatus.Disabled, "3.0.0.0")], LoadSectionsPatchState.Patched, true));
-        Assert.Empty(CoexistenceWarnings.Build(true, [Plugin(Guid.Parse(id), PluginStatus.Active, "3.0.0.0")], LoadSectionsPatchState.Patched, true));
+        Assert.Equal([code], CoexistenceWarnings.Build(true, [Plugin(Guid.Parse(id), PluginStatus.Disabled, "3.0.0.0")], LoadSectionsPatchState.Patched, true, false));
+        Assert.Empty(CoexistenceWarnings.Build(true, [Plugin(Guid.Parse(id), PluginStatus.Active, "3.0.0.0")], LoadSectionsPatchState.Patched, true, false));
+    }
+
+    [Fact]
+    public void Build_ConfigurationReset_ComesFirst()
+    {
+        var warnings = CoexistenceWarnings.Build(false, [], LoadSectionsPatchState.Unknown, null, true);
+
+        Assert.Equal([CoexistenceWarnings.ConfigurationReset, CoexistenceWarnings.FileTransformationMissing], warnings);
     }
 
     [Theory]
@@ -39,7 +47,7 @@ public sealed class CoexistenceWarningsTests
     [InlineData(LoadSectionsPatchState.NoChunk, CoexistenceWarnings.HomeChunkMissing)]
     public void Build_HomeChunkNotPatched_Warns(LoadSectionsPatchState state, string code)
     {
-        var warnings = CoexistenceWarnings.Build(true, [], state, true);
+        var warnings = CoexistenceWarnings.Build(true, [], state, true, false);
 
         Assert.Equal([code], warnings);
     }
@@ -47,14 +55,14 @@ public sealed class CoexistenceWarningsTests
     [Fact]
     public void Build_TabsAnchorMissing_Warns_AndAnUncheckedStateDoesNot()
     {
-        Assert.Equal([CoexistenceWarnings.TabsAnchorMissing], CoexistenceWarnings.Build(true, [], LoadSectionsPatchState.Patched, false));
-        Assert.Empty(CoexistenceWarnings.Build(true, [], LoadSectionsPatchState.Unknown, null));
+        Assert.Equal([CoexistenceWarnings.TabsAnchorMissing], CoexistenceWarnings.Build(true, [], LoadSectionsPatchState.Patched, false, false));
+        Assert.Empty(CoexistenceWarnings.Build(true, [], LoadSectionsPatchState.Unknown, null, false));
     }
 
     [Fact]
     public void Build_NothingWrong_ReturnsNoWarning()
     {
-        var warnings = CoexistenceWarnings.Build(true, [Plugin(Guid.NewGuid(), PluginStatus.Active)], LoadSectionsPatchState.Patched, true);
+        var warnings = CoexistenceWarnings.Build(true, [Plugin(Guid.NewGuid(), PluginStatus.Active)], LoadSectionsPatchState.Patched, true, false);
 
         Assert.Empty(warnings);
     }
@@ -62,7 +70,7 @@ public sealed class CoexistenceWarningsTests
     [Fact]
     public void Build_FileTransformationMissing_Warns()
     {
-        var warnings = CoexistenceWarnings.Build(false, [], LoadSectionsPatchState.Patched, true);
+        var warnings = CoexistenceWarnings.Build(false, [], LoadSectionsPatchState.Patched, true, false);
 
         Assert.Equal([CoexistenceWarnings.FileTransformationMissing], warnings);
     }
@@ -72,7 +80,7 @@ public sealed class CoexistenceWarningsTests
     [InlineData(PluginStatus.Restart)]
     public void Build_CustomTabsInstalled_Warns(PluginStatus status)
     {
-        var warnings = CoexistenceWarnings.Build(true, [Plugin(CustomTabsId, status)], LoadSectionsPatchState.Patched, true);
+        var warnings = CoexistenceWarnings.Build(true, [Plugin(CustomTabsId, status)], LoadSectionsPatchState.Patched, true, false);
 
         Assert.Equal([CoexistenceWarnings.CustomTabsInstalled], warnings);
     }
@@ -83,7 +91,7 @@ public sealed class CoexistenceWarningsTests
     [InlineData(PluginStatus.Malfunctioned)]
     public void Build_CustomTabsNotRunning_DoesNotWarn(PluginStatus status)
     {
-        var warnings = CoexistenceWarnings.Build(true, [Plugin(CustomTabsId, status)], LoadSectionsPatchState.Patched, true);
+        var warnings = CoexistenceWarnings.Build(true, [Plugin(CustomTabsId, status)], LoadSectionsPatchState.Patched, true, false);
 
         Assert.Empty(warnings);
     }
@@ -91,7 +99,7 @@ public sealed class CoexistenceWarningsTests
     [Fact]
     public void Build_BothProblems_ListsFileTransformationFirst()
     {
-        var warnings = CoexistenceWarnings.Build(false, [Plugin(CustomTabsId, PluginStatus.Active)], LoadSectionsPatchState.Patched, true);
+        var warnings = CoexistenceWarnings.Build(false, [Plugin(CustomTabsId, PluginStatus.Active)], LoadSectionsPatchState.Patched, true, false);
 
         Assert.Equal([CoexistenceWarnings.FileTransformationMissing, CoexistenceWarnings.CustomTabsInstalled], warnings);
     }

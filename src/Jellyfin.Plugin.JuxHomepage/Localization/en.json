@@ -46,6 +46,9 @@
   "jux.personalized.because-you-watched.format": "Because you watched {value}",
 
   "admin.page.title": "JellyUX Homepage",
+  "admin.warning.ConfigurationReset": "The JellyUX configuration file could not be read and was replaced by a blank configuration: your sections and keys are not shown below. A copy of the last saved configuration exists.",
+  "admin.warning.restore": "Restore the saved configuration",
+  "admin.warning.restore.failed": "The saved configuration could not be restored.",
   "admin.warning.FileTransformationMissing": "The File Transformation plugin is not installed: JellyUX Homepage cannot inject anything into the web client. Install jellyfin-plugin-file-transformation and restart Jellyfin.",
   "admin.warning.FileTransformationOutdated": "File Transformation is older than 3.0: the web client may keep an old copy of the page after a JellyUX update. Update File Transformation to 3.0 or later, then restart Jellyfin.",
   "admin.warning.JellyUXDisabled": "JellyUX Homepage is disabled in Administration > Plugins: on Jellyfin 10.11, a disabled plugin is deleted at the next restart if an active plugin sorts after it by name. Enable it again before restarting, and use the \"Enable JellyUX Homepage\" option below to turn it off instead.",

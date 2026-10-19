@@ -31,6 +31,7 @@ public sealed class StartupService : IHostedService, IDisposable
     private readonly IFileSystem _fileSystem;
     private readonly IHostApplicationLifetime _lifetime;
     private readonly PatchStatus _patchStatus;
+    private readonly ConfigurationBackup _backup;
     private readonly CancellationTokenSource _stopping = new();
     private CancellationTokenRegistration _startedRegistration;
 
@@ -44,6 +45,7 @@ public sealed class StartupService : IHostedService, IDisposable
     /// <param name="fileSystem">File system abstraction, used to locate and read the loadSections chunk.</param>
     /// <param name="lifetime">Host lifetime, used to defer the TMDb refresh until the server has started.</param>
     /// <param name="patchStatus">Receives the patch state the dry runs find (FIAB-04).</param>
+    /// <param name="backup">The saved copy of the configuration, offered after a reset (FIAB-07).</param>
     public StartupService(
         IApplicationPaths applicationPaths,
         ILogger<StartupService> logger,
@@ -51,7 +53,8 @@ public sealed class StartupService : IHostedService, IDisposable
         ITMDbCacheService tmdbCacheService,
         IFileSystem fileSystem,
         IHostApplicationLifetime lifetime,
-        PatchStatus patchStatus)
+        PatchStatus patchStatus,
+        ConfigurationBackup backup)
     {
         _applicationPaths = applicationPaths;
         _logger = logger;
@@ -60,6 +63,7 @@ public sealed class StartupService : IHostedService, IDisposable
         _fileSystem = fileSystem;
         _lifetime = lifetime;
         _patchStatus = patchStatus;
+        _backup = backup;
     }
 
     /// <inheritdoc/>
@@ -67,6 +71,12 @@ public sealed class StartupService : IHostedService, IDisposable
     {
         RegisterFileTransformationsIfAvailable();
         WarnRewardsRowsWithoutQid(Plugin.Instance?.Configuration, _logger);
+        if (_backup.IsResetPending)
+        {
+            _logger.LogWarning(
+                "The JellyUX configuration file could not be read and was replaced by a blank one. A copy of the last "
+                + "saved configuration exists: restore it from the warning on the JellyUX admin page.");
+        }
 
         // Best-effort, not awaited, and only once the server has started (F-07): run during the boot,
         // its ~80 HTTP calls per list competed with Jellyfin's own startup. FileTransformation

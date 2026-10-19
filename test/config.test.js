@@ -303,6 +303,39 @@ describe('configuration page controller (F-33)', () => {
         expect(document.activeElement).toBe(card(3).querySelector('.jux-rewards-ceremony'));
     });
 
+    it('offers to restore the saved configuration after a reset, and reloads the page once restored (FIAB-07)', async () => {
+        window.ApiClient.getJSON = vi.fn((url) => (url === 'JuxHomepage/Admin/Warnings' ? Promise.resolve(['ConfigurationReset']) : getJSON(url)));
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+
+        const restore = view.querySelector('#juxWarningBanner .jux-admin-warning-restore');
+        expect(restore).not.toBeNull();
+        expect(window.ApiClient.ajax).not.toHaveBeenCalled();
+
+        restore.click();
+        await settle();
+
+        expect(window.ApiClient.ajax).toHaveBeenCalledWith(expect.objectContaining({ type: 'POST', url: 'JuxHomepage/Admin/RestoreConfiguration' }));
+        expect(window.ApiClient.getPluginConfiguration).toHaveBeenCalledTimes(2);
+    });
+
+    it('says so when the saved configuration cannot be restored (FIAB-07)', async () => {
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        window.ApiClient.getJSON = vi.fn((url) => (url === 'JuxHomepage/Admin/Warnings' ? Promise.resolve(['ConfigurationReset']) : getJSON(url)));
+        window.ApiClient.ajax = vi.fn(() => Promise.reject(new Error('404')));
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+
+        view.querySelector('#juxWarningBanner .jux-admin-warning-restore').click();
+        await settle();
+
+        expect(view.querySelector('#juxWarningBanner .jux-admin-warning-restore-error').hidden).toBe(false);
+        expect(window.ApiClient.getPluginConfiguration).toHaveBeenCalledTimes(1);
+        errorSpy.mockRestore();
+    });
+
     it('offers the sort order on library rows and saves the chosen one (F-53)', async () => {
         createController(view);
         view.dispatchEvent(new Event('viewshow'));

@@ -1414,6 +1414,34 @@ function createConfigPage() {
             });
         },
 
+        // The configuration came back blank while a saved copy exists (FIAB-07): restoring it is the
+        // admin's choice, never automatic. Once restored, the page is loaded again from the server.
+        appendRestoreAction: function (warning) {
+            var self = this;
+            var button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'raised button-submit emby-button jux-admin-warning-restore';
+            button.textContent = self.t('admin.warning.restore');
+            var error = document.createElement('span');
+            error.className = 'jux-admin-warning-restore-error';
+            error.hidden = true;
+            error.textContent = self.t('admin.warning.restore.failed');
+            button.addEventListener('click', function () {
+                button.disabled = true;
+                error.hidden = true;
+                ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('JuxHomepage/Admin/RestoreConfiguration') }).then(function () {
+                    self.loadConfig();
+                }).catch(function (err) {
+                    console.error('[JellyUX Config] Configuration restore failed:', err);
+                    button.disabled = false;
+                    error.hidden = false;
+                });
+            });
+            warning.appendChild(document.createElement('br'));
+            warning.appendChild(button);
+            warning.appendChild(error);
+        },
+
         loadConfig: function () {
             var self = this;
             Dashboard.showLoadingMsg();
@@ -1447,6 +1475,7 @@ function createConfigPage() {
                     var p = document.createElement('p');
                     p.className = 'fieldDescription jux-admin-warning';
                     p.textContent = self.t('admin.warning.' + code);
+                    if (code === 'ConfigurationReset') { self.appendRestoreAction(p); }
                     banner.appendChild(p);
                 });
                 banner.style.display = warnings.length ? '' : 'none';
