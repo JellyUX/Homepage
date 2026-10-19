@@ -179,3 +179,8 @@
 .jux-user-sections-off {
     opacity: 0.5;
 }
+
+/* The page's .fieldDescription grey would hide the save error (test: config.test.js "error colors"). */
+.fieldDescription.jux-user-settings-error {
+    color: var(--error-color, #e5350b);
+}

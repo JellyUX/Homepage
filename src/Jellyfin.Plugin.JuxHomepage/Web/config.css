@@ -1,3 +1,6 @@
+/* Jellyfin's theme greys .fieldDescription and loads after this file: the error classes set on a
+   .fieldDescription element name it too, or they show grey (test: config.test.js "error colors"). */
+.fieldDescription.jux-admin-warning,
 .jux-admin-warning {
     color: var(--error-color, #e5350b);
     padding: 0.75em;
@@ -8,7 +11,7 @@ ul.jux-admin-warning {
     margin: 0;
     padding-left: 2em;
 }
-.jux-admin-field-error {
+.fieldDescription.jux-admin-field-error {
     color: var(--error-color, #e5350b);
 }
 .jux-admin-widget-card {
@@ -134,7 +137,7 @@ ul.jux-admin-warning {
     color: var(--error-color, #e5350b);
     margin-left: auto;
 }
-.jux-admin-value-error {
+.fieldDescription.jux-admin-value-error {
     color: var(--error-color, #e5350b);
     font-size: 0.85em;
 }

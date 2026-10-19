@@ -5,6 +5,22 @@ import createController, { dropIndex, editorKind, escHtml, getExtraParam, moveRo
 
 const CONFIG_HTML = readFileSync(resolve(__dirname, '../src/Jellyfin.Plugin.JuxHomepage/Web/config.html'), 'utf8');
 
+describe('error colors', () => {
+    // Jellyfin's theme sets .fieldDescription to a grey loaded after the plugin's styles: an error class
+    // on a .fieldDescription element shows grey unless its rule also names .fieldDescription (FIAB-02, FIAB-03).
+    const css = (file) => readFileSync(resolve(__dirname, '../src/Jellyfin.Plugin.JuxHomepage/Web', file), 'utf8');
+
+    it.each([
+        ['config.css', 'jux-admin-warning'],
+        ['config.css', 'jux-admin-field-error'],
+        ['config.css', 'jux-admin-value-error'],
+        ['jux-homepage.css', 'jux-user-settings-error']
+    ])('%s colors .fieldDescription.%s as an error', (file, cls) => {
+        const rule = new RegExp(`\\.fieldDescription\\.${cls}\\b[^{]*\\{[^}]*color:\\s*var\\(--error-color`);
+        expect(css(file)).toMatch(rule);
+    });
+});
+
 describe('moveRow', () => {
     const rows = ['a', 'b', 'c', 'd'];
 
