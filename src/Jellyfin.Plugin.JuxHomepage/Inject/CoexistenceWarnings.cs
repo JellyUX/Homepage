@@ -4,8 +4,8 @@ using MediaBrowser.Model.Plugins;
 namespace Jellyfin.Plugin.JuxHomepage.Inject;
 
 /// <summary>
-/// Computes, on demand, the integration problems the administrator must know about: a missing
-/// FileTransformation plugin, a home chunk JellyUX could not patch, or another installed
+/// Computes, on demand, the integration problems the administrator must know about: a missing or
+/// outdated FileTransformation plugin, a home chunk JellyUX could not patch, or another installed
 /// plugin JellyUX cannot coexist with. Nothing is persisted, so a warning disappears as soon as its
 /// cause is gone (TODO_V4.md 4.1, F-12).
 /// </summary>
@@ -13,6 +13,9 @@ public class CoexistenceWarnings
 {
     /// <summary>Warning code: FileTransformation is not loaded, nothing can be injected.</summary>
     public const string FileTransformationMissing = "FileTransformationMissing";
+
+    /// <summary>Warning code: FileTransformation is older than 3.0, which revalidates index.html on every load.</summary>
+    public const string FileTransformationOutdated = "FileTransformationOutdated";
 
     /// <summary>Warning code: the loadSections chunk drifted, the home page is native (FIAB-04).</summary>
     public const string HomeHookNotFound = "HomeHookNotFound";
@@ -26,6 +29,10 @@ public class CoexistenceWarnings
     /// <summary>Warning code: Custom Tabs is installed and competes for the home-html chunk.</summary>
     public const string CustomTabsInstalled = "CustomTabsInstalled";
 
+    // FileTransformation's plugin id (manifest of jellyfin-plugin-file-transformation, read on the
+    // 8096 bench at 3.0.0.0). Its version comes from the manifest, the one the dashboard shows.
+    private static readonly Guid FileTransformationId = Guid.Parse("5e87cc92-571a-4d8d-8d98-d2d4147f9f90");
+    private static readonly Version FileTransformationMinimum = new(3, 0);
 
     // CustomTabsPlugin.Id in jellyfin-plugin-custom-tabs. FileTransformation runs only one pipeline
     // per file pattern: both plugins patch the home-html chunk, so one of them loses its tabs.
@@ -74,6 +81,10 @@ public class CoexistenceWarnings
         if (!fileTransformationAvailable)
         {
             warnings.Add(FileTransformationMissing);
+        }
+        else if (installed.Any(p => p.Id == FileTransformationId && p.Version < FileTransformationMinimum))
+        {
+            warnings.Add(FileTransformationOutdated);
         }
 
         if (loadSections == LoadSectionsPatchState.HookNotFound)

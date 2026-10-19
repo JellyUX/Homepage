@@ -47,6 +47,7 @@
 
   "admin.page.title": "JellyUX Homepage",
   "admin.warning.FileTransformationMissing": "The File Transformation plugin is not installed: JellyUX Homepage cannot inject anything into the web client. Install jellyfin-plugin-file-transformation and restart Jellyfin.",
+  "admin.warning.FileTransformationOutdated": "File Transformation is older than 3.0: the web client may keep an old copy of the page after a JellyUX update. Update File Transformation to 3.0 or later, then restart Jellyfin.",
   "admin.warning.HomeHookNotFound": "Jellyfin Web has changed: JellyUX could not patch the home page and Jellyfin shows its native home screen. Check the JellyUX releases for a compatible version.",
   "admin.warning.HomeChunkMissing": "JellyUX found no home page file to patch in the web client: Jellyfin shows its native home screen. Check the JellyUX releases for a compatible version.",
   "admin.warning.TabsAnchorMissing": "Jellyfin Web has changed: JellyUX could not add its tabs to the home page. Check the JellyUX releases for a compatible version.",

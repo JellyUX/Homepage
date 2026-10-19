@@ -9,8 +9,21 @@ public sealed class CoexistenceWarningsTests
 {
     private static readonly Guid CustomTabsId = Guid.Parse("fbacd0b6-fd46-4a05-b0a4-2045d6a135b0");
 
-    private static LocalPlugin Plugin(Guid id, PluginStatus status) =>
-        new("/config/plugins/x", true, new PluginManifest { Id = id, Name = "x", Version = "1.0.0.0", Status = status });
+    private static readonly Guid FileTransformationId = Guid.Parse("5e87cc92-571a-4d8d-8d98-d2d4147f9f90");
+
+    private static LocalPlugin Plugin(Guid id, PluginStatus status, string version = "1.0.0.0") =>
+        new("/config/plugins/x", true, new PluginManifest { Id = id, Name = "x", Version = version, Status = status });
+
+    [Theory]
+    [InlineData("2.2.1.0", true)]
+    [InlineData("3.0.0.0", false)]
+    [InlineData("3.1.0.0", false)]
+    public void Build_FileTransformationBefore3_WarnsOutdated(string version, bool warns)
+    {
+        var warnings = CoexistenceWarnings.Build(true, [Plugin(FileTransformationId, PluginStatus.Active, version)], LoadSectionsPatchState.Patched, true);
+
+        Assert.Equal(warns, warnings.Contains(CoexistenceWarnings.FileTransformationOutdated));
+    }
 
     [Theory]
     [InlineData(LoadSectionsPatchState.HookNotFound, CoexistenceWarnings.HomeHookNotFound)]
