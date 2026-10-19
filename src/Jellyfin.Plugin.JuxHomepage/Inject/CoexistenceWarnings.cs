@@ -1,4 +1,6 @@
+using System.Text.Json;
 using Jellyfin.Plugin.JuxHomepage.Configuration;
+using Jellyfin.Plugin.JuxHomepage.IO;
 using MediaBrowser.Common.Plugins;
 using MediaBrowser.Model.Plugins;
 
@@ -61,6 +63,7 @@ public class CoexistenceWarnings
     private readonly IPluginManager _pluginManager;
     private readonly PatchStatus _patchStatus;
     private readonly ConfigurationBackup _backup;
+    private readonly IFileSystem _fileSystem;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CoexistenceWarnings"/> class.
@@ -69,20 +72,58 @@ public class CoexistenceWarnings
     /// <param name="pluginManager">Jellyfin plugin manager, listing the installed plugins.</param>
     /// <param name="patchStatus">The patch state the startup dry run found.</param>
     /// <param name="backup">The saved copy of the configuration.</param>
-    public CoexistenceWarnings(FileTransformationDetector detector, IPluginManager pluginManager, PatchStatus patchStatus, ConfigurationBackup backup)
+    /// <param name="fileSystem">File system abstraction, to read a plugin's manifest on disk.</param>
+    public CoexistenceWarnings(FileTransformationDetector detector, IPluginManager pluginManager, PatchStatus patchStatus, ConfigurationBackup backup, IFileSystem fileSystem)
     {
         _detector = detector;
         _pluginManager = pluginManager;
         _patchStatus = patchStatus;
         _backup = backup;
+        _fileSystem = fileSystem;
     }
 
     /// <summary>
     /// Returns the current warning codes, in display order.
     /// </summary>
     /// <returns>The warning codes; empty when JellyUX can run normally.</returns>
-    public IReadOnlyList<string> Get() =>
-        Build(_detector.IsAvailable(), _pluginManager.Plugins, _patchStatus.LoadSections, _patchStatus.TabsAnchor, _backup.IsResetPending);
+    public IReadOnlyList<string> Get()
+    {
+        var plugins = _pluginManager.Plugins.ToList();
+
+        // Disable writes Disabled to meta.json and leaves Restart in memory until the restart, as Enable
+        // does: only the manifest on disk tells them apart (PluginManager.ProcessAlternative, 10.11.10).
+        var disabledOnDisk = plugins
+            .Where(p => p.Manifest.Status == PluginStatus.Restart && ManifestOnDiskSaysDisabled(p.Path, _fileSystem))
+            .Select(p => p.Id)
+            .ToHashSet();
+        return Build(_detector.IsAvailable(), plugins, _patchStatus.LoadSections, _patchStatus.TabsAnchor, _backup.IsResetPending, disabledOnDisk);
+    }
+
+    /// <summary>
+    /// Returns whether a plugin's <c>meta.json</c> says Disabled: what Disable wrote while the status in
+    /// memory reads Restart.
+    /// </summary>
+    /// <param name="pluginPath">The plugin's folder.</param>
+    /// <param name="fileSystem">File system abstraction.</param>
+    /// <returns>True when the manifest on disk is Disabled; false when it is not, or cannot be read.</returns>
+    internal static bool ManifestOnDiskSaysDisabled(string? pluginPath, IFileSystem fileSystem)
+    {
+        if (string.IsNullOrEmpty(pluginPath))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var manifest = JsonDocument.Parse(fileSystem.ReadAllText(Path.Combine(pluginPath, "meta.json")));
+            return manifest.RootElement.EnumerateObject().Any(p =>
+                p.NameEquals("status") && p.Value.ValueKind == JsonValueKind.String && p.Value.GetString() == nameof(PluginStatus.Disabled));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return false;
+        }
+    }
 
     /// <summary>
     /// Builds the warning codes from the FileTransformation state, the patch state and the installed plugins.
@@ -92,15 +133,19 @@ public class CoexistenceWarnings
     /// <param name="loadSections">The loadSections chunk state.</param>
     /// <param name="tabsAnchor">Whether the home-html chunk holds the tab anchor; null when not checked.</param>
     /// <param name="configurationReset">Whether a blank configuration replaced one that has a saved copy.</param>
+    /// <param name="disabledOnDisk">The plugins disabled since the last restart (Restart in memory, Disabled on disk).</param>
     /// <returns>The warning codes.</returns>
     public static IReadOnlyList<string> Build(
         bool fileTransformationAvailable,
         IEnumerable<LocalPlugin> plugins,
         LoadSectionsPatchState loadSections,
         bool? tabsAnchor,
-        bool configurationReset)
+        bool configurationReset,
+        IReadOnlySet<Guid>? disabledOnDisk = null)
     {
         var installed = plugins.ToList();
+        bool IsDisabled(LocalPlugin p) => p.Manifest.Status == PluginStatus.Disabled || disabledOnDisk?.Contains(p.Id) == true;
+
         var warnings = new List<string>();
         if (configurationReset)
         {
@@ -118,12 +163,12 @@ public class CoexistenceWarnings
 
         // Only the status is read, not Jellyfin's name order (DEC-P05-7): the order is internal to
         // DiscoverPlugins and the message says the deletion happens if an active plugin sorts after.
-        if (installed.Any(p => p.Id == JellyUXId && p.Manifest.Status == PluginStatus.Disabled))
+        if (installed.Any(p => p.Id == JellyUXId && IsDisabled(p)))
         {
             warnings.Add(JellyUXDisabled);
         }
 
-        if (installed.Any(p => p.Id == FileTransformationId && p.Manifest.Status == PluginStatus.Disabled))
+        if (installed.Any(p => p.Id == FileTransformationId && IsDisabled(p)))
         {
             warnings.Add(FileTransformationDisabled);
         }
@@ -142,9 +187,11 @@ public class CoexistenceWarnings
             warnings.Add(TabsAnchorMissing);
         }
 
-        // Restart covers a Custom Tabs install pending the next restart, which will then take effect.
+        // Restart covers a Custom Tabs install pending the next restart, which will then take effect, but not
+        // a Custom Tabs just disabled, which reads Restart too.
         if (installed.Any(p => p.Id == CustomTabsId
-            && p.Manifest.Status is PluginStatus.Active or PluginStatus.Restart))
+            && p.Manifest.Status is PluginStatus.Active or PluginStatus.Restart
+            && !IsDisabled(p)))
         {
             warnings.Add(CustomTabsInstalled);
         }
