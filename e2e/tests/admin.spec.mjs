@@ -77,7 +77,6 @@ test('the admin page keeps Save in view and moves a section by drag and drop or 
 });
 
 test('saving the admin page unchanged keeps every row as loaded (FIAB-02)', async ({ page }) => {
-    test.fixme(true, 'FIAB-02, phase 05: an unchanged Save drops the Rewards ceremony and the Discover person and genre filters.');
     // Rows whose filters are stored as ids (a Wikidata ceremony, TMDb person and genre) the page shows
     // through labels it looks up: a Save without any change must write them back as they were.
     const token = await adminToken();
@@ -87,10 +86,11 @@ test('saving the admin page unchanged keeps every row as loaded (FIAB-02)', asyn
         { WidgetType: 'jux.connected.rewards', Enabled: true, Order: 900, MinItems: 1, MaxItems: 20, ViewMode: 'Portrait',
             ExtraParams: [{ Key: 'value', Value: '11111111-2222-3333-4444-555555555555' }, { Key: 'ceremonyQid', Value: 'Q19020' }, { Key: 'year', Value: '2024' }] },
         { WidgetType: 'jux.connected.discover-movies', Enabled: true, Order: 910, MinItems: 1, MaxItems: 20, ViewMode: 'Portrait',
-            ExtraParams: [{ Key: 'value', Value: '66666666-7777-8888-9999-000000000000' }, { Key: 'personIds', Value: '525' }, { Key: 'genreIds', Value: '18' }] });
+            ExtraParams: [{ Key: 'value', Value: '66666666-7777-8888-9999-000000000000' }, { Key: 'personIds', Value: '525' }, { Key: 'genreIds', Value: '18' },
+                { Key: 'sortBy', Value: 'popularity.desc' }, { Key: 'minVotes', Value: '50' }, { Key: 'pages', Value: '1' }] });
     const filters = (config) => config.Widgets
         .filter((w) => w.WidgetType === 'jux.connected.rewards' || w.WidgetType === 'jux.connected.discover-movies')
-        .map((w) => ({ type: w.WidgetType, params: w.ExtraParams.filter((p) => p.Key !== 'value') }));
+        .map((w) => ({ type: w.WidgetType, params: Object.fromEntries(w.ExtraParams.filter((p) => p.Key !== 'value').map((p) => [p.Key, p.Value])) }));
     try {
         await pluginConfiguration(token, seeded);
         const loaded = filters(await pluginConfiguration(token));

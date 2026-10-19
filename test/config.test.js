@@ -228,6 +228,60 @@ describe('configuration page controller (F-33)', () => {
         ]);
     });
 
+    it('saves a loaded Discover and Rewards row unchanged, even after a fold, with no search done and no TMDb genres (FIAB-02)', async () => {
+        const discover = { WidgetType: 'jux.connected.discover-movies', Enabled: true, Order: 3, MinItems: 1, MaxItems: 20, ViewMode: 'Portrait', ExtraParams: [{ Key: 'value', Value: 'd1' }, { Key: 'genreIds', Value: '18' }, { Key: 'personIds', Value: '525' }, { Key: 'keywordIds', Value: '9715' }, { Key: 'companyIds', Value: '420' }, { Key: 'sortBy', Value: 'popularity.desc' }, { Key: 'minVotes', Value: '50' }, { Key: 'pages', Value: '1' }] };
+        const rewards = { WidgetType: 'jux.connected.rewards', Enabled: true, Order: 4, MinItems: 1, MaxItems: 20, ViewMode: 'Portrait', ExtraParams: [{ Key: 'value', Value: 'r1' }, { Key: 'ceremonyQid', Value: 'Q19020' }, { Key: 'categoryQid', Value: 'Q102427' }, { Key: 'year', Value: '2020' }] };
+        const loaded = { ...JSON.parse(JSON.stringify(config)), Widgets: [...JSON.parse(JSON.stringify(config.Widgets)), discover, rewards] };
+        const catalog = [...descriptors,
+            { WidgetType: 'jux.connected.discover-movies', DisplayName: 'Discover', Category: 3, MinItems: 1, ViewMode: 'Portrait' },
+            { WidgetType: 'jux.connected.rewards', DisplayName: 'Rewards', Category: 3, MinItems: 1, ViewMode: 'Portrait' }];
+        window.ApiClient.getPluginConfiguration = vi.fn(() => Promise.resolve(JSON.parse(JSON.stringify(loaded))));
+        window.ApiClient.getJSON = vi.fn((url) => (url === 'JuxHomepage/Admin/Catalog'
+            ? Promise.resolve({ WidgetCategories: ['Native', 'Admin', 'Personalized', 'Connected'], Widgets: catalog })
+            : getJSON(url)));
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+
+        card(3).querySelector('.jux-admin-btn-toggle').click();
+        await settle();
+        card(3).querySelector('.jux-admin-btn-toggle').click();
+        await settle();
+
+        window.ApiClient.updatePluginConfiguration = vi.fn(() => Promise.resolve({}));
+        window.Dashboard.processPluginConfigurationUpdateResult = vi.fn();
+        view.querySelector('.juxConfigForm').dispatchEvent(new Event('submit', { cancelable: true }));
+        await settle();
+
+        const saved = window.ApiClient.updatePluginConfiguration.mock.calls[0][1].Widgets;
+        const byKey = (w) => Object.fromEntries(w.ExtraParams.map((p) => [p.Key, p.Value]));
+        expect(byKey(saved[3])).toEqual(byKey(discover));
+        expect(byKey(saved[4])).toEqual(byKey(rewards));
+    });
+
+    it('drops a Discover id once its field is cleared or edited to a name with no search match', async () => {
+        const discover = { WidgetType: 'jux.connected.discover-movies', Enabled: true, Order: 3, MinItems: 1, MaxItems: 20, ViewMode: 'Portrait', ExtraParams: [{ Key: 'value', Value: 'd1' }, { Key: 'personIds', Value: '525' }, { Key: 'keywordIds', Value: '9715' }] };
+        const catalog = [...descriptors, { WidgetType: 'jux.connected.discover-movies', DisplayName: 'Discover', Category: 3, MinItems: 1, ViewMode: 'Portrait' }];
+        window.ApiClient.getPluginConfiguration = vi.fn(() => Promise.resolve({ ...JSON.parse(JSON.stringify(config)), Widgets: [...JSON.parse(JSON.stringify(config.Widgets)), discover] }));
+        window.ApiClient.getJSON = vi.fn((url) => (url === 'JuxHomepage/Admin/Catalog'
+            ? Promise.resolve({ WidgetCategories: ['Native', 'Admin', 'Personalized', 'Connected'], Widgets: catalog })
+            : getJSON(url)));
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+
+        card(3).querySelector('.jux-discover-person').value = '';
+        card(3).querySelector('.jux-discover-keyword').value = 'Christopher Nolan';
+        window.ApiClient.updatePluginConfiguration = vi.fn(() => Promise.resolve({}));
+        window.Dashboard.processPluginConfigurationUpdateResult = vi.fn();
+        view.querySelector('.juxConfigForm').dispatchEvent(new Event('submit', { cancelable: true }));
+        await settle();
+
+        const keys = window.ApiClient.updatePluginConfiguration.mock.calls[0][1].Widgets[3].ExtraParams.map((p) => p.Key);
+        expect(keys).not.toContain('personIds');
+        expect(keys).not.toContain('keywordIds');
+    });
+
     it('offers the sort order on library rows and saves the chosen one (F-53)', async () => {
         createController(view);
         view.dispatchEvent(new Event('viewshow'));

@@ -366,6 +366,17 @@ function createConfigPage() {
             return '';
         },
 
+        // An id field shows a label only once a search has cached it, so after a page load it shows the
+        // raw id with an empty cache: keep the id set at render while the text is the one rendered
+        // (FIAB-02; test: config.test.js "saves a loaded Discover and Rewards row unchanged").
+        readIdField: function (el, valueForLabel) {
+            var label = el.value.trim();
+            if (!label) { return ''; }
+            var resolved = valueForLabel(label);
+            if (resolved) { return resolved; }
+            return label === el.defaultValue.trim() ? (el.getAttribute('data-value') || '') : '';
+        },
+
         getDescriptor: function (widgetType) {
             for (var i = 0; i < this.state.descriptors.length; i++) {
                 if (this.state.descriptors[i].WidgetType === widgetType) {
@@ -562,6 +573,9 @@ function createConfigPage() {
                         self._tmdbGenres.forEach(function (g) {
                             html += '<option value="' + self.escHtml(g.Value) + '"' + (g.Value === genreValue ? ' selected' : '') + '>' + self.escHtml(g.Label) + '</option>';
                         });
+                        if (genreValue && !self._tmdbGenres.some(function (g) { return g.Value === genreValue; })) {
+                            html += '<option value="' + self.escHtml(genreValue) + '" selected>' + self.escHtml(genreValue) + '</option>';
+                        }
                         html += '</select>';
                         html += '</div>';
 
@@ -577,6 +591,7 @@ function createConfigPage() {
                             html += '<label class="inputLabel inputLabelUnfocused" for="disc' + fieldName + '_' + i + '">' + self.escHtml(fieldLabel) + '</label>';
                             html += '<input id="disc' + fieldName + '_' + i + '" type="text" list="' + discDatalistId + '_' + fieldName + '"';
                             html += ' class="emby-input jux-discover-' + fieldName + '" data-field="' + fieldName + '"';
+                            html += ' data-value="' + self.escHtml(fieldValue) + '"';
                             html += ' placeholder="' + self.escHtml(self.t('admin.discover.search.placeholder')) + '" value="' + self.escHtml(currentLabel || fieldValue) + '" />';
                             html += '<datalist id="' + discDatalistId + '_' + fieldName + '"></datalist>';
                             html += '</div>';
@@ -637,6 +652,7 @@ function createConfigPage() {
                             html += '<label class="inputLabel inputLabelUnfocused" for="rewards' + fieldName + '_' + i + '">' + self.escHtml(fieldLabel) + '</label>';
                             html += '<input id="rewards' + fieldName + '_' + i + '" type="text" list="' + rewardsDatalistId + '_' + fieldName + '"';
                             html += ' class="emby-input jux-rewards-' + fieldName + '" data-field="' + fieldName + '"';
+                            html += ' data-value="' + self.escHtml(fieldValue) + '"';
                             html += ' placeholder="' + self.escHtml(self.t('admin.discover.search.placeholder')) + '" value="' + self.escHtml(currentLabel || fieldValue) + '" />';
                             html += '<datalist id="' + rewardsDatalistId + '_' + fieldName + '"></datalist>';
                             html += '</div>';
@@ -1150,8 +1166,7 @@ function createConfigPage() {
                     ].forEach(function (entry) {
                         var fieldName = entry[0], el = entry[1];
                         if (!el) { return; }
-                        var label = el.value.trim();
-                        var resolved = label ? self.getDiscoverValueForLabel(fieldName, label) : '';
+                        var resolved = self.readIdField(el, function (label) { return self.getDiscoverValueForLabel(fieldName, label); });
                         if (resolved) { params.push({ Key: fieldName + 'Ids', Value: resolved }); }
                     });
                     if (sortByEl && sortByEl.value) { params.push({ Key: 'sortBy', Value: sortByEl.value }); }
@@ -1177,8 +1192,7 @@ function createConfigPage() {
                     ].forEach(function (entry) {
                         var fieldName = entry[0], el = entry[1], paramKey = entry[2];
                         if (!el) { return; }
-                        var label = el.value.trim();
-                        var resolved = label ? self.getRewardsValueForLabel(fieldName, label) : '';
+                        var resolved = self.readIdField(el, function (label) { return self.getRewardsValueForLabel(fieldName, label); });
                         if (resolved) { rewardsParams.push({ Key: paramKey, Value: resolved }); }
                     });
                     if (rewardsYearEl && rewardsYearEl.value) { rewardsParams.push({ Key: 'year', Value: rewardsYearEl.value }); }
