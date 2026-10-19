@@ -438,6 +438,19 @@ describe('_armChunkGuard', () => {
         expect(document.getElementById('jux-chunk-notice').textContent).toContain('Jellyfin Web has changed');
     });
 
+    it('shows no drift message when the server could not check the chunk (Unknown, R11)', async () => {
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const win = fakeWindow({ server: { LoadSections: 'Unknown', TabsAnchor: null } });
+        renderHomeView({ sections: 2 });
+
+        _armChunkGuard(win, document);
+        await vi.advanceTimersByTimeAsync(5000);
+
+        expect(win.location.reload).not.toHaveBeenCalled();
+        expect(document.getElementById('jux-chunk-notice')).toBeNull();
+        errorSpy.mockRestore();
+    });
+
     it('neither reloads nor blames a cache when the server does not say it patched (FIAB-04)', async () => {
         const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
         const win = fakeWindow({ server: new Error('offline') });

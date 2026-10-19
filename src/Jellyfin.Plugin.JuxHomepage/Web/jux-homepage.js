@@ -725,7 +725,10 @@
     function _handleStaleChunks(win, doc) {
         var tabsMissing = !!win.juxTabInjector && !doc.getElementById('jux-tab-watchlist');
         return _serverPatchStatus(win).then(function (status) {
-            if (!status) {
+            // Unknown: the server could not read the chunk, which says nothing of a Jellyfin Web change.
+            var unchecked = tabsMissing ? status && status.TabsAnchor == null : status && status.LoadSections === 'Unknown';
+            if (!status || unchecked) {
+                if (unchecked) { console.error('[JellyUX] The server could not check the home chunk, the page is not reloaded.'); }
                 return 'unknown';
             }
             var patched = tabsMissing ? status.TabsAnchor === true : status.LoadSections === 'Patched';
