@@ -84,6 +84,14 @@ public sealed class CoexistenceWarningsTests
         Assert.Equal([CoexistenceWarnings.ConfigurationReset, CoexistenceWarnings.FileTransformationMissing], warnings);
     }
 
+    [Fact]
+    public void Build_FileTransformationNotListedUnderItsId_FallsBackToTheAssemblyVersion()
+    {
+        Assert.Equal([CoexistenceWarnings.FileTransformationOutdated], CoexistenceWarnings.Build(true, [], LoadSectionsPatchState.Patched, true, false, null, new Version(2, 2, 1, 0)));
+        Assert.Empty(CoexistenceWarnings.Build(true, [], LoadSectionsPatchState.Patched, true, false, null, new Version(3, 0, 0, 0)));
+        Assert.Empty(CoexistenceWarnings.Build(true, [Plugin(FileTransformationId, PluginStatus.Active, "3.0.0.0")], LoadSectionsPatchState.Patched, true, false, null, new Version(1, 0, 0, 0)));
+    }
+
     [Theory]
     [InlineData(LoadSectionsPatchState.HookNotFound, CoexistenceWarnings.HomeHookNotFound)]
     [InlineData(LoadSectionsPatchState.NoChunk, CoexistenceWarnings.HomeChunkMissing)]

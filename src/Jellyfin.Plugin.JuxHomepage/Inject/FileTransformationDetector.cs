@@ -28,6 +28,13 @@ public class FileTransformationDetector
     }
 
     /// <summary>
+    /// Returns the version of the loaded FileTransformation assembly: the fallback of the admin warning when
+    /// the plugin manager does not list FileTransformation under its id (DEC-P05-6).
+    /// </summary>
+    /// <returns>The assembly version, or null when FileTransformation is not loaded.</returns>
+    public Version? GetAssemblyVersion() => FindAssembly()?.GetName().Version;
+
+    /// <summary>
     /// Returns true if the FileTransformation plugin assembly is loaded and
     /// the RegisterTransformation entry point is reachable.
     /// Result is cached after the first successful resolution.
@@ -39,11 +46,7 @@ public class FileTransformationDetector
             return true;
         }
 
-        var assembly = AssemblyLoadContext.All
-            .SelectMany(ctx => ctx.Assemblies)
-            .FirstOrDefault(a =>
-                a.FullName?.Contains(AssemblyNameFragment, StringComparison.Ordinal) ?? false);
-
+        var assembly = FindAssembly();
         if (assembly is null)
         {
             return false;
@@ -96,4 +99,8 @@ public class FileTransformationDetector
             _logger.LogError(ex, "FileTransformation RegisterTransformation invocation failed.");
         }
     }
+
+    private static Assembly? FindAssembly() => AssemblyLoadContext.All
+        .SelectMany(ctx => ctx.Assemblies)
+        .FirstOrDefault(a => a.FullName?.Contains(AssemblyNameFragment, StringComparison.Ordinal) ?? false);
 }

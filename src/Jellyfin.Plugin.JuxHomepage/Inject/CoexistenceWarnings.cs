@@ -96,7 +96,7 @@ public class CoexistenceWarnings
             .Where(p => p.Manifest.Status == PluginStatus.Restart && ManifestOnDiskSaysDisabled(p.Path, _fileSystem))
             .Select(p => p.Id)
             .ToHashSet();
-        return Build(_detector.IsAvailable(), plugins, _patchStatus.LoadSections, _patchStatus.TabsAnchor, _backup.IsResetPending, disabledOnDisk);
+        return Build(_detector.IsAvailable(), plugins, _patchStatus.LoadSections, _patchStatus.TabsAnchor, _backup.IsResetPending, disabledOnDisk, _detector.GetAssemblyVersion());
     }
 
     /// <summary>
@@ -134,6 +134,10 @@ public class CoexistenceWarnings
     /// <param name="tabsAnchor">Whether the home-html chunk holds the tab anchor; null when not checked.</param>
     /// <param name="configurationReset">Whether a blank configuration replaced one that has a saved copy.</param>
     /// <param name="disabledOnDisk">The plugins disabled since the last restart (Restart in memory, Disabled on disk).</param>
+    /// <param name="fileTransformationAssemblyVersion">
+    /// The loaded FileTransformation assembly's version, read when the plugin manager lists no FileTransformation
+    /// under its id (DEC-P05-6); the manifest version, the one the dashboard shows, wins otherwise.
+    /// </param>
     /// <returns>The warning codes.</returns>
     public static IReadOnlyList<string> Build(
         bool fileTransformationAvailable,
@@ -141,7 +145,8 @@ public class CoexistenceWarnings
         LoadSectionsPatchState loadSections,
         bool? tabsAnchor,
         bool configurationReset,
-        IReadOnlySet<Guid>? disabledOnDisk = null)
+        IReadOnlySet<Guid>? disabledOnDisk = null,
+        Version? fileTransformationAssemblyVersion = null)
     {
         var installed = plugins.ToList();
         bool IsDisabled(LocalPlugin p) => p.Manifest.Status == PluginStatus.Disabled || disabledOnDisk?.Contains(p.Id) == true;
@@ -156,7 +161,9 @@ public class CoexistenceWarnings
         {
             warnings.Add(FileTransformationMissing);
         }
-        else if (installed.Any(p => p.Id == FileTransformationId && p.Version < FileTransformationMinimum))
+        else if (installed.FirstOrDefault(p => p.Id == FileTransformationId)?.Version is { } manifestVersion
+            ? manifestVersion < FileTransformationMinimum
+            : fileTransformationAssemblyVersion is not null && fileTransformationAssemblyVersion < FileTransformationMinimum)
         {
             warnings.Add(FileTransformationOutdated);
         }
