@@ -1,6 +1,7 @@
 using System.Xml.Serialization;
 using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.Widgets;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -116,6 +117,43 @@ public sealed class ConfigurationBackupTests : IDisposable
 
         Assert.Null(backup.Load());
         Assert.False(backup.Restore(_ => throw new InvalidOperationException("must not be called")));
+    }
+
+    [Fact]
+    public void Startup_OffersTheCopyOnlyWhenTheConfigurationLoadedBlank()
+    {
+        var backup = Backup();
+        backup.Save(Saved());
+
+        Jellyfin.Plugin.JuxHomepage.Inject.StartupService.OfferBackupIfConfigurationLoadedBlank(false, backup, NullLogger.Instance);
+        Assert.False(backup.IsResetPending);
+
+        Jellyfin.Plugin.JuxHomepage.Inject.StartupService.OfferBackupIfConfigurationLoadedBlank(true, backup, NullLogger.Instance);
+        Assert.True(backup.IsResetPending);
+    }
+
+    [Fact]
+    public void RestoreEndpoint_AnswersNoContentNotFoundOrBadRequest()
+    {
+        var backup = Backup();
+        Assert.IsType<NotFoundResult>(Jellyfin.Plugin.JuxHomepage.Controllers.JuxHomepageController.Restore(backup, _ => { }));
+
+        backup.Save(Saved());
+        Assert.IsType<NotFoundResult>(Jellyfin.Plugin.JuxHomepage.Controllers.JuxHomepageController.Restore(backup, null));
+        Assert.IsType<NoContentResult>(Jellyfin.Plugin.JuxHomepage.Controllers.JuxHomepageController.Restore(backup, _ => { }));
+        Assert.IsType<BadRequestObjectResult>(Jellyfin.Plugin.JuxHomepage.Controllers.JuxHomepageController.Restore(backup, _ => throw new ArgumentException("refused")));
+    }
+
+    [Fact]
+    public void UpdateConfiguration_RefusesARewardsRowWithoutQid_BeforeAnythingIsSaved()
+    {
+        // An instance that skips the constructor: Plugin.Instance stays unset for the other tests, and the
+        // refusal must come before base.UpdateConfiguration, which would need the application paths.
+        var plugin = (Plugin)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Plugin));
+        var config = Saved();
+        config.Widgets = [.. config.Widgets, new WidgetConfig { WidgetType = Jellyfin.Plugin.JuxHomepage.Rewards.RewardsWidgetTypes.Rewards, ExtraParams = [new WidgetExtraParam { Key = "value", Value = "r1" }] }];
+
+        Assert.Throws<ArgumentException>(() => plugin.UpdateConfiguration(config));
     }
 
     [Fact]

@@ -185,18 +185,29 @@ public class JuxHomepageController : ControllerBase
     public ActionResult RestoreConfiguration([FromServices] ConfigurationBackup backup)
     {
         var plugin = Plugin.Instance;
-        if (plugin is null)
+        return Restore(backup, plugin is null ? null : plugin.UpdateConfiguration);
+    }
+
+    /// <summary>
+    /// Restores the copy through <paramref name="save"/> and maps the outcome to the HTTP answer.
+    /// </summary>
+    /// <param name="backup">The saved copy.</param>
+    /// <param name="save">The plugin's save, or null when the plugin is not loaded.</param>
+    /// <returns>No content; 404 without a plugin or a readable copy; 400 when the copy fails validation.</returns>
+    internal static ActionResult Restore(ConfigurationBackup backup, Action<PluginConfiguration>? save)
+    {
+        if (save is null)
         {
-            return NotFound();
+            return new NotFoundResult();
         }
 
         try
         {
-            return backup.Restore(plugin.UpdateConfiguration) ? NoContent() : NotFound();
+            return backup.Restore(save) ? new NoContentResult() : new NotFoundResult();
         }
         catch (ArgumentException ex)
         {
-            return BadRequest(ex.Message);
+            return new BadRequestObjectResult(ex.Message);
         }
     }
 

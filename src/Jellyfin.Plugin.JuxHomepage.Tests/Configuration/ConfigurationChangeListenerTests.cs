@@ -37,9 +37,28 @@ public sealed class ConfigurationChangeListenerTests
         sessionCache.Set(user.Id, "en", [new WidgetDescriptor { WidgetType = "w1" }]);
         scoring.GetTopGenres(user.Id, 5);
 
-        new ConfigurationChangeListener(sessionCache, scoring, NullLogger<ConfigurationChangeListener>.Instance).OnConfigurationChanged();
+        new ConfigurationChangeListener(sessionCache, scoring, NullLogger<ConfigurationChangeListener>.Instance, Backup()).OnConfigurationChanged(null);
 
         Assert.False(sessionCache.TryGet(user.Id, "en", TimeSpan.FromMinutes(15), out _));
         Assert.False(scoring.HasSnapshotForTesting(user.Id));
     }
+
+    [Fact]
+    public void OnConfigurationChanged_WritesTheCopyOfTheSavedConfiguration_AndClearsAPendingReset()
+    {
+        var backup = Backup();
+        backup.Save(new PluginConfiguration { SchemaVersion = 11 });
+        backup.MarkResetIfBackupExists();
+        using var sessionCache = new SessionCache();
+        using var scoring = new ScoringService(new Mock<IUserManager>().Object, new Mock<ILibraryManager>().Object, new Mock<IUserDataManager>().Object, () => new PluginConfiguration());
+        var saved = new PluginConfiguration { SchemaVersion = 11, Widgets = [new WidgetConfig { WidgetType = "jux.admin.genre" }] };
+
+        new ConfigurationChangeListener(sessionCache, scoring, NullLogger<ConfigurationChangeListener>.Instance, backup).OnConfigurationChanged(saved);
+
+        Assert.Equal("jux.admin.genre", Assert.Single(backup.Load()!.Widgets).WidgetType);
+        Assert.False(backup.IsResetPending);
+    }
+
+    private static ConfigurationBackup Backup() =>
+        new(Path.Combine(Path.GetTempPath(), "jux-listener-tests-" + Guid.NewGuid()), NullLogger.Instance);
 }

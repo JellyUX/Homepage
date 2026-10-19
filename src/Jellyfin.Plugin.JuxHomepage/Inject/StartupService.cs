@@ -71,12 +71,7 @@ public sealed class StartupService : IHostedService, IDisposable
     {
         RegisterFileTransformationsIfAvailable();
         WarnRewardsRowsWithoutQid(Plugin.Instance?.Configuration, _logger);
-        if (_backup.IsResetPending)
-        {
-            _logger.LogWarning(
-                "The JellyUX configuration file could not be read and was replaced by a blank one. A copy of the last "
-                + "saved configuration exists: restore it from the warning on the JellyUX admin page.");
-        }
+        OfferBackupIfConfigurationLoadedBlank(Plugin.Instance?.ConfigurationLoadedBlank == true, _backup, _logger);
 
         // Best-effort, not awaited, and only once the server has started (F-07): run during the boot,
         // its ~80 HTTP calls per list competed with Jellyfin's own startup. FileTransformation
@@ -121,6 +116,28 @@ public sealed class StartupService : IHostedService, IDisposable
             logger.LogWarning(
                 "Rewards section '{InstanceId}' has no ceremony or category and shows nothing: set one on the JellyUX admin page.",
                 row.GetExtraParamsDictionary().GetValueOrDefault("value"));
+        }
+    }
+
+    /// <summary>
+    /// Records a blank configuration found at load when a saved copy exists, so the admin page offers it
+    /// (FIAB-07), and logs the offer while it stands.
+    /// </summary>
+    /// <param name="loadedBlank">Whether the configuration loaded blank.</param>
+    /// <param name="backup">The saved copy.</param>
+    /// <param name="logger">Logger.</param>
+    internal static void OfferBackupIfConfigurationLoadedBlank(bool loadedBlank, ConfigurationBackup backup, ILogger logger)
+    {
+        if (loadedBlank)
+        {
+            backup.MarkResetIfBackupExists();
+        }
+
+        if (backup.IsResetPending)
+        {
+            logger.LogWarning(
+                "The JellyUX configuration file could not be read and was replaced by a blank one. A copy of the last "
+                + "saved configuration exists: restore it from the warning on the JellyUX admin page.");
         }
     }
 
