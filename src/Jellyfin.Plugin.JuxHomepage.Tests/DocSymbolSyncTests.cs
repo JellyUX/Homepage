@@ -38,10 +38,7 @@ public sealed class DocSymbolSyncTests
     {
         var root = RepoPaths.Root();
         // Code only: a name that survives in a comment (this file's own header among them) is not a symbol.
-        var sources = Regex.Replace(
-            string.Join('\n', SourceFiles(root, "src", "*.cs").Select(File.ReadAllText)),
-            @"//[^\n]*|/\*[\s\S]*?\*/",
-            string.Empty);
+        var sources = string.Join('\n', SourceFiles(root, "src", "*.cs").Select(file => WithoutComments(File.ReadAllText(file))));
         var keys = sources + ReadAll(root, PluginDir, "*.json") + ReadAll(root, PluginDir, "*.js");
 
         var missing = new List<string>();
@@ -103,6 +100,27 @@ public sealed class DocSymbolSyncTests
         Assert.NotEmpty(cited);
         Assert.All(cited, section => Assert.Contains(section, headings));
     }
+
+    [Fact]
+    public void WithoutComments_KeepsStringsThatLookLikeComments_AndTheCodeAfterThem()
+    {
+        // "/*" in a string literal (TransformationPatchesTests) used to open a block comment that swallowed
+        // the code up to the next "*/", in whichever file came next on the runner (CI on Linux, phase 05).
+        const string code = "var a = \"/*\"; var b = '\"'; Keep(); // gone\n/* gone */ var c = @\"x//\"\"y\"; AlsoKept();";
+
+        var stripped = WithoutComments(code);
+
+        Assert.Contains("Keep()", stripped, StringComparison.Ordinal);
+        Assert.Contains("AlsoKept()", stripped, StringComparison.Ordinal);
+        Assert.DoesNotContain("gone", stripped, StringComparison.Ordinal);
+    }
+
+    // String and character literals are matched before comments, so their content is never read as one.
+    private static string WithoutComments(string code) =>
+        Regex.Replace(
+            code,
+            @"@""(?:""""|[^""])*""|""(?:\\.|[^""\\\n])*""|'(?:\\.|[^'\\\n])'|//[^\n]*|/\*[\s\S]*?\*/",
+            m => m.Value[0] == '/' ? string.Empty : m.Value);
 
     private static IEnumerable<string> CodeSpans(string markdown)
     {
