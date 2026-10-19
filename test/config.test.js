@@ -351,6 +351,44 @@ describe('configuration page controller (F-33)', () => {
         expect(document.activeElement).toBe(card(3).querySelector('.jux-rewards-ceremony'));
     });
 
+    it('refuses to save a Rewards row whose ceremony is not a Wikidata Q-id, as the server would (FIAB-02, R11)', async () => {
+        const rewards = { WidgetType: 'jux.connected.rewards', Enabled: true, Order: 3, MinItems: 1, MaxItems: 20, ViewMode: 'Portrait', ExtraParams: [{ Key: 'value', Value: 'r1' }, { Key: 'ceremonyQid', Value: 'Academy' }] };
+        const catalog = [...descriptors, { WidgetType: 'jux.connected.rewards', DisplayName: 'Rewards', Category: 3, MinItems: 1, ViewMode: 'Portrait' }];
+        window.ApiClient.getPluginConfiguration = vi.fn(() => Promise.resolve({ ...JSON.parse(JSON.stringify(config)), Widgets: [...JSON.parse(JSON.stringify(config.Widgets)), rewards] }));
+        window.ApiClient.getJSON = vi.fn((url) => (url === 'JuxHomepage/Admin/Catalog'
+            ? Promise.resolve({ WidgetCategories: ['Native', 'Admin', 'Personalized', 'Connected'], Widgets: catalog })
+            : getJSON(url)));
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+        window.ApiClient.updatePluginConfiguration = vi.fn(() => Promise.resolve({}));
+
+        view.querySelector('.juxConfigForm').dispatchEvent(new Event('submit', { cancelable: true }));
+        await settle();
+
+        expect(window.ApiClient.updatePluginConfiguration).not.toHaveBeenCalled();
+        expect(view.querySelector('#juxRewardsError_3').style.display).toBe('');
+    });
+
+    it('shows that the configuration was not saved when the server refuses it, and hides it on the next save (R11)', async () => {
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+        window.ApiClient.updatePluginConfiguration = vi.fn(() => Promise.reject(new Error('400')));
+        window.Dashboard.processPluginConfigurationUpdateResult = vi.fn();
+
+        view.querySelector('.juxConfigForm').dispatchEvent(new Event('submit', { cancelable: true }));
+        await settle();
+        expect(view.querySelector('#juxSaveError').hidden).toBe(false);
+
+        window.ApiClient.updatePluginConfiguration = vi.fn(() => Promise.resolve({}));
+        view.querySelector('.juxConfigForm').dispatchEvent(new Event('submit', { cancelable: true }));
+        await settle();
+        expect(view.querySelector('#juxSaveError').hidden).toBe(true);
+        errorSpy.mockRestore();
+    });
+
     it('offers to restore the saved configuration after a reset, and reloads the page once restored (FIAB-07)', async () => {
         window.ApiClient.getJSON = vi.fn((url) => (url === 'JuxHomepage/Admin/Warnings' ? Promise.resolve(['ConfigurationReset']) : getJSON(url)));
         createController(view);

@@ -96,6 +96,7 @@
   "admin.addsection.add": "Ajouter",
   "admin.addsection.error": "Veuillez choisir un type de section avant d'ajouter.",
   "admin.save": "Sauvegarder",
+  "admin.save.failed": "La configuration n'a pas été enregistrée. Vérifiez les sections signalées en rouge, puis enregistrez à nouveau.",
 
   "admin.widgets.empty": "Aucun widget configuré.",
   "admin.category.native": "Natif",

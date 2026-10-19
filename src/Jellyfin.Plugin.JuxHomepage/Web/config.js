@@ -3,6 +3,9 @@
 // config.html ("__plugin/juxhomepageconfigjs", served by Plugin.GetPages) and creates one controller
 // per view. The pure helpers are exported for the Vitest suite.
 
+// A Wikidata Q-id, the only form RewardsFilter.FromExtraParams accepts (QidPattern).
+var QID = /^Q[1-9]\d*$/;
+
 export function escHtml(str) {
     if (!str) { return ''; }
     return String(str)
@@ -398,13 +401,13 @@ function createConfigPage() {
         },
 
         // The field a row cannot be saved without, when it is empty: an admin row's value, a Rewards
-        // row's ceremony or category (the server refuses the Save otherwise, FIAB-02). Null when the
-        // row can be saved.
+        // row's ceremony or category as a Wikidata Q-id, the form RewardsFilter accepts (the server refuses
+        // the Save otherwise, FIAB-02). Null when the row can be saved.
         requiredFieldError: function (w, i) {
             if (this.isAdmin(w.WidgetType) && !this.getExtraValue(w)) {
                 return { errorId: 'juxValError_' + i, fieldId: 'widgetValue_' + i };
             }
-            if (this.isRewards(w.WidgetType) && !this.getExtraParam(w, 'ceremonyQid') && !this.getExtraParam(w, 'categoryQid')) {
+            if (this.isRewards(w.WidgetType) && !QID.test(this.getExtraParam(w, 'ceremonyQid')) && !QID.test(this.getExtraParam(w, 'categoryQid'))) {
                 return { errorId: 'juxRewardsError_' + i, fieldId: 'rewardsceremony_' + i };
             }
             return null;
@@ -1569,6 +1572,9 @@ function createConfigPage() {
                 return;
             }
 
+            // A Save the server refuses (400 from validation, 500) used to fail in the console only (R11).
+            var saveError = document.getElementById('juxSaveError');
+            if (saveError) { saveError.hidden = true; }
             Dashboard.showLoadingMsg();
 
             ApiClient.getPluginConfiguration(self.PLUGIN_ID).then(function (config) {
@@ -1619,6 +1625,7 @@ function createConfigPage() {
             }).catch(function (err) {
                 console.error('[JellyUX Config] Save failed:', err);
                 Dashboard.hideLoadingMsg();
+                if (saveError) { saveError.hidden = false; }
             });
         },
 
