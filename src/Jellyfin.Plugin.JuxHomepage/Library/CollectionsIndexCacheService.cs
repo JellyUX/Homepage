@@ -29,6 +29,8 @@ public sealed class CollectionsIndexCacheService : ICollectionsIndexCacheService
     private readonly DiskJsonCache<CollectionMembership> _cache;
     private readonly ILibraryManager _libraryManager;
     private readonly ILogger<CollectionsIndexCacheService> _logger;
+    private readonly TimeProvider _timeProvider;
+    private volatile Unsaved? _unsaved;
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private readonly Timer _invalidationTimer;
     private readonly TimeSpan _invalidationDelay;
@@ -45,15 +47,18 @@ public sealed class CollectionsIndexCacheService : ICollectionsIndexCacheService
     /// <param name="invalidationDelay">
     /// Delay between the last <see cref="Invalidate"/> call and the background refresh. Defaults to 2 seconds.
     /// </param>
+    /// <param name="timeProvider">Time source of the cache and of an index kept in memory. Defaults to <see cref="TimeProvider.System"/>.</param>
     public CollectionsIndexCacheService(
         IApplicationPaths applicationPaths,
         IFileSystem fileSystem,
         ILibraryManager libraryManager,
         ILogger<CollectionsIndexCacheService> logger,
-        TimeSpan? invalidationDelay = null)
+        TimeSpan? invalidationDelay = null,
+        TimeProvider? timeProvider = null)
     {
         _libraryManager = libraryManager;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _invalidationDelay = invalidationDelay ?? DefaultInvalidationDelay;
         _invalidationTimer = new Timer(_ => _ = RefreshAsync(CancellationToken.None), null, Timeout.Infinite, Timeout.Infinite);
 
@@ -63,13 +68,13 @@ public sealed class CollectionsIndexCacheService : ICollectionsIndexCacheService
             "cache",
             "library");
 
-        _cache = new DiskJsonCache<CollectionMembership>(cacheDir, fileSystem, logger);
+        _cache = new DiskJsonCache<CollectionMembership>(cacheDir, fileSystem, logger, _timeProvider);
     }
 
     /// <inheritdoc/>
     public IReadOnlyList<CollectionRef> GetCollectionsFor(Guid itemId)
     {
-        var entry = _cache.Read(FileName).FirstOrDefault(m => m.ItemId == itemId);
+        var entry = Index().FirstOrDefault(m => m.ItemId == itemId);
         return entry?.Collections ?? [];
     }
 
@@ -98,7 +103,7 @@ public sealed class CollectionsIndexCacheService : ICollectionsIndexCacheService
     }
 
     /// <inheritdoc/>
-    public bool IsStale() => _invalidated || _cache.IsStale(FileName, Ttl);
+    public bool IsStale() => _invalidated || (UnsavedIndex() is null && _cache.IsStale(FileName, Ttl));
 
     /// <inheritdoc/>
     public void Invalidate()
@@ -119,7 +124,11 @@ public sealed class CollectionsIndexCacheService : ICollectionsIndexCacheService
         try
         {
             var index = ComputeIndex(cancellationToken);
-            _cache.Write(FileName, index);
+
+            // An index the disk refuses is served from memory for one time-to-live, as
+            // PerUserComputedCache does (FIAB-03): otherwise each IncludedIn request recomputed it (test:
+            // CollectionsIndexCacheServiceTests "RefreshAsync_WhenTheDiskRefusesTheIndex...").
+            _unsaved = _cache.Write(FileName, index) ? null : new Unsaved(_timeProvider.GetUtcNow(), index);
             _logger.LogInformation("Collections index refreshed: {Count} item(s) with at least one collection.", index.Count);
         }
         catch (Exception ex)
@@ -171,6 +180,14 @@ public sealed class CollectionsIndexCacheService : ICollectionsIndexCacheService
     /// already-working feature) uses for the same reason; <c>null</c> is passed for the user since this
     /// index is deliberately global/not user-scoped.
     /// </summary>
+    private IReadOnlyList<CollectionMembership> Index() => UnsavedIndex() ?? _cache.Read(FileName);
+
+    private IReadOnlyList<CollectionMembership>? UnsavedIndex()
+    {
+        var unsaved = _unsaved;
+        return unsaved is not null && _timeProvider.GetUtcNow() - unsaved.ComputedAt < Ttl ? unsaved.Index : null;
+    }
+
     private IReadOnlyList<CollectionMembership> ComputeIndex(CancellationToken cancellationToken)
     {
         var boxSets = _libraryManager.GetItemList(new InternalItemsQuery
@@ -211,4 +228,7 @@ public sealed class CollectionsIndexCacheService : ICollectionsIndexCacheService
             .Select(kv => new CollectionMembership { ItemId = kv.Key, Collections = kv.Value })
             .ToList();
     }
+
+    /// <summary>An index the disk refused, with the time it was computed.</summary>
+    private sealed record Unsaved(DateTimeOffset ComputedAt, IReadOnlyList<CollectionMembership> Index);
 }

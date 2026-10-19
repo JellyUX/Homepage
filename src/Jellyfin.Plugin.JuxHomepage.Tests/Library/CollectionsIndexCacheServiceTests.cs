@@ -95,6 +95,38 @@ public sealed class CollectionsIndexCacheServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task RefreshAsync_WhenTheDiskRefusesTheIndex_ServesItFromMemoryAndIsNotStaleForOneTtl()
+    {
+        // FIAB-03 sister (R11): a refused write used to leave the index stale, so every IncludedIn
+        // request relaunched ComputeIndex and answered nothing.
+        var boxSet = new BoxSet { Id = Guid.NewGuid(), Name = "Trilogy" };
+        var movie = new Movie { Id = Guid.NewGuid(), Name = "Part One" };
+        boxSet.LinkedChildren = [new LinkedChild { ItemId = movie.Id }];
+        var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock
+            .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.IncludeItemTypes.Contains(BaseItemKind.BoxSet))))
+            .Returns([boxSet]);
+        libraryManagerMock.Setup(m => m.GetItemById(movie.Id)).Returns(movie);
+        BaseItem.LibraryManager = libraryManagerMock.Object;
+        var applicationPathsMock = new Mock<IApplicationPaths>();
+        applicationPathsMock.Setup(p => p.DataPath).Returns(_tempDir);
+        var clock = new ManualTimeProvider { UtcNowValue = new DateTimeOffset(2026, 10, 19, 12, 0, 0, TimeSpan.Zero) };
+        using var service = new CollectionsIndexCacheService(
+            applicationPathsMock.Object,
+            new FailingFileSystem { FailWrites = true },
+            libraryManagerMock.Object,
+            NullLogger<CollectionsIndexCacheService>.Instance,
+            timeProvider: clock);
+
+        await service.RefreshAsync(CancellationToken.None);
+
+        Assert.False(service.IsStale());
+        Assert.Equal(boxSet.Id, Assert.Single(service.GetCollectionsFor(movie.Id)).CollectionId);
+        clock.UtcNowValue += TimeSpan.FromDays(1);
+        Assert.True(service.IsStale());
+    }
+
+    [Fact]
     public void GetCollectionsFor_ItemNotInAnyCollection_ReturnsEmpty()
     {
         var service = BuildService(new Mock<ILibraryManager>().Object);
