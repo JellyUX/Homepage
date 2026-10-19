@@ -51,7 +51,17 @@ public sealed class DiskJsonCache<T> : IDisposable
         _fileSystem = fileSystem;
         _logger = logger;
         _timeProvider = timeProvider ?? TimeProvider.System;
-        _fileSystem.CreateDirectory(_directory);
+
+        // An unwritable DataPath must not fail the construction of every service built on a cache
+        // (H-07): the cache reads nothing and each write reports its failure.
+        try
+        {
+            _fileSystem.CreateDirectory(_directory);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Cannot create the cache directory '{Directory}'; the cache will not be saved to disk.", _directory);
+        }
     }
 
     /// <summary>

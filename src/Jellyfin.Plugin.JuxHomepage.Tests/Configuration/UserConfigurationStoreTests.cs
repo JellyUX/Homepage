@@ -33,6 +33,16 @@ public sealed class UserConfigurationStoreTests : IDisposable
     }
 
     [Fact]
+    public void Constructor_WhenTheUsersDirectoryCannotBeCreated_StillBuildsAndRefusesSaves()
+    {
+        Directory.Delete(_tempDir, recursive: true);
+        var store = BuildStore(new FailingFileSystem { FailCreateDirectory = true });
+
+        Assert.Null(store.GetUserConfiguration(Guid.NewGuid()));
+        Assert.False(store.SaveUserConfiguration(new UserConfiguration { UserId = Guid.NewGuid() }));
+    }
+
+    [Fact]
     public void GetUserConfiguration_NeverSaved_ReturnsNull()
     {
         var result = _store.GetUserConfiguration(Guid.NewGuid());

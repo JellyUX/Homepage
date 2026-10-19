@@ -46,7 +46,15 @@ public sealed class UserConfigurationStore : IUserConfigurationStore, IDisposabl
             "Jellyfin.Plugin.JuxHomepage",
             "users");
 
-        _fileSystem.CreateDirectory(_usersDir);
+        // Same guard as DiskJsonCache (H-07): the store still builds, and each save reports its failure.
+        try
+        {
+            _fileSystem.CreateDirectory(_usersDir);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Cannot create the user settings directory '{Directory}'; user settings cannot be saved.", _usersDir);
+        }
     }
 
     /// <summary>
