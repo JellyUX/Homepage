@@ -1,3 +1,30 @@
+## [2.15.0](https://github.com/JellyUX/Homepage/compare/v2.14.2...v2.15.0) (2026-10-19)
+
+### Features
+
+* offer to restore the last saved configuration when Jellyfin blanked it ([a48cf68](https://github.com/JellyUX/Homepage/commit/a48cf6809104a5f74c1a84405064b622b299b2fd))
+
+### Bug Fixes
+
+* check a Rewards Q-id the way the server does, and say when a Save is refused ([972762b](https://github.com/JellyUX/Homepage/commit/972762b452b8006917b9db38d48282d787ae0693))
+* create the data directory again on each write after a failed start ([41659b0](https://github.com/JellyUX/Homepage/commit/41659b063f2c5aa2b317e992582153d0717b16a0))
+* fall back to the File Transformation assembly version when the plugin manager does not list it ([48382f1](https://github.com/JellyUX/Homepage/commit/48382f1aab4fe0c70d30abd75bba4e0238c897a9))
+* keep a just watched title when a background refresh of History or Progress ends after it ([e235b67](https://github.com/JellyUX/Homepage/commit/e235b67403530521e1a16099120a744a91ff9283))
+* keep each admin row its own id when two search results share a name ([3ebdd9c](https://github.com/JellyUX/Homepage/commit/3ebdd9c5de2b117ed9dd09b7a1943a9b512d49ec))
+* keep the plugin services up when the data directory cannot be created ([a48a680](https://github.com/JellyUX/Homepage/commit/a48a680eff85adc03c57bf297229fc941b49b915))
+* keep the Rewards and Discover ids when the admin page is saved unchanged ([571fb07](https://github.com/JellyUX/Homepage/commit/571fb073b7fb0c6cf05b5e604b7b66d72bfdfa54))
+* refuse to save a Rewards section that has no ceremony or category ([466f65a](https://github.com/JellyUX/Homepage/commit/466f65a3e29dda3159fd7a7e0e24d98fcd860913))
+* reload the home page for a stale chunk only when the server patched it ([68421c0](https://github.com/JellyUX/Homepage/commit/68421c02a6109221eb859d6379e60887c16ca56d))
+* report a refused disk write instead of answering as if it was saved ([6439928](https://github.com/JellyUX/Homepage/commit/64399286f844f4fa21c5b297cb2652c991194a19))
+* serve the collections index from memory when the disk refuses it ([f21961b](https://github.com/JellyUX/Homepage/commit/f21961b677da83c23eef0f8e0dcccebdfc41e24e))
+* show no Jellyfin Web drift message when the server could not check the chunk ([0018586](https://github.com/JellyUX/Homepage/commit/001858681d672c5678e78ecc0c1871315ed56592))
+* show the admin and user settings errors in the error color, not as grey help text ([a338729](https://github.com/JellyUX/Homepage/commit/a33872999f611dd1e8c15c34467bcd5a9f441fb6))
+* tell the admin and the client when the home page could not be patched ([ed21e49](https://github.com/JellyUX/Homepage/commit/ed21e49e7b589e2638bd77de40a37f2986c3fd4a))
+* warn about a disabled plugin before the restart, while Jellyfin reports it as Restart ([5ba49ef](https://github.com/JellyUX/Homepage/commit/5ba49ef3f014e946f1b6caf6e3ce033d4f50aa38))
+* warn the admin that a disabled JellyUX or File Transformation can be deleted at restart ([23c14fb](https://github.com/JellyUX/Homepage/commit/23c14fbb71bbfcb34ce45e067ed55667b33c5bb8))
+* warn the admin when File Transformation is older than 3.0 ([a5fd4a5](https://github.com/JellyUX/Homepage/commit/a5fd4a5e870dc89e0aa201095ac825b1dda7d959))
+* write the configuration copy through one logged instance, and test its wiring ([77907ce](https://github.com/JellyUX/Homepage/commit/77907cee9ef92f1d7cbc4a270e4c2e76a45a9614))
+
 ## [2.14.2](https://github.com/JellyUX/Homepage/compare/v2.14.1...v2.14.2) (2026-10-18)
 
 ### Bug Fixes
