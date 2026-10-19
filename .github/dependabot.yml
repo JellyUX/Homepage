@@ -19,6 +19,11 @@ updates:
       include: "scope"
     ignore:
       - dependency-name: "Jellyfin.*"
+      # Jellyfin 10.11 runs on .NET 9 and ships the 9.x shared libraries: a 10.x Microsoft.Extensions
+      # package makes the plugin fail to load (Microsoft.Extensions.DependencyInjection.Abstractions
+      # 10.0.0.0 not found). Major updates wait for the targeted Jellyfin to move to .NET 10.
+      - dependency-name: "Microsoft.Extensions.*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
