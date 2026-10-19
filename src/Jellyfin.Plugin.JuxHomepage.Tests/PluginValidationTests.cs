@@ -1,6 +1,7 @@
 using System.IO;
 using System.Xml.Serialization;
 using Jellyfin.Plugin.JuxHomepage.Configuration;
+using Jellyfin.Plugin.JuxHomepage.Rewards;
 using Jellyfin.Plugin.JuxHomepage.Widgets;
 using Jellyfin.Plugin.JuxHomepage.Widgets.Connected;
 using Xunit;
@@ -504,6 +505,46 @@ public sealed class PluginValidationTests
         Assert.False(config.Modules.Tabs);
         Assert.True(config.Modules.Collections);
     }
+
+    [Fact]
+    public void EnsureSavable_RefusesARewardsRowWithoutACeremonyOrCategoryQid()
+    {
+        var config = new PluginConfiguration
+        {
+            Widgets =
+            [
+                RewardsRow("r1", ("ceremonyQid", "Q19020")),
+                RewardsRow("r2", ("categoryQid", "Q102427"), ("year", "2020")),
+                RewardsRow("r3", ("year", "2024")),
+                RewardsRow("r4", ("ceremonyQid", "not-a-qid"))
+            ]
+        };
+
+        Assert.Equal(["r3", "r4"], Plugin.RewardsRowsWithoutQid(config).Select(w => w.GetExtraParamsDictionary()["value"]));
+        Assert.Throws<ArgumentException>(() => Plugin.EnsureSavable(config));
+
+        config.Widgets = config.Widgets.Take(2).ToArray();
+        Plugin.EnsureSavable(config);
+    }
+
+    [Fact]
+    public void LoadChain_KeepsARewardsRowWithoutQid_SoADamagedFileStillLoads()
+    {
+        var config = new PluginConfiguration { SchemaVersion = 11, Widgets = [RewardsRow("r1", ("year", "2024"))] };
+
+        Plugin.MigrateConfiguration(config);
+        Plugin.ValidateConfiguration(config);
+
+        Assert.Single(config.Widgets, w => w.WidgetType == RewardsWidgetTypes.Rewards);
+    }
+
+    private static WidgetConfig RewardsRow(string id, params (string Key, string Value)[] filters)
+        => new()
+        {
+            WidgetType = RewardsWidgetTypes.Rewards,
+            Enabled = true,
+            ExtraParams = [new WidgetExtraParam { Key = "value", Value = id }, .. filters.Select(f => new WidgetExtraParam { Key = f.Key, Value = f.Value })]
+        };
 
     [Fact]
     public void ValidateConfiguration_CapsMaxItemsAtTheCeiling()

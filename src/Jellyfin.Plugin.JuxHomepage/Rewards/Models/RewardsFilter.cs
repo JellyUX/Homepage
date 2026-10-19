@@ -10,8 +10,8 @@ namespace Jellyfin.Plugin.JuxHomepage.Rewards.Models;
 /// same mechanism the Discover Movies widget uses (see
 /// <see cref="TMDb.Models.TMDbDiscoverFilter"/>).
 /// <para>
-/// At least one of <see cref="CeremonyQid"/> or <see cref="CategoryQid"/> must be set (enforced by
-/// <see cref="Plugin.ValidateConfiguration"/>) -- a bare <see cref="Year"/> alone is not a meaningful
+/// At least one of <see cref="CeremonyQid"/> or <see cref="CategoryQid"/> must be set (enforced on admin
+/// Save by <see cref="Plugin.EnsureSavable"/>, logged on load) -- a bare <see cref="Year"/> alone is not a meaningful
 /// Wikidata query (see TODO_V2.md Phase 14 research: award statements are always attached to an
 /// award-category item, never to a year in isolation).
 /// </para>

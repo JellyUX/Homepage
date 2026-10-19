@@ -395,6 +395,19 @@ function createConfigPage() {
             return this.getExtraParam(w, 'value');
         },
 
+        // The field a row cannot be saved without, when it is empty: an admin row's value, a Rewards
+        // row's ceremony or category (the server refuses the Save otherwise, FIAB-02). Null when the
+        // row can be saved.
+        requiredFieldError: function (w, i) {
+            if (this.isAdmin(w.WidgetType) && !this.getExtraValue(w)) {
+                return { errorId: 'juxValError_' + i, fieldId: 'widgetValue_' + i };
+            }
+            if (this.isRewards(w.WidgetType) && !this.getExtraParam(w, 'ceremonyQid') && !this.getExtraParam(w, 'categoryQid')) {
+                return { errorId: 'juxRewardsError_' + i, fieldId: 'rewardsceremony_' + i };
+            }
+            return null;
+        },
+
         // Generic ExtraParams[key] lookup, used for admin "value" and personalized settings
         // such as "excludeWatched".
         getExtraParam: function (w, key) {
@@ -657,6 +670,8 @@ function createConfigPage() {
                             html += '<datalist id="' + rewardsDatalistId + '_' + fieldName + '"></datalist>';
                             html += '</div>';
                         });
+
+                        html += '<div class="fieldDescription jux-admin-value-error" style="display:none;" id="juxRewardsError_' + i + '">' + self.escHtml(self.t('admin.rewards.error')) + '</div>';
 
                         html += '<div class="inputContainer">';
                         html += '<label class="inputLabel inputLabelUnfocused" for="rewardsYear_' + i + '">' + self.escHtml(self.t('admin.rewards.year')) + '</label>';
@@ -1474,22 +1489,22 @@ function createConfigPage() {
 
             self.readDomIntoState();
 
-            // Validate: admin sections must have a value.
+            // Validate: admin sections must have a value, Rewards sections a ceremony or a category.
             var hasValueError = false;
-            var firstErrorIndex = -1;
+            var firstErrorField = null;
             var list = document.getElementById('juxWidgetList');
             self.state.sortedWidgets.forEach(function (w, i) {
-                if (!self.isAdmin(w.WidgetType)) { return; }
-                var extraValue = self.getExtraValue(w);
-                var errEl = list ? list.querySelector('#juxValError_' + i) : null;
-                if (!extraValue) {
-                    if (!hasValueError) { firstErrorIndex = i; }
-                    hasValueError = true;
-                    self._expandedRows.add(w);
-                    if (errEl) { errEl.style.display = ''; }
-                } else {
-                    if (errEl) { errEl.style.display = 'none'; }
+                var error = self.requiredFieldError(w, i);
+                if (!error) {
+                    ['#juxValError_' + i, '#juxRewardsError_' + i].forEach(function (id) {
+                        var errEl = list ? list.querySelector(id) : null;
+                        if (errEl) { errEl.style.display = 'none'; }
+                    });
+                    return;
                 }
+                if (!hasValueError) { firstErrorField = error.fieldId; }
+                hasValueError = true;
+                self._expandedRows.add(w);
             });
 
             // Seasonal sections show an inline hint (not a save-blocking error) when their
@@ -1514,10 +1529,11 @@ function createConfigPage() {
                 // into view with its field focused.
                 self.renderWidgets();
                 self.state.sortedWidgets.forEach(function (w, i) {
-                    var err = document.getElementById('juxValError_' + i);
-                    if (err) { err.style.display = self.isAdmin(w.WidgetType) && !self.getExtraValue(w) ? '' : 'none'; }
+                    var error = self.requiredFieldError(w, i);
+                    var err = error ? document.getElementById(error.errorId) : null;
+                    if (err) { err.style.display = ''; }
                 });
-                var firstField = document.getElementById('widgetValue_' + firstErrorIndex);
+                var firstField = document.getElementById(firstErrorField);
                 if (firstField) { firstField.focus(); }
                 return;
             }

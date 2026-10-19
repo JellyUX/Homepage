@@ -1,5 +1,7 @@
+using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.IO;
 using Jellyfin.Plugin.JuxHomepage.TMDb;
+using Jellyfin.Plugin.JuxHomepage.Widgets;
 using MediaBrowser.Common.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -60,6 +62,7 @@ public sealed class StartupService : IHostedService, IDisposable
     public Task StartAsync(CancellationToken cancellationToken)
     {
         RegisterFileTransformationsIfAvailable();
+        WarnRewardsRowsWithoutQid(Plugin.Instance?.Configuration, _logger);
 
         // Best-effort, not awaited, and only once the server has started (F-07): run during the boot,
         // its ~80 HTTP calls per list competed with Jellyfin's own startup. FileTransformation
@@ -84,6 +87,27 @@ public sealed class StartupService : IHostedService, IDisposable
     {
         _startedRegistration.Dispose();
         _stopping.Dispose();
+    }
+
+    /// <summary>
+    /// Logs each Rewards row that lost its Q-id, as an admin Save before FIAB-02 left it: the row loads
+    /// and shows nothing, and the admin page refuses to save it until a ceremony or category is set.
+    /// </summary>
+    /// <param name="config">The loaded configuration, or null when the plugin is not loaded.</param>
+    /// <param name="logger">Logger.</param>
+    internal static void WarnRewardsRowsWithoutQid(PluginConfiguration? config, ILogger logger)
+    {
+        if (config is null)
+        {
+            return;
+        }
+
+        foreach (var row in Plugin.RewardsRowsWithoutQid(config))
+        {
+            logger.LogWarning(
+                "Rewards section '{InstanceId}' has no ceremony or category and shows nothing: set one on the JellyUX admin page.",
+                row.GetExtraParamsDictionary().GetValueOrDefault("value"));
+        }
     }
 
     private void RegisterFileTransformationsIfAvailable()

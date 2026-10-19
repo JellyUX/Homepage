@@ -1,4 +1,6 @@
 using Jellyfin.Plugin.JuxHomepage.Configuration;
+using Jellyfin.Plugin.JuxHomepage.Rewards;
+using Jellyfin.Plugin.JuxHomepage.Rewards.Models;
 using Jellyfin.Plugin.JuxHomepage.Widgets;
 using Jellyfin.Plugin.JuxHomepage.Widgets.Connected;
 using Jellyfin.Plugin.JuxHomepage.Widgets.Local;
@@ -115,6 +117,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
         if (configuration is PluginConfiguration config)
         {
             ValidateConfiguration(config);
+            EnsureSavable(config);
         }
 
         // Call base last so ConfigurationChanged fires with the clamped values.
@@ -519,6 +522,36 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
             widget.ExtraParams = widget.ExtraParams
                 .Where(p => p.Key is not ("startDate" or "endDate") || SeasonalWidget.TryParseMonthDay(p.Value, out _))
                 .ToArray();
+        }
+    }
+
+    /// <summary>
+    /// Lists the Rewards rows that name neither a ceremony nor a category with a well-formed Q-id: such a
+    /// row never queries Wikidata, so it is an admin Save that lost its filter (FIAB-02), not a choice.
+    /// </summary>
+    /// <param name="config">The configuration to inspect.</param>
+    /// <returns>The rows without a ceremony or category Q-id.</returns>
+    internal static IReadOnlyList<WidgetConfig> RewardsRowsWithoutQid(PluginConfiguration config)
+        => config.Widgets
+            .Where(w => w.WidgetType == RewardsWidgetTypes.Rewards)
+            .Where(w =>
+            {
+                var filter = RewardsFilter.FromExtraParams(w.GetExtraParamsDictionary());
+                return filter.CeremonyQid is null && filter.CategoryQid is null;
+            })
+            .ToList();
+
+    /// <summary>
+    /// Refuses an admin Save that carries a Rewards row without a Q-id. Not called on load, where the same
+    /// rows are only logged (see <c>StartupService</c>), so an already damaged file still loads.
+    /// </summary>
+    /// <param name="config">The validated configuration about to be saved.</param>
+    /// <exception cref="ArgumentException">A Rewards row has neither a ceremony nor a category Q-id.</exception>
+    internal static void EnsureSavable(PluginConfiguration config)
+    {
+        if (RewardsRowsWithoutQid(config).Count > 0)
+        {
+            throw new ArgumentException("A Rewards section needs a ceremony or a category.", nameof(config));
         }
     }
 

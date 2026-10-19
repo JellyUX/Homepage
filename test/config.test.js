@@ -282,6 +282,27 @@ describe('configuration page controller (F-33)', () => {
         expect(keys).not.toContain('keywordIds');
     });
 
+    it('unfolds a Rewards row with no ceremony or category and focuses its ceremony, without saving (FIAB-02)', async () => {
+        const rewards = { WidgetType: 'jux.connected.rewards', Enabled: true, Order: 3, MinItems: 1, MaxItems: 20, ViewMode: 'Portrait', ExtraParams: [{ Key: 'value', Value: 'r1' }, { Key: 'year', Value: '2024' }] };
+        const catalog = [...descriptors, { WidgetType: 'jux.connected.rewards', DisplayName: 'Rewards', Category: 3, MinItems: 1, ViewMode: 'Portrait' }];
+        window.ApiClient.getPluginConfiguration = vi.fn(() => Promise.resolve({ ...JSON.parse(JSON.stringify(config)), Widgets: [...JSON.parse(JSON.stringify(config.Widgets)), rewards] }));
+        window.ApiClient.getJSON = vi.fn((url) => (url === 'JuxHomepage/Admin/Catalog'
+            ? Promise.resolve({ WidgetCategories: ['Native', 'Admin', 'Personalized', 'Connected'], Widgets: catalog })
+            : getJSON(url)));
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+        window.ApiClient.updatePluginConfiguration = vi.fn(() => Promise.resolve({}));
+
+        view.querySelector('.juxConfigForm').dispatchEvent(new Event('submit', { cancelable: true }));
+        await settle();
+
+        expect(window.ApiClient.updatePluginConfiguration).not.toHaveBeenCalled();
+        expect(card(3).classList.contains('jux-admin-widget-card-collapsed')).toBe(false);
+        expect(view.querySelector('#juxRewardsError_3').style.display).toBe('');
+        expect(document.activeElement).toBe(card(3).querySelector('.jux-rewards-ceremony'));
+    });
+
     it('offers the sort order on library rows and saves the chosen one (F-53)', async () => {
         createController(view);
         view.dispatchEvent(new Event('viewshow'));
