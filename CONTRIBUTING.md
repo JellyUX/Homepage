@@ -221,6 +221,10 @@ Any Jellyfin Web build can rename them, so run this procedure after every Jellyf
    JellyUX went back to the native home screen" and never reloads the page; the cache message (CDN or
    proxy) only appears when `PatchStatus` says the server patched the chunk.
 
+On a bench, never click **Disable** on JellyUX or File Transformation: Jellyfin 10.11 deletes a
+disabled plugin at the next restart when an active plugin sorts after it by name
+(`docs/troubleshooting.md`).
+
 ---
 
 ## Configuration Schema Versioning

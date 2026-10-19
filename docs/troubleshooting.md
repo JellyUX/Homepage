@@ -106,6 +106,23 @@ If you consistently run into this after every JellyUX update, consider adding a 
 CDN/proxy that bypasses caching for `*.chunk.js`/`*.bundle.js` paths, or that purges automatically as
 part of your plugin update routine.
 
+## JellyUX or File Transformation disappeared after a restart
+
+On Jellyfin 10.11, **Disable** in **Administration > Plugins** can delete the plugin at the next
+restart (Jellyfin issue [#15897](https://github.com/jellyfin/jellyfin/issues/15897), fixed in 12.0).
+At startup Jellyfin sorts the plugins by name and walks the list from the end: a disabled plugin
+found after an active one is deleted, and this is only logged at the Debug level. Whether it happens
+depends on the other plugins installed: on a server with Media Bar or TMDb Box Sets, both sort after
+JellyUX Homepage.
+
+This applies to File Transformation too: once deleted, nothing injects JellyUX into the web client
+and the home page is native. The JellyUX admin page warns in its banner while JellyUX or File
+Transformation is disabled, before the restart: enable it again before restarting.
+
+To turn JellyUX off, uncheck **Enable JellyUX Homepage** on its configuration page instead. If the
+plugin is already gone, reinstall it from the plugin catalog: its settings are kept, as the
+configuration file and the data folder are not deleted.
+
 ## Home page falls back to native rendering after a Jellyfin update
 
 JellyUX patches a specific Jellyfin Web chunk to render its widgets. If Jellyfin Web's internal
