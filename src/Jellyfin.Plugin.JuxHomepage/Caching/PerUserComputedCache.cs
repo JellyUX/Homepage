@@ -8,7 +8,10 @@ namespace Jellyfin.Plugin.JuxHomepage.Caching;
 /// F-54): computed on the user's first read instead of waiting for the daily task, refreshed in the
 /// background once older than its time-to-live, and patched in place after a watch.
 /// <para>
-/// Writes of one user are serialized, so a patch never interleaves with a recompute of the same file.
+/// Writes of one user are serialized, so a patch never interleaves with a recompute of the same file. A
+/// recompute runs outside the lock, so a patch made while it runs bumps the user's version and the
+/// recompute, now older than the patched list, is not written (H-10; test: PerUserComputedCacheTests
+/// "Refresh_RacingAnUpdate_DoesNotOverwriteTheWatchTheUpdateAdded").
 /// An empty result is written like any other (F-69): a user without history is computed once, not on
 /// every read.
 /// </para>
@@ -30,6 +33,7 @@ internal sealed class PerUserComputedCache<T>
     private readonly ConcurrentDictionary<Guid, object> _userLocks = new();
     private readonly ConcurrentDictionary<Guid, byte> _backgroundRefreshes = new();
     private readonly ConcurrentDictionary<Guid, Unsaved> _unsaved = new();
+    private readonly ConcurrentDictionary<Guid, long> _versions = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PerUserComputedCache{T}"/> class.
@@ -108,9 +112,16 @@ internal sealed class PerUserComputedCache<T>
     /// <param name="userId">The user.</param>
     public void Refresh(Guid userId)
     {
+        var version = _versions.GetValueOrDefault(userId);
         var entries = _compute(userId);
         lock (UserLock(userId))
         {
+            if (_versions.GetValueOrDefault(userId) != version)
+            {
+                _logger.LogDebug("Dropped the recompute of user {UserId}: the list was patched while it ran.", userId);
+                return;
+            }
+
             Store(userId, entries);
         }
     }
@@ -141,6 +152,7 @@ internal sealed class PerUserComputedCache<T>
             }
 
             Store(userId, entries);
+            _versions.AddOrUpdate(userId, 1, (_, version) => version + 1);
         }
     }
 

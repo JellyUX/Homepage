@@ -63,6 +63,39 @@ public sealed class PerUserComputedCacheTests : IDisposable
     }
 
     [Fact]
+    public async Task Refresh_RacingAnUpdate_DoesNotOverwriteTheWatchTheUpdateAdded()
+    {
+        var computeStarted = new TaskCompletionSource();
+        var releaseCompute = new TaskCompletionSource();
+        var calls = 0;
+        var cache = new PerUserComputedCache<string>(
+            new DiskJsonCache<string>(_tempDir, _fileSystem, NullLogger.Instance, _clock),
+            Ttl,
+            _ =>
+            {
+                if (Interlocked.Increment(ref calls) == 1)
+                {
+                    return ["watched-1"];
+                }
+
+                computeStarted.SetResult();
+                releaseCompute.Task.Wait();
+                return ["recomputed-before-the-watch"];
+            },
+            NullLogger.Instance,
+            _clock);
+        cache.Get(_userId);
+
+        var refresh = Task.Run(() => cache.Refresh(_userId));
+        await computeStarted.Task;
+        cache.Update(_userId, current => [.. current, "just-watched"]);
+        releaseCompute.SetResult();
+        await refresh;
+
+        Assert.Contains("just-watched", cache.Get(_userId));
+    }
+
+    [Fact]
     public void Update_WhenTheDiskRefusesTheWrite_KeepsThePatchedListInMemory()
     {
         _fileSystem.FailWrites = true;
