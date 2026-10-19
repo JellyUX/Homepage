@@ -51,6 +51,20 @@ public sealed class DiskJsonCacheTests : IDisposable
         new(_tempDir, new FileSystem(), NullLogger.Instance);
 
     [Fact]
+    public void Write_WhenTheDiskRefuses_ReturnsFalseAndLeavesNoTempFile()
+    {
+        var fileSystem = new FailingFileSystem();
+        var cache = new DiskJsonCache<TestItem>(_tempDir, fileSystem, NullLogger.Instance);
+        Assert.True(cache.Write("items.json", [new TestItem(1, "a")]));
+
+        fileSystem.FailWrites = true;
+
+        Assert.False(cache.Write("items.json", [new TestItem(2, "b")]));
+        Assert.Equal([new TestItem(1, "a")], cache.Read("items.json"));
+        Assert.False(File.Exists(Path.Combine(_tempDir, "items.json.tmp")));
+    }
+
+    [Fact]
     public void Write_EmptyList_ReplacesContentAndIsNoLongerStale()
     {
         // F-69: an empty library answer is cached like any other.

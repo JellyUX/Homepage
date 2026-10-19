@@ -12,6 +12,12 @@ namespace Jellyfin.Plugin.JuxHomepage.Caching;
 /// An empty result is written like any other (F-69): a user without history is computed once, not on
 /// every read.
 /// </para>
+/// <para>
+/// A list the disk refuses (full, read-only) is kept in memory and served until it is one
+/// time-to-live old, so a failing disk costs one computation per time-to-live, not one per read
+/// (FIAB-03; tests: PerUserComputedCacheTests "Get_WhenTheDiskRefusesTheWrite_ServesTheComputedListAndComputesOncePerTtl",
+/// "Update_WhenTheDiskRefusesTheWrite_KeepsThePatchedListInMemory").
+/// </para>
 /// </summary>
 /// <typeparam name="T">The cached entry type.</typeparam>
 internal sealed class PerUserComputedCache<T>
@@ -20,8 +26,10 @@ internal sealed class PerUserComputedCache<T>
     private readonly TimeSpan _ttl;
     private readonly Func<Guid, IReadOnlyList<T>> _compute;
     private readonly ILogger _logger;
+    private readonly TimeProvider _timeProvider;
     private readonly ConcurrentDictionary<Guid, object> _userLocks = new();
     private readonly ConcurrentDictionary<Guid, byte> _backgroundRefreshes = new();
+    private readonly ConcurrentDictionary<Guid, Unsaved> _unsaved = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="PerUserComputedCache{T}"/> class.
@@ -30,12 +38,14 @@ internal sealed class PerUserComputedCache<T>
     /// <param name="ttl">Age after which a read refreshes the file in the background.</param>
     /// <param name="compute">Computes the full list of a user.</param>
     /// <param name="logger">Logger.</param>
-    public PerUserComputedCache(DiskJsonCache<T> cache, TimeSpan ttl, Func<Guid, IReadOnlyList<T>> compute, ILogger logger)
+    /// <param name="timeProvider">Time source of the time-to-live. Defaults to <see cref="TimeProvider.System"/>.</param>
+    public PerUserComputedCache(DiskJsonCache<T> cache, TimeSpan ttl, Func<Guid, IReadOnlyList<T>> compute, ILogger logger, TimeProvider? timeProvider = null)
     {
         _cache = cache;
         _ttl = ttl;
         _compute = compute;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <summary>
@@ -46,15 +56,25 @@ internal sealed class PerUserComputedCache<T>
     /// <returns>The user's entries.</returns>
     public IReadOnlyList<T> Get(Guid userId)
     {
+        if (TryGetUnsaved(userId, out var kept))
+        {
+            return kept;
+        }
+
         var fileName = FileName(userId);
         if (_cache.GetLastWriteUtc(fileName) is null)
         {
             lock (UserLock(userId))
             {
-                if (_cache.GetLastWriteUtc(fileName) is null)
+                if (_cache.GetLastWriteUtc(fileName) is null && !TryGetUnsaved(userId, out _))
                 {
-                    _cache.Write(fileName, _compute(userId));
+                    Store(userId, _compute(userId));
                 }
+            }
+
+            if (TryGetUnsaved(userId, out kept))
+            {
+                return kept;
             }
         }
         else if (IsStale(userId) && _backgroundRefreshes.TryAdd(userId, 0))
@@ -91,7 +111,7 @@ internal sealed class PerUserComputedCache<T>
         var entries = _compute(userId);
         lock (UserLock(userId))
         {
-            _cache.Write(FileName(userId), entries);
+            Store(userId, entries);
         }
     }
 
@@ -106,13 +126,58 @@ internal sealed class PerUserComputedCache<T>
         lock (UserLock(userId))
         {
             var fileName = FileName(userId);
-            _cache.Write(
-                fileName,
-                _cache.GetLastWriteUtc(fileName) is null ? _compute(userId) : change(_cache.Read(fileName)));
+            IReadOnlyList<T> entries;
+            if (TryGetUnsaved(userId, out var kept))
+            {
+                entries = change(kept);
+            }
+            else if (_cache.GetLastWriteUtc(fileName) is null)
+            {
+                entries = _compute(userId);
+            }
+            else
+            {
+                entries = change(_cache.Read(fileName));
+            }
+
+            Store(userId, entries);
         }
     }
 
     private static string FileName(Guid userId) => $"{userId}.json";
 
+    // Writes a user's list, or keeps it in memory when the disk refuses it. Called under the user's lock.
+    private void Store(Guid userId, IReadOnlyList<T> entries)
+    {
+        if (_cache.Write(FileName(userId), entries))
+        {
+            _unsaved.TryRemove(userId, out _);
+        }
+        else
+        {
+            _unsaved[userId] = new Unsaved(_timeProvider.GetUtcNow(), entries);
+        }
+    }
+
+    private bool TryGetUnsaved(Guid userId, out IReadOnlyList<T> entries)
+    {
+        if (_unsaved.TryGetValue(userId, out var unsaved))
+        {
+            if (_timeProvider.GetUtcNow() - unsaved.ComputedAt < _ttl)
+            {
+                entries = unsaved.Entries;
+                return true;
+            }
+
+            _unsaved.TryRemove(KeyValuePair.Create(userId, unsaved));
+        }
+
+        entries = [];
+        return false;
+    }
+
     private object UserLock(Guid userId) => _userLocks.GetOrAdd(userId, _ => new object());
+
+    /// <summary>A list the disk refused, with the time it was computed.</summary>
+    private sealed record Unsaved(DateTimeOffset ComputedAt, IReadOnlyList<T> Entries);
 }

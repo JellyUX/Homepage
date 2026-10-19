@@ -94,7 +94,8 @@ public sealed class UserConfigurationStore : IUserConfigurationStore, IDisposabl
     /// Persists the given user configuration to disk.
     /// </summary>
     /// <param name="config">The configuration to save.</param>
-    public void SaveUserConfiguration(UserConfiguration config)
+    /// <returns>False when the file could not be written.</returns>
+    public bool SaveUserConfiguration(UserConfiguration config)
     {
         var path = GetPath(config.UserId);
         var tmpPath = path + ".tmp";
@@ -110,11 +111,13 @@ public sealed class UserConfigurationStore : IUserConfigurationStore, IDisposabl
             // file on disk -- readers always see either the old file or the fully-written new one.
             _fileSystem.WriteAllText(tmpPath, json);
             _fileSystem.Move(tmpPath, path, overwrite: true);
+            return true;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to save user configuration for {UserId}.", config.UserId);
             TryDeleteStrayTempFile(tmpPath);
+            return false;
         }
         finally
         {

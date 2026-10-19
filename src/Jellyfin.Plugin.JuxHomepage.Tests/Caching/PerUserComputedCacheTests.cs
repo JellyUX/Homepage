@@ -1,0 +1,77 @@
+using Jellyfin.Plugin.JuxHomepage.Caching;
+using Microsoft.Extensions.Logging.Abstractions;
+using Xunit;
+
+namespace Jellyfin.Plugin.JuxHomepage.Tests.Caching;
+
+public sealed class PerUserComputedCacheTests : IDisposable
+{
+    private static readonly TimeSpan Ttl = TimeSpan.FromHours(1);
+    private readonly string _tempDir = Path.Combine(Path.GetTempPath(), "jux-peruser-tests-" + Guid.NewGuid());
+    private readonly FailingFileSystem _fileSystem = new();
+    private readonly ManualTimeProvider _clock = new() { UtcNowValue = new DateTimeOffset(2026, 10, 19, 12, 0, 0, TimeSpan.Zero) };
+    private readonly Guid _userId = Guid.NewGuid();
+    private int _computes;
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_tempDir))
+        {
+            Directory.Delete(_tempDir, recursive: true);
+        }
+    }
+
+    private PerUserComputedCache<string> BuildCache() => new(
+        new DiskJsonCache<string>(_tempDir, _fileSystem, NullLogger.Instance, _clock),
+        Ttl,
+        _ =>
+        {
+            _computes++;
+            return ["watched-" + _computes];
+        },
+        NullLogger.Instance,
+        _clock);
+
+    [Fact]
+    public void Get_WhenTheDiskRefusesTheWrite_ServesTheComputedListAndComputesOncePerTtl()
+    {
+        _fileSystem.FailWrites = true;
+        var cache = BuildCache();
+
+        Assert.Equal(["watched-1"], cache.Get(_userId));
+        Assert.Equal(["watched-1"], cache.Get(_userId));
+        Assert.Equal(1, _computes);
+
+        _clock.UtcNowValue += Ttl;
+        Assert.Equal(["watched-2"], cache.Get(_userId));
+        Assert.Equal(2, _computes);
+    }
+
+    [Fact]
+    public void Get_AfterTheDiskAcceptsWritesAgain_ReadsTheFileItWrote()
+    {
+        _fileSystem.FailWrites = true;
+        var cache = BuildCache();
+        cache.Get(_userId);
+
+        _fileSystem.FailWrites = false;
+        _clock.UtcNowValue += Ttl;
+
+        Assert.Equal(["watched-2"], cache.Get(_userId));
+        Assert.Equal(["watched-2"], cache.Get(_userId));
+        Assert.Equal(2, _computes);
+    }
+
+    [Fact]
+    public void Update_WhenTheDiskRefusesTheWrite_KeepsThePatchedListInMemory()
+    {
+        _fileSystem.FailWrites = true;
+        var cache = BuildCache();
+        cache.Get(_userId);
+
+        cache.Update(_userId, current => [.. current, "just-watched"]);
+
+        Assert.Equal(["watched-1", "just-watched"], cache.Get(_userId));
+        Assert.Equal(1, _computes);
+    }
+}

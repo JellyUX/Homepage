@@ -70,7 +70,8 @@ public sealed class UserSettingsService
     /// </summary>
     /// <param name="userId">The user.</param>
     /// <param name="update">The settings to save.</param>
-    public void Save(Guid userId, UserSettingsUpdate update)
+    /// <returns>False when the settings could not be written; the cached layout is then kept.</returns>
+    public bool Save(Guid userId, UserSettingsUpdate update)
     {
         var rows = _getConfiguration()?.Widgets ?? [];
         var keys = WidgetLayoutResolver.SectionKeys(rows);
@@ -81,7 +82,12 @@ public sealed class UserSettingsService
         config.Enabled = update.Enabled ? null : false;
         config.HiddenSections = (update.HiddenSections ?? []).Where(hideable.Contains).Distinct(StringComparer.Ordinal).ToArray();
         Plugin.MigrateUserConfiguration(config);
-        _store.SaveUserConfiguration(config);
+        if (!_store.SaveUserConfiguration(config))
+        {
+            return false;
+        }
+
         _widgetService.InvalidateUser(userId);
+        return true;
     }
 }

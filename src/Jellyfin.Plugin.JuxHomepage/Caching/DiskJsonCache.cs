@@ -120,7 +120,8 @@ public sealed class DiskJsonCache<T> : IDisposable
     /// </summary>
     /// <param name="fileName">The cache file name (not a full path).</param>
     /// <param name="items">The items to write.</param>
-    public void Write(string fileName, IReadOnlyList<T> items)
+    /// <returns>False when the file could not be written; the previous file, if any, is left as it was.</returns>
+    public bool Write(string fileName, IReadOnlyList<T> items)
     {
         var path = Path.Combine(_directory, fileName);
         var tmpPath = path + ".tmp";
@@ -133,11 +134,13 @@ public sealed class DiskJsonCache<T> : IDisposable
             _fileSystem.WriteAllText(tmpPath, json);
             _fileSystem.Move(tmpPath, path, overwrite: true);
             _memo[fileName] = new Memo(_fileSystem.GetLastWriteTimeUtc(path), items);
+            return true;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to write cache file '{FileName}'.", fileName);
             TryDeleteStrayTempFile(tmpPath);
+            return false;
         }
         finally
         {

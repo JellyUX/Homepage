@@ -16,5 +16,6 @@ public interface IUserConfigurationStore
     /// Persists the given user configuration.
     /// </summary>
     /// <param name="config">The configuration to save.</param>
-    void SaveUserConfiguration(UserConfiguration config);
+    /// <returns>False when the configuration could not be written.</returns>
+    bool SaveUserConfiguration(UserConfiguration config);
 }

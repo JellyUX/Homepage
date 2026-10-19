@@ -19,6 +19,20 @@ public sealed class UserConfigurationStoreTests : IDisposable
     }
 
     [Fact]
+    public void SaveUserConfiguration_WhenTheDiskRefuses_ReturnsFalse()
+    {
+        var fileSystem = new FailingFileSystem();
+        var store = BuildStore(fileSystem);
+        var userId = Guid.NewGuid();
+        Assert.True(store.SaveUserConfiguration(new UserConfiguration { UserId = userId, Enabled = false }));
+
+        fileSystem.FailWrites = true;
+
+        Assert.False(store.SaveUserConfiguration(new UserConfiguration { UserId = userId, Enabled = true }));
+        Assert.False(store.GetUserConfiguration(userId)!.Enabled);
+    }
+
+    [Fact]
     public void GetUserConfiguration_NeverSaved_ReturnsNull()
     {
         var result = _store.GetUserConfiguration(Guid.NewGuid());

@@ -52,11 +52,12 @@ public class JuxUserSettingsController : ControllerBase
     /// <summary>Saves the user's JellyUX settings.</summary>
     /// <param name="userId">The user; a regular user always saves their own settings.</param>
     /// <param name="update">Whether JellyUX runs for the user, and the keys of the sections they hide.</param>
-    /// <returns>No content.</returns>
+    /// <returns>No content, or 500 when the settings could not be written.</returns>
     [HttpPost]
     [Authorize]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status500InternalServerError)]
     public async Task<ActionResult> Save([FromQuery] Guid userId, [FromBody] UserSettingsUpdate update)
     {
         var resolved = await ResolveUserIdAsync(userId).ConfigureAwait(false);
@@ -65,8 +66,9 @@ public class JuxUserSettingsController : ControllerBase
             return StatusCode(StatusCodes.Status403Forbidden);
         }
 
-        _userSettings.Save(resolved.Value, update);
-        return NoContent();
+        return _userSettings.Save(resolved.Value, update)
+            ? NoContent()
+            : StatusCode(StatusCodes.Status500InternalServerError);
     }
 
     private async Task<Guid?> ResolveUserIdAsync(Guid requestedUserId)

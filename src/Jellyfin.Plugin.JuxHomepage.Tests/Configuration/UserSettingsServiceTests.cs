@@ -35,7 +35,7 @@ public sealed class UserSettingsServiceTests
             ExtraParams = [new WidgetExtraParam { Key = "value", Value = _seasonalId }]
         };
         _store.Setup(s => s.GetUserConfiguration(_userId)).Returns(() => _saved);
-        _store.Setup(s => s.SaveUserConfiguration(It.IsAny<UserConfiguration>())).Callback<UserConfiguration>(c => _saved = c);
+        _store.Setup(s => s.SaveUserConfiguration(It.IsAny<UserConfiguration>())).Callback<UserConfiguration>(c => _saved = c).Returns(true);
     }
 
     private WidgetConfig[] Rows => [_shows, _genre1, _genre2, _adminGenre, _seasonal, _disabled];
@@ -106,6 +106,18 @@ public sealed class UserSettingsServiceTests
 
         Assert.Equal([GenreType], mine.Select(d => d.WidgetType));
         Assert.Equal([_shows.WidgetType, GenreType], admin.Select(d => d.WidgetType));
+    }
+
+    [Fact]
+    public void Save_WhenTheStoreCannotWrite_ReturnsFalseAndKeepsTheCachedLayout()
+    {
+        using var cache = new SessionCache();
+        cache.Set(_userId, "en", []);
+        _store.Setup(s => s.SaveUserConfiguration(It.IsAny<UserConfiguration>())).Returns(false);
+        var service = BuildService(cache);
+
+        Assert.False(service.Save(_userId, new UserSettingsUpdate { Enabled = false }));
+        Assert.True(cache.TryGet(_userId, "en", TimeSpan.FromMinutes(5), out _));
     }
 
     private UserSettingsService BuildService(SessionCache cache)
