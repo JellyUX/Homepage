@@ -146,7 +146,7 @@
   "admin.discover.pages": "Pages",
   "admin.rewards.ceremony": "Cérémonie",
   "admin.rewards.category": "Catégorie de récompense",
-  "admin.rewards.error": "Une section Récompenses a besoin d’une cérémonie ou d’une catégorie.",
+  "admin.rewards.error": "Une section Récompenses a besoin d'une cérémonie ou d'une catégorie.",
   "admin.rewards.year": "Année",
   "admin.rewards.help": "Au moins un des champs Cérémonie ou Catégorie est requis. Les données proviennent de Wikidata et peuvent ne pas couvrir toutes les cérémonies/années. Pour de meilleurs résultats de recherche, tape le nom complet (ex. \"Academy Award for Best Picture\" plutôt que \"Academy\").",
   "admin.minitems.label": "Éléments minimum",
