@@ -17,6 +17,15 @@ public class CoexistenceWarnings
     /// <summary>Warning code: FileTransformation is older than 3.0, which revalidates index.html on every load.</summary>
     public const string FileTransformationOutdated = "FileTransformationOutdated";
 
+    /// <summary>
+    /// Warning code: JellyUX is disabled in the dashboard. Jellyfin 10.11 deletes a disabled plugin at
+    /// the next restart when an active plugin sorts after it by name (FIAB-06).
+    /// </summary>
+    public const string JellyUXDisabled = "JellyUXDisabled";
+
+    /// <summary>Warning code: FileTransformation is disabled, same deletion risk, and nothing is injected after it (FIAB-06).</summary>
+    public const string FileTransformationDisabled = "FileTransformationDisabled";
+
     /// <summary>Warning code: the loadSections chunk drifted, the home page is native (FIAB-04).</summary>
     public const string HomeHookNotFound = "HomeHookNotFound";
 
@@ -33,6 +42,9 @@ public class CoexistenceWarnings
     // 8096 bench at 3.0.0.0). Its version comes from the manifest, the one the dashboard shows.
     private static readonly Guid FileTransformationId = Guid.Parse("5e87cc92-571a-4d8d-8d98-d2d4147f9f90");
     private static readonly Version FileTransformationMinimum = new(3, 0);
+
+    // Plugin.Id: JellyUX reads its own status, which stays loaded until the restart that deletes it.
+    private static readonly Guid JellyUXId = Guid.Parse("3adf1f1f-1541-4e47-b9e3-34d2d2968af6");
 
     // CustomTabsPlugin.Id in jellyfin-plugin-custom-tabs. FileTransformation runs only one pipeline
     // per file pattern: both plugins patch the home-html chunk, so one of them loses its tabs.
@@ -85,6 +97,18 @@ public class CoexistenceWarnings
         else if (installed.Any(p => p.Id == FileTransformationId && p.Version < FileTransformationMinimum))
         {
             warnings.Add(FileTransformationOutdated);
+        }
+
+        // Only the status is read, not Jellyfin's name order (DEC-P05-7): the order is internal to
+        // DiscoverPlugins and the message says the deletion happens if an active plugin sorts after.
+        if (installed.Any(p => p.Id == JellyUXId && p.Manifest.Status == PluginStatus.Disabled))
+        {
+            warnings.Add(JellyUXDisabled);
+        }
+
+        if (installed.Any(p => p.Id == FileTransformationId && p.Manifest.Status == PluginStatus.Disabled))
+        {
+            warnings.Add(FileTransformationDisabled);
         }
 
         if (loadSections == LoadSectionsPatchState.HookNotFound)

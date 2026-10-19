@@ -26,6 +26,15 @@ public sealed class CoexistenceWarningsTests
     }
 
     [Theory]
+    [InlineData("3adf1f1f-1541-4e47-b9e3-34d2d2968af6", CoexistenceWarnings.JellyUXDisabled)]
+    [InlineData("5e87cc92-571a-4d8d-8d98-d2d4147f9f90", CoexistenceWarnings.FileTransformationDisabled)]
+    public void Build_JellyUXOrFileTransformationDisabled_WarnsOfTheDeletionAtRestart(string id, string code)
+    {
+        Assert.Equal([code], CoexistenceWarnings.Build(true, [Plugin(Guid.Parse(id), PluginStatus.Disabled, "3.0.0.0")], LoadSectionsPatchState.Patched, true));
+        Assert.Empty(CoexistenceWarnings.Build(true, [Plugin(Guid.Parse(id), PluginStatus.Active, "3.0.0.0")], LoadSectionsPatchState.Patched, true));
+    }
+
+    [Theory]
     [InlineData(LoadSectionsPatchState.HookNotFound, CoexistenceWarnings.HomeHookNotFound)]
     [InlineData(LoadSectionsPatchState.NoChunk, CoexistenceWarnings.HomeChunkMissing)]
     public void Build_HomeChunkNotPatched_Warns(LoadSectionsPatchState state, string code)
