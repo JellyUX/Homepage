@@ -102,12 +102,12 @@ public interface ITMDbApiClient
     /// <summary>Fetches the IMDb identifier for a TMDb movie, used for library cross-referencing.</summary>
     /// <param name="tmdbId">The TMDb movie identifier.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The IMDb identifier (e.g. "tt1375666"), or null if unknown/unavailable.</returns>
+    /// <returns>The IMDb identifier (e.g. "tt1375666"), an empty string if TMDb has none, or null if the request failed.</returns>
     Task<string?> GetMovieExternalIdsAsync(int tmdbId, CancellationToken cancellationToken);
 
     /// <summary>Fetches the IMDb identifier for a TMDb TV show, used for library cross-referencing.</summary>
     /// <param name="tmdbId">The TMDb show identifier.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>The IMDb identifier (e.g. "tt1234567"), or null if unknown/unavailable.</returns>
+    /// <returns>The IMDb identifier (e.g. "tt1234567"), an empty string if TMDb has none, or null if the request failed.</returns>
     Task<string?> GetShowExternalIdsAsync(int tmdbId, CancellationToken cancellationToken);
 }

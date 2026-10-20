@@ -117,7 +117,8 @@ public interface ITMDbCacheService
 
     /// <summary>
     /// Runs the refresh, assuming the slot was already reserved via <see cref="TryAcquireRefreshLock"/>.
-    /// Always releases the slot afterward, even on failure.
+    /// Always releases the slot afterward, even on failure. Asks TMDb again for the titles it had no
+    /// IMDb id for, which a single-list refresh does not (DEC-P06-4).
     /// </summary>
     /// <param name="progress">Optional progress reporter, updated as each refresh completes.</param>
     /// <param name="cancellationToken">Cancellation token.</param>

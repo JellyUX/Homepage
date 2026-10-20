@@ -41,4 +41,77 @@ public sealed class TMDbExternalIdCacheTests : IDisposable
 
         Assert.Equal(3, calls);
     }
+
+    [Fact]
+    public async Task GetImdbIdAsync_TitleWithoutImdbId_IsNotAskedAgainForSevenDays()
+    {
+        // Annexe A "TMDb": TMDb answers "" for a title it has no IMDb id for. It was asked again at
+        // every refresh; it is now remembered for 7 days (DEC-P06-4).
+        var clock = new ManualTimeProvider();
+        var calls = 0;
+        using var cache = CacheAnswering(_ => string.Empty, () => calls++, clock);
+
+        Assert.Null(await cache.GetImdbIdAsync(1, CancellationToken.None));
+        clock.Advance(TMDbExternalIdCache.MissingIdLifetime - TimeSpan.FromSeconds(1));
+        Assert.Null(await cache.GetImdbIdAsync(1, CancellationToken.None));
+        Assert.Equal(1, calls);
+
+        clock.Advance(TimeSpan.FromSeconds(1));
+        Assert.Null(await cache.GetImdbIdAsync(1, CancellationToken.None));
+        Assert.Equal(2, calls);
+    }
+
+    [Fact]
+    public async Task GetImdbIdAsync_FailedFetch_IsAskedAgain()
+    {
+        var calls = 0;
+        using var cache = CacheAnswering(_ => null, () => calls++, new ManualTimeProvider());
+
+        Assert.Null(await cache.GetImdbIdAsync(1, CancellationToken.None));
+        Assert.Null(await cache.GetImdbIdAsync(1, CancellationToken.None));
+
+        Assert.Equal(2, calls);
+    }
+
+    [Fact]
+    public async Task ClearMissing_TitleWithoutImdbId_IsAskedAgain()
+    {
+        var calls = 0;
+        using var cache = CacheAnswering(_ => string.Empty, () => calls++, new ManualTimeProvider());
+
+        await cache.GetImdbIdAsync(1, CancellationToken.None);
+        cache.ClearMissing();
+        await cache.GetImdbIdAsync(1, CancellationToken.None);
+
+        Assert.Equal(2, calls);
+    }
+
+    [Fact]
+    public async Task GetImdbIdAsync_MoreTitlesWithoutImdbIdThanTheBound_RemembersOnlyTheBound()
+    {
+        var calls = 0;
+        using var cache = CacheAnswering(_ => string.Empty, () => calls++, new ManualTimeProvider());
+        for (var id = 1; id <= TMDbExternalIdCache.MaxMissingIds + 1; id++)
+        {
+            await cache.GetImdbIdAsync(id, CancellationToken.None);
+        }
+
+        await cache.GetImdbIdAsync(1, CancellationToken.None);
+        await cache.GetImdbIdAsync(TMDbExternalIdCache.MaxMissingIds + 1, CancellationToken.None);
+
+        Assert.Equal(TMDbExternalIdCache.MaxMissingIds + 2, calls);
+    }
+
+    private TMDbExternalIdCache CacheAnswering(Func<int, string?> answer, Action onCall, TimeProvider clock) =>
+        new(
+            _tempDir,
+            "ids.json",
+            new FileSystem(),
+            (id, _) =>
+            {
+                onCall();
+                return Task.FromResult(answer(id));
+            },
+            NullLogger.Instance,
+            clock);
 }

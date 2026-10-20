@@ -200,7 +200,7 @@ public sealed partial class TMDbApiClient : ITMDbApiClient
     {
         var result = await GetAsync<TMDbExternalIds>($"movie/{tmdbId}/external_ids", cancellationToken)
             .ConfigureAwait(false);
-        return result?.ImdbId;
+        return result is null ? null : result.ImdbId ?? string.Empty;
     }
 
     /// <inheritdoc/>
@@ -208,7 +208,7 @@ public sealed partial class TMDbApiClient : ITMDbApiClient
     {
         var result = await GetAsync<TMDbExternalIds>($"tv/{tmdbId}/external_ids", cancellationToken)
             .ConfigureAwait(false);
-        return result?.ImdbId;
+        return result is null ? null : result.ImdbId ?? string.Empty;
     }
 
     /// <summary>

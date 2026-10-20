@@ -379,6 +379,34 @@ public sealed class TMDbApiClientTests
     }
 
     // -------------------------------------------------------------------------
+    // External ids: "no IMDb id" is told apart from a failure (Annexe A "TMDb")
+    // -------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("movie")]
+    [InlineData("tv")]
+    public async Task GetExternalIdsAsync_TitleWithoutImdbId_ReturnsEmpty(string kind)
+    {
+        var handler = new StubHttpMessageHandler(() => JsonResponse(new TMDbExternalIds { ImdbId = null }));
+        var client = BuildClient(handler, V3Key);
+
+        var imdbId = kind == "movie"
+            ? await client.GetMovieExternalIdsAsync(1, CancellationToken.None)
+            : await client.GetShowExternalIdsAsync(1, CancellationToken.None);
+
+        Assert.Equal(string.Empty, imdbId);
+    }
+
+    [Fact]
+    public async Task GetMovieExternalIdsAsync_RequestFailed_ReturnsNull()
+    {
+        var handler = new StubHttpMessageHandler(() => new HttpResponseMessage(HttpStatusCode.Unauthorized));
+        var client = BuildClient(handler, V3Key);
+
+        Assert.Null(await client.GetMovieExternalIdsAsync(1, CancellationToken.None));
+    }
+
+    // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
 

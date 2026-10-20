@@ -244,6 +244,11 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
     {
         try
         {
+            // A forced refresh asks again for the titles TMDb had no IMDb id for (DEC-P06-4,
+            // RefreshAllAsync_TitleWithoutImdbId_IsAskedAgainWhereAListRefreshIsNot).
+            _movieExternalIds.ClearMissing();
+            _showExternalIds.ClearMissing();
+
             // Six fixed refreshes, evenly spaced across 0-100, matched against one library read per
             // item kind (DEC-P06-1, TMDb refresh budget in ci/perf-budget.json).
             var indexes = new RefreshIndexes(_crossReferencer);

@@ -224,6 +224,26 @@ public sealed class TMDbCacheServiceTests : IDisposable
     // -------------------------------------------------------------------------
 
     [Fact]
+    public async Task RefreshAllAsync_TitleWithoutImdbId_IsAskedAgainWhereAListRefreshIsNot()
+    {
+        // Annexe A "TMDb" (DEC-P06-4): a title TMDb has no IMDb id for is not asked again by the
+        // next refresh, but "Refresh now" (RefreshAllAsync, RunRefreshLockedAsync) asks again.
+        var apiClientMock = new Mock<ITMDbApiClient>();
+        apiClientMock.Setup(c => c.GetTrendingMoviesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<TMDbMovie>)[new TMDbMovie { Id = 555, Title = "Shelter" }]);
+        apiClientMock.Setup(c => c.GetMovieExternalIdsAsync(555, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(string.Empty);
+        var service = BuildService(apiClientMock.Object, NoMatchLibraryManager());
+
+        await service.RefreshTrendingMoviesAsync(CancellationToken.None);
+        await service.RefreshTrendingMoviesAsync(CancellationToken.None);
+        apiClientMock.Verify(c => c.GetMovieExternalIdsAsync(555, It.IsAny<CancellationToken>()), Times.Once);
+
+        await service.RefreshAllAsync(null, CancellationToken.None);
+        apiClientMock.Verify(c => c.GetMovieExternalIdsAsync(555, It.IsAny<CancellationToken>()), Times.Exactly(2));
+    }
+
+    [Fact]
     public async Task RefreshTrendingMoviesAsync_SameIdOnMultiplePages_CollapsesToSingleEntry()
     {
         var libraryItem = MovieWith(MetadataProvider.Imdb, "tt32357218");
