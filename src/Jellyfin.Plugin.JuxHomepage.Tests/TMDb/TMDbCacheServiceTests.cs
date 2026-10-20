@@ -256,6 +256,27 @@ public sealed class TMDbCacheServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task RefreshAllAsync_LibraryReadFailsOnce_LaterListsStillRefresh()
+    {
+        // R11: one failed library read fails its own list only; the next list reads the library again.
+        var apiClientMock = new Mock<ITMDbApiClient>();
+        apiClientMock.Setup(c => c.GetTrendingMoviesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<TMDbMovie>)[new TMDbMovie { Id = 1, Title = "Trending" }]);
+        apiClientMock.Setup(c => c.GetTopRatedMoviesAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<TMDbMovie>)[new TMDbMovie { Id = 2, Title = "Top rated" }]);
+        var libraryMock = new Mock<ILibraryManager>();
+        libraryMock.SetupSequence(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
+            .Throws(new InvalidOperationException("database is locked"))
+            .Returns([]);
+        var service = BuildService(apiClientMock.Object, libraryMock.Object);
+
+        await service.RefreshAllAsync(null, CancellationToken.None);
+
+        Assert.Empty(service.GetTrendingMovies());
+        Assert.Single(service.GetTopRatedMovies());
+    }
+
+    [Fact]
     public async Task RefreshAllAsync_TitleWithoutImdbId_IsAskedAgainWhereAListRefreshIsNot()
     {
         // Annexe A "TMDb" (DEC-P06-4): a title TMDb has no IMDb id for is not asked again by the

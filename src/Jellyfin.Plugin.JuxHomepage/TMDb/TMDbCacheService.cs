@@ -513,12 +513,13 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
 
     /// <summary>
     /// The library indexes of one refresh, each read on first use only: a refresh that touches no
-    /// show list never reads the shows (DEC-P06-1).
+    /// show list never reads the shows (DEC-P06-1). A failed read is not kept, so it fails its own
+    /// list only (<c>RefreshAllAsync_LibraryReadFailsOnce_LaterListsStillRefresh</c>).
     /// </summary>
     private sealed class RefreshIndexes(LibraryCrossReferencer crossReferencer)
     {
-        private readonly Lazy<LibraryProviderIndex> _movies = new(() => crossReferencer.BuildIndex([BaseItemKind.Movie]));
-        private readonly Lazy<LibraryProviderIndex> _shows = new(() => crossReferencer.BuildIndex([BaseItemKind.Series]));
+        private readonly Lazy<LibraryProviderIndex> _movies = new(() => crossReferencer.BuildIndex([BaseItemKind.Movie]), LazyThreadSafetyMode.PublicationOnly);
+        private readonly Lazy<LibraryProviderIndex> _shows = new(() => crossReferencer.BuildIndex([BaseItemKind.Series]), LazyThreadSafetyMode.PublicationOnly);
 
         public LibraryProviderIndex Movies => _movies.Value;
 
