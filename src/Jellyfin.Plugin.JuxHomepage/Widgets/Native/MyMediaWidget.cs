@@ -49,6 +49,9 @@ public sealed class MyMediaWidget : NativeWidgetBase
     public override string? Route => null;
 
     /// <inheritdoc/>
+    protected override bool ReadNatively => false;
+
+    /// <inheritdoc/>
     public override Task<WidgetResult> GetItemsAsync(WidgetPayload payload, CancellationToken cancellationToken)
     {
         User? user = UserManager.GetUserById(payload.UserId);

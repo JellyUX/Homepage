@@ -66,7 +66,7 @@ public sealed class WidgetConfig
     /// Gets or sets the maximum number of instances to create for this widget type. Historically the
     /// fan-out count passed to <see cref="IWidget.Resolve"/> for Personalized widgets; as of
     /// TODO_V2.md Phase 8, every category's row is instead assigned a 1-indexed rank by
-    /// <see cref="WidgetLayoutResolver.BuildDescriptors"/>, so this field is no longer read by
+    /// <see cref="WidgetLayoutResolver.BuildDescriptors(Guid, string?, CancellationToken)"/>, so this field is no longer read by
     /// the widget engine for any category. Retained on the model for schema stability.
     /// </summary>
     public int MaxInstances { get; set; } = 1;

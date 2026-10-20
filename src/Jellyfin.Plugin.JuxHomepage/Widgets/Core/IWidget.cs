@@ -32,7 +32,7 @@ public interface IWidget
     /// <param name="config">The resolved per-instance configuration.</param>
     /// <param name="rank">
     /// The 1-indexed rank of this row among rows sharing this widget's type (see
-    /// <see cref="Jellyfin.Plugin.JuxHomepage.Widgets.WidgetLayoutResolver.BuildDescriptors"/>).
+    /// <see cref="Jellyfin.Plugin.JuxHomepage.Widgets.WidgetLayoutResolver.BuildDescriptors(Guid, string?, CancellationToken)"/>).
     /// Ignored by every category except Personalized.
     /// </param>
     /// <returns>The resolved widget instance, or null if this row has nothing to show.</returns>

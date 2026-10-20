@@ -49,6 +49,9 @@ public sealed class WatchlistWidget : NativeWidgetBase
     public override string? Route => WidgetRoutes.Watchlist;
 
     /// <inheritdoc/>
+    protected override bool ReadNatively => false;
+
+    /// <inheritdoc/>
     public override Task<WidgetResult> GetItemsAsync(WidgetPayload payload, CancellationToken cancellationToken)
     {
         var result = _watchlistService.GetItems(

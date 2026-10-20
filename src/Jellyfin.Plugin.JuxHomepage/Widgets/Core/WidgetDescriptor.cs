@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Jellyfin.Plugin.JuxHomepage.Widgets;
 
 /// <summary>
@@ -62,6 +64,14 @@ public sealed class WidgetDescriptor
     /// no cap. The client applies the same cap as the server probe (PERF-03.c).
     /// </summary>
     public int? MaxPerSeries { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the client reads this section from a native Jellyfin
+    /// route (<c>NATIVE_ROUTES</c> of the client script) instead of the Section endpoint: the layout
+    /// probe then only counts <see cref="MinItems"/> items and keeps no page (PERF-03.b). Not sent.
+    /// </summary>
+    [JsonIgnore]
+    public bool ReadNatively { get; set; }
 
     /// <summary>
     /// Gets or sets an optional visual theme identifier for this instance (e.g. <c>halloween</c>,

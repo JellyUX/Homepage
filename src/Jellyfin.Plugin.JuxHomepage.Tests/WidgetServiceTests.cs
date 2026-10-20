@@ -12,6 +12,7 @@ namespace Jellyfin.Plugin.JuxHomepage.Tests;
 public sealed class WidgetServiceTests : IDisposable
 {
     private readonly SessionCache _sessionCache = new();
+    private readonly List<SectionResultCache> _sectionResults = [];
     private readonly Mock<IUserConfigurationStore> _userConfigStoreMock = new();
 
     // -------------------------------------------------------------------------
@@ -220,11 +221,15 @@ public sealed class WidgetServiceTests : IDisposable
     // GetWidgetItems
     // -------------------------------------------------------------------------
 
-    [Fact]
-    public async Task GetWidgetsForUser_ProbeAsksMinItemsAndCountsItemsWithoutTotal()
+    [Theory]
+    [InlineData(false, 9)]
+    [InlineData(true, 4)]
+    public async Task GetWidgetsForUser_ProbeAsksTheClientPageAndCountsItemsWithoutTotal(bool readNatively, int expectedLimit)
     {
-        // F-05: the probe reads MinItems items and decides from what came back; a widget that skips
-        // the count query reports the page size as its total.
+        // The probe reads the first page the client requests from the Section endpoint, MaxItems
+        // items (PERF-03.b), or MinItems items for a section the client reads from a native route
+        // (F-05); it decides from what came back, a widget that skips the count query reporting the
+        // page size as its total.
         const string widgetType = "page-size-total";
         const int minItems = 4;
         var limits = new List<int>();
@@ -240,16 +245,16 @@ public sealed class WidgetServiceTests : IDisposable
                 var items = Enumerable.Range(0, p.Limit).Select(_ => new BaseItemDto()).ToList();
                 return new WidgetResult(items, items.Count);
             });
-        mock.Setup(w => w.GetDescriptor()).Returns(new WidgetDescriptor { WidgetType = widgetType });
+        mock.Setup(w => w.GetDescriptor()).Returns(new WidgetDescriptor { WidgetType = widgetType, ReadNatively = readNatively });
 
         var service = BuildService(
             registeredWidgets: [mock.Object],
-            globalWidgets: [new WidgetConfig { WidgetType = widgetType, Enabled = true, MinItems = minItems, Order = 0 }]);
+            globalWidgets: [new WidgetConfig { WidgetType = widgetType, Enabled = true, MinItems = minItems, MaxItems = 9, Order = 0 }]);
 
         var result = (await service.GetWidgetsForUser(Guid.NewGuid(), page: 0, lang: "en", CancellationToken.None)).Sections;
 
         Assert.Equal(widgetType, Assert.Single(result).WidgetType);
-        Assert.Equal(minItems, Assert.Single(limits));
+        Assert.Equal(expectedLimit, Assert.Single(limits));
     }
 
     [Fact]
@@ -664,7 +669,7 @@ public sealed class WidgetServiceTests : IDisposable
     // section read again within the layout TTL is not read from its widget again
     // -------------------------------------------------------------------------
 
-    [Fact(Skip = "PERF-03.b, phase 07: no section cache yet, the section reads its widget again after the probe.")]
+    [Fact]
     public async Task Section_AfterLayoutBuild_IsServedFromTheProbe()
     {
         var payloads = new List<WidgetPayload>();
@@ -679,7 +684,7 @@ public sealed class WidgetServiceTests : IDisposable
         Assert.All(section.Items, item => Assert.Equal("read 1", item.Name));
     }
 
-    [Fact(Skip = "PERF-06.a, phase 07: no section cache yet, every section request reads its widget.")]
+    [Fact]
     public async Task Section_ReadTwice_ReadsItsWidgetOnce()
     {
         var payloads = new List<WidgetPayload>();
@@ -795,13 +800,17 @@ public sealed class WidgetServiceTests : IDisposable
             () => config,
             NullLogger<WidgetLayoutResolver>.Instance);
 
+        var sectionResults = new SectionResultCache(sessionCache ?? _sessionCache);
+        _sectionResults.Add(sectionResults);
+
         return new WidgetService(
             registry,
             sessionCache ?? _sessionCache,
             layoutResolver,
             () => config,
             NullLogger<WidgetService>.Instance,
-            personalizationState);
+            personalizationState,
+            sectionResults);
     }
 
     private static IWidget MakeWidget(string widgetType, int totalRecordCount)
@@ -845,7 +854,11 @@ public sealed class WidgetServiceTests : IDisposable
         Assert.Equal(expectedHasMore, result.HasMore);
     }
 
-    public void Dispose() => _sessionCache.Dispose();
+    public void Dispose()
+    {
+        _sectionResults.ForEach(c => c.Dispose());
+        _sessionCache.Dispose();
+    }
 
     [Theory]
     [InlineData(100000, 0, 7, 0)]

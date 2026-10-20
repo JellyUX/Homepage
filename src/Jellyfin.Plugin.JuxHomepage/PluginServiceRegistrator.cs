@@ -44,6 +44,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         // configuration itself: Plugin.Instance is set by Jellyfin and replaced on each save.
         serviceCollection.AddSingleton<Func<PluginConfiguration?>>(() => Plugin.Instance?.Configuration);
         serviceCollection.AddSingleton<SessionCache>();
+        serviceCollection.AddSingleton<SectionResultCache>();
         serviceCollection.AddHostedService<ConfigurationChangeListener>();
         serviceCollection.AddHostedService<StartupService>();
         serviceCollection.AddSingleton<IFileSystem, FileSystem>();
@@ -88,6 +89,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddHostedService<ScoringInvalidationListener>();
         serviceCollection.AddHostedService<TabCachesUpdateListener>();
         serviceCollection.AddHostedService<CollectionsIndexInvalidationListener>();
+        serviceCollection.AddHostedService<SectionCacheInvalidationListener>();
         serviceCollection.AddSingleton<ISeriesProgressViewService, SeriesProgressViewService>();
         serviceCollection.AddSingleton<IMovieHistoryViewService, MovieHistoryViewService>();
         serviceCollection.AddSingleton<IStatisticsService, StatisticsService>();
@@ -98,7 +100,8 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         // WidgetService takes the personalization state as an optional parameter: built by type
         // alone, it would get null, and a layout built while a user's first scoring still runs
         // would be cached without its personalized sections. Passing it here, rather than
-        // registering ScoringService a second time, keeps one owner that disposes it once.
+        // registering ScoringService a second time, keeps one owner that disposes it once. The section
+        // results cache, also optional, is resolved from the container.
         serviceCollection.AddSingleton(serviceProvider => ActivatorUtilities.CreateInstance<WidgetService>(
             serviceProvider,
             (IPersonalizationState)serviceProvider.GetRequiredService<ScoringService>()));

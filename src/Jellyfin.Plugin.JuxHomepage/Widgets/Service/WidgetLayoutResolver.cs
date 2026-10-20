@@ -55,9 +55,26 @@ public sealed class WidgetLayoutResolver
     /// <param name="lang">The requested language code (e.g. "fr"), or null for the default (English).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The ordered list of descriptors, not yet paginated.</returns>
+    public Task<IReadOnlyList<WidgetDescriptor>> BuildDescriptors(
+        Guid userId,
+        string? lang,
+        CancellationToken cancellationToken) =>
+        BuildDescriptors(userId, lang, onProbed: null, cancellationToken);
+
+    /// <summary>
+    /// Builds the layout like <see cref="BuildDescriptors(Guid, string?, CancellationToken)"/> and
+    /// hands each kept section's probed page to <paramref name="onProbed"/>, with the page size the
+    /// probe read: the first page the client requests from the Section endpoint (PERF-03.b).
+    /// </summary>
+    /// <param name="userId">The requesting user's identifier.</param>
+    /// <param name="lang">The requested language code (e.g. "fr"), or null for the default (English).</param>
+    /// <param name="onProbed">Receives each kept section, its probe's page size and its page; null for none.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The ordered list of descriptors, not yet paginated.</returns>
     public async Task<IReadOnlyList<WidgetDescriptor>> BuildDescriptors(
         Guid userId,
         string? lang,
+        Action<WidgetDescriptor, int, WidgetResult>? onProbed,
         CancellationToken cancellationToken)
     {
         var globalConfig = _getConfiguration()?.Widgets ?? [];
@@ -99,7 +116,7 @@ public sealed class WidgetLayoutResolver
             async (i, token) =>
             {
                 var (config, key) = effectiveConfigs[i];
-                results[i] = await ResolveAndFetch(userId, config, key, ranks[config], lang, token).ConfigureAwait(false);
+                results[i] = await ResolveAndFetch(userId, config, key, ranks[config], lang, onProbed, token).ConfigureAwait(false);
             }).ConfigureAwait(false);
 
         // Each config row resolves to at most one descriptor (see ResolveAndFetch); drop the nulls.
@@ -235,6 +252,7 @@ public sealed class WidgetLayoutResolver
         string sectionKey,
         int rank,
         string? lang,
+        Action<WidgetDescriptor, int, WidgetResult>? onProbed,
         CancellationToken cancellationToken)
     {
         var widget = _registry.GetByType(config.WidgetType);
@@ -269,21 +287,27 @@ public sealed class WidgetLayoutResolver
             return null;
         }
 
-        var descriptor = await FetchInstanceDescriptor(
+        var probed = await FetchInstanceDescriptor(
             userId,
             config,
             instanceConfig,
             instance,
             cancellationToken).ConfigureAwait(false);
-        if (descriptor is not null)
+        if (probed is not { } kept)
         {
-            descriptor.SectionKey = sectionKey;
+            return null;
         }
 
-        return descriptor;
+        kept.Descriptor.SectionKey = sectionKey;
+        if (!kept.Descriptor.ReadNatively)
+        {
+            onProbed?.Invoke(kept.Descriptor, kept.Limit, kept.Page);
+        }
+
+        return kept.Descriptor;
     }
 
-    private async Task<WidgetDescriptor?> FetchInstanceDescriptor(
+    private async Task<(WidgetDescriptor Descriptor, int Limit, WidgetResult Page)?> FetchInstanceDescriptor(
         Guid userId,
         WidgetConfig config,
         WidgetInstanceConfig instanceConfig,
@@ -299,9 +323,13 @@ public sealed class WidgetLayoutResolver
         var additionalData = selfIdentifies ? instanceDescriptor.AdditionalData : instanceConfig.AdditionalData;
         var displayName = selfIdentifies ? instanceDescriptor.DisplayName : instanceConfig.DisplayName;
 
-        // Probe exactly MinItems items for MinItems filtering (F-05): counting every match cost a
-        // second query per section. Widgets that skip the count report the page size as their total,
-        // so the decision takes whichever of the two is larger.
+        // The probe reads the first page the client requests from the Section endpoint, MaxItems
+        // items, so that section is served from it (PERF-03.b); a section the client reads from a
+        // native route reads exactly MinItems items (F-05). Counting every match cost a second query
+        // per section: widgets that skip the count report the page size as their total, so the
+        // decision takes whichever of the two is larger.
+        var maxItems = Math.Clamp(config.MaxItems, 1, WidgetConfig.MaxItemsCeiling);
+        var minItems = Math.Max(1, config.MinItems);
         var payload = new WidgetPayload
         {
             UserId = userId,
@@ -311,7 +339,7 @@ public sealed class WidgetLayoutResolver
             SortOrder = config.SortOrder,
             MaxItems = config.MaxItems,
             StartIndex = 0,
-            Limit = Math.Max(1, config.MinItems)
+            Limit = instanceDescriptor.ReadNatively ? minItems : Math.Max(minItems, maxItems)
         };
 
         WidgetResult result;
@@ -351,7 +379,7 @@ public sealed class WidgetLayoutResolver
                 ? themeValue
                 : null;
 
-        return new WidgetDescriptor
+        var descriptor = new WidgetDescriptor
         {
             WidgetType = instanceDescriptor.WidgetType,
             DisplayName = displayName,
@@ -361,11 +389,13 @@ public sealed class WidgetLayoutResolver
             AdditionalData = additionalData,
             Order = config.Order,
             MinItems = config.MinItems,
-            MaxItems = Math.Clamp(config.MaxItems, 1, WidgetConfig.MaxItemsCeiling),
+            MaxItems = maxItems,
             LimitFactor = instanceDescriptor.LimitFactor,
             MaxPerSeries = instanceDescriptor.MaxPerSeries,
+            ReadNatively = instanceDescriptor.ReadNatively,
             Theme = theme
         };
+        return (descriptor, payload.Limit, result);
     }
 
     /// <summary>

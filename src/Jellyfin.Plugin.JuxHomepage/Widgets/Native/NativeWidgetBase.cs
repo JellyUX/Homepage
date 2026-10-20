@@ -55,6 +55,13 @@ public abstract class NativeWidgetBase : IWidget
     /// <inheritdoc/>
     public virtual WidgetCategory Category => WidgetCategory.Native;
 
+    /// <summary>
+    /// Gets a value indicating whether the client reads this section from a native Jellyfin route
+    /// (<c>NATIVE_ROUTES</c> of the client script) instead of the Section endpoint: true for a native
+    /// section unless it overrides it.
+    /// </summary>
+    protected virtual bool ReadNatively => true;
+
     /// <inheritdoc/>
     public IWidget? Resolve(Guid userId, WidgetInstanceConfig config, int rank) => this;
 
@@ -69,6 +76,7 @@ public abstract class NativeWidgetBase : IWidget
         Category = Category,
         ViewMode = DefaultViewMode,
         Route = Route,
-        MinItems = DefaultMinItems
+        MinItems = DefaultMinItems,
+        ReadNatively = ReadNatively
     };
 }

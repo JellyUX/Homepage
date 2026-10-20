@@ -101,4 +101,17 @@ public sealed class PluginServiceRegistratorTests : IDisposable
 
         Assert.Same(_provider.GetRequiredService<ScoringService>(), state);
     }
+
+    [Fact]
+    public void RegisterServices_HandsTheSectionResultsCacheToTheWidgetService()
+    {
+        var widgetService = _provider.GetRequiredService<WidgetService>();
+
+        var cache = typeof(WidgetService)
+            .GetField("_sectionResults", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .GetValue(widgetService);
+
+        Assert.Same(_provider.GetRequiredService<SectionResultCache>(), cache);
+        Assert.Contains(_provider.GetServices<IHostedService>(), s => s is SectionCacheInvalidationListener);
+    }
 }

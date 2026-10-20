@@ -37,6 +37,7 @@ public sealed class WidgetService
     private readonly Func<PluginConfiguration?> _getConfiguration;
     private readonly ILogger<WidgetService> _logger;
     private readonly IPersonalizationState? _personalizationState;
+    private readonly SectionResultCache? _sectionResults;
     private int _queuedRebuildCount;
 
     /// <summary>
@@ -54,13 +55,19 @@ public sealed class WidgetService
     /// Reports a layout built before the user's first scoring finished, which is then not cached so
     /// the personalized sections appear on the next load. Null disables the check.
     /// </param>
+    /// <param name="sectionResults">
+    /// Keeps the first page of each section the layout probe read and each page a section request
+    /// read, so the client's section requests read no widget (PERF-03.b, PERF-06.a). Null reads every
+    /// section from its widget.
+    /// </param>
     public WidgetService(
         IWidgetRegistry registry,
         SessionCache sessionCache,
         WidgetLayoutResolver layoutResolver,
         Func<PluginConfiguration?> getConfiguration,
         ILogger<WidgetService> logger,
-        IPersonalizationState? personalizationState = null)
+        IPersonalizationState? personalizationState = null,
+        SectionResultCache? sectionResults = null)
     {
         _registry = registry;
         _sessionCache = sessionCache;
@@ -68,6 +75,7 @@ public sealed class WidgetService
         _getConfiguration = getConfiguration;
         _logger = logger;
         _personalizationState = personalizationState;
+        _sectionResults = sectionResults;
     }
 
     /// <summary>
@@ -137,7 +145,13 @@ public sealed class WidgetService
     {
         try
         {
-            var descriptors = await _layoutResolver.BuildDescriptors(key.UserId, lang, CancellationToken.None).ConfigureAwait(false);
+            // Read before the probes, so a page probed before the user's data changed is not kept.
+            var stamp = _sectionResults?.StampOf(key.UserId);
+            var ttl = SessionTtl;
+            Action<WidgetDescriptor, int, WidgetResult>? keepProbedPage = stamp is { } probeStamp
+                ? (descriptor, limit, page) => _sectionResults!.Set(SectionOf(key.UserId, descriptor), 0, limit, page, probeStamp, ttl)
+                : null;
+            var descriptors = await _layoutResolver.BuildDescriptors(key.UserId, lang, keepProbedPage, CancellationToken.None).ConfigureAwait(false);
 
             // A layout built before the user's first scoring finished is served, never cached, so an
             // expired one is never served in its place either (Sections_PendingScoring_IsNotCachedNorServedStale).
@@ -258,20 +272,39 @@ public sealed class WidgetService
             MaxItems = maxItems
         };
 
+        // The page the layout probe or an earlier request kept is served without reading the widget
+        // (Section_AfterLayoutBuild_IsServedFromTheProbe, Section_ReadTwice_ReadsItsWidgetOnce).
+        var section = new SectionId(userId, widgetType, additionalData, sectionKey);
+        WidgetResult? stored = null;
+        var hit = _sectionResults?.TryGet(section, payload.StartIndex, payload.Limit, out stored) == true;
+        var stamp = _sectionResults?.StampOf(userId);
         try
         {
-            var result = await widget.GetItemsAsync(payload, cancellationToken).ConfigureAwait(false);
+            var result = hit ? stored! : await widget.GetItemsAsync(payload, cancellationToken).ConfigureAwait(false);
 
-            // Projected here, so a failed projection is answered like a failed read.
+            // Projected here, so a failed projection is answered like a failed read and never kept.
             _ = result.Items;
+            if (!hit && stamp is { } readStamp)
+            {
+                _sectionResults!.Set(section, payload.StartIndex, payload.Limit, result, readStamp, SessionTtl);
+            }
+
             return result;
         }
         catch (Exception ex)
         {
+            if (hit)
+            {
+                _sectionResults!.Remove(section, stored!);
+            }
+
             _logger.LogError(ex, "Widget '{WidgetType}' threw an exception during GetWidgetItems for user {UserId}.", widgetType, userId);
             return WidgetResult.Empty;
         }
     }
+
+    private static SectionId SectionOf(Guid userId, WidgetDescriptor descriptor) =>
+        new(userId, descriptor.WidgetType, descriptor.AdditionalData, descriptor.SectionKey);
 
     /// <summary>
     /// Returns whether JellyUX runs for the user: enabled globally and not turned off by the user

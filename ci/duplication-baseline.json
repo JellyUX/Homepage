@@ -54,17 +54,10 @@
         "Jellyfin.Plugin.JuxHomepage/Watchlist/SeriesProgressCacheService.cs"
       ],
       "count": 2
-    },
-    {
-      "files": [
-        "Jellyfin.Plugin.JuxHomepage/Widgets/Native/ContinueWatchingWidget.cs",
-        "Jellyfin.Plugin.JuxHomepage/Widgets/Native/MyMediaWidget.cs"
-      ],
-      "count": 1
     }
   ],
   "totals": {
-    "csharp": 254,
+    "csharp": 243,
     "css": 6,
     "javascript": 90
   }

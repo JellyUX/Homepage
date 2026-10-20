@@ -143,6 +143,33 @@ public sealed class NativeWidgetTests
         Assert.DoesNotContain("perSeries:", script, StringComparison.Ordinal);
     }
 
+    // PERF-03.b: the probe keeps a section's page only when the client reads it from the Section
+    // endpoint, so the widgets marked ReadNatively must be exactly the client's native routes.
+    [Fact]
+    public void ReadNatively_MatchesTheClientsNativeRoutes()
+    {
+        IWidget[] widgets =
+        [
+            new ContinueWatchingWidget(Mock.Of<IUserManager>(), Mock.Of<ILibraryManager>(), Mock.Of<IDtoService>()),
+            new NextUpWidget(Mock.Of<IUserManager>(), Mock.Of<ILibraryManager>(), Mock.Of<IDtoService>(), Mock.Of<ITVSeriesManager>()),
+            new RecentlyAddedMoviesWidget(Mock.Of<IUserManager>(), Mock.Of<ILibraryManager>(), Mock.Of<IDtoService>(), Mock.Of<IUserViewManager>()),
+            new RecentlyAddedShowsWidget(Mock.Of<IUserManager>(), Mock.Of<ILibraryManager>(), Mock.Of<IDtoService>(), Mock.Of<IUserViewManager>()),
+            new RecentlyAddedEpisodesWidget(Mock.Of<IUserManager>(), Mock.Of<ILibraryManager>(), Mock.Of<IDtoService>(), Mock.Of<IUserViewManager>()),
+            new MyMediaWidget(Mock.Of<IUserManager>(), Mock.Of<ILibraryManager>(), Mock.Of<IDtoService>(), Mock.Of<IUserViewManager>()),
+            new WatchlistWidget(Mock.Of<IUserManager>(), Mock.Of<ILibraryManager>(), Mock.Of<IDtoService>(), Mock.Of<IWatchlistService>())
+        ];
+        var script = File.ReadAllText(Path.Combine(RepoPaths.Root(), "src", "Jellyfin.Plugin.JuxHomepage", "Web", "jux-homepage.js"));
+        var start = script.IndexOf("var NATIVE_ROUTES = {", StringComparison.Ordinal);
+        var routes = script[start..script.IndexOf("};", start, StringComparison.Ordinal)];
+
+        var nativeRoutes = System.Text.RegularExpressions.Regex.Matches(routes, @"'(jux\.[a-z.-]+)':")
+            .Select(m => m.Groups[1].Value)
+            .Order(StringComparer.Ordinal);
+        var readNatively = widgets.Where(w => w.GetDescriptor().ReadNatively).Select(w => w.WidgetType).Order(StringComparer.Ordinal);
+
+        Assert.Equal(nativeRoutes, readNatively);
+    }
+
     [Fact]
     public void MyMedia_GetDescriptor_HasExpectedProperties()
     {
