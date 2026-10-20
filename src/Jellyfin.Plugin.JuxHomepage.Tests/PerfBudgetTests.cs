@@ -180,6 +180,17 @@ public sealed class PerfBudgetTests : IDisposable
                 () => controller.GetSection(descriptor.WidgetType, _user.Id, descriptor.AdditionalData, descriptor.SectionKey));
         }
 
+        // The same sections once nothing of the layout is cached any more: what a section costs its widget.
+        foreach (var descriptor in descriptors)
+        {
+            var key = $"Section/{descriptor.WidgetType} (uncached)";
+            widgetService.InvalidateUser(_user.Id);
+            await Measure(
+                measured,
+                measured["endpoints"].ContainsKey(key) ? $"{key} {descriptor.AdditionalData}" : key,
+                () => controller.GetSection(descriptor.WidgetType, _user.Id, descriptor.AdditionalData, descriptor.SectionKey));
+        }
+
         // A type that renders no section on this library is still budgeted, by its first row (DEC-P06-7).
         foreach (var widget in _provider.GetRequiredService<IWidgetRegistry>().GetAll().OrderBy(w => w.WidgetType, StringComparer.Ordinal))
         {

@@ -622,6 +622,98 @@ public sealed class WidgetServiceTests : IDisposable
         Assert.True(lastExpired);
     }
 
+    // -------------------------------------------------------------------------
+    // Section results (PERF-03.b, PERF-06.a): the probe's page is the section's first page, and a
+    // section read again within the layout TTL is not read from its widget again
+    // -------------------------------------------------------------------------
+
+    [Fact(Skip = "PERF-03.b, phase 07: no section cache yet, the section reads its widget again after the probe.")]
+    public async Task Section_AfterLayoutBuild_IsServedFromTheProbe()
+    {
+        var payloads = new List<WidgetPayload>();
+        var service = BuildService([MakeSectionWidget("probed", payloads)], [new WidgetConfig { WidgetType = "probed", Enabled = true, MinItems = 1, MaxItems = 7 }]);
+        var userId = Guid.NewGuid();
+
+        var descriptor = Assert.Single((await service.GetWidgetsForUser(userId, page: 0, lang: "en", CancellationToken.None)).Sections);
+        var section = await service.GetWidgetItems(userId, descriptor.WidgetType, descriptor.AdditionalData, descriptor.SectionKey, 0, descriptor.MaxItems, CancellationToken.None);
+
+        Assert.Equal(7, Assert.Single(payloads).Limit);
+        Assert.Equal(7, section!.Items.Count);
+        Assert.All(section.Items, item => Assert.Equal("read 1", item.Name));
+    }
+
+    [Fact(Skip = "PERF-06.a, phase 07: no section cache yet, every section request reads its widget.")]
+    public async Task Section_ReadTwice_ReadsItsWidgetOnce()
+    {
+        var payloads = new List<WidgetPayload>();
+        var service = BuildService([MakeSectionWidget("twice", payloads)], [new WidgetConfig { WidgetType = "twice", Enabled = true, MaxItems = 7 }]);
+        var userId = Guid.NewGuid();
+
+        await service.GetWidgetItems(userId, "twice", null, null, 0, 7, CancellationToken.None);
+        var second = await service.GetWidgetItems(userId, "twice", null, null, 0, 7, CancellationToken.None);
+
+        Assert.Single(payloads);
+        Assert.All(second!.Items, item => Assert.Equal("read 1", item.Name));
+    }
+
+    [Fact]
+    public async Task Section_OtherPageOrUser_IsReadFromItsWidget()
+    {
+        var payloads = new List<WidgetPayload>();
+        var service = BuildService([MakeSectionWidget("pages", payloads)], [new WidgetConfig { WidgetType = "pages", Enabled = true, MaxItems = 7 }]);
+        var userId = Guid.NewGuid();
+
+        await service.GetWidgetItems(userId, "pages", null, null, 0, 7, CancellationToken.None);
+        var otherPage = await service.GetWidgetItems(userId, "pages", null, null, 3, 4, CancellationToken.None);
+        var otherUser = await service.GetWidgetItems(Guid.NewGuid(), "pages", null, null, 0, 7, CancellationToken.None);
+
+        Assert.Equal([(0, 7), (3, 4), (0, 7)], payloads.Select(p => (p.StartIndex, p.Limit)));
+        Assert.All(otherPage!.Items, item => Assert.Equal("read 2", item.Name));
+        Assert.All(otherUser!.Items, item => Assert.Equal("read 3", item.Name));
+    }
+
+    [Fact]
+    public async Task Section_AfterConfigurationChangeOrUserInvalidation_IsReadAgain()
+    {
+        var payloads = new List<WidgetPayload>();
+        var service = BuildService([MakeSectionWidget("fresh", payloads)], [new WidgetConfig { WidgetType = "fresh", Enabled = true, MaxItems = 7 }]);
+        var userId = Guid.NewGuid();
+
+        await service.GetWidgetItems(userId, "fresh", null, null, 0, 7, CancellationToken.None);
+        _sessionCache.Clear();
+        await service.GetWidgetItems(userId, "fresh", null, null, 0, 7, CancellationToken.None);
+        service.InvalidateUser(userId);
+        var last = await service.GetWidgetItems(userId, "fresh", null, null, 0, 7, CancellationToken.None);
+
+        Assert.Equal(3, payloads.Count);
+        Assert.All(last!.Items, item => Assert.Equal("read 3", item.Name));
+    }
+
+    /// <summary>A widget returning up to 10 items per read, each named after the read that produced it.</summary>
+    private static IWidget MakeSectionWidget(string widgetType, List<WidgetPayload> payloads)
+    {
+        var widget = new Mock<IWidget>();
+        widget.Setup(w => w.WidgetType).Returns(widgetType);
+        widget.Setup(w => w.DefaultDisplayName).Returns(widgetType);
+        widget.Setup(w => w.Resolve(It.IsAny<Guid>(), It.IsAny<WidgetInstanceConfig>(), It.IsAny<int>()))
+            .Returns(() => widget.Object);
+        widget.Setup(w => w.GetDescriptor()).Returns(new WidgetDescriptor { WidgetType = widgetType });
+        widget.Setup(w => w.GetItemsAsync(It.IsAny<WidgetPayload>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((WidgetPayload p, CancellationToken _) =>
+            {
+                int read;
+                lock (payloads)
+                {
+                    payloads.Add(p);
+                    read = payloads.Count;
+                }
+
+                var items = Enumerable.Range(0, Math.Min(p.Limit, 10)).Select(_ => new BaseItemDto { Name = $"read {read}" }).ToList();
+                return new WidgetResult(items, items.Count);
+            });
+        return widget.Object;
+    }
+
     private static IWidget MakeCountingWidget(string widgetType, Func<int> probe)
     {
         var widget = new Mock<IWidget>();
