@@ -286,13 +286,28 @@ public sealed class WidgetLayoutResolverTests
         Assert.Same(row, resolved);
     }
 
-    [Fact(Skip = "PERF-02, phase 06: the probes run one after another (MaxInFlight 1); un-skip with the bounded fan-out.")]
+    [Fact]
     public async Task BuildDescriptors_SlowSynchronousProbes_OverlapUpToTheBound()
     {
         // PERF-02: widget probes do their library reads synchronously and return a completed task,
-        // so Task.WhenAll alone runs them one after another. Six rows held 50 ms per library call
-        // must overlap, but never by more than the fan-out bound of 4.
-        var library = new TestMocks.CountingLibraryManager { BlockPerCall = TimeSpan.FromMilliseconds(50) };
+        // so Task.WhenAll alone runs them one after another. Each of the first four probes holds its
+        // library call until four are inside at once: they must overlap, and the two others can only
+        // start once one of them has left, so the peak is exactly the fan-out bound of 4.
+        var library = new TestMocks.CountingLibraryManager();
+        var arrived = 0;
+        var timedOut = false;
+        using var fourInside = new ManualResetEventSlim();
+        library.Inner.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>()))
+            .Returns(() =>
+            {
+                if (Interlocked.Increment(ref arrived) == 4)
+                {
+                    fourInside.Set();
+                }
+
+                timedOut |= !fourInside.Wait(TimeSpan.FromSeconds(10));
+                return [];
+            });
         var registry = new WidgetRegistry();
         var rows = new List<WidgetConfig>();
         for (var i = 0; i < 6; i++)
@@ -306,9 +321,34 @@ public sealed class WidgetLayoutResolverTests
 
         var descriptors = await resolver.BuildDescriptors(Guid.NewGuid(), "en", CancellationToken.None);
 
+        Assert.False(timedOut, "Four probes never ran at the same time.");
         Assert.Equal(rows.Select(r => r.WidgetType), descriptors.Select(d => d.WidgetType));
         Assert.Equal(6, library.Count("GetItemIds"));
-        Assert.InRange(library.MaxInFlight, 2, 4);
+        Assert.Equal(4, library.MaxInFlight);
+    }
+
+    [Fact]
+    public async Task BuildDescriptors_ResolveWaitingForScoring_OverlapsTheOtherProbes()
+    {
+        // PERF-02.b: a Personalized row's Resolve can wait up to 2 s for the user's first scoring
+        // (ScoringService). That wait must not hold the rows after it: here the first row's Resolve
+        // only returns once the second row has been probed.
+        using var secondProbed = new ManualResetEventSlim();
+        var waited = false;
+        var registry = new WidgetRegistry();
+        registry.Register(MakeWidget("jux.test.waiting", totalRecordCount: 10, onResolve: () => waited = secondProbed.Wait(TimeSpan.FromSeconds(10))));
+        registry.Register(MakeWidget("jux.test.other", totalRecordCount: 10, onProbe: secondProbed.Set));
+        var resolver = BuildResolver(
+            registry,
+            [
+                new WidgetConfig { WidgetType = "jux.test.waiting", Enabled = true, MinItems = 1, Order = 0 },
+                new WidgetConfig { WidgetType = "jux.test.other", Enabled = true, MinItems = 1, Order = 1 }
+            ]);
+
+        var descriptors = await resolver.BuildDescriptors(Guid.NewGuid(), "en", CancellationToken.None);
+
+        Assert.True(waited, "The second row was not probed while the first one waited in Resolve.");
+        Assert.Equal(["jux.test.waiting", "jux.test.other"], descriptors.Select(d => d.WidgetType));
     }
 
     private static IWidget MakeSynchronousLibraryWidget(string widgetType, ILibraryManager libraryManager)
@@ -420,15 +460,23 @@ public sealed class WidgetLayoutResolverTests
             }));
     }
 
-    private static IWidget MakeWidget(string widgetType, int totalRecordCount)
+    private static IWidget MakeWidget(string widgetType, int totalRecordCount, Action? onResolve = null, Action? onProbe = null)
     {
         var mock = new Mock<IWidget>();
         mock.Setup(w => w.WidgetType).Returns(widgetType);
         mock.Setup(w => w.DefaultDisplayName).Returns(widgetType);
         mock.Setup(w => w.Resolve(It.IsAny<Guid>(), It.IsAny<WidgetInstanceConfig>(), It.IsAny<int>()))
-            .Returns((Guid _, WidgetInstanceConfig _, int _) => mock.Object);
+            .Returns((Guid _, WidgetInstanceConfig _, int _) =>
+            {
+                onResolve?.Invoke();
+                return mock.Object;
+            });
         mock.Setup(w => w.GetItemsAsync(It.IsAny<WidgetPayload>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new WidgetResult([], totalRecordCount));
+            .Returns(() =>
+            {
+                onProbe?.Invoke();
+                return Task.FromResult(new WidgetResult([], totalRecordCount));
+            });
         mock.Setup(w => w.GetDescriptor()).Returns(new WidgetDescriptor { WidgetType = widgetType });
         return mock.Object;
     }

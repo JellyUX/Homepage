@@ -13,6 +13,9 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets;
 /// </summary>
 public sealed class WidgetLayoutResolver
 {
+    /// <summary>Maximum number of rows resolved and probed at the same time during a layout build.</summary>
+    private const int MaxConcurrentProbes = 4;
+
     private readonly IWidgetRegistry _registry;
     private readonly IUserConfigurationStore _userConfigStore;
     private readonly ILocalizationService _localizationService;
@@ -84,12 +87,20 @@ public sealed class WidgetLayoutResolver
             .SelectMany(g => g.OrderBy(c => c.Order).Select((c, i) => (Config: c, Rank: i + 1)))
             .ToDictionary(x => x.Config, x => x.Rank);
 
-        // Resolve a widget instance for each enabled config entry
-        var tasks = effectiveConfigs
-            .Select(c => ResolveAndFetch(userId, c.Config, c.Key, ranks[c.Config], lang, cancellationToken))
-            .ToList();
-
-        var results = await Task.WhenAll(tasks).ConfigureAwait(false);
+        // Resolve a widget instance for each enabled config entry. Resolve (which can wait for the
+        // first scoring) and the probes read the library synchronously, so each row runs on the
+        // thread pool, at most MaxConcurrentProbes at a time (PERF-02): a slow row overlaps the others
+        // instead of delaying them (BuildDescriptors_SlowSynchronousProbes_OverlapUpToTheBound,
+        // BuildDescriptors_ResolveWaitingForScoring_OverlapsTheOtherProbes).
+        var results = new WidgetDescriptor?[effectiveConfigs.Count];
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, effectiveConfigs.Count),
+            new ParallelOptions { MaxDegreeOfParallelism = MaxConcurrentProbes, CancellationToken = cancellationToken },
+            async (i, token) =>
+            {
+                var (config, key) = effectiveConfigs[i];
+                results[i] = await ResolveAndFetch(userId, config, key, ranks[config], lang, token).ConfigureAwait(false);
+            }).ConfigureAwait(false);
 
         // Each config row resolves to at most one descriptor (see ResolveAndFetch); drop the nulls.
         return results

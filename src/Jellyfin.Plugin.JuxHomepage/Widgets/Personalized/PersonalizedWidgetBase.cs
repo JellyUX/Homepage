@@ -143,10 +143,11 @@ public abstract class PersonalizedWidgetBase : IWidget
     /// instance if the user has a scored value at that rank, otherwise null. A single
     /// <c>MemberwiseClone()</c> per call keeps this safe under concurrent requests --
     /// <see cref="PersonalizedWidgetBase"/> instances are DI singletons shared across every row/user,
-    /// and <see cref="Widgets.WidgetLayoutResolver.BuildDescriptors"/> may call this concurrently
-    /// (once per configured row, via <c>Task.WhenAll</c>) for the very same widget instance; each
-    /// call produces its own private clone rather than mutating <see langword="this"/> directly, so
-    /// concurrent calls never race on shared state.
+    /// and <see cref="Widgets.WidgetLayoutResolver.BuildDescriptors"/> calls this from up to four
+    /// thread-pool workers at once (one per configured row, PERF-02) for the very same widget
+    /// instance; each call produces its own private clone rather than mutating <see langword="this"/>
+    /// directly, so concurrent calls never race on shared state
+    /// (<c>FavoriteGenre_Resolve_ManyConcurrentCalls_EachCloneKeepsItsRankValue</c>).
     /// </remarks>
     /// <inheritdoc/>
     public IWidget? Resolve(Guid userId, WidgetInstanceConfig config, int rank)

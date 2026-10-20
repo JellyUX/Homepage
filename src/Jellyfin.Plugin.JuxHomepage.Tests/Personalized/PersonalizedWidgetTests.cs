@@ -141,6 +141,27 @@ public sealed class PersonalizedWidgetTests
     }
 
     [Fact]
+    public async Task FavoriteGenre_Resolve_ManyConcurrentCalls_EachCloneKeepsItsRankValue()
+    {
+        // PERF-02: the layout build resolves rows from several threads on the same singleton widget.
+        var user = new User("test", "Default", "Default");
+        var action1 = new Movie { Id = Guid.NewGuid(), Name = "A1", Genres = ["Action"] };
+        var action2 = new Movie { Id = Guid.NewGuid(), Name = "A2", Genres = ["Action"] };
+        var drama1 = new Movie { Id = Guid.NewGuid(), Name = "D1", Genres = ["Drama"] };
+        var widget = BuildWidget(BuildScoringService(user, [action1, action2, drama1]));
+        widget.Resolve(user.Id, new WidgetInstanceConfig(), 1);
+
+        var resolved = await Task.WhenAll(Enumerable.Range(0, 200).Select(i => Task.Run(() =>
+        {
+            var rank = (i % 2) + 1;
+            return (Rank: rank, Descriptor: widget.Resolve(user.Id, new WidgetInstanceConfig(), rank)!.GetDescriptor());
+        })));
+
+        Assert.All(resolved, r => Assert.Equal(r.Rank == 1 ? "Action" : "Drama", r.Descriptor.AdditionalData));
+        Assert.All(resolved, r => Assert.Equal(r.Rank == 1 ? "More Action" : "More Drama", r.Descriptor.DisplayName));
+    }
+
+    [Fact]
     public void FavoriteGenre_Resolve_RankBeyondAvailableValues_ReturnsNull()
     {
         var user = new User("test", "Default", "Default");
