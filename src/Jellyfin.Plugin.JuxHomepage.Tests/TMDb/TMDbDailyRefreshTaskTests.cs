@@ -109,6 +109,7 @@ public sealed class TMDbDailyRefreshTaskTests : IDisposable
         var configuration = new PluginConfiguration
         {
             Cache = new CacheConfig { TMDbRefreshIntervalHours = hours },
+            ApiKeys = new ApiKeysConfig { TMDb = "key" },
             Widgets =
             [
                 new WidgetConfig

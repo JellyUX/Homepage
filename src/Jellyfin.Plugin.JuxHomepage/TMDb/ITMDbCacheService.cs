@@ -109,7 +109,8 @@ public interface ITMDbCacheService
     /// Refreshes, among the six fixed lists and the configured Discover instances, only those
     /// <see cref="IsStale"/> calls due, for the hourly scheduled task and the startup catch-up
     /// (QUAL-01: <see cref="Configuration.CacheConfig.TMDbRefreshIntervalHours"/> sets how often a
-    /// list is refreshed). Reserves the refresh slot like <see cref="RefreshAllAsync"/>.
+    /// list is refreshed). Reserves the refresh slot like <see cref="RefreshAllAsync"/>. Does nothing
+    /// when no TMDb API key is configured.
     /// </summary>
     /// <param name="progress">Optional progress reporter, updated as each fixed list is handled.</param>
     /// <param name="cancellationToken">Cancellation token.</param>

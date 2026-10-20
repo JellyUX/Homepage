@@ -215,7 +215,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
         try
         {
             var items = DeduplicateById(await _apiClient.DiscoverMoviesAsync(filter, cancellationToken).ConfigureAwait(false));
-            var matched = await _crossReferencer.CrossReferenceAsync(
+            var matched = items.Count == 0 ? 0 : await _crossReferencer.CrossReferenceAsync(
                 items,
                 _movieExternalIds.GetImdbIdAsync,
                 indexes.Movies,
@@ -296,7 +296,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
         try
         {
             var items = DeduplicateById(await fetch(cancellationToken).ConfigureAwait(false));
-            var matched = await _crossReferencer.CrossReferenceAsync(
+            var matched = items.Count == 0 ? 0 : await _crossReferencer.CrossReferenceAsync(
                 items,
                 _movieExternalIds.GetImdbIdAsync,
                 indexes.Movies,
@@ -320,7 +320,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
         try
         {
             var items = DeduplicateById(await fetch(cancellationToken).ConfigureAwait(false));
-            var matched = await _crossReferencer.CrossReferenceAsync(
+            var matched = items.Count == 0 ? 0 : await _crossReferencer.CrossReferenceAsync(
                 items,
                 _showExternalIds.GetImdbIdAsync,
                 indexes.Shows,
@@ -397,6 +397,14 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
                 // RefreshAllAsync_TitleWithoutImdbId_IsAskedAgainWhereAListRefreshIsNot).
                 _movieExternalIds.ClearMissing();
                 _showExternalIds.ClearMissing();
+            }
+
+            // Without a TMDb key every list would come back empty, every hour (R11,
+            // RefreshDueAsync_NoApiKey_AsksTMDbAndTheLibraryNothing).
+            if (!force && string.IsNullOrEmpty(_getConfiguration()?.ApiKeys?.TMDb))
+            {
+                _logger.LogDebug("TMDb API key not configured; skipping the scheduled TMDb refresh.");
+                return;
             }
 
             // Six fixed refreshes, evenly spaced across 0-100, matched against one library read per

@@ -22,7 +22,8 @@ public sealed class TMDbCacheServiceTests : IDisposable
         ITMDbApiClient apiClient,
         ILibraryManager libraryManager,
         int refreshIntervalHours = 24,
-        TMDbListsConfig? lists = null)
+        TMDbListsConfig? lists = null,
+        string? apiKey = null)
     {
         var applicationPathsMock = new Mock<IApplicationPaths>();
         applicationPathsMock.Setup(p => p.DataPath).Returns(_tempDir);
@@ -35,7 +36,8 @@ public sealed class TMDbCacheServiceTests : IDisposable
             () => new PluginConfiguration
             {
                 Cache = new CacheConfig { TMDbRefreshIntervalHours = refreshIntervalHours },
-                TMDbLists = lists ?? new TMDbListsConfig()
+                TMDbLists = lists ?? new TMDbListsConfig(),
+                ApiKeys = new ApiKeysConfig { TMDb = apiKey }
             },
             NullLogger<TMDbCacheService>.Instance);
     }
@@ -222,6 +224,36 @@ public sealed class TMDbCacheServiceTests : IDisposable
     // more than one fetched page -- without deduplication this made the same library item appear
     // twice in the widget).
     // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task RefreshDueAsync_NoApiKey_AsksTMDbAndTheLibraryNothing()
+    {
+        // R11: the hourly task does nothing at all on a server without a TMDb key.
+        var apiClientMock = new Mock<ITMDbApiClient>();
+        var libraryMock = new Mock<ILibraryManager>();
+        var service = BuildService(apiClientMock.Object, libraryMock.Object);
+
+        Assert.True(await service.RefreshDueAsync(null, CancellationToken.None));
+
+        apiClientMock.VerifyNoOtherCalls();
+        libraryMock.Verify(m => m.GetItemList(It.IsAny<InternalItemsQuery>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task RefreshDueAsync_ListsReturnNothing_DoesNotReadTheLibrary()
+    {
+        // R11: an empty list has nothing to match, so it must not cost a library read.
+        var apiClientMock = new Mock<ITMDbApiClient>();
+        apiClientMock.Setup(c => c.GetTrendingMoviesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<TMDbMovie>)[]);
+        var libraryMock = new Mock<ILibraryManager>();
+        var service = BuildService(apiClientMock.Object, libraryMock.Object, apiKey: "key");
+
+        Assert.True(await service.RefreshDueAsync(null, CancellationToken.None));
+
+        apiClientMock.Verify(c => c.GetTrendingMoviesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.AtLeastOnce);
+        libraryMock.Verify(m => m.GetItemList(It.IsAny<InternalItemsQuery>()), Times.Never);
+    }
 
     [Fact]
     public async Task RefreshAllAsync_TitleWithoutImdbId_IsAskedAgainWhereAListRefreshIsNot()
