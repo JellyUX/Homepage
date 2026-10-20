@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, writeFileSync, existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { readCredentials, authenticate, serverUrl, rawDir, restartAndMeasure, dockerStats, sleep } from './perf-bench-common.mjs';
+import { readCredentials, authenticate, api, serverUrl, rawDir, restartAndMeasure, dockerStats, sleep } from './perf-bench-common.mjs';
 
 const arg = (name, def) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : def; };
 const profile = arg('profile', 'std');
@@ -23,6 +23,22 @@ const U = user.userId;
 const A = admin.userId;
 const V = '99f3c54875cc';
 
+// A section is requested with the instance data its layout row carries now (a scored genre, actor or
+// title changes with the history), read once before the first restart, so every request hits a row of
+// the layout. The cold measures are unaffected: each cycle restarts the server first.
+const layout = (await api(user, `/JuxHomepage/Sections?userId=${U}&page=0&lang=en-us`)).body.Sections;
+function section(name, sectionKey, labelWithData = false) {
+    const row = layout.find((s) => s.SectionKey === sectionKey);
+    if (!row) {
+        throw new Error(`no layout row ${sectionKey}`);
+    }
+    const query = new URLSearchParams({ userId: U, sectionKey, startIndex: '0', limit: String(row.MaxItems) });
+    if (row.AdditionalData) {
+        query.set('additionalData', row.AdditionalData);
+    }
+    return [`Section ${name}${labelWithData ? ` (${row.AdditionalData})` : ''}`, user, `/JuxHomepage/Section/${row.WidgetType}?${query}`];
+}
+
 // [label, session, route]; client query strings copied from the browser capture (explore run).
 const ENDPOINTS = [
     ['asset jux-homepage.js', user, `/JuxHomepage/jux-homepage.js?v=${V}`],
@@ -31,14 +47,14 @@ const ENDPOINTS = [
     ['Sections', user, `/JuxHomepage/Sections?userId=${U}&page=0&lang=en-us`],
     ['native Items/Latest movies', user, `/Items/Latest?userId=${U}&startIndex=0&limit=20&fields=PrimaryImageAspectRatio%2CDateCreated&imageTypeLimit=1&enableImageTypes=Primary%2CThumb%2CBackdrop&enableTotalRecordCount=false&includeItemTypes=Movie`],
     ['native Items/Latest episodes x200', user, `/Items/Latest?userId=${U}&startIndex=0&limit=200&fields=PrimaryImageAspectRatio%2CDateCreated&imageTypeLimit=1&enableImageTypes=Primary%2CThumb%2CBackdrop&enableTotalRecordCount=false&includeItemTypes=Episode&groupItems=false`],
-    ['Section favorite-genre (Action)', user, `/JuxHomepage/Section/jux.personalized.favorite-genre?userId=${U}&additionalData=Action&sectionKey=jux.personalized.favorite-genre%231&startIndex=0&limit=20`],
-    ['Section trending-movies', user, `/JuxHomepage/Section/jux.connected.trending-movies?userId=${U}&sectionKey=jux.connected.trending-movies%231&startIndex=0&limit=20`],
-    ['Section favorite-genre (Drame)', user, `/JuxHomepage/Section/jux.personalized.favorite-genre?userId=${U}&additionalData=Drame&sectionKey=jux.personalized.favorite-genre%232&startIndex=0&limit=20`],
-    ['Section trending-shows', user, `/JuxHomepage/Section/jux.connected.trending-shows?userId=${U}&sectionKey=jux.connected.trending-shows%231&startIndex=0&limit=20`],
-    ['Section rewards', user, `/JuxHomepage/Section/jux.connected.rewards?userId=${U}&additionalData=67361e0a-85f8-4547-8291-f9cbd62a9260&sectionKey=67361e0a-85f8-4547-8291-f9cbd62a9260&startIndex=0&limit=20`],
-    ['Section favorite-actor', user, `/JuxHomepage/Section/jux.personalized.favorite-actor?userId=${U}&additionalData=Amy%20Ryan&sectionKey=jux.personalized.favorite-actor%231&startIndex=0&limit=20`],
-    ['Section because-you-watched', user, `/JuxHomepage/Section/jux.personalized.because-you-watched?userId=${U}&additionalData=e9ac0ed8-ee98-5ec1-9293-8f61269e89d1&sectionKey=jux.personalized.because-you-watched%231&startIndex=0&limit=20`],
-    ['Section admin.genre (Aventure)', user, `/JuxHomepage/Section/jux.admin.genre?userId=${U}&additionalData=Aventure&sectionKey=jux.admin.genre%231&startIndex=0&limit=20`],
+    section('favorite-genre', 'jux.personalized.favorite-genre#1', true),
+    section('trending-movies', 'jux.connected.trending-movies#1'),
+    section('favorite-genre', 'jux.personalized.favorite-genre#2', true),
+    section('trending-shows', 'jux.connected.trending-shows#1'),
+    section('rewards', '67361e0a-85f8-4547-8291-f9cbd62a9260'),
+    section('favorite-actor', 'jux.personalized.favorite-actor#1'),
+    section('because-you-watched', 'jux.personalized.because-you-watched#1'),
+    section('admin.genre', 'jux.admin.genre#1', true),
     ['Watchlist/Items', user, `/JuxHomepage/Watchlist/Items?userId=${U}&sortBy=DateAdded&sortOrder=Descending&includeItemTypes=All&startIndex=0&limit=50`],
     ['SeriesProgress/Items', user, `/JuxHomepage/SeriesProgress/Items?userId=${U}&sortBy=LastPlayed&sortOrder=Descending&startIndex=0&limit=50`],
     ['MovieHistory/Items', user, `/JuxHomepage/MovieHistory/Items?userId=${U}&sortBy=LastPlayed&sortOrder=Descending&startIndex=0&limit=50`],
