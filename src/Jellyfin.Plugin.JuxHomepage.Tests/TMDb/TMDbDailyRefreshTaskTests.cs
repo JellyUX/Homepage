@@ -8,6 +8,7 @@ using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Tasks;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
@@ -76,6 +77,24 @@ public sealed class TMDbDailyRefreshTaskTests : IDisposable
         }
 
         Assert.Equal(3, TrendingFetches);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_RefreshAlreadyRunning_DoesNotLogCompleted()
+    {
+        // R11: a run that found another refresh in progress did nothing and must not say it completed.
+        var service = new Mock<ITMDbCacheService>();
+        service.Setup(s => s.RefreshDueAsync(It.IsAny<IProgress<double>?>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
+        var logger = new Mock<ILogger<TMDbDailyRefreshTask>>();
+
+        await new TMDbDailyRefreshTask(service.Object, logger.Object).ExecuteAsync(new Progress<double>(), CancellationToken.None);
+
+        var messages = logger.Invocations
+            .Where(i => i.Method.Name == nameof(ILogger.Log))
+            .Select(i => i.Arguments[2]?.ToString() ?? string.Empty)
+            .ToList();
+        Assert.DoesNotContain(messages, m => m.Contains("completed", StringComparison.Ordinal));
+        Assert.Contains(messages, m => m.Contains("already running", StringComparison.Ordinal));
     }
 
     [Fact]

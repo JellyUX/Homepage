@@ -42,10 +42,15 @@ public sealed class TMDbDailyRefreshTask : IScheduledTask
     public async Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
     {
         // RefreshDueAsync is independently fault-tolerant per list (TMDbCacheService logs and
-        // swallows its own failures), and TMDbApiClient already skips silently when no API key is
-        // configured, so no special-casing is needed here beyond delegating to it. The admin
-        // "Refresh now" action (JuxHomepageController) runs the same sequence for every list.
-        await _cacheService.RefreshDueAsync(progress, cancellationToken).ConfigureAwait(false);
+        // swallows its own failures) and does nothing when no API key is configured, so no
+        // special-casing is needed here beyond delegating to it. The admin "Refresh now" action
+        // (JuxHomepageController) runs the same sequence for every list.
+        if (!await _cacheService.RefreshDueAsync(progress, cancellationToken).ConfigureAwait(false))
+        {
+            _logger.LogInformation("TMDb refresh task skipped: a TMDb refresh is already running.");
+            return;
+        }
+
         _logger.LogInformation("TMDb refresh task completed.");
     }
 
