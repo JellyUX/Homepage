@@ -49,32 +49,69 @@ internal static class TestMocks
     }
 
     /// <summary>
-    /// An ILibraryManager that counts every method call per method name, can hold each call for a
-    /// short synchronous block, and records the peak number of calls in flight (PROC-02.a). Calls are
-    /// forwarded to <see cref="Inner"/>, which tests set up as usual to supply library data; property
-    /// and event accessors are forwarded without being counted.
+    /// An ILibraryManager that counts its calls (see <see cref="CountingService{T}"/>). Unset methods
+    /// return what an empty library returns: an empty array or list, a new <c>QueryResult</c>, and null
+    /// for an abstract type such as BaseItem.
     /// </summary>
-    internal sealed class CountingLibraryManager
+    internal sealed class CountingLibraryManager() : CountingService<ILibraryManager>(new EmptyLibraryValues())
+    {
+        private sealed class EmptyLibraryValues : DefaultValueProvider
+        {
+            protected override object GetDefaultValue(Type type, Mock mock)
+            {
+                if (type.IsValueType)
+                {
+                    return Activator.CreateInstance(type)!;
+                }
+
+                if (type.IsArray)
+                {
+                    return Array.CreateInstance(type.GetElementType()!, 0);
+                }
+
+                if (type.IsInterface && type.IsGenericType
+                    && type.GetGenericArguments() is [var element]
+                    && type.IsAssignableFrom(element.MakeArrayType()))
+                {
+                    return Array.CreateInstance(element, 0);
+                }
+
+                return !type.IsAbstract && type != typeof(string) && type.GetConstructor(Type.EmptyTypes) is not null
+                    ? Activator.CreateInstance(type)!
+                    : null!;
+            }
+        }
+    }
+
+    /// <summary>
+    /// A service that counts every method call per method name, property getters included (as
+    /// <c>get_Name</c>), can hold each call for a short synchronous block, and records the peak number
+    /// of calls in flight (PROC-02.a, A-04). Calls are forwarded to <see cref="Inner"/>, which tests set
+    /// up as usual; event accessors are forwarded without being counted.
+    /// </summary>
+    /// <typeparam name="T">The counted service interface.</typeparam>
+    internal class CountingService<T>
+        where T : class
     {
         private readonly ConcurrentDictionary<string, int> _counts = new();
         private int _inFlight;
         private int _maxInFlight;
 
-        internal CountingLibraryManager()
+        /// <summary>Initializes a new instance of the <see cref="CountingService{T}"/> class.</summary>
+        /// <param name="defaults">What unset methods of <see cref="Inner"/> return; Moq's empty values when null.</param>
+        internal CountingService(DefaultValueProvider? defaults = null)
         {
-            var proxy = DispatchProxy.Create<ILibraryManager, CountingProxy>();
+            Inner = new Mock<T> { DefaultValueProvider = defaults ?? DefaultValueProvider.Empty };
+            var proxy = DispatchProxy.Create<T, CountingProxy>();
             ((CountingProxy)(object)proxy).Owner = this;
             Object = proxy;
         }
 
-        /// <summary>
-        /// The mock the calls are forwarded to. Unset methods return what an empty library returns: an
-        /// empty array or list, a new <c>QueryResult</c>, and null for an abstract type such as BaseItem.
-        /// </summary>
-        internal Mock<ILibraryManager> Inner { get; } = new() { DefaultValueProvider = new EmptyLibraryValues() };
+        /// <summary>The mock the calls are forwarded to.</summary>
+        internal Mock<T> Inner { get; }
 
         /// <summary>The counting instance to hand to the code under test.</summary>
-        internal ILibraryManager Object { get; }
+        internal T Object { get; }
 
         /// <summary>How long each counted call blocks its thread before being forwarded.</summary>
         internal TimeSpan BlockPerCall { get; set; } = TimeSpan.Zero;
@@ -101,7 +138,8 @@ internal static class TestMocks
 
         private object? Forward(MethodInfo method, object?[]? args)
         {
-            if (method.IsSpecialName)
+            if (method.IsSpecialName && (method.Name.StartsWith("add_", StringComparison.Ordinal)
+                || method.Name.StartsWith("remove_", StringComparison.Ordinal)))
             {
                 return Invoke(method, args);
             }
@@ -142,37 +180,10 @@ internal static class TestMocks
             }
         }
 
-        private sealed class EmptyLibraryValues : DefaultValueProvider
-        {
-            protected override object GetDefaultValue(Type type, Mock mock)
-            {
-                if (type.IsValueType)
-                {
-                    return Activator.CreateInstance(type)!;
-                }
-
-                if (type.IsArray)
-                {
-                    return Array.CreateInstance(type.GetElementType()!, 0);
-                }
-
-                if (type.IsInterface && type.IsGenericType
-                    && type.GetGenericArguments() is [var element]
-                    && type.IsAssignableFrom(element.MakeArrayType()))
-                {
-                    return Array.CreateInstance(element, 0);
-                }
-
-                return !type.IsAbstract && type != typeof(string) && type.GetConstructor(Type.EmptyTypes) is not null
-                    ? Activator.CreateInstance(type)!
-                    : null!;
-            }
-        }
-
         /// <summary>Proxy class required by DispatchProxy; not used directly.</summary>
         internal class CountingProxy : DispatchProxy
         {
-            internal CountingLibraryManager Owner { get; set; } = null!;
+            internal CountingService<T> Owner { get; set; } = null!;
 
             protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) =>
                 Owner.Forward(targetMethod!, args);

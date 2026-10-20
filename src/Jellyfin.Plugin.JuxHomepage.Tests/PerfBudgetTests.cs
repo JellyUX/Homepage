@@ -5,6 +5,8 @@ using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.Controllers;
 using Jellyfin.Plugin.JuxHomepage.Library;
+using Jellyfin.Plugin.JuxHomepage.TMDb;
+using Jellyfin.Plugin.JuxHomepage.TMDb.Models;
 using Jellyfin.Plugin.JuxHomepage.Widgets;
 using Jellyfin.Plugin.JuxHomepage.Widgets.Connected;
 using Jellyfin.Plugin.JuxHomepage.Widgets.Local;
@@ -44,8 +46,12 @@ public sealed class PerfBudgetTests : IDisposable
 {
     private const string BudgetPath = "ci/perf-budget.json";
     private const int LibrarySize = 20;
+    private const int TmdbListSize = 20;
 
     private static readonly DateTimeOffset FixedNow = new(2026, 10, 18, 12, 0, 0, TimeSpan.Zero);
+
+    /// <summary>The budget tables: ILibraryManager calls, then IUserDataManager and IDtoService calls (DEC-P06-6).</summary>
+    private static readonly string[] Tables = ["endpoints", "userData", "dto"];
 
     private static readonly Dictionary<string, string> AdminValues = new(StringComparer.Ordinal)
     {
@@ -60,6 +66,8 @@ public sealed class PerfBudgetTests : IDisposable
 
     private readonly string _dataPath = Path.Combine(Path.GetTempPath(), "jux-budget-" + Guid.NewGuid().ToString("N"));
     private readonly TestMocks.CountingLibraryManager _library = new();
+    private readonly TestMocks.CountingService<IUserDataManager> _userData = new();
+    private readonly TestMocks.CountingService<IDtoService> _dto = new();
     private readonly User _user = TestMocks.DefaultUser();
     private readonly Movie[] _movies;
     private readonly ServiceProvider _provider;
@@ -71,11 +79,14 @@ public sealed class PerfBudgetTests : IDisposable
         _movies = Enumerable.Range(1, LibrarySize)
             .Select(i => new Movie { Id = new Guid(i, 0, 0, new byte[8]), Name = $"Movie {i}", Genres = ["Action"] })
             .ToArray();
-        _library.Inner.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns(() => [.. _movies]);
+        _library.Inner.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
+            .Returns((InternalItemsQuery q) => [.. Page(q)]);
         _library.Inner.Setup(m => m.GetItemsResult(It.IsAny<InternalItemsQuery>()))
-            .Returns(() => new QueryResult<BaseItem>(0, LibrarySize, [.. _movies]));
-        _library.Inner.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns(() => [.. _movies.Select(m => m.Id)]);
+            .Returns((InternalItemsQuery q) => new QueryResult<BaseItem>(q.StartIndex ?? 0, LibrarySize, [.. Page(q)]));
+        _library.Inner.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>()))
+            .Returns((InternalItemsQuery q) => [.. Page(q).Select(m => m.Id)]);
         _library.Inner.Setup(m => m.GetItemById(It.IsAny<Guid>())).Returns((Guid id) => _movies.FirstOrDefault(m => m.Id == id));
+        SetUpDtoMappingEachItem(_dto.Inner);
 
         var paths = new Mock<IApplicationPaths>();
         paths.SetupGet(p => p.DataPath).Returns(_dataPath);
@@ -96,8 +107,8 @@ public sealed class PerfBudgetTests : IDisposable
         services.AddSingleton(paths.Object);
         services.AddSingleton(userManager.Object);
         services.AddSingleton(_library.Object);
-        services.AddSingleton(Mock.Of<IUserDataManager>());
-        services.AddSingleton(DtoServiceMappingEachItem());
+        services.AddSingleton(_userData.Object);
+        services.AddSingleton(_dto.Object);
         services.AddSingleton(Mock.Of<IUserViewManager>());
         services.AddSingleton(Mock.Of<ITVSeriesManager>());
         services.AddSingleton(Mock.Of<ICollectionManager>());
@@ -106,9 +117,10 @@ public sealed class PerfBudgetTests : IDisposable
         services.AddSingleton(authContext.Object);
         new PluginServiceRegistrator().RegisterServices(services, Mock.Of<IServerApplicationHost>());
 
-        // Registered after the registrator, so it wins over the Plugin.Instance accessor.
+        // Registered after the registrator, so they win over the Plugin.Instance accessor and the HTTP client.
         var configuration = ReferenceConfiguration(services.BuildServiceProvider());
         services.AddSingleton<Func<PluginConfiguration?>>(() => configuration);
+        services.AddSingleton(FakeTmdbClient());
         _provider = services.BuildServiceProvider();
     }
 
@@ -129,53 +141,105 @@ public sealed class PerfBudgetTests : IDisposable
 
         _output.WriteLine(JsonSerializer.Serialize(measured, new JsonSerializerOptions { WriteIndented = true }));
 
-        var differences = measured.Keys.Union(budget.Keys)
-            .Order(StringComparer.Ordinal)
-            .Select(key => (Key: key, Measured: measured.GetValueOrDefault(key, -1), Budget: budget.GetValueOrDefault(key, -1)))
-            .Where(d => d.Measured != d.Budget)
-            .Select(d => d.Measured < 0 ? $"{d.Key}: in the budget but no longer measured"
-                : d.Budget < 0 ? $"{d.Key}: measured {d.Measured}, missing from the budget"
-                : d.Measured > d.Budget ? $"{d.Key}: measured {d.Measured} > budget {d.Budget} (raise only with a Budget: trailer)"
-                : $"{d.Key}: measured {d.Measured} < budget {d.Budget} (lower the budget in this commit)")
+        var differences = Tables
+            .SelectMany(table => Differences(table, measured[table], budget.GetValueOrDefault(table) ?? []))
             .ToList();
 
         Assert.True(differences.Count == 0, $"{BudgetPath} differs from the measured calls:\n" + string.Join('\n', differences));
     }
 
-    private async Task<SortedDictionary<string, int>> MeasureHomePath()
+    private static IEnumerable<string> Differences(string table, IReadOnlyDictionary<string, int> measured, IReadOnlyDictionary<string, int> budget) =>
+        measured.Keys.Union(budget.Keys)
+            .Order(StringComparer.Ordinal)
+            .Select(key => (Key: $"{table}/{key}", Measured: measured.GetValueOrDefault(key, -1), Budget: budget.GetValueOrDefault(key, -1)))
+            .Where(d => d.Measured != d.Budget)
+            .Select(d => d.Measured < 0 ? $"{d.Key}: in the budget but no longer measured"
+                : d.Budget < 0 ? $"{d.Key}: measured {d.Measured}, missing from the budget"
+                : d.Measured > d.Budget ? $"{d.Key}: measured {d.Measured} > budget {d.Budget} (raise only with a Budget: trailer)"
+                : $"{d.Key}: measured {d.Measured} < budget {d.Budget} (lower the budget in this commit)");
+
+    private async Task<Dictionary<string, SortedDictionary<string, int>>> MeasureHomePath()
     {
         var controller = BuildController();
         var widgetService = _provider.GetRequiredService<WidgetService>();
         await WarmBackgroundCaches(controller);
         widgetService.InvalidateUser(_user.Id);
 
-        var measured = new SortedDictionary<string, int>(StringComparer.Ordinal);
+        var measured = Tables.ToDictionary(t => t, _ => new SortedDictionary<string, int>(StringComparer.Ordinal));
 
-        _library.Reset();
-        var descriptors = await ReadAllSections(controller);
-        measured["Sections (layout build)"] = _library.Total;
-
-        _library.Reset();
-        await controller.GetSections(_user.Id, page: 0);
-        measured["Sections (cached layout)"] = _library.Total;
+        List<WidgetDescriptor> descriptors = [];
+        await Measure(measured, "Sections (layout build)", async () => descriptors = await ReadAllSections(controller));
+        await Measure(measured, "Sections (cached layout)", () => controller.GetSections(_user.Id, page: 0));
 
         foreach (var descriptor in descriptors)
         {
-            _library.Reset();
-            await controller.GetSection(descriptor.WidgetType, _user.Id, descriptor.AdditionalData, descriptor.SectionKey);
             var key = $"Section/{descriptor.WidgetType}";
-            measured[measured.ContainsKey(key) ? $"{key} {descriptor.AdditionalData}" : key] = _library.Total;
+            await Measure(
+                measured,
+                measured["endpoints"].ContainsKey(key) ? $"{key} {descriptor.AdditionalData}" : key,
+                () => controller.GetSection(descriptor.WidgetType, _user.Id, descriptor.AdditionalData, descriptor.SectionKey));
         }
 
-        _library.Reset();
-        await controller.GetWatchlistIds(_user.Id);
-        measured["Watchlist/Ids"] = _library.Total;
+        // A type that renders no section on this library is still budgeted, by its first row (DEC-P06-7).
+        foreach (var widget in _provider.GetRequiredService<IWidgetRegistry>().GetAll().OrderBy(w => w.WidgetType, StringComparer.Ordinal))
+        {
+            var key = $"Section/{widget.WidgetType}";
+            if (!measured["endpoints"].ContainsKey(key))
+            {
+                await Measure(measured, key, () => controller.GetSection(widget.WidgetType, _user.Id, AdminValues.GetValueOrDefault(widget.WidgetType), null));
+            }
+        }
 
-        _library.Reset();
-        await controller.GetCollectionsForItem(_movies[0].Id);
-        measured["Collections/IncludedIn"] = _library.Total;
+        await Measure(measured, "Watchlist/Ids", () => controller.GetWatchlistIds(_user.Id));
+        await Measure(measured, "Collections/IncludedIn", () => controller.GetCollectionsForItem(_movies[0].Id));
+        await Measure(
+            measured,
+            $"TMDb refresh (6 lists of {TmdbListSize} titles)",
+            () => _provider.GetRequiredService<ITMDbCacheService>().RefreshAllAsync(null, CancellationToken.None));
 
         return measured;
+    }
+
+    private async Task Measure(Dictionary<string, SortedDictionary<string, int>> measured, string key, Func<Task> request)
+    {
+        _library.Reset();
+        _userData.Reset();
+        _dto.Reset();
+        await request();
+        measured["endpoints"][key] = _library.Total;
+        measured["userData"][key] = _userData.Total;
+        measured["dto"][key] = _dto.Total;
+    }
+
+    private IEnumerable<Movie> Page(InternalItemsQuery query) =>
+        _movies
+            .Where(m => query.HasAnyProviderId is not { Count: > 0 } ids
+                || ids.Any(id => m.ProviderIds.TryGetValue(id.Key, out var value) && value == id.Value))
+            .Skip(query.StartIndex ?? 0)
+            .Take(query.Limit ?? int.MaxValue);
+
+    /// <summary>
+    /// A TMDb client returning 20 titles per list (distinct ids per list, none in the fake library), with
+    /// an IMDb id for every even TMDb id.
+    /// </summary>
+    private static ITMDbApiClient FakeTmdbClient()
+    {
+        static IReadOnlyList<TMDbMovie> Movies(int first) =>
+            [.. Enumerable.Range(first, TmdbListSize).Select(id => new TMDbMovie { Id = id, Title = $"TMDb movie {id}" })];
+        static IReadOnlyList<TMDbShow> Shows(int first) =>
+            [.. Enumerable.Range(first, TmdbListSize).Select(id => new TMDbShow { Id = id, Name = $"TMDb show {id}" })];
+        static string? Imdb(int id) => id % 2 == 0 ? $"tt{id:D7}" : null;
+
+        var client = new Mock<ITMDbApiClient>();
+        client.Setup(c => c.GetTrendingMoviesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(Movies(1000));
+        client.Setup(c => c.GetTopRatedMoviesAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(Movies(2000));
+        client.Setup(c => c.GetNowPlayingMoviesAsync(It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<CancellationToken>())).ReturnsAsync(Movies(3000));
+        client.Setup(c => c.GetTrendingShowsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(Shows(4000));
+        client.Setup(c => c.GetAiringTodayAsync(It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(Shows(5000));
+        client.Setup(c => c.GetTopRatedShowsAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(Shows(6000));
+        client.Setup(c => c.GetMovieExternalIdsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync((int id, CancellationToken _) => Imdb(id));
+        client.Setup(c => c.GetShowExternalIdsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync((int id, CancellationToken _) => Imdb(id));
+        return client.Object;
     }
 
     private async Task WarmBackgroundCaches(JuxHomepageController controller)
@@ -215,9 +279,8 @@ public sealed class PerfBudgetTests : IDisposable
         return controller;
     }
 
-    private static IDtoService DtoServiceMappingEachItem()
+    private static void SetUpDtoMappingEachItem(Mock<IDtoService> mock)
     {
-        var mock = new Mock<IDtoService>();
         mock.Setup(m => m.GetBaseItemDtos(
                 It.IsAny<IReadOnlyList<BaseItem>>(),
                 It.IsAny<DtoOptions>(),
@@ -231,7 +294,6 @@ public sealed class PerfBudgetTests : IDisposable
                 It.IsAny<User>(),
                 It.IsAny<BaseItem>()))
             .Returns((BaseItem item, DtoOptions _, User _, BaseItem _) => new BaseItemDto { Id = item.Id, Name = item.Name });
-        return mock.Object;
     }
 
     private static PluginConfiguration ReferenceConfiguration(IServiceProvider services)
@@ -266,10 +328,14 @@ public sealed class PerfBudgetTests : IDisposable
         return new PluginConfiguration { Widgets = [.. rows] };
     }
 
-    private static Dictionary<string, int> ReadBudget()
+    private static Dictionary<string, Dictionary<string, int>> ReadBudget()
     {
         var path = Path.Combine(RepoPaths.Root(), BudgetPath);
-        var endpoints = JsonNode.Parse(File.ReadAllText(path))!["endpoints"]!.AsObject();
-        return endpoints.ToDictionary(e => e.Key, e => e.Value!.GetValue<int>(), StringComparer.Ordinal);
+        var root = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        return Tables
+            .Where(table => root[table] is JsonObject)
+            .ToDictionary(
+                table => table,
+                table => root[table]!.AsObject().ToDictionary(e => e.Key, e => e.Value!.GetValue<int>(), StringComparer.Ordinal));
     }
 }

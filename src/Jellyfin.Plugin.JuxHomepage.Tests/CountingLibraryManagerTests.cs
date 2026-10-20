@@ -1,4 +1,6 @@
 using MediaBrowser.Controller.Entities;
+using MediaBrowser.Controller.Entities.Movies;
+using MediaBrowser.Controller.Library;
 using Moq;
 using Xunit;
 
@@ -22,6 +24,39 @@ public sealed class CountingLibraryManagerTests
         Assert.Equal(1, library.Count("GetItemList"));
         Assert.Equal(0, library.Count("GetItemById"));
         Assert.Equal(3, library.Total);
+    }
+
+    [Fact]
+    public void PropertyGetter_IsCountedUnderItsAccessorName()
+    {
+        var library = new TestMocks.CountingLibraryManager();
+
+        _ = library.Object.RootFolder;
+
+        Assert.Equal(1, library.Count("get_RootFolder"));
+        Assert.Equal(1, library.Total);
+    }
+
+    [Fact]
+    public void EventSubscription_IsNotCounted()
+    {
+        var library = new TestMocks.CountingLibraryManager();
+        EventHandler<ItemChangeEventArgs> handler = (_, _) => { };
+
+        library.Object.ItemAdded += handler;
+        library.Object.ItemAdded -= handler;
+
+        Assert.Equal(0, library.Total);
+    }
+
+    [Fact]
+    public void CountingService_OtherInterface_CountsItsCalls()
+    {
+        var userData = new TestMocks.CountingService<IUserDataManager>();
+
+        userData.Object.GetUserData(TestMocks.DefaultUser(), new Movie());
+
+        Assert.Equal(1, userData.Count("GetUserData"));
     }
 
     [Fact]
