@@ -69,11 +69,13 @@ public interface ITMDbCacheService
     Task RefreshDiscoverMoviesAsync(string instanceId, TMDbDiscoverFilter filter, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Returns whether the given cache type is missing or older than the configured refresh
-    /// interval (<see cref="Configuration.CacheConfig.TMDbRefreshIntervalHours"/>).
+    /// Returns whether the given cache type is missing or due: older than the configured refresh
+    /// interval (<see cref="Configuration.CacheConfig.TMDbRefreshIntervalHours"/>) less the one-hour
+    /// period of the scheduled task, so a list written a moment after a run started is not left
+    /// for one more run.
     /// </summary>
     /// <param name="type">The cache type to check.</param>
-    /// <returns>True if the cache is absent or stale; otherwise false.</returns>
+    /// <returns>True if the cache is absent or due; otherwise false.</returns>
     bool IsStale(TMDbCacheType type);
 
     /// <summary>
@@ -85,10 +87,9 @@ public interface ITMDbCacheService
     DateTime? GetLastRefreshedUtc(TMDbCacheType type);
 
     /// <summary>
-    /// Refreshes all fixed TMDb cache types in sequence, then refreshes every configured Discover
-    /// widget instance. Each individual refresh is already fault-tolerant (a failure is logged and
-    /// does not abort the others). Shared by the daily scheduled task and the admin "Refresh now"
-    /// action so neither duplicates the sequence.
+    /// Refreshes all six fixed TMDb lists in sequence, then every configured Discover widget
+    /// instance, whatever their age, like the admin "Refresh now" action. Each individual refresh is
+    /// already fault-tolerant (a failure is logged and does not abort the others).
     /// <para>
     /// Atomically reserves the refresh slot (see <see cref="TryAcquireRefreshLock"/>) for the
     /// duration of the call, so a concurrent call (whether the daily scheduled task or a manual
@@ -103,6 +104,17 @@ public interface ITMDbCacheService
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>True if this call actually performed the refresh; false if one was already running.</returns>
     Task<bool> RefreshAllAsync(IProgress<double>? progress, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Refreshes, among the six fixed lists and the configured Discover instances, only those
+    /// <see cref="IsStale"/> calls due, for the hourly scheduled task and the startup catch-up
+    /// (QUAL-01: <see cref="Configuration.CacheConfig.TMDbRefreshIntervalHours"/> sets how often a
+    /// list is refreshed). Reserves the refresh slot like <see cref="RefreshAllAsync"/>.
+    /// </summary>
+    /// <param name="progress">Optional progress reporter, updated as each fixed list is handled.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>True if this call ran; false if a refresh was already running.</returns>
+    Task<bool> RefreshDueAsync(IProgress<double>? progress, CancellationToken cancellationToken);
 
     /// <summary>
     /// Non-blocking attempt to reserve the refresh slot, for callers (like the admin "Refresh now"

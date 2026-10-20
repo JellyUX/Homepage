@@ -13,8 +13,9 @@ public sealed class CacheConfig
     public int SessionTtlMinutes { get; set; } = 15;
 
     /// <summary>
-    /// Gets or sets how often TMDb data is refreshed, in hours.
-    /// Increase to reduce external API usage; decrease for fresher trending content.
+    /// Gets or sets how often each TMDb list is refreshed, in hours. The hourly TMDb task refreshes
+    /// the lists older than this less one hour (QUAL-01, DEC-P06-3,
+    /// <c>TMDbRefreshIntervalHours_72h_DailyTaskSkipsFreshLists</c>); "Refresh now" refreshes all.
     /// </summary>
     public int TMDbRefreshIntervalHours { get; set; } = 24;
 }

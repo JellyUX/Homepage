@@ -83,7 +83,7 @@
   "admin.cache.sessionttl.label": "Durée du cache de session (minutes)",
   "admin.cache.sessionttl.help": "Durée pendant laquelle la mise en page de l'accueil d'un utilisateur est conservée avant d'être reconstruite, comptée depuis sa construction. La première visite après ce délai affiche encore l'ancienne mise en page pendant que la nouvelle se construit en arrière-plan. Enregistrer cette page applique les changements tout de suite. Les choix personnalisés sont recalculés une fois par jour et après la fin d'un titre, pas selon cette durée.",
   "admin.cache.tmdbrefresh.label": "Intervalle de rafraîchissement TMDb (heures)",
-  "admin.cache.tmdbrefresh.help": "Fréquence de rafraîchissement des données TMDb. Augmenter pour réduire les appels API externes ; diminuer pour un contenu plus récent.",
+  "admin.cache.tmdbrefresh.help": "Fréquence de rafraîchissement de chaque liste TMDb, vérifiée toutes les heures. Augmenter pour réduire les appels API externes ; diminuer pour un contenu plus récent.",
   "admin.tmdbcache.title": "Cache TMDb",
   "admin.tmdbcache.help": "État des données TMDb mises en cache, utilisées par les widgets Connectés.",
   "admin.tmdbcache.pageshint": "Chaque page correspond à environ 20 éléments TMDb, donc \"Pages : 3\" récupère environ 60 éléments pour cette liste.",

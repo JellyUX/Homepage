@@ -38,7 +38,7 @@ public sealed class ConfigurationEffectTests
 
     // Settings with no effect today, each fixed by a later phase: checked by the skipped facts below.
     private static readonly string[] Deferred =
-        ["WidgetConfig.MinInstances", "WidgetConfig.MaxInstances", "UserConfiguration.WidgetOverrides", "CacheConfig.TMDbRefreshIntervalHours"];
+        ["WidgetConfig.MinInstances", "WidgetConfig.MaxInstances", "UserConfiguration.WidgetOverrides"];
 
     private static readonly Lazy<Sources> Code = new(Sources.Load);
 
@@ -71,9 +71,6 @@ public sealed class ConfigurationEffectTests
 
     [Fact(Skip = "QUAL-02, phase 09: no page writes the per-user WidgetOverrides, only the migrations do.")]
     public void WidgetOverrides_IsReadWrittenAndTested() => Assert.Empty(Problems("UserConfiguration.WidgetOverrides"));
-
-    [Fact(Skip = "QUAL-01, phase 06: the daily TMDb task ignores TMDbRefreshIntervalHours, no test proves the interval.")]
-    public void TMDbRefreshIntervalHours_IsReadWrittenAndTested() => Assert.Empty(Problems("CacheConfig.TMDbRefreshIntervalHours"));
 
     private static List<string> Problems(string setting)
     {

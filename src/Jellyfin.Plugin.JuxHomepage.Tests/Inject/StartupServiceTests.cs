@@ -22,16 +22,9 @@ public sealed class StartupServiceTests
         var neverCompletes = new TaskCompletionSource().Task;
 
         var tmdbCacheServiceMock = new Mock<ITMDbCacheService>();
-        tmdbCacheServiceMock.Setup(s => s.IsStale(It.IsAny<TMDbCacheType>())).Returns(true);
         tmdbCacheServiceMock
-            .Setup(s => s.RefreshTrendingMoviesAsync(It.IsAny<CancellationToken>()))
-            .Returns(neverCompletes);
-        tmdbCacheServiceMock
-            .Setup(s => s.RefreshTrendingShowsAsync(It.IsAny<CancellationToken>()))
-            .Returns(neverCompletes);
-        tmdbCacheServiceMock
-            .Setup(s => s.RefreshAiringTodayAsync(It.IsAny<CancellationToken>()))
-            .Returns(neverCompletes);
+            .Setup(s => s.RefreshDueAsync(It.IsAny<IProgress<double>?>(), It.IsAny<CancellationToken>()))
+            .Returns(new TaskCompletionSource<bool>().Task);
 
         var applicationPathsMock = new Mock<IApplicationPaths>();
         applicationPathsMock.Setup(p => p.WebPath).Returns("C:\\nonexistent-jellyux-test-path");
@@ -60,7 +53,7 @@ public sealed class StartupServiceTests
         lifetime.Start();
 
         Assert.True(startTask.IsCompletedSuccessfully);
-        tmdbCacheServiceMock.Verify(s => s.RefreshTrendingMoviesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        tmdbCacheServiceMock.Verify(s => s.RefreshDueAsync(It.IsAny<IProgress<double>?>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -69,13 +62,10 @@ public sealed class StartupServiceTests
         // F-07: no TMDb work during the boot; the refresh gets a token that the shutdown cancels.
         var refreshStarted = new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
         var tmdbCacheServiceMock = new Mock<ITMDbCacheService>();
-        tmdbCacheServiceMock.Setup(s => s.IsStale(It.IsAny<TMDbCacheType>())).Returns(true);
         tmdbCacheServiceMock
-            .Setup(s => s.RefreshTrendingMoviesAsync(It.IsAny<CancellationToken>()))
-            .Callback<CancellationToken>(t => refreshStarted.TrySetResult(t))
-            .Returns(Task.CompletedTask);
-        tmdbCacheServiceMock.Setup(s => s.RefreshTrendingShowsAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
-        tmdbCacheServiceMock.Setup(s => s.RefreshAiringTodayAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+            .Setup(s => s.RefreshDueAsync(It.IsAny<IProgress<double>?>(), It.IsAny<CancellationToken>()))
+            .Callback<IProgress<double>?, CancellationToken>((_, t) => refreshStarted.TrySetResult(t))
+            .ReturnsAsync(true);
         var applicationPathsMock = new Mock<IApplicationPaths>();
         applicationPathsMock.Setup(p => p.WebPath).Returns("C:\nonexistent-jellyux-test-path");
         var lifetime = new FakeLifetime();
@@ -90,11 +80,11 @@ public sealed class StartupServiceTests
             new ConfigurationBackup(Path.Combine(Path.GetTempPath(), "jux-startup-tests-" + Guid.NewGuid()), NullLogger.Instance));
 
         await service.StartAsync(CancellationToken.None);
-        tmdbCacheServiceMock.Verify(s => s.RefreshTrendingMoviesAsync(It.IsAny<CancellationToken>()), Times.Never);
+        tmdbCacheServiceMock.Verify(s => s.RefreshDueAsync(It.IsAny<IProgress<double>?>(), It.IsAny<CancellationToken>()), Times.Never);
 
         lifetime.Start();
         var refreshToken = await refreshStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        tmdbCacheServiceMock.Verify(s => s.RefreshTrendingMoviesAsync(It.IsAny<CancellationToken>()), Times.Once);
+        tmdbCacheServiceMock.Verify(s => s.RefreshDueAsync(It.IsAny<IProgress<double>?>(), It.IsAny<CancellationToken>()), Times.Once);
 
         await service.StopAsync(CancellationToken.None);
         Assert.True(refreshToken.IsCancellationRequested);

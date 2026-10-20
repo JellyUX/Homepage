@@ -695,11 +695,12 @@ public class JuxHomepageController : ControllerBase
     }
 
     /// <summary>
-    /// Triggers an immediate refresh of all four TMDb cache types, plus every configured Rewards
-    /// widget instance (TODO_V2.md Phase 14: Rewards deliberately has no separate "Refresh now" button
-    /// -- this one action covers both external data providers). Runs in the background; the response
+    /// Triggers an immediate refresh of all six TMDb lists and Discover instances, whatever their
+    /// age, plus every configured Rewards widget instance (TODO_V2.md Phase 14: Rewards deliberately
+    /// has no separate "Refresh now" button -- this one action covers both external data
+    /// providers). Runs in the background; the response
     /// does not wait for the refresh to complete. Rejects the request with 409 Conflict if a TMDb
-    /// refresh (manual or the daily scheduled task) is already in progress.
+    /// refresh (manual, the hourly scheduled task or the startup catch-up) is already in progress.
     /// </summary>
     /// <returns>202 Accepted if a refresh was started; 409 Conflict if one was already running.</returns>
     [HttpPost("TMDb/Refresh")]

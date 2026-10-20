@@ -17,13 +17,6 @@ namespace Jellyfin.Plugin.JuxHomepage.Inject;
 /// </summary>
 public sealed class StartupService : IHostedService, IDisposable
 {
-    private static readonly TMDbCacheType[] TMDbCacheTypes =
-    [
-        TMDbCacheType.TrendingMovies,
-        TMDbCacheType.TrendingShows,
-        TMDbCacheType.AiringToday
-    ];
-
     private readonly IApplicationPaths _applicationPaths;
     private readonly ILogger<StartupService> _logger;
     private readonly FileTransformationDetector _detector;
@@ -158,45 +151,21 @@ public sealed class StartupService : IHostedService, IDisposable
     }
 
     /// <summary>
-    /// Immediately refreshes any TMDb cache type that is missing or older than the configured
-    /// refresh interval, so a fresh install (or one that restarted after the daily 3 AM window was
-    /// missed) does not have to wait for the next scheduled run. Best-effort: a failure here must
-    /// never prevent the FileTransformation registration that follows.
+    /// Immediately refreshes the TMDb lists and Discover instances that are missing or due, so a
+    /// fresh install does not wait up to an hour for the next scheduled run. Best-effort: a failure
+    /// here must never prevent the FileTransformation registration that follows.
     /// </summary>
     private async Task RefreshStaleTMDbCacheAsync(CancellationToken cancellationToken)
     {
         try
         {
-            var refreshed = 0;
-            foreach (var type in TMDbCacheTypes)
-            {
-                if (!_tmdbCacheService.IsStale(type))
-                {
-                    continue;
-                }
-
-                await RefreshTMDbCacheType(type, cancellationToken).ConfigureAwait(false);
-                refreshed++;
-            }
-
-            if (refreshed > 0)
-            {
-                _logger.LogInformation("Refreshed {Count} stale TMDb cache type(s) at startup.", refreshed);
-            }
+            await _tmdbCacheService.RefreshDueAsync(null, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to refresh TMDb cache at startup.");
         }
     }
-
-    private Task RefreshTMDbCacheType(TMDbCacheType type, CancellationToken cancellationToken) => type switch
-    {
-        TMDbCacheType.TrendingMovies => _tmdbCacheService.RefreshTrendingMoviesAsync(cancellationToken),
-        TMDbCacheType.TrendingShows => _tmdbCacheService.RefreshTrendingShowsAsync(cancellationToken),
-        TMDbCacheType.AiringToday => _tmdbCacheService.RefreshAiringTodayAsync(cancellationToken),
-        _ => Task.CompletedTask
-    };
 
     private void RegisterIndexHtmlTransformation()
     {

@@ -83,7 +83,7 @@
   "admin.cache.sessionttl.label": "Session cache TTL (minutes)",
   "admin.cache.sessionttl.help": "How long a user's home screen layout is kept before it is rebuilt, counted from when it was built. The first visit after that still shows the previous layout while the new one is built in the background. Saving this page applies changes at once. Personalized picks are recomputed once a day and after a title is finished, not on this schedule.",
   "admin.cache.tmdbrefresh.label": "TMDb refresh interval (hours)",
-  "admin.cache.tmdbrefresh.help": "How often TMDb data is refreshed. Increase to reduce external API calls; decrease for fresher content.",
+  "admin.cache.tmdbrefresh.help": "How often each TMDb list is refreshed, checked every hour. Increase to reduce external API calls; decrease for fresher content.",
   "admin.tmdbcache.title": "TMDb Cache",
   "admin.tmdbcache.help": "Status of the cached TMDb data used by Connected widgets.",
   "admin.tmdbcache.pageshint": "Each page is about 20 items from TMDb, so \"Pages: 3\" fetches roughly 60 items for that list.",

@@ -4,7 +4,8 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.JuxHomepage.TMDb.Tasks;
 
 /// <summary>
-/// Scheduled task that refreshes all four TMDb caches once a day.
+/// Scheduled task that runs every hour and refreshes the TMDb lists that are due under
+/// <see cref="Configuration.CacheConfig.TMDbRefreshIntervalHours"/> (QUAL-01, DEC-P06-3).
 /// Auto-discovered by Jellyfin -- not registered in DI (its dependencies are DI-registered, but the
 /// task itself is instantiated by Jellyfin's scheduled task subsystem, exactly like
 /// <see cref="Inject.StartupService"/>).
@@ -40,12 +41,12 @@ public sealed class TMDbDailyRefreshTask : IScheduledTask
     /// <inheritdoc/>
     public async Task ExecuteAsync(IProgress<double> progress, CancellationToken cancellationToken)
     {
-        // RefreshAllAsync is independently fault-tolerant per cache type (TMDbCacheService logs and
+        // RefreshDueAsync is independently fault-tolerant per list (TMDbCacheService logs and
         // swallows its own failures), and TMDbApiClient already skips silently when no API key is
-        // configured, so no special-casing is needed here beyond delegating to it. Shared with the
-        // admin "Refresh now" action (JuxHomepageController) so the 4-call sequence isn't duplicated.
-        await _cacheService.RefreshAllAsync(progress, cancellationToken).ConfigureAwait(false);
-        _logger.LogInformation("TMDb daily refresh completed.");
+        // configured, so no special-casing is needed here beyond delegating to it. The admin
+        // "Refresh now" action (JuxHomepageController) runs the same sequence for every list.
+        await _cacheService.RefreshDueAsync(progress, cancellationToken).ConfigureAwait(false);
+        _logger.LogInformation("TMDb refresh task completed.");
     }
 
     /// <inheritdoc/>
@@ -53,8 +54,8 @@ public sealed class TMDbDailyRefreshTask : IScheduledTask
     {
         yield return new TaskTriggerInfo
         {
-            Type = TaskTriggerInfoType.DailyTrigger,
-            TimeOfDayTicks = TimeSpan.FromHours(3).Ticks
+            Type = TaskTriggerInfoType.IntervalTrigger,
+            IntervalTicks = TMDbCacheService.RefreshTaskPeriod.Ticks
         };
     }
 }

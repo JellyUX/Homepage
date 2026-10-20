@@ -21,6 +21,12 @@ namespace Jellyfin.Plugin.JuxHomepage.TMDb;
 /// </summary>
 public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
 {
+    /// <summary>
+    /// How often the TMDb scheduled task runs (<see cref="Tasks.TMDbDailyRefreshTask"/>), and the
+    /// tolerance a list's age gets before it is due (DEC-P06-3).
+    /// </summary>
+    internal static readonly TimeSpan RefreshTaskPeriod = TimeSpan.FromHours(1);
+
     private readonly DiskJsonCache<TMDbMovie> _movieCache;
     private readonly DiskJsonCache<TMDbShow> _showCache;
     private readonly TMDbExternalIdCache _movieExternalIds;
@@ -44,13 +50,15 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
     /// Defaults to <c>Plugin.Instance?.Configuration</c> in production.
     /// </param>
     /// <param name="logger">Logger.</param>
+    /// <param name="timeProvider">Time source of the cache ages. Defaults to <see cref="TimeProvider.System"/>.</param>
     public TMDbCacheService(
         IApplicationPaths applicationPaths,
         IFileSystem fileSystem,
         ITMDbApiClient apiClient,
         ILibraryManager libraryManager,
         Func<PluginConfiguration?> getConfiguration,
-        ILogger<TMDbCacheService> logger)
+        ILogger<TMDbCacheService> logger,
+        TimeProvider? timeProvider = null)
     {
         _apiClient = apiClient;
         _getConfiguration = getConfiguration;
@@ -67,10 +75,10 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
         // movie cache serves the fixed trending/top-rated/now-playing movie files as well as every
         // per-instance Discover file (also movies), the show cache serves the fixed trending/airing
         // today/top-rated show files.
-        _movieCache = new DiskJsonCache<TMDbMovie>(cacheDir, fileSystem, logger);
-        _showCache = new DiskJsonCache<TMDbShow>(cacheDir, fileSystem, logger);
-        _movieExternalIds = new TMDbExternalIdCache(cacheDir, "external_ids_movies.json", fileSystem, apiClient.GetMovieExternalIdsAsync, logger);
-        _showExternalIds = new TMDbExternalIdCache(cacheDir, "external_ids_shows.json", fileSystem, apiClient.GetShowExternalIdsAsync, logger);
+        _movieCache = new DiskJsonCache<TMDbMovie>(cacheDir, fileSystem, logger, timeProvider);
+        _showCache = new DiskJsonCache<TMDbShow>(cacheDir, fileSystem, logger, timeProvider);
+        _movieExternalIds = new TMDbExternalIdCache(cacheDir, "external_ids_movies.json", fileSystem, apiClient.GetMovieExternalIdsAsync, logger, timeProvider);
+        _showExternalIds = new TMDbExternalIdCache(cacheDir, "external_ids_shows.json", fileSystem, apiClient.GetShowExternalIdsAsync, logger, timeProvider);
     }
 
     /// <inheritdoc/>
@@ -227,11 +235,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
     }
 
     /// <inheritdoc/>
-    public bool IsStale(TMDbCacheType type)
-    {
-        var hours = _getConfiguration()?.Cache?.TMDbRefreshIntervalHours ?? 24;
-        return _movieCache.IsStale(GetFileName(type), TimeSpan.FromHours(hours));
-    }
+    public bool IsStale(TMDbCacheType type) => IsDue(GetFileName(type));
 
     /// <inheritdoc/>
     public DateTime? GetLastRefreshedUtc(TMDbCacheType type) => _movieCache.GetLastWriteUtc(GetFileName(type));
@@ -240,55 +244,20 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
     public bool TryAcquireRefreshLock() => _refreshGate.Wait(0);
 
     /// <inheritdoc/>
-    public async Task RunRefreshLockedAsync(IProgress<double>? progress, CancellationToken cancellationToken)
+    public Task RunRefreshLockedAsync(IProgress<double>? progress, CancellationToken cancellationToken) =>
+        RunLockedAsync(force: true, progress, cancellationToken);
+
+    /// <inheritdoc/>
+    public async Task<bool> RefreshDueAsync(IProgress<double>? progress, CancellationToken cancellationToken)
     {
-        try
+        if (!TryAcquireRefreshLock())
         {
-            // A forced refresh asks again for the titles TMDb had no IMDb id for (DEC-P06-4,
-            // RefreshAllAsync_TitleWithoutImdbId_IsAskedAgainWhereAListRefreshIsNot).
-            _movieExternalIds.ClearMissing();
-            _showExternalIds.ClearMissing();
-
-            // Six fixed refreshes, evenly spaced across 0-100, matched against one library read per
-            // item kind (DEC-P06-1, TMDb refresh budget in ci/perf-budget.json).
-            var indexes = new RefreshIndexes(_crossReferencer);
-            Func<RefreshIndexes, CancellationToken, Task>[] steps =
-            [
-                RefreshTrendingMoviesAsync,
-                RefreshTrendingShowsAsync,
-                RefreshAiringTodayAsync,
-                RefreshTopRatedMoviesAsync,
-                RefreshTopRatedShowsAsync,
-                RefreshNowPlayingMoviesAsync
-            ];
-
-            progress?.Report(0);
-            for (var i = 0; i < steps.Length; i++)
-            {
-                await steps[i](indexes, cancellationToken).ConfigureAwait(false);
-                progress?.Report((i + 1) * 100.0 / steps.Length);
-            }
-
-            var discoverRows = _getConfiguration()?.Widgets?
-                .Where(c => c.WidgetType == TMDbWidgetTypes.DiscoverMovies)
-                .ToList() ?? [];
-
-            foreach (var row in discoverRows)
-            {
-                var extra = row.GetExtraParamsDictionary();
-                if (!extra.TryGetValue("value", out var instanceId) || string.IsNullOrEmpty(instanceId))
-                {
-                    continue;
-                }
-
-                var filter = TMDbDiscoverFilter.FromExtraParams(extra);
-                await RefreshDiscoverMoviesAsync(instanceId, filter, indexes, cancellationToken).ConfigureAwait(false);
-            }
+            _logger.LogInformation("TMDb refresh already in progress; skipping this run.");
+            return false;
         }
-        finally
-        {
-            _refreshGate.Release();
-        }
+
+        await RunLockedAsync(force: false, progress, cancellationToken).ConfigureAwait(false);
+        return true;
     }
 
     /// <inheritdoc/>
@@ -411,6 +380,99 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
             type,
             itemCount,
             matchedCount);
+    }
+
+    /// <summary>
+    /// Refreshes the six fixed lists, then every configured Discover instance, all of them when
+    /// <paramref name="force"/> is set, otherwise only the due ones (<see cref="IsDue"/>). Releases
+    /// the refresh slot the caller reserved.
+    /// </summary>
+    private async Task RunLockedAsync(bool force, IProgress<double>? progress, CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (force)
+            {
+                // A forced refresh asks again for the titles TMDb had no IMDb id for (DEC-P06-4,
+                // RefreshAllAsync_TitleWithoutImdbId_IsAskedAgainWhereAListRefreshIsNot).
+                _movieExternalIds.ClearMissing();
+                _showExternalIds.ClearMissing();
+            }
+
+            // Six fixed refreshes, evenly spaced across 0-100, matched against one library read per
+            // item kind, made only if a list needs it (DEC-P06-1, TMDb refresh budget in
+            // ci/perf-budget.json).
+            var indexes = new RefreshIndexes(_crossReferencer);
+            (TMDbCacheType Type, Func<RefreshIndexes, CancellationToken, Task> Refresh)[] steps =
+            [
+                (TMDbCacheType.TrendingMovies, RefreshTrendingMoviesAsync),
+                (TMDbCacheType.TrendingShows, RefreshTrendingShowsAsync),
+                (TMDbCacheType.AiringToday, RefreshAiringTodayAsync),
+                (TMDbCacheType.TopRatedMovies, RefreshTopRatedMoviesAsync),
+                (TMDbCacheType.TopRatedShows, RefreshTopRatedShowsAsync),
+                (TMDbCacheType.NowPlayingMovies, RefreshNowPlayingMoviesAsync)
+            ];
+
+            var skipped = 0;
+            progress?.Report(0);
+            for (var i = 0; i < steps.Length; i++)
+            {
+                if (force || IsStale(steps[i].Type))
+                {
+                    await steps[i].Refresh(indexes, cancellationToken).ConfigureAwait(false);
+                }
+                else
+                {
+                    skipped++;
+                }
+
+                progress?.Report((i + 1) * 100.0 / steps.Length);
+            }
+
+            var discoverRows = _getConfiguration()?.Widgets?
+                .Where(c => c.WidgetType == TMDbWidgetTypes.DiscoverMovies)
+                .ToList() ?? [];
+
+            foreach (var row in discoverRows)
+            {
+                var extra = row.GetExtraParamsDictionary();
+                if (!extra.TryGetValue("value", out var instanceId) || string.IsNullOrEmpty(instanceId))
+                {
+                    continue;
+                }
+
+                if (!force && Guid.TryParse(instanceId, out _) && !IsDue(GetDiscoverFileName(instanceId)))
+                {
+                    skipped++;
+                    continue;
+                }
+
+                var filter = TMDbDiscoverFilter.FromExtraParams(extra);
+                await RefreshDiscoverMoviesAsync(instanceId, filter, indexes, cancellationToken).ConfigureAwait(false);
+            }
+
+            if (skipped > 0)
+            {
+                _logger.LogInformation("TMDb refresh skipped {Count} list(s) refreshed within the configured interval.", skipped);
+            }
+        }
+        finally
+        {
+            _refreshGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Returns whether a cache file is missing or due: older than
+    /// <see cref="CacheConfig.TMDbRefreshIntervalHours"/> less one <see cref="RefreshTaskPeriod"/>.
+    /// The tolerance keeps a list written a moment after a run started from waiting one more run,
+    /// so a 24 h interval refreshes every day, not every other day (QUAL-01, DEC-P06-3,
+    /// <c>TMDbRefreshIntervalHours_24h_DailyTaskRefreshesEveryDay</c>).
+    /// </summary>
+    private bool IsDue(string fileName)
+    {
+        var hours = _getConfiguration()?.Cache?.TMDbRefreshIntervalHours ?? 24;
+        return _movieCache.IsStale(fileName, TimeSpan.FromHours(hours) - RefreshTaskPeriod);
     }
 
     /// <summary>
