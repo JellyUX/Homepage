@@ -152,8 +152,9 @@ public sealed class StartupService : IHostedService, IDisposable
 
     /// <summary>
     /// Immediately refreshes the TMDb lists and Discover instances that are missing or due, so a
-    /// fresh install does not wait up to an hour for the next scheduled run. Best-effort: a failure
-    /// here must never prevent the FileTransformation registration that follows.
+    /// fresh install does not wait up to an hour for the next scheduled run. Runs once the server has
+    /// started, after the FileTransformation registration of <see cref="StartAsync"/>; best-effort, a
+    /// failure is logged only.
     /// </summary>
     private async Task RefreshStaleTMDbCacheAsync(CancellationToken cancellationToken)
     {
