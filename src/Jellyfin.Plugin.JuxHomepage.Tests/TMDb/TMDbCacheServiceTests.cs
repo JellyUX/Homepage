@@ -1,4 +1,3 @@
-using System.Globalization;
 using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.IO;
 using Jellyfin.Plugin.JuxHomepage.TMDb;
@@ -8,6 +7,7 @@ using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Model.Entities;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
@@ -61,12 +61,22 @@ public sealed class TMDbCacheServiceTests : IDisposable
 
     // A library manager mock that never matches anything, for tests that only care about the
     // fetch/write/staleness mechanics, not cross-referencing itself.
-    private static ILibraryManager NoMatchLibraryManager()
+    private static ILibraryManager NoMatchLibraryManager() => LibraryWith();
+
+    // A library manager mock whose library holds exactly these items, whatever item kinds are asked
+    // for (these tests only refresh movie lists).
+    private static ILibraryManager LibraryWith(params BaseItem[] libraryItems)
     {
         var mock = new Mock<ILibraryManager>();
-        mock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
-        mock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
+        mock.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([.. libraryItems]);
         return mock.Object;
+    }
+
+    private static Movie MovieWith(MetadataProvider provider, string value)
+    {
+        var movie = new Movie { Id = Guid.NewGuid() };
+        movie.SetProviderId(provider, value);
+        return movie;
     }
 
     // -------------------------------------------------------------------------
@@ -151,7 +161,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
     [Fact]
     public async Task RefreshTrendingMoviesAsync_ImdbMatchFound_SetsLibraryItemId()
     {
-        var libraryItem = new Movie { Id = Guid.NewGuid(), Name = "Inception" };
+        var libraryItem = MovieWith(MetadataProvider.Imdb, "tt1375666");
 
         var apiClientMock = new Mock<ITMDbApiClient>();
         apiClientMock.Setup(c => c.GetTrendingMoviesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -159,14 +169,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
         apiClientMock.Setup(c => c.GetMovieExternalIdsAsync(27205, It.IsAny<CancellationToken>()))
             .ReturnsAsync("tt1375666");
 
-        var libraryManagerMock = new Mock<ILibraryManager>();
-        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
-        libraryManagerMock
-            .Setup(m => m.GetItemIds(It.Is<InternalItemsQuery>(
-                q => q.HasAnyProviderId != null && q.HasAnyProviderId.ContainsKey("Imdb"))))
-            .Returns([libraryItem.Id]);
-
-        var service = BuildService(apiClientMock.Object, libraryManagerMock.Object);
+        var service = BuildService(apiClientMock.Object, LibraryWith(libraryItem));
 
         await service.RefreshTrendingMoviesAsync(CancellationToken.None);
         var result = service.GetTrendingMovies();
@@ -178,7 +181,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
     [Fact]
     public async Task RefreshTrendingMoviesAsync_NoImdbMatch_FallsBackToTmdbId()
     {
-        var libraryItem = new Movie { Id = Guid.NewGuid(), Name = "Inception" };
+        var libraryItem = MovieWith(MetadataProvider.Tmdb, "27205");
 
         var apiClientMock = new Mock<ITMDbApiClient>();
         apiClientMock.Setup(c => c.GetTrendingMoviesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -186,15 +189,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
         apiClientMock.Setup(c => c.GetMovieExternalIdsAsync(27205, It.IsAny<CancellationToken>()))
             .ReturnsAsync((string?)null);
 
-        var libraryManagerMock = new Mock<ILibraryManager>();
-        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
-        libraryManagerMock
-            .Setup(m => m.GetItemIds(It.Is<InternalItemsQuery>(
-                q => q.HasAnyProviderId != null && q.HasAnyProviderId.ContainsKey("Tmdb")
-                     && q.HasAnyProviderId["Tmdb"] == "27205")))
-            .Returns([libraryItem.Id]);
-
-        var service = BuildService(apiClientMock.Object, libraryManagerMock.Object);
+        var service = BuildService(apiClientMock.Object, LibraryWith(libraryItem));
 
         await service.RefreshTrendingMoviesAsync(CancellationToken.None);
         var result = service.GetTrendingMovies();
@@ -212,13 +207,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
         apiClientMock.Setup(c => c.GetMovieExternalIdsAsync(999, It.IsAny<CancellationToken>()))
             .ReturnsAsync((string?)null);
 
-        var libraryManagerMock = new Mock<ILibraryManager>();
-        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
-        libraryManagerMock
-            .Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>()))
-            .Returns([]);
-
-        var service = BuildService(apiClientMock.Object, libraryManagerMock.Object);
+        var service = BuildService(apiClientMock.Object, NoMatchLibraryManager());
 
         await service.RefreshTrendingMoviesAsync(CancellationToken.None);
         var result = service.GetTrendingMovies();
@@ -237,7 +226,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
     [Fact]
     public async Task RefreshTrendingMoviesAsync_SameIdOnMultiplePages_CollapsesToSingleEntry()
     {
-        var libraryItem = new Movie { Id = Guid.NewGuid(), Name = "Shelter" };
+        var libraryItem = MovieWith(MetadataProvider.Imdb, "tt32357218");
 
         var apiClientMock = new Mock<ITMDbApiClient>();
         apiClientMock.Setup(c => c.GetTrendingMoviesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -248,14 +237,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
         apiClientMock.Setup(c => c.GetMovieExternalIdsAsync(555, It.IsAny<CancellationToken>()))
             .ReturnsAsync("tt32357218");
 
-        var libraryManagerMock = new Mock<ILibraryManager>();
-        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
-        libraryManagerMock
-            .Setup(m => m.GetItemIds(It.Is<InternalItemsQuery>(
-                q => q.HasAnyProviderId != null && q.HasAnyProviderId.ContainsKey("Imdb"))))
-            .Returns([libraryItem.Id]);
-
-        var service = BuildService(apiClientMock.Object, libraryManagerMock.Object);
+        var service = BuildService(apiClientMock.Object, LibraryWith(libraryItem));
 
         await service.RefreshTrendingMoviesAsync(CancellationToken.None);
         var result = service.GetTrendingMovies();
@@ -274,7 +256,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
     [Fact]
     public async Task RefreshTrendingMoviesAsync_EmptyResultAfterPopulatedCache_PreservesExistingCache()
     {
-        var libraryItem = new Movie { Id = Guid.NewGuid(), Name = "Inception" };
+        var libraryItem = MovieWith(MetadataProvider.Imdb, "tt1375666");
 
         var apiClientMock = new Mock<ITMDbApiClient>();
         apiClientMock.Setup(c => c.GetTrendingMoviesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -282,13 +264,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
         apiClientMock.Setup(c => c.GetMovieExternalIdsAsync(27205, It.IsAny<CancellationToken>()))
             .ReturnsAsync("tt1375666");
 
-        var libraryManagerMock = new Mock<ILibraryManager>();
-        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
-        libraryManagerMock
-            .Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>()))
-            .Returns([libraryItem.Id]);
-
-        var service = BuildService(apiClientMock.Object, libraryManagerMock.Object);
+        var service = BuildService(apiClientMock.Object, LibraryWith(libraryItem));
 
         // First refresh succeeds and populates the cache.
         await service.RefreshTrendingMoviesAsync(CancellationToken.None);
@@ -323,11 +299,12 @@ public sealed class TMDbCacheServiceTests : IDisposable
             .Select(i => new TMDbMovie { Id = i, Title = "Movie " + i })
             .ToList();
 
-        // Even-id movies have an IMDb id and a matching library item; odd-id movies match nothing --
+        // Even-id movies have an IMDb id and a library item carrying it; odd-id movies match nothing --
         // a mix, so the test also confirms correctness survives running out of order/concurrently.
+        // The library items carry no TMDb id, so every movie goes through the IMDb lookup.
         var libraryItemsByTmdbId = movies
             .Where(m => m.Id % 2 == 0)
-            .ToDictionary(m => m.Id, _ => new Movie { Id = Guid.NewGuid(), Name = "Owned" });
+            .ToDictionary(m => m.Id, m => MovieWith(MetadataProvider.Imdb, "tt" + m.Id));
 
         var apiClientMock = new Mock<ITMDbApiClient>();
         apiClientMock.Setup(c => c.GetTrendingMoviesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -343,21 +320,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
                 return libraryItemsByTmdbId.ContainsKey(tmdbId) ? "tt" + tmdbId : null;
             });
 
-        var libraryManagerMock = new Mock<ILibraryManager>();
-        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
-        libraryManagerMock
-            .Setup(m => m.GetItemIds(It.Is<InternalItemsQuery>(q => q.HasAnyProviderId!.ContainsKey("Imdb"))))
-            .Returns((InternalItemsQuery q) =>
-            {
-                var imdbId = q.HasAnyProviderId!["Imdb"];
-                var tmdbId = int.Parse(imdbId.Substring(2), CultureInfo.InvariantCulture);
-                return libraryItemsByTmdbId.TryGetValue(tmdbId, out var item) ? [item.Id] : [];
-            });
-        libraryManagerMock
-            .Setup(m => m.GetItemIds(It.Is<InternalItemsQuery>(q => q.HasAnyProviderId!.ContainsKey("Tmdb"))))
-            .Returns([]);
-
-        var service = BuildService(apiClientMock.Object, libraryManagerMock.Object);
+        var service = BuildService(apiClientMock.Object, LibraryWith([.. libraryItemsByTmdbId.Values]));
 
         await service.RefreshTrendingMoviesAsync(CancellationToken.None);
 

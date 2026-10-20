@@ -103,37 +103,52 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
     }
 
     /// <inheritdoc/>
-    public Task RefreshTrendingMoviesAsync(CancellationToken cancellationToken)
+    public Task RefreshTrendingMoviesAsync(CancellationToken cancellationToken) =>
+        RefreshTrendingMoviesAsync(new RefreshIndexes(_crossReferencer), cancellationToken);
+
+    private Task RefreshTrendingMoviesAsync(RefreshIndexes indexes, CancellationToken cancellationToken)
     {
         var pages = _getConfiguration()?.TMDbLists?.TrendingMoviesPages ?? 1;
         return RefreshMoviesAsync(
             TMDbCacheType.TrendingMovies,
             ct => _apiClient.GetTrendingMoviesAsync(pages, ct),
+            indexes,
             cancellationToken);
     }
 
     /// <inheritdoc/>
-    public Task RefreshTrendingShowsAsync(CancellationToken cancellationToken)
+    public Task RefreshTrendingShowsAsync(CancellationToken cancellationToken) =>
+        RefreshTrendingShowsAsync(new RefreshIndexes(_crossReferencer), cancellationToken);
+
+    private Task RefreshTrendingShowsAsync(RefreshIndexes indexes, CancellationToken cancellationToken)
     {
         var pages = _getConfiguration()?.TMDbLists?.TrendingShowsPages ?? 1;
         return RefreshShowsAsync(
             TMDbCacheType.TrendingShows,
             ct => _apiClient.GetTrendingShowsAsync(pages, ct),
+            indexes,
             cancellationToken);
     }
 
     /// <inheritdoc/>
-    public Task RefreshAiringTodayAsync(CancellationToken cancellationToken)
+    public Task RefreshAiringTodayAsync(CancellationToken cancellationToken) =>
+        RefreshAiringTodayAsync(new RefreshIndexes(_crossReferencer), cancellationToken);
+
+    private Task RefreshAiringTodayAsync(RefreshIndexes indexes, CancellationToken cancellationToken)
     {
         var pages = _getConfiguration()?.TMDbLists?.AiringTodayPages ?? 1;
         return RefreshShowsAsync(
             TMDbCacheType.AiringToday,
             ct => _apiClient.GetAiringTodayAsync(pages, ct),
+            indexes,
             cancellationToken);
     }
 
     /// <inheritdoc/>
-    public Task RefreshTopRatedMoviesAsync(CancellationToken cancellationToken)
+    public Task RefreshTopRatedMoviesAsync(CancellationToken cancellationToken) =>
+        RefreshTopRatedMoviesAsync(new RefreshIndexes(_crossReferencer), cancellationToken);
+
+    private Task RefreshTopRatedMoviesAsync(RefreshIndexes indexes, CancellationToken cancellationToken)
     {
         var tmdbLists = _getConfiguration()?.TMDbLists;
         var pages = tmdbLists?.TopRatedMoviesPages ?? 1;
@@ -141,11 +156,15 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
         return RefreshMoviesAsync(
             TMDbCacheType.TopRatedMovies,
             ct => _apiClient.GetTopRatedMoviesAsync(pages, voteCountMin, ct),
+            indexes,
             cancellationToken);
     }
 
     /// <inheritdoc/>
-    public Task RefreshTopRatedShowsAsync(CancellationToken cancellationToken)
+    public Task RefreshTopRatedShowsAsync(CancellationToken cancellationToken) =>
+        RefreshTopRatedShowsAsync(new RefreshIndexes(_crossReferencer), cancellationToken);
+
+    private Task RefreshTopRatedShowsAsync(RefreshIndexes indexes, CancellationToken cancellationToken)
     {
         var tmdbLists = _getConfiguration()?.TMDbLists;
         var pages = tmdbLists?.TopRatedShowsPages ?? 1;
@@ -153,11 +172,15 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
         return RefreshShowsAsync(
             TMDbCacheType.TopRatedShows,
             ct => _apiClient.GetTopRatedShowsAsync(pages, voteCountMin, ct),
+            indexes,
             cancellationToken);
     }
 
     /// <inheritdoc/>
-    public Task RefreshNowPlayingMoviesAsync(CancellationToken cancellationToken)
+    public Task RefreshNowPlayingMoviesAsync(CancellationToken cancellationToken) =>
+        RefreshNowPlayingMoviesAsync(new RefreshIndexes(_crossReferencer), cancellationToken);
+
+    private Task RefreshNowPlayingMoviesAsync(RefreshIndexes indexes, CancellationToken cancellationToken)
     {
         var tmdbLists = _getConfiguration()?.TMDbLists;
         var pages = tmdbLists?.NowPlayingMoviesPages ?? 1;
@@ -165,11 +188,15 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
         return RefreshMoviesAsync(
             TMDbCacheType.NowPlayingMovies,
             ct => _apiClient.GetNowPlayingMoviesAsync(pages, region, ct),
+            indexes,
             cancellationToken);
     }
 
     /// <inheritdoc/>
-    public async Task RefreshDiscoverMoviesAsync(string instanceId, TMDbDiscoverFilter filter, CancellationToken cancellationToken)
+    public Task RefreshDiscoverMoviesAsync(string instanceId, TMDbDiscoverFilter filter, CancellationToken cancellationToken) =>
+        RefreshDiscoverMoviesAsync(instanceId, filter, new RefreshIndexes(_crossReferencer), cancellationToken);
+
+    private async Task RefreshDiscoverMoviesAsync(string instanceId, TMDbDiscoverFilter filter, RefreshIndexes indexes, CancellationToken cancellationToken)
     {
         if (!Guid.TryParse(instanceId, out _))
         {
@@ -183,7 +210,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
             var matched = await _crossReferencer.CrossReferenceAsync(
                 items,
                 _movieExternalIds.GetImdbIdAsync,
-                [BaseItemKind.Movie],
+                indexes.Movies,
                 cancellationToken).ConfigureAwait(false);
             _movieExternalIds.Save();
             _movieCache.WriteUnlessEmpty(GetDiscoverFileName(instanceId), items);
@@ -217,8 +244,10 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
     {
         try
         {
-            // Six fixed refreshes, evenly spaced across 0-100.
-            Func<CancellationToken, Task>[] steps =
+            // Six fixed refreshes, evenly spaced across 0-100, matched against one library read per
+            // item kind (DEC-P06-1, TMDb refresh budget in ci/perf-budget.json).
+            var indexes = new RefreshIndexes(_crossReferencer);
+            Func<RefreshIndexes, CancellationToken, Task>[] steps =
             [
                 RefreshTrendingMoviesAsync,
                 RefreshTrendingShowsAsync,
@@ -231,7 +260,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
             progress?.Report(0);
             for (var i = 0; i < steps.Length; i++)
             {
-                await steps[i](cancellationToken).ConfigureAwait(false);
+                await steps[i](indexes, cancellationToken).ConfigureAwait(false);
                 progress?.Report((i + 1) * 100.0 / steps.Length);
             }
 
@@ -248,7 +277,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
                 }
 
                 var filter = TMDbDiscoverFilter.FromExtraParams(extra);
-                await RefreshDiscoverMoviesAsync(instanceId, filter, cancellationToken).ConfigureAwait(false);
+                await RefreshDiscoverMoviesAsync(instanceId, filter, indexes, cancellationToken).ConfigureAwait(false);
             }
         }
         finally
@@ -287,6 +316,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
     private async Task RefreshMoviesAsync(
         TMDbCacheType type,
         Func<CancellationToken, Task<IReadOnlyList<TMDbMovie>>> fetch,
+        RefreshIndexes indexes,
         CancellationToken cancellationToken)
     {
         try
@@ -295,7 +325,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
             var matched = await _crossReferencer.CrossReferenceAsync(
                 items,
                 _movieExternalIds.GetImdbIdAsync,
-                [BaseItemKind.Movie],
+                indexes.Movies,
                 cancellationToken).ConfigureAwait(false);
             _movieExternalIds.Save();
             _movieCache.WriteUnlessEmpty(GetFileName(type), items);
@@ -310,6 +340,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
     private async Task RefreshShowsAsync(
         TMDbCacheType type,
         Func<CancellationToken, Task<IReadOnlyList<TMDbShow>>> fetch,
+        RefreshIndexes indexes,
         CancellationToken cancellationToken)
     {
         try
@@ -318,7 +349,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
             var matched = await _crossReferencer.CrossReferenceAsync(
                 items,
                 _showExternalIds.GetImdbIdAsync,
-                [BaseItemKind.Series],
+                indexes.Shows,
                 cancellationToken).ConfigureAwait(false);
             _showExternalIds.Save();
             _showCache.WriteUnlessEmpty(GetFileName(type), items);
@@ -379,7 +410,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
 
     /// <summary>
     /// Builds the cache file name for a Discover widget instance. <paramref name="instanceId"/> is
-    /// validated as a GUID by the only two callers (<see cref="RefreshDiscoverMoviesAsync"/> and
+    /// validated as a GUID by the only two callers (<see cref="RefreshDiscoverMoviesAsync(string, TMDbDiscoverFilter, CancellationToken)"/> and
     /// <see cref="GetDiscoverMovies"/> via the widget's own <c>ExtraParams["value"]</c>-derived
     /// AdditionalData) before it ever reaches this method, but re-validating here is cheap defense
     /// in depth against a malformed instance id being used as a file name.
@@ -404,4 +435,18 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
         TMDbCacheType.NowPlayingMovies => "now_playing_movies.json",
         _ => throw new ArgumentOutOfRangeException(nameof(type), type, "Unknown TMDb cache type.")
     };
+
+    /// <summary>
+    /// The library indexes of one refresh, each read on first use only: a refresh that touches no
+    /// show list never reads the shows (DEC-P06-1).
+    /// </summary>
+    private sealed class RefreshIndexes(LibraryCrossReferencer crossReferencer)
+    {
+        private readonly Lazy<LibraryProviderIndex> _movies = new(() => crossReferencer.BuildIndex([BaseItemKind.Movie]));
+        private readonly Lazy<LibraryProviderIndex> _shows = new(() => crossReferencer.BuildIndex([BaseItemKind.Series]));
+
+        public LibraryProviderIndex Movies => _movies.Value;
+
+        public LibraryProviderIndex Shows => _shows.Value;
+    }
 }

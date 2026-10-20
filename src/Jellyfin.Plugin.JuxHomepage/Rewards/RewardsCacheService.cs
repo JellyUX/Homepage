@@ -99,7 +99,7 @@ public sealed class RewardsCacheService : IRewardsCacheService, IDisposable
             var matched = await _crossReferencer.CrossReferenceAsync(
                 items,
                 (id, _) => Task.FromResult(imdbById.GetValueOrDefault(id)),
-                [BaseItemKind.Movie],
+                _crossReferencer.BuildIndex([BaseItemKind.Movie]),
                 cancellationToken,
                 fallbackProvider: null).ConfigureAwait(false);
 

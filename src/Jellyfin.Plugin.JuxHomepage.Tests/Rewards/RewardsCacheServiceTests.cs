@@ -7,6 +7,7 @@ using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Model.Entities;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
@@ -34,6 +35,20 @@ public sealed class RewardsCacheServiceTests : IDisposable
     private string CacheFilePath(string instanceId) =>
         Path.Combine(_tempDir, "Jellyfin.Plugin.JuxHomepage", "cache", "rewards", $"rewards_{Guid.Parse(instanceId):N}.json");
 
+    private static ILibraryManager LibraryWith(params BaseItem[] libraryItems)
+    {
+        var mock = new Mock<ILibraryManager>();
+        mock.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([.. libraryItems]);
+        return mock.Object;
+    }
+
+    private static Movie MovieWith(MetadataProvider provider, string value)
+    {
+        var movie = new Movie { Id = Guid.NewGuid() };
+        movie.SetProviderId(provider, value);
+        return movie;
+    }
+
     // -------------------------------------------------------------------------
     // RefreshInstanceAsync: IMDb-based cross-referencing (no second HTTP round-trip needed, unlike
     // TMDb -- the IMDb id is already known directly from the Wikidata SPARQL response)
@@ -43,13 +58,7 @@ public sealed class RewardsCacheServiceTests : IDisposable
     public async Task RefreshInstanceAsync_ImdbMatchFound_WritesCacheAndSetsLibraryItemId()
     {
         var instanceId = Guid.NewGuid().ToString();
-        var libraryItem = new Movie { Id = Guid.NewGuid(), Name = "Oppenheimer" };
-
-        var libraryManagerMock = new Mock<ILibraryManager>();
-        libraryManagerMock
-            .Setup(m => m.GetItemIds(It.Is<InternalItemsQuery>(
-                q => q.HasAnyProviderId != null && q.HasAnyProviderId.ContainsKey("Imdb"))))
-            .Returns([libraryItem.Id]);
+        var libraryItem = MovieWith(MetadataProvider.Imdb, "tt15398776");
 
         var apiClientMock = new Mock<IWikidataApiClient>();
         apiClientMock
@@ -58,7 +67,7 @@ public sealed class RewardsCacheServiceTests : IDisposable
                 new RewardsWinner { Id = 117085614, FilmQid = "Q117085614", FilmLabel = "Oppenheimer", ImdbId = "tt15398776" }
             ]);
 
-        var service = BuildService(apiClientMock.Object, libraryManagerMock.Object);
+        var service = BuildService(apiClientMock.Object, LibraryWith(libraryItem));
         var filter = new RewardsFilter { CategoryQid = "Q102427" };
 
         await service.RefreshInstanceAsync(instanceId, filter, CancellationToken.None);
@@ -72,16 +81,15 @@ public sealed class RewardsCacheServiceTests : IDisposable
     // -------------------------------------------------------------------------
     // No spurious fallback match: a RewardsWinner's Id is a parsed Wikidata Q-id number, unrelated to
     // any real TMDb id -- LibraryCrossReferencer must be called with fallbackProvider: null so a
-    // missed IMDb match never falls back to comparing against MetadataProvider.Tmdb.
+    // missed IMDb match never falls back to comparing against MetadataProvider.Tmdb. The library
+    // holds a movie whose TMDb id equals the winner's Id: it must stay unmatched.
     // -------------------------------------------------------------------------
 
     [Fact]
     public async Task RefreshInstanceAsync_NoImdbMatch_DoesNotFallBackToTmdbProviderId()
     {
         var instanceId = Guid.NewGuid().ToString();
-
-        var libraryManagerMock = new Mock<ILibraryManager>();
-        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
+        var libraryManager = LibraryWith(MovieWith(MetadataProvider.Tmdb, "550"));
 
         var apiClientMock = new Mock<IWikidataApiClient>();
         apiClientMock
@@ -90,15 +98,13 @@ public sealed class RewardsCacheServiceTests : IDisposable
                 new RewardsWinner { Id = 550, FilmQid = "Q550", FilmLabel = "Some Film", ImdbId = "tt0000000" }
             ]);
 
-        var service = BuildService(apiClientMock.Object, libraryManagerMock.Object);
+        var service = BuildService(apiClientMock.Object, libraryManager);
 
         await service.RefreshInstanceAsync(instanceId, new RewardsFilter { CategoryQid = "Q102427" }, CancellationToken.None);
 
-        // GetItemIds must never have been queried with a Tmdb provider id lookup for this item.
-        libraryManagerMock.Verify(
-            m => m.GetItemIds(It.Is<InternalItemsQuery>(
-                q => q.HasAnyProviderId != null && q.HasAnyProviderId.ContainsKey("Tmdb"))),
-            Times.Never);
+        var cached = service.GetRewards(instanceId);
+        Assert.Single(cached);
+        Assert.Null(cached[0].LibraryItemId);
     }
 
     // -------------------------------------------------------------------------
@@ -109,10 +115,7 @@ public sealed class RewardsCacheServiceTests : IDisposable
     public async Task RefreshInstanceAsync_EmptyResult_DoesNotOverwriteExistingCache()
     {
         var instanceId = Guid.NewGuid().ToString();
-        var libraryManagerMock = new Mock<ILibraryManager>();
-        libraryManagerMock
-            .Setup(m => m.GetItemIds(It.Is<InternalItemsQuery>(q => q.HasAnyProviderId != null)))
-            .Returns([Guid.NewGuid()]);
+        var libraryManager = LibraryWith(MovieWith(MetadataProvider.Imdb, "tt0000001"));
 
         var apiClientMock = new Mock<IWikidataApiClient>();
         apiClientMock
@@ -122,7 +125,7 @@ public sealed class RewardsCacheServiceTests : IDisposable
             ])
             .ReturnsAsync((IReadOnlyList<RewardsWinner>)[]);
 
-        var service = BuildService(apiClientMock.Object, libraryManagerMock.Object);
+        var service = BuildService(apiClientMock.Object, libraryManager);
         var filter = new RewardsFilter { CategoryQid = "Q102427" };
 
         await service.RefreshInstanceAsync(instanceId, filter, CancellationToken.None);
@@ -140,8 +143,6 @@ public sealed class RewardsCacheServiceTests : IDisposable
     public async Task RefreshAllInstancesAsync_ConfiguredInstances_ReconstructsFilterFromExtraParams()
     {
         var instanceId = Guid.NewGuid().ToString();
-        var libraryManagerMock = new Mock<ILibraryManager>();
-        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
 
         var apiClientMock = new Mock<IWikidataApiClient>();
         apiClientMock
@@ -166,7 +167,7 @@ public sealed class RewardsCacheServiceTests : IDisposable
             }
         };
 
-        var service = BuildService(apiClientMock.Object, libraryManagerMock.Object, widgets);
+        var service = BuildService(apiClientMock.Object, LibraryWith(), widgets);
 
         await service.RefreshAllInstancesAsync(CancellationToken.None);
 

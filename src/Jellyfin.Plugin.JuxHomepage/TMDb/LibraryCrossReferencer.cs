@@ -1,10 +1,8 @@
 using System.Globalization;
 using Jellyfin.Data.Enums;
 using Jellyfin.Plugin.JuxHomepage.TMDb.Models;
-using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Entities;
-using MediaBrowser.Model.Querying;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.JuxHomepage.TMDb;
@@ -21,7 +19,7 @@ namespace Jellyfin.Plugin.JuxHomepage.TMDb;
 /// </summary>
 public sealed class LibraryCrossReferencer
 {
-    /// <summary>Maximum number of items cross-referenced concurrently.</summary>
+    /// <summary>Maximum number of IMDb ID lookups running concurrently.</summary>
     private const int MaxConcurrency = 5;
 
     private readonly ILibraryManager _libraryManager;
@@ -39,19 +37,31 @@ public sealed class LibraryCrossReferencer
     }
 
     /// <summary>
-    /// Sets <see cref="IExternalCacheItem.LibraryItemId"/> on each item by looking it up in the local
-    /// library, first by the provider's own id (no network call), then by IMDb ID (fetched via
-    /// <paramref name="getExternalImdbId"/>) for items not found that way. Items are
-    /// processed with bounded concurrency (both the external IMDb ID HTTP lookup and the local
-    /// library query per item) -- <see cref="ILibraryManager"/> does not support matching against a
-    /// list of provider id values in a single query (<c>InternalItemsQuery.HasAnyProviderId</c> is a
-    /// dictionary, one exact value per provider key), so <see cref="FindLibraryMatchId"/> itself cannot
-    /// be batched across items; parallelizing the per-item pipeline is the available alternative.
+    /// Reads the library's items of the given kinds once, for <see cref="CrossReferenceAsync"/>. One
+    /// index can serve every list of the same kinds in a refresh (DEC-P06-1).
+    /// </summary>
+    /// <param name="includeItemTypes">The Jellyfin item kinds to match against.</param>
+    /// <returns>The index of the library's provider ids.</returns>
+    public LibraryProviderIndex BuildIndex(BaseItemKind[] includeItemTypes)
+    {
+        var index = LibraryProviderIndex.Build(_libraryManager, includeItemTypes);
+        _logger.LogDebug("Indexed {Count} library item(s) of {Kinds} by provider id.", index.ItemCount, string.Join(", ", includeItemTypes));
+        return index;
+    }
+
+    /// <summary>
+    /// Sets <see cref="IExternalCacheItem.LibraryItemId"/> on each item by looking it up in
+    /// <paramref name="index"/>, first by the provider's own id (no network call), then by IMDb ID
+    /// (fetched via <paramref name="getExternalImdbId"/>) for items not found that way. Matching is
+    /// in memory (PERF-04: one library read per index, not one query per item,
+    /// <c>CrossReference_400Items_UsesAtMostTwoLibraryQueries</c>); only the IMDb ID lookups, which can
+    /// be HTTP calls, run with bounded concurrency
+    /// (<c>CrossReferenceAsync_ManyItems_RunsWithBoundedConcurrency</c>).
     /// </summary>
     /// <typeparam name="T">The external cache item type.</typeparam>
     /// <param name="items">The items to cross-reference, mutated in place.</param>
     /// <param name="getExternalImdbId">Fetches the IMDb ID for a given provider id, if known.</param>
-    /// <param name="includeItemTypes">The Jellyfin item kinds to search within.</param>
+    /// <param name="index">The library items to match against (<see cref="BuildIndex"/>).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <param name="fallbackProvider">
     /// The <see cref="MetadataProvider"/> whose id matches <typeparamref name="T"/>'s own
@@ -66,7 +76,7 @@ public sealed class LibraryCrossReferencer
     public async Task<int> CrossReferenceAsync<T>(
         IReadOnlyList<T> items,
         Func<int, CancellationToken, Task<string?>> getExternalImdbId,
-        BaseItemKind[] includeItemTypes,
+        LibraryProviderIndex index,
         CancellationToken cancellationToken,
         MetadataProvider? fallbackProvider = MetadataProvider.Tmdb)
         where T : IExternalCacheItem
@@ -83,7 +93,7 @@ public sealed class LibraryCrossReferencer
                 // Local library first (F-07): an item carrying the provider's own id is matched
                 // without any HTTP call; the IMDb lookup only runs for the others.
                 var match = fallbackProvider is { } provider
-                    ? FindLibraryMatchId(provider, item.Id.ToString(CultureInfo.InvariantCulture), includeItemTypes)
+                    ? index.Find(provider, item.Id.ToString(CultureInfo.InvariantCulture))
                     : null;
 
                 if (match is null)
@@ -98,9 +108,7 @@ public sealed class LibraryCrossReferencer
                         _logger.LogWarning(ex, "Failed to fetch external IDs for TMDb id {TmdbId}.", item.Id);
                     }
 
-                    match = string.IsNullOrEmpty(imdbId)
-                        ? null
-                        : FindLibraryMatchId(MetadataProvider.Imdb, imdbId, includeItemTypes);
+                    match = index.Find(MetadataProvider.Imdb, imdbId);
                 }
 
                 item.LibraryItemId = match;
@@ -116,18 +124,5 @@ public sealed class LibraryCrossReferencer
         var matched = results.Count(wasMatched => wasMatched);
 
         return matched;
-    }
-
-    private Guid? FindLibraryMatchId(MetadataProvider provider, string value, BaseItemKind[] includeItemTypes)
-    {
-        var result = _libraryManager.GetItemIds(new InternalItemsQuery
-        {
-            HasAnyProviderId = new Dictionary<string, string> { [provider.ToString()] = value },
-            IncludeItemTypes = includeItemTypes,
-            Recursive = true,
-            Limit = 1
-        });
-
-        return result.Count > 0 ? result[0] : null;
     }
 }
