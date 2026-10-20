@@ -62,7 +62,7 @@ public abstract class NativeWidgetBase : IWidget
     public abstract Task<WidgetResult> GetItemsAsync(WidgetPayload payload, CancellationToken cancellationToken);
 
     /// <inheritdoc/>
-    public WidgetDescriptor GetDescriptor() => new()
+    public virtual WidgetDescriptor GetDescriptor() => new()
     {
         WidgetType = WidgetType,
         DisplayName = DefaultDisplayName,

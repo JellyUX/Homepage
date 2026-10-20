@@ -509,14 +509,15 @@ describe('_makeFetchData', () => {
 
     // Native routes carry the filters other plugins hook on them (Jellyfin Enhanced hidden content
     // and Spoiler Guard), which /JuxHomepage/Section never sees (TODO_V4.md 4.3, F-15).
+    // The descriptors carry LimitFactor and MaxPerSeries as the server sends them (PERF-03.c).
     it.each([
-        ['jux.native.continue-watching', 'UserItems/Resume', { ...common, mediaTypes: 'Video' }],
-        ['jux.native.next-up', 'Shows/NextUp', common],
-        ['jux.native.recently-added-movies', 'Items/Latest', { ...common, includeItemTypes: 'Movie' }],
-        ['jux.native.recently-added-shows', 'Items/Latest', { ...common, limit: 60, includeItemTypes: 'Episode' }],
-        ['jux.native.recently-added-episodes', 'Items/Latest', { ...common, limit: 200, includeItemTypes: 'Episode', groupItems: false }]
-    ])('reads %s from the native route %s', async (widgetType, path, params) => {
-        const request = await _makeFetchData(apiClient, 'u1', { WidgetType: widgetType })();
+        ['jux.native.continue-watching', {}, 'UserItems/Resume', { ...common, mediaTypes: 'Video' }],
+        ['jux.native.next-up', {}, 'Shows/NextUp', common],
+        ['jux.native.recently-added-movies', { LimitFactor: 1 }, 'Items/Latest', { ...common, includeItemTypes: 'Movie' }],
+        ['jux.native.recently-added-shows', { LimitFactor: 3 }, 'Items/Latest', { ...common, limit: 60, includeItemTypes: 'Episode' }],
+        ['jux.native.recently-added-episodes', { LimitFactor: 10, MaxPerSeries: 2 }, 'Items/Latest', { ...common, limit: 200, includeItemTypes: 'Episode', groupItems: false }]
+    ])('reads %s from the native route with its descriptor %o', async (widgetType, native, path, params) => {
+        const request = await _makeFetchData(apiClient, 'u1', { WidgetType: widgetType, ...native })();
 
         expect(request).toEqual({ path, params });
     });
@@ -524,17 +525,17 @@ describe('_makeFetchData', () => {
     it('turns the bare array of Items/Latest into the rows of the section, at most MaxItems (F-36)', async () => {
         const latestClient = { getUrl: (path) => path, getJSON: () => Promise.resolve([{ Id: 'a' }, { Id: 'b' }, { Id: 'c' }]) };
 
-        const result = await _makeFetchData(latestClient, 'u1', { WidgetType: 'jux.native.recently-added-shows', MaxItems: 2 })();
+        const result = await _makeFetchData(latestClient, 'u1', { WidgetType: 'jux.native.recently-added-shows', MaxItems: 2, LimitFactor: 3 })();
 
         expect(result).toEqual({ Items: [{ Id: 'a' }, { Id: 'b' }] });
     });
 
-    it('keeps at most two episodes of a series in Recently Added Episodes, and fills the row with others (F-65)', async () => {
+    it('keeps at most MaxPerSeries episodes of a series in Recently Added Episodes, and fills the row with others (F-65)', async () => {
         const bulk = Array.from({ length: 10 }, (_, i) => ({ Id: 'a' + i, SeriesId: 'A' }));
         const others = Array.from({ length: 5 }, (_, i) => ({ Id: 'b' + i, SeriesId: 'B' + i }));
         const latestClient = { getUrl: (path) => path, getJSON: () => Promise.resolve([...bulk, ...others]) };
 
-        const result = await _makeFetchData(latestClient, 'u1', { WidgetType: 'jux.native.recently-added-episodes', MaxItems: 6 })();
+        const result = await _makeFetchData(latestClient, 'u1', { WidgetType: 'jux.native.recently-added-episodes', MaxItems: 6, LimitFactor: 10, MaxPerSeries: 2 })();
 
         expect(result.Items.map((e) => e.Id)).toEqual(['a0', 'a1', 'b0', 'b1', 'b2', 'b3']);
     });

@@ -51,6 +51,19 @@ public sealed class WidgetDescriptor
     public int MaxItems { get; set; } = 20;
 
     /// <summary>
+    /// Gets or sets how many items the native query of a Recently Added section reads per card (1
+    /// elsewhere). The client reads the native route with it, so the server probe and the section read
+    /// the same items from one value (PERF-03.c).
+    /// </summary>
+    public int LimitFactor { get; set; } = 1;
+
+    /// <summary>
+    /// Gets or sets how many cards one series may take in a native Recently Added section, or null for
+    /// no cap. The client applies the same cap as the server probe (PERF-03.c).
+    /// </summary>
+    public int? MaxPerSeries { get; set; }
+
+    /// <summary>
     /// Gets or sets an optional visual theme identifier for this instance (e.g. <c>halloween</c>,
     /// <c>christmas</c>, <c>valentines</c>, <c>newyear</c>). Populated generically by
     /// <see cref="WidgetLayoutResolver"/> from a widget instance's <c>ExtraParams["theme"]</c> when

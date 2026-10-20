@@ -362,6 +362,8 @@ public sealed class WidgetLayoutResolver
             Order = config.Order,
             MinItems = config.MinItems,
             MaxItems = Math.Clamp(config.MaxItems, 1, WidgetConfig.MaxItemsCeiling),
+            LimitFactor = instanceDescriptor.LimitFactor,
+            MaxPerSeries = instanceDescriptor.MaxPerSeries,
             Theme = theme
         };
     }

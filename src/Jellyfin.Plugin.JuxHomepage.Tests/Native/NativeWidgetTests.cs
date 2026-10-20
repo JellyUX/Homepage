@@ -109,6 +109,40 @@ public sealed class NativeWidgetTests
         Assert.Equal("tvshows", d.Route);
     }
 
+    // PERF-03.c: the server probe and the client's native read take LimitFactor and MaxPerSeries from
+    // one place, the widget, through its descriptor.
+    [Theory]
+    [InlineData("jux.native.recently-added-movies", 1, null)]
+    [InlineData("jux.native.recently-added-shows", 3, null)]
+    [InlineData("jux.native.recently-added-episodes", 10, 2)]
+    [InlineData("jux.native.continue-watching", 1, null)]
+    public void NativeParameters_AreCarriedByTheDescriptor(string widgetType, int limitFactor, int? maxPerSeries)
+    {
+        IWidget[] widgets =
+        [
+            new RecentlyAddedMoviesWidget(Mock.Of<IUserManager>(), Mock.Of<ILibraryManager>(), Mock.Of<IDtoService>(), Mock.Of<IUserViewManager>()),
+            new RecentlyAddedShowsWidget(Mock.Of<IUserManager>(), Mock.Of<ILibraryManager>(), Mock.Of<IDtoService>(), Mock.Of<IUserViewManager>()),
+            new RecentlyAddedEpisodesWidget(Mock.Of<IUserManager>(), Mock.Of<ILibraryManager>(), Mock.Of<IDtoService>(), Mock.Of<IUserViewManager>()),
+            new ContinueWatchingWidget(Mock.Of<IUserManager>(), Mock.Of<ILibraryManager>(), Mock.Of<IDtoService>())
+        ];
+
+        var d = widgets.Single(w => w.WidgetType == widgetType).GetDescriptor();
+
+        Assert.Equal(limitFactor, d.LimitFactor);
+        Assert.Equal(maxPerSeries, d.MaxPerSeries);
+    }
+
+    [Fact]
+    public void NativeParameters_AreReadByTheClientFromTheDescriptor()
+    {
+        var script = File.ReadAllText(Path.Combine(RepoPaths.Root(), "src", "Jellyfin.Plugin.JuxHomepage", "Web", "jux-homepage.js"));
+
+        Assert.Contains("descriptor." + nameof(WidgetDescriptor.LimitFactor), script, StringComparison.Ordinal);
+        Assert.Contains("descriptor." + nameof(WidgetDescriptor.MaxPerSeries), script, StringComparison.Ordinal);
+        Assert.DoesNotContain("limitFactor:", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("perSeries:", script, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void MyMedia_GetDescriptor_HasExpectedProperties()
     {

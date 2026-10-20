@@ -252,6 +252,25 @@ public sealed class WidgetServiceTests : IDisposable
         Assert.Equal(minItems, Assert.Single(limits));
     }
 
+    [Fact]
+    public async Task GetWidgetsForUser_LayoutCarriesTheWidgetsNativeParameters()
+    {
+        // PERF-03.c: the client reads a native section with the values its server widget probed with.
+        const string widgetType = "native-latest";
+        var mock = new Mock<IWidget>();
+        mock.Setup(w => w.WidgetType).Returns(widgetType);
+        mock.Setup(w => w.DefaultDisplayName).Returns(widgetType);
+        mock.Setup(w => w.Resolve(It.IsAny<Guid>(), It.IsAny<WidgetInstanceConfig>(), It.IsAny<int>())).Returns(() => mock.Object);
+        mock.Setup(w => w.GetItemsAsync(It.IsAny<WidgetPayload>(), It.IsAny<CancellationToken>())).ReturnsAsync(new WidgetResult([], 5));
+        mock.Setup(w => w.GetDescriptor()).Returns(new WidgetDescriptor { WidgetType = widgetType, LimitFactor = 10, MaxPerSeries = 2 });
+        var service = BuildService([mock.Object], [new WidgetConfig { WidgetType = widgetType, Enabled = true, MinItems = 1 }]);
+
+        var descriptor = Assert.Single((await service.GetWidgetsForUser(Guid.NewGuid(), page: 0, lang: "en", CancellationToken.None)).Sections);
+
+        Assert.Equal(10, descriptor.LimitFactor);
+        Assert.Equal(2, descriptor.MaxPerSeries);
+    }
+
     // -------------------------------------------------------------------------
     // Session cache and pending personalization (F-03)
     // -------------------------------------------------------------------------

@@ -58,6 +58,15 @@ public abstract class RecentlyAddedWidgetBase : NativeWidgetBase
     protected virtual int? MaxPerSeries => null;
 
     /// <inheritdoc/>
+    public override WidgetDescriptor GetDescriptor()
+    {
+        var descriptor = base.GetDescriptor();
+        descriptor.LimitFactor = LimitFactor;
+        descriptor.MaxPerSeries = MaxPerSeries;
+        return descriptor;
+    }
+
+    /// <inheritdoc/>
     public override Task<WidgetResult> GetItemsAsync(WidgetPayload payload, CancellationToken cancellationToken)
     {
         User? user = UserManager.GetUserById(payload.UserId);

@@ -305,16 +305,15 @@
     // apply as on the native home: libraries excluded from latest media, and played items hidden
     // (TODO_V4.md 8.3, F-36). Shows are episodes grouped by series, as the native Latest of a shows
     // library: Latest filtered on Series took over 150 s on a 200-series library (measured on 8096).
-    // Latest counts its limit in episodes, so the shows read three times MaxItems episodes.
-    // Recently Added Episodes shows at most two episodes of a series (TODO_V4.md 9.3, F-65), like
-    // RecentlyAddedEpisodesWidget.MaxPerSeries, and reads ten times MaxItems so the row stays full (8096:
-    // the first 100 latest episodes held 14 cards, 200 held 28, at about the same cost).
+    // Latest counts its limit in episodes, so the shows read more episodes than cards, and Recently Added
+    // Episodes caps the cards of one series (TODO_V4.md 9.3, F-65): both values come from the section's
+    // descriptor (LimitFactor, MaxPerSeries), the ones its server widget probes with (PERF-03.c).
     var NATIVE_ROUTES = {
         'jux.native.continue-watching': { path: 'UserItems/Resume', params: { mediaTypes: 'Video' } },
         'jux.native.next-up': { path: 'Shows/NextUp', params: {} },
         'jux.native.recently-added-movies': { path: 'Items/Latest', params: { includeItemTypes: 'Movie' } },
-        'jux.native.recently-added-shows': { path: 'Items/Latest', params: { includeItemTypes: 'Episode' }, limitFactor: 3 },
-        'jux.native.recently-added-episodes': { path: 'Items/Latest', params: { includeItemTypes: 'Episode', groupItems: false }, limitFactor: 10, perSeries: 2 }
+        'jux.native.recently-added-shows': { path: 'Items/Latest', params: { includeItemTypes: 'Episode' } },
+        'jux.native.recently-added-episodes': { path: 'Items/Latest', params: { includeItemTypes: 'Episode', groupItems: false } }
     };
 
     // Keeps at most perSeries items of each series, in order; every item when perSeries is unset.
@@ -340,7 +339,7 @@
                 var params = {
                     userId: userId,
                     startIndex: 0,
-                    limit: maxItems * (nativeRoute.limitFactor || 1),
+                    limit: maxItems * (descriptor.LimitFactor || 1),
                     fields: 'PrimaryImageAspectRatio,DateCreated',
                     imageTypeLimit: 1,
                     enableImageTypes: 'Primary,Thumb,Backdrop',
@@ -352,7 +351,7 @@
                 // Items/Latest answers a bare array; the container reads { Items }.
                 return apiClient.getJSON(apiClient.getUrl(nativeRoute.path, params)).then(function (result) {
                     return Array.isArray(result)
-                        ? { Items: _capPerSeries(result, nativeRoute.perSeries).slice(0, maxItems) }
+                        ? { Items: _capPerSeries(result, descriptor.MaxPerSeries).slice(0, maxItems) }
                         : result;
                 });
             };
