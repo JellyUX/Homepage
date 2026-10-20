@@ -12,16 +12,18 @@ namespace Jellyfin.Plugin.JuxHomepage.TMDb;
 /// with one library read, it matches external items in memory instead of one library query per
 /// item and provider. Provider names and id values are compared ignoring case. When several items
 /// carry the same id (versions of one movie, duplicates), the primary version wins, then the lowest
-/// item id, so a match does not depend on the order the library returns.
+/// item id, so a match does not depend on the order the library returns. Only each item's id and
+/// version rank are kept, not the items read.
 /// </summary>
 public sealed class LibraryProviderIndex
 {
-    private readonly Dictionary<string, Dictionary<string, BaseItem>> _byProvider = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Dictionary<string, Entry>> _byProvider = new(StringComparer.OrdinalIgnoreCase);
 
     private LibraryProviderIndex(IEnumerable<BaseItem> items)
     {
         foreach (var item in items)
         {
+            var entry = new Entry(item.Id, item is not Video { PrimaryVersionId: { Length: > 0 } });
             foreach (var (provider, value) in item.ProviderIds)
             {
                 if (string.IsNullOrWhiteSpace(value))
@@ -31,14 +33,14 @@ public sealed class LibraryProviderIndex
 
                 if (!_byProvider.TryGetValue(provider, out var byValue))
                 {
-                    byValue = new Dictionary<string, BaseItem>(StringComparer.OrdinalIgnoreCase);
+                    byValue = new Dictionary<string, Entry>(StringComparer.OrdinalIgnoreCase);
                     _byProvider[provider] = byValue;
                 }
 
                 var key = value.Trim();
-                if (!byValue.TryGetValue(key, out var kept) || Precedes(item, kept))
+                if (!byValue.TryGetValue(key, out var kept) || Precedes(entry, kept))
                 {
-                    byValue[key] = item;
+                    byValue[key] = entry;
                 }
             }
         }
@@ -78,14 +80,12 @@ public sealed class LibraryProviderIndex
     public Guid? Find(MetadataProvider provider, string? value) =>
         !string.IsNullOrWhiteSpace(value)
         && _byProvider.TryGetValue(provider.ToString(), out var byValue)
-        && byValue.TryGetValue(value.Trim(), out var item)
-            ? item.Id
+        && byValue.TryGetValue(value.Trim(), out var entry)
+            ? entry.Id
             : null;
 
-    private static bool Precedes(BaseItem candidate, BaseItem kept)
-    {
-        var candidatePrimary = candidate is Video { PrimaryVersionId: null or "" } || candidate is not Video;
-        var keptPrimary = kept is Video { PrimaryVersionId: null or "" } || kept is not Video;
-        return candidatePrimary != keptPrimary ? candidatePrimary : candidate.Id.CompareTo(kept.Id) < 0;
-    }
+    private static bool Precedes(Entry candidate, Entry kept) =>
+        candidate.Primary != kept.Primary ? candidate.Primary : candidate.Id.CompareTo(kept.Id) < 0;
+
+    private readonly record struct Entry(Guid Id, bool Primary);
 }
