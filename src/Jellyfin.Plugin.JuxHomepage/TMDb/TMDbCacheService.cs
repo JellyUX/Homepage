@@ -215,11 +215,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
         try
         {
             var items = DeduplicateById(await _apiClient.DiscoverMoviesAsync(filter, cancellationToken).ConfigureAwait(false));
-            var matched = items.Count == 0 ? 0 : await _crossReferencer.CrossReferenceAsync(
-                items,
-                _movieExternalIds.GetImdbIdAsync,
-                indexes.Movies,
-                cancellationToken).ConfigureAwait(false);
+            var matched = await MatchAsync(items, _movieExternalIds.GetImdbIdAsync, () => indexes.Movies, cancellationToken).ConfigureAwait(false);
             _movieExternalIds.Save();
             _movieCache.WriteUnlessEmpty(GetDiscoverFileName(instanceId), items);
             _logger.LogInformation(
@@ -296,11 +292,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
         try
         {
             var items = DeduplicateById(await fetch(cancellationToken).ConfigureAwait(false));
-            var matched = items.Count == 0 ? 0 : await _crossReferencer.CrossReferenceAsync(
-                items,
-                _movieExternalIds.GetImdbIdAsync,
-                indexes.Movies,
-                cancellationToken).ConfigureAwait(false);
+            var matched = await MatchAsync(items, _movieExternalIds.GetImdbIdAsync, () => indexes.Movies, cancellationToken).ConfigureAwait(false);
             _movieExternalIds.Save();
             _movieCache.WriteUnlessEmpty(GetFileName(type), items);
             LogRefreshOutcome(type, items.Count, matched);
@@ -320,11 +312,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
         try
         {
             var items = DeduplicateById(await fetch(cancellationToken).ConfigureAwait(false));
-            var matched = items.Count == 0 ? 0 : await _crossReferencer.CrossReferenceAsync(
-                items,
-                _showExternalIds.GetImdbIdAsync,
-                indexes.Shows,
-                cancellationToken).ConfigureAwait(false);
+            var matched = await MatchAsync(items, _showExternalIds.GetImdbIdAsync, () => indexes.Shows, cancellationToken).ConfigureAwait(false);
             _showExternalIds.Save();
             _showCache.WriteUnlessEmpty(GetFileName(type), items);
             LogRefreshOutcome(type, items.Count, matched);
@@ -365,6 +353,20 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
     /// which are already logged in detail by <see cref="TMDbApiClient"/> -- rather than a genuine
     /// "TMDb has nothing to report" result.
     /// </summary>
+    /// <summary>
+    /// Matches a fetched list against the library; an empty list costs no library read (R11,
+    /// <c>RefreshDueAsync_ListsReturnNothing_DoesNotReadTheLibrary</c>).
+    /// </summary>
+    private async Task<int> MatchAsync<T>(
+        IReadOnlyList<T> items,
+        Func<int, CancellationToken, Task<string?>> getExternalImdbId,
+        Func<LibraryProviderIndex> index,
+        CancellationToken cancellationToken)
+        where T : IExternalCacheItem =>
+        items.Count == 0
+            ? 0
+            : await _crossReferencer.CrossReferenceAsync(items, getExternalImdbId, index(), cancellationToken).ConfigureAwait(false);
+
     private void LogRefreshOutcome(TMDbCacheType type, int itemCount, int matchedCount)
     {
         if (itemCount == 0)
