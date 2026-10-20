@@ -39,7 +39,7 @@ public sealed class ConfigurationChangeListenerTests
 
         new ConfigurationChangeListener(sessionCache, scoring, NullLogger<ConfigurationChangeListener>.Instance, Backup()).OnConfigurationChanged(null);
 
-        Assert.False(sessionCache.TryGet(user.Id, "en", TimeSpan.FromMinutes(15), out _));
+        Assert.False(sessionCache.TryGet(user.Id, "en", TimeSpan.FromMinutes(15), out _, out _));
         Assert.False(scoring.HasSnapshotForTesting(user.Id));
     }
 

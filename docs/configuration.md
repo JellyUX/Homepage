@@ -63,7 +63,7 @@ sections replace them. Recently Added sections also follow the user's native *La
 
 | Field | Default | Description |
 |---|---|---|
-| Session cache TTL (minutes) | 15 | How long the home screen widget layout is cached per user. Saving the configuration clears this cache at once, so a lower value is never needed to see a configuration change. Reduce to see new library content sooner; increase to lower server load. |
+| Session cache TTL (minutes) | 15 | How long the home screen widget layout is cached per user, counted from when it was built. The first visit after that still shows the previous layout while the new one is built in the background. Saving the configuration clears this cache at once, so a lower value is never needed to see a configuration change. Reduce to see new library content sooner; increase to lower server load. |
 | TMDb refresh interval (hours) | 24 | How often TMDb data is refreshed. Increase to reduce external API calls; decrease for fresher content. |
 
 ## API Keys

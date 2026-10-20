@@ -75,7 +75,7 @@ public sealed class UserSettingsServiceTests
         Assert.False(_saved.Enabled);
         Assert.Equal(_userId, _saved.UserId);
         Assert.Equal(11, _saved.SchemaVersion);
-        Assert.False(cache.TryGet(_userId, "en", TimeSpan.FromMinutes(5), out _));
+        Assert.False(cache.TryGet(_userId, "en", TimeSpan.FromMinutes(5), out _, out _));
         Assert.True(service.Get(_userId, "en").Sections.Single(s => s.Name == "Favorite Genre (2)").Hidden);
     }
 
@@ -117,7 +117,7 @@ public sealed class UserSettingsServiceTests
         var service = BuildService(cache);
 
         Assert.False(service.Save(_userId, new UserSettingsUpdate { Enabled = false }));
-        Assert.True(cache.TryGet(_userId, "en", TimeSpan.FromMinutes(5), out _));
+        Assert.True(cache.TryGet(_userId, "en", TimeSpan.FromMinutes(5), out _, out _));
     }
 
     private UserSettingsService BuildService(SessionCache cache)

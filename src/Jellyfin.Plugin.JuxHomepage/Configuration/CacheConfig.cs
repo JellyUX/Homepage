@@ -6,8 +6,9 @@ namespace Jellyfin.Plugin.JuxHomepage.Configuration;
 public sealed class CacheConfig
 {
     /// <summary>
-    /// Gets or sets the session cache TTL in minutes.
-    /// After this period of inactivity the cached widget layout for a user is discarded.
+    /// Gets or sets the session cache TTL in minutes, counted from when a user's widget layout was
+    /// built, not from its last use. Past it the layout is still served while it is rebuilt in the
+    /// background (PERF-01, <c>Sections_AfterTtl_ServesPreviousLayoutAndRebuildsOnce</c>).
     /// </summary>
     public int SessionTtlMinutes { get; set; } = 15;
 

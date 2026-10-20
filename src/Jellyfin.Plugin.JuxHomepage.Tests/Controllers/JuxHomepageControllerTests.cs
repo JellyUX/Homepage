@@ -525,8 +525,8 @@ public sealed class JuxHomepageControllerTests
 
         await controller.GetSections(Guid.Empty, lang: "zz");
 
-        Assert.True(sessionCache.TryGet(caller.Id, "en", TimeSpan.FromMinutes(5), out _));
-        Assert.False(sessionCache.TryGet(caller.Id, "zz", TimeSpan.FromMinutes(5), out _));
+        Assert.True(sessionCache.TryGet(caller.Id, "en", TimeSpan.FromMinutes(5), out _, out _));
+        Assert.False(sessionCache.TryGet(caller.Id, "zz", TimeSpan.FromMinutes(5), out _, out _));
     }
 
     [Fact]

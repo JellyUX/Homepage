@@ -99,7 +99,7 @@
                 <div class="inputContainer">
                     <label class="inputLabel inputLabelUnfocused" for="numSessionTtl" data-i18n="admin.cache.sessionttl.label">Session cache TTL (minutes)</label>
                     <input id="numSessionTtl" type="number" min="1" class="emby-input" />
-                    <div class="fieldDescription" data-i18n="admin.cache.sessionttl.help">How long a user's home screen layout is kept before it is rebuilt, counted from when it was built. Saving this page applies changes at once. Personalized picks are recomputed once a day and after a title is finished, not on this schedule.</div>
+                    <div class="fieldDescription" data-i18n="admin.cache.sessionttl.help">How long a user's home screen layout is kept before it is rebuilt, counted from when it was built. The first visit after that still shows the previous layout while the new one is built in the background. Saving this page applies changes at once. Personalized picks are recomputed once a day and after a title is finished, not on this schedule.</div>
                 </div>
                 <div class="inputContainer">
                     <label class="inputLabel inputLabelUnfocused" for="numTMDbRefresh" data-i18n="admin.cache.tmdbrefresh.label">TMDb refresh interval (hours)</label>

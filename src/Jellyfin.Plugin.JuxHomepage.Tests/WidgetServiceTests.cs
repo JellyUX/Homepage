@@ -271,10 +271,10 @@ public sealed class WidgetServiceTests : IDisposable
         var ttl = TimeSpan.FromMinutes(15);
 
         await service.GetWidgetsForUser(userId, page: 0, lang: "en", CancellationToken.None);
-        Assert.False(_sessionCache.TryGet(userId, "en", ttl, out _));
+        Assert.False(_sessionCache.TryGet(userId, "en", ttl, out _, out _));
 
         await service.GetWidgetsForUser(userId, page: 0, lang: "en", CancellationToken.None);
-        Assert.True(_sessionCache.TryGet(userId, "en", ttl, out _));
+        Assert.True(_sessionCache.TryGet(userId, "en", ttl, out _, out _));
     }
 
     [Fact]
@@ -388,10 +388,11 @@ public sealed class WidgetServiceTests : IDisposable
 
         clock.UtcNowValue += TimeSpan.FromMinutes(2);
         await service.GetWidgetsForUser(userId, page: 0, lang: "en", CancellationToken.None);
+        await service.WhenIdleForTesting();
         Assert.Equal(2, probes);
     }
 
-    [Fact(Skip = "PERF-01, phase 06: an expired layout is rebuilt inline before the response; un-skip with stale-while-revalidate.")]
+    [Fact]
     public async Task Sections_AfterTtl_ServesPreviousLayoutAndRebuildsOnce()
     {
         var clock = new ManualTimeProvider();
@@ -442,18 +443,154 @@ public sealed class WidgetServiceTests : IDisposable
             rebuildGate.Set();
         }
 
-        var rebuilt = false;
-        for (var attempt = 0; attempt < 100 && !rebuilt; attempt++)
+        await service.WhenIdleForTesting();
+        var rebuilt = await service.GetWidgetsForUser(userId, page: 0, lang: "en", CancellationToken.None);
+
+        Assert.Empty(rebuilt.Sections);
+        Assert.Equal(2, Volatile.Read(ref probes));
+    }
+
+    [Fact]
+    public async Task Sections_SimultaneousMisses_BuildOnce()
+    {
+        // PERF-01.b: ten requests arriving while the first build of a layout runs share that build.
+        using var gate = new ManualResetEventSlim(false);
+        var probes = 0;
+        var widget = MakeCountingWidget("miss", () =>
         {
-            rebuilt = (await service.GetWidgetsForUser(userId, page: 0, lang: "en", CancellationToken.None)).Sections.Count == 0;
-            if (!rebuilt)
+            Interlocked.Increment(ref probes);
+            gate.Wait(TimeSpan.FromSeconds(5));
+            return 10;
+        });
+        var service = BuildService([widget], [new WidgetConfig { WidgetType = "miss", Enabled = true, MinItems = 1 }]);
+        var userId = Guid.NewGuid();
+
+        var requests = Enumerable.Range(0, 10)
+            .Select(_ => Task.Run(() => service.GetWidgetsForUser(userId, page: 0, lang: "en", CancellationToken.None)))
+            .ToList();
+        await Task.Delay(200);
+        gate.Set();
+        var pages = await Task.WhenAll(requests);
+
+        Assert.All(pages, p => Assert.Single(p.Sections));
+        Assert.Equal(1, Volatile.Read(ref probes));
+    }
+
+    [Fact]
+    public async Task Sections_ClearDuringRebuild_DropsTheRebuiltLayout()
+    {
+        // PERF-01.c: a rebuild that started before a configuration change must not store a layout
+        // built from the old configuration.
+        var clock = new ManualTimeProvider();
+        using var sessionCache = new SessionCache(clock);
+        using var rebuildStarted = new ManualResetEventSlim(false);
+        using var gate = new ManualResetEventSlim(false);
+        var probes = 0;
+        var widget = MakeCountingWidget("clear", () =>
+        {
+            if (Interlocked.Increment(ref probes) > 1)
             {
-                await Task.Delay(50);
+                rebuildStarted.Set();
+                gate.Wait(TimeSpan.FromSeconds(5));
             }
+
+            return 10;
+        });
+        var service = BuildService([widget], [new WidgetConfig { WidgetType = "clear", Enabled = true, MinItems = 1 }], sessionCache: sessionCache);
+        var userId = Guid.NewGuid();
+        await service.GetWidgetsForUser(userId, page: 0, lang: "en", CancellationToken.None);
+
+        clock.UtcNowValue += TimeSpan.FromMinutes(16);
+        await service.GetWidgetsForUser(userId, page: 0, lang: "en", CancellationToken.None);
+        Assert.True(rebuildStarted.Wait(TimeSpan.FromSeconds(5)));
+        sessionCache.Clear();
+        gate.Set();
+        await service.WhenIdleForTesting();
+
+        Assert.False(sessionCache.TryGet(userId, "en", TimeSpan.FromMinutes(15), out _, out _));
+    }
+
+    [Fact]
+    public async Task Sections_PendingScoring_IsNotCachedNorServedStale()
+    {
+        // PERF-01.c: a background rebuild made while the user's first scoring is pending is not stored,
+        // so the layout served past the TTL stays the last complete one, and the next read queues a
+        // rebuild again.
+        var clock = new ManualTimeProvider();
+        using var sessionCache = new SessionCache(clock);
+        var userId = Guid.NewGuid();
+        var pendingState = new Mock<IPersonalizationState>();
+        pendingState.SetupSequence(s => s.TakePendingServed(userId)).Returns(false).Returns(true).Returns(false);
+        var probes = 0;
+        var widget = MakeCountingWidget("pending", () => Interlocked.Increment(ref probes) == 1 ? 10 : 0);
+        var service = BuildService(
+            [widget],
+            [new WidgetConfig { WidgetType = "pending", Enabled = true, MinItems = 1 }],
+            personalizationState: pendingState.Object,
+            sessionCache: sessionCache);
+        await service.GetWidgetsForUser(userId, page: 0, lang: "en", CancellationToken.None);
+
+        clock.UtcNowValue += TimeSpan.FromMinutes(16);
+        await service.GetWidgetsForUser(userId, page: 0, lang: "en", CancellationToken.None);
+        await service.WhenIdleForTesting();
+        var afterPendingRebuild = await service.GetWidgetsForUser(userId, page: 0, lang: "en", CancellationToken.None);
+        await service.WhenIdleForTesting();
+
+        Assert.Single(afterPendingRebuild.Sections);
+        Assert.Equal(3, Volatile.Read(ref probes));
+        Assert.True(sessionCache.TryGet(userId, "en", TimeSpan.FromMinutes(15), out var stored, out var expired));
+        Assert.Empty(stored!);
+        Assert.False(expired);
+    }
+
+    [Fact]
+    public async Task Sections_RebuildQueueFull_ServesExpiredWithoutQueueing()
+    {
+        // PERF-01.a: at most 8 expired layouts wait for their rebuild, like the scoring queue; the
+        // ninth is served expired and queues nothing.
+        var clock = new ManualTimeProvider();
+        using var sessionCache = new SessionCache(clock);
+        using var gate = new ManualResetEventSlim(true);
+        var probes = 0;
+        var widget = MakeCountingWidget("queue", () =>
+        {
+            Interlocked.Increment(ref probes);
+            gate.Wait(TimeSpan.FromSeconds(5));
+            return 10;
+        });
+        var service = BuildService([widget], [new WidgetConfig { WidgetType = "queue", Enabled = true, MinItems = 1 }], sessionCache: sessionCache);
+        var users = Enumerable.Range(0, 9).Select(_ => Guid.NewGuid()).ToList();
+        foreach (var user in users)
+        {
+            await service.GetWidgetsForUser(user, page: 0, lang: "en", CancellationToken.None);
         }
 
-        Assert.True(rebuilt);
-        Assert.Equal(2, Volatile.Read(ref probes));
+        clock.UtcNowValue += TimeSpan.FromMinutes(16);
+        gate.Reset();
+        foreach (var user in users)
+        {
+            Assert.Single((await service.GetWidgetsForUser(user, page: 0, lang: "en", CancellationToken.None)).Sections);
+        }
+
+        gate.Set();
+        await service.WhenIdleForTesting();
+
+        Assert.Equal(9 + 8, Volatile.Read(ref probes));
+        Assert.True(sessionCache.TryGet(users[8], "en", TimeSpan.FromMinutes(15), out _, out var lastExpired));
+        Assert.True(lastExpired);
+    }
+
+    private static IWidget MakeCountingWidget(string widgetType, Func<int> probe)
+    {
+        var widget = new Mock<IWidget>();
+        widget.Setup(w => w.WidgetType).Returns(widgetType);
+        widget.Setup(w => w.DefaultDisplayName).Returns(widgetType);
+        widget.Setup(w => w.Resolve(It.IsAny<Guid>(), It.IsAny<WidgetInstanceConfig>(), It.IsAny<int>()))
+            .Returns(() => widget.Object);
+        widget.Setup(w => w.GetDescriptor()).Returns(new WidgetDescriptor { WidgetType = widgetType });
+        widget.Setup(w => w.GetItemsAsync(It.IsAny<WidgetPayload>(), It.IsAny<CancellationToken>()))
+            .Returns(() => Task.FromResult(new WidgetResult([], probe())));
+        return widget.Object;
     }
 
     // -------------------------------------------------------------------------

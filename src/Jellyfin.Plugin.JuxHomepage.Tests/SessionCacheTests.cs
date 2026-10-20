@@ -14,7 +14,7 @@ public sealed class SessionCacheTests : IDisposable
         var descriptors = new List<WidgetDescriptor> { new() { WidgetType = "w1" } };
 
         _cache.Set(userId, "en", descriptors);
-        var hit = _cache.TryGet(userId, "en", TimeSpan.FromMinutes(15), out var result);
+        var hit = _cache.TryGet(userId, "en", TimeSpan.FromMinutes(15), out var result, out _);
 
         Assert.True(hit);
         Assert.NotNull(result);
@@ -22,22 +22,64 @@ public sealed class SessionCacheTests : IDisposable
     }
 
     [Fact]
-    public void TryGet_ExpiredTtl_ReturnsMiss()
+    public void TryGet_ExpiredTtl_ReturnsTheEntryMarkedExpired()
     {
         var userId = Guid.NewGuid();
         _cache.Set(userId, "en", [new WidgetDescriptor { WidgetType = "w1" }]);
 
         // TimeSpan.Zero means any entry - no matter how fresh - is considered expired.
-        var hit = _cache.TryGet(userId, "en", TimeSpan.Zero, out var result);
+        var hit = _cache.TryGet(userId, "en", TimeSpan.Zero, out var result, out var expired);
 
-        Assert.False(hit);
-        Assert.Null(result);
+        Assert.True(hit);
+        Assert.True(expired);
+        Assert.Equal("w1", Assert.Single(result!).WidgetType);
+    }
+
+    [Fact]
+    public void Set_AfterClear_WithVersionReadBefore_IsDropped()
+    {
+        var userId = Guid.NewGuid();
+        var version = _cache.VersionOf(userId);
+
+        _cache.Clear();
+        var stored = _cache.Set(userId, "en", [new WidgetDescriptor { WidgetType = "built-before-clear" }], version);
+
+        Assert.False(stored);
+        Assert.False(_cache.TryGet(userId, "en", TimeSpan.FromMinutes(15), out _, out _));
+    }
+
+    [Fact]
+    public void Set_AfterInvalidate_WithVersionReadBefore_IsDropped()
+    {
+        var userId = Guid.NewGuid();
+        var other = Guid.NewGuid();
+        var version = _cache.VersionOf(userId);
+        var otherVersion = _cache.VersionOf(other);
+
+        _cache.Invalidate(userId);
+
+        Assert.False(_cache.Set(userId, "en", [new WidgetDescriptor { WidgetType = "w1" }], version));
+        Assert.True(_cache.Set(other, "en", [new WidgetDescriptor { WidgetType = "w1" }], otherVersion));
+    }
+
+    [Fact]
+    public void Set_WithCurrentVersion_IsStored()
+    {
+        var userId = Guid.NewGuid();
+        _cache.Clear();
+        _cache.Invalidate(userId);
+
+        var stored = _cache.Set(userId, "en", [new WidgetDescriptor { WidgetType = "w1" }], _cache.VersionOf(userId));
+
+        Assert.True(stored);
+        Assert.True(_cache.TryGet(userId, "en", TimeSpan.FromMinutes(15), out _, out var expired));
+        Assert.False(expired);
     }
 
     [Fact]
     public void TryGet_NoEntry_ReturnsMiss()
     {
-        var hit = _cache.TryGet(Guid.NewGuid(), "en", TimeSpan.FromMinutes(15), out var result);
+        var hit = _cache.TryGet(Guid.NewGuid(), "en", TimeSpan.FromMinutes(15), out var result, out _);
 
         Assert.False(hit);
         Assert.Null(result);
@@ -50,7 +92,7 @@ public sealed class SessionCacheTests : IDisposable
         _cache.Set(userId, "en", [new WidgetDescriptor { WidgetType = "w1" }]);
 
         _cache.Invalidate(userId);
-        var hit = _cache.TryGet(userId, "en", TimeSpan.FromMinutes(15), out _);
+        var hit = _cache.TryGet(userId, "en", TimeSpan.FromMinutes(15), out _, out _);
 
         Assert.False(hit);
     }
@@ -62,7 +104,7 @@ public sealed class SessionCacheTests : IDisposable
         _cache.Set(userId, "en", [new WidgetDescriptor { WidgetType = "old" }]);
         _cache.Set(userId, "en", [new WidgetDescriptor { WidgetType = "new" }]);
 
-        _cache.TryGet(userId, "en", TimeSpan.FromMinutes(15), out var result);
+        _cache.TryGet(userId, "en", TimeSpan.FromMinutes(15), out var result, out _);
 
         Assert.NotNull(result);
         Assert.Equal("new", result![0].WidgetType);
@@ -79,8 +121,8 @@ public sealed class SessionCacheTests : IDisposable
         var userId = Guid.NewGuid();
         _cache.Set(userId, "fr", [new WidgetDescriptor { WidgetType = "w1", DisplayName = "Bonjour" }]);
 
-        var hitEn = _cache.TryGet(userId, "en", TimeSpan.FromMinutes(15), out var resultEn);
-        var hitFr = _cache.TryGet(userId, "fr", TimeSpan.FromMinutes(15), out var resultFr);
+        var hitEn = _cache.TryGet(userId, "en", TimeSpan.FromMinutes(15), out var resultEn, out _);
+        var hitFr = _cache.TryGet(userId, "fr", TimeSpan.FromMinutes(15), out var resultFr, out _);
 
         Assert.False(hitEn);
         Assert.Null(resultEn);
@@ -94,7 +136,7 @@ public sealed class SessionCacheTests : IDisposable
         var userId = Guid.NewGuid();
         _cache.Set(userId, null, [new WidgetDescriptor { WidgetType = "w1" }]);
 
-        var hit = _cache.TryGet(userId, "en", TimeSpan.FromMinutes(15), out var result);
+        var hit = _cache.TryGet(userId, "en", TimeSpan.FromMinutes(15), out var result, out _);
 
         Assert.True(hit);
         Assert.NotNull(result);
@@ -109,8 +151,8 @@ public sealed class SessionCacheTests : IDisposable
 
         _cache.Invalidate(userId);
 
-        Assert.False(_cache.TryGet(userId, "en", TimeSpan.FromMinutes(15), out _));
-        Assert.False(_cache.TryGet(userId, "fr", TimeSpan.FromMinutes(15), out _));
+        Assert.False(_cache.TryGet(userId, "en", TimeSpan.FromMinutes(15), out _, out _));
+        Assert.False(_cache.TryGet(userId, "fr", TimeSpan.FromMinutes(15), out _, out _));
     }
 
     // -------------------------------------------------------------------------
@@ -130,7 +172,7 @@ public sealed class SessionCacheTests : IDisposable
 
         // A large TTL here proves the entry was physically removed by Cleanup(), not merely
         // considered stale by TryGet's own (much shorter) TTL check.
-        var hit = _cache.TryGet(userId, "en", TimeSpan.FromHours(2), out _);
+        var hit = _cache.TryGet(userId, "en", TimeSpan.FromHours(2), out _, out _);
         Assert.False(hit);
     }
 
@@ -143,7 +185,7 @@ public sealed class SessionCacheTests : IDisposable
 
         _cache.RunCleanupForTesting();
 
-        var hit = _cache.TryGet(userId, "en", TimeSpan.FromHours(2), out var result);
+        var hit = _cache.TryGet(userId, "en", TimeSpan.FromHours(2), out var result, out _);
         Assert.True(hit);
         Assert.NotNull(result);
     }
@@ -161,15 +203,16 @@ public sealed class SessionCacheTests : IDisposable
         var ttl = TimeSpan.FromMinutes(15);
         cache.Set(userId, "en", [new WidgetDescriptor { WidgetType = "w1" }]);
 
-        var hits = new List<bool>();
+        var fresh = new List<bool>();
         for (var minute = 1; minute <= 20; minute++)
         {
             clock.UtcNowValue += TimeSpan.FromMinutes(1);
-            hits.Add(cache.TryGet(userId, "en", ttl, out _));
+            Assert.True(cache.TryGet(userId, "en", ttl, out _, out var expired));
+            fresh.Add(!expired);
         }
 
-        Assert.All(hits.Take(14), Assert.True);
-        Assert.All(hits.Skip(14), Assert.False);
+        Assert.All(fresh.Take(14), Assert.True);
+        Assert.All(fresh.Skip(14), Assert.False);
     }
 
     public void Dispose() => _cache.Dispose();

@@ -8,9 +8,11 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets;
 /// Caches the list of <see cref="WidgetDescriptor"/> that passed MinItems filtering so that
 /// <see cref="WidgetService.GetWidgetsForUser"/> avoids re-querying every widget on each page load.
 /// Entries expire a fixed TTL after they were built (see <see cref="CacheConfig.SessionTtlMinutes"/>):
-/// reading an entry does not extend it (F-02), so a page reloaded every minute still gets a fresh
-/// layout once the TTL has passed. A background timer garbage-collects entries that have not been
-/// accessed in over an hour.
+/// reading an entry does not extend it (F-02). An expired entry is still returned, marked expired, so
+/// the caller can serve it while it rebuilds the layout in the background (PERF-01). Clearing or
+/// invalidating removes entries outright and bumps a version, so a layout built before that is never
+/// stored (<see cref="Set"/>). A background timer garbage-collects entries that have not been accessed
+/// in over an hour.
 /// </summary>
 public sealed class SessionCache : IDisposable
 {
@@ -18,8 +20,11 @@ public sealed class SessionCache : IDisposable
     private const int GarbageCollectAfterMinutes = 60;
 
     private readonly ConcurrentDictionary<(Guid UserId, string Lang), SessionData> _cache = new();
+    private readonly ConcurrentDictionary<Guid, long> _userVersions = new();
+    private readonly Lock _writeLock = new();
     private readonly Timer _cleanupTimer;
     private readonly TimeProvider _timeProvider;
+    private long _version;
     private bool _disposed;
 
     /// <summary>
@@ -37,44 +42,69 @@ public sealed class SessionCache : IDisposable
     }
 
     /// <summary>
-    /// Attempts to retrieve a cached descriptor list for the given user and language.
+    /// Attempts to retrieve a cached descriptor list for the given user and language, expired or not.
     /// A hit updates <see cref="SessionData.LastAccessed"/> for garbage collection, never the expiry.
     /// </summary>
     /// <param name="userId">The user whose layout to retrieve.</param>
     /// <param name="lang">The language the cached layout's display names were translated for.</param>
-    /// <param name="ttl">The maximum age of an entry, counted from when it was built.</param>
+    /// <param name="ttl">The maximum age of a fresh entry, counted from when it was built.</param>
     /// <param name="descriptors">The cached descriptors, or null on a miss.</param>
-    /// <returns>True if a valid cached entry was found; otherwise false.</returns>
-    public bool TryGet(Guid userId, string? lang, TimeSpan ttl, out IReadOnlyList<WidgetDescriptor>? descriptors)
+    /// <param name="expired">True when the entry found is older than <paramref name="ttl"/>.</param>
+    /// <returns>True if an entry was found, fresh or expired; otherwise false.</returns>
+    public bool TryGet(Guid userId, string? lang, TimeSpan ttl, out IReadOnlyList<WidgetDescriptor>? descriptors, out bool expired)
     {
         var now = UtcNow;
-        if (_cache.TryGetValue((userId, NormalizeKey(lang)), out var data) &&
-            now - data.CreatedAt < ttl)
+        if (_cache.TryGetValue((userId, NormalizeKey(lang)), out var data))
         {
             data.LastAccessed = now;
             descriptors = data.Descriptors;
+            expired = now - data.CreatedAt >= ttl;
             return true;
         }
 
         descriptors = null;
+        expired = false;
         return false;
     }
 
     /// <summary>
-    /// Stores or replaces the descriptor list for the given user and language.
+    /// The user's current cache version: it changes whenever <see cref="Clear"/> or
+    /// <see cref="Invalidate"/> drops the user's entries. Read it before building a layout and pass
+    /// it to <see cref="Set"/>.
+    /// </summary>
+    /// <param name="userId">The user.</param>
+    /// <returns>A value that only grows.</returns>
+    public long VersionOf(Guid userId) => Interlocked.Read(ref _version) + _userVersions.GetValueOrDefault(userId);
+
+    /// <summary>
+    /// Stores or replaces the descriptor list for the given user and language, unless the user's
+    /// entries were cleared or invalidated since <paramref name="builtAtVersion"/> was read: that
+    /// layout reflects a configuration or a state that no longer holds
+    /// (<c>Set_AfterClear_WithVersionReadBefore_IsDropped</c>).
     /// </summary>
     /// <param name="userId">The user whose layout to cache.</param>
     /// <param name="lang">The language the layout's display names were translated for.</param>
     /// <param name="descriptors">The ordered list of descriptors that passed MinItems filtering.</param>
-    public void Set(Guid userId, string? lang, IReadOnlyList<WidgetDescriptor> descriptors)
+    /// <param name="builtAtVersion">The <see cref="VersionOf"/> read before the build; null stores unconditionally.</param>
+    /// <returns>True when the layout was stored.</returns>
+    public bool Set(Guid userId, string? lang, IReadOnlyList<WidgetDescriptor> descriptors, long? builtAtVersion = null)
     {
-        var now = UtcNow;
-        _cache[(userId, NormalizeKey(lang))] = new SessionData
+        lock (_writeLock)
         {
-            CreatedAt = now,
-            LastAccessed = now,
-            Descriptors = descriptors
-        };
+            if (builtAtVersion is { } version && version != VersionOf(userId))
+            {
+                return false;
+            }
+
+            var now = UtcNow;
+            _cache[(userId, NormalizeKey(lang))] = new SessionData
+            {
+                CreatedAt = now,
+                LastAccessed = now,
+                Descriptors = descriptors
+            };
+            return true;
+        }
     }
 
     /// <summary>
@@ -84,9 +114,13 @@ public sealed class SessionCache : IDisposable
     /// <param name="userId">The user whose cache entries to remove.</param>
     public void Invalidate(Guid userId)
     {
-        foreach (var key in _cache.Keys.Where(k => k.UserId == userId).ToList())
+        lock (_writeLock)
         {
-            _cache.TryRemove(key, out _);
+            _userVersions.AddOrUpdate(userId, 1, (_, v) => v + 1);
+            foreach (var key in _cache.Keys.Where(k => k.UserId == userId).ToList())
+            {
+                _cache.TryRemove(key, out _);
+            }
         }
     }
 
@@ -95,15 +129,25 @@ public sealed class SessionCache : IDisposable
     /// <see cref="Localization.LocalizationService"/>'s own normalization ("fr-FR" -&gt; "fr") so
     /// equivalent language tags share one cache entry instead of quietly duplicating it.
     /// </summary>
-    private static string NormalizeKey(string? lang) =>
+    /// <param name="lang">The raw language tag.</param>
+    /// <returns>The language part of the cache key.</returns>
+    internal static string NormalizeKey(string? lang) =>
         string.IsNullOrWhiteSpace(lang) ? "en" : lang.Split('-', 2)[0].ToLowerInvariant();
 
     /// <summary>
     /// Removes all cached layouts, forcing a fresh rebuild for every user on their next request.
     /// Called when the plugin configuration changes so that the new widget settings take effect
-    /// immediately rather than waiting for the per-user TTL to expire.
+    /// immediately rather than waiting for the per-user TTL to expire; an expired layout is not
+    /// served after this, it is gone.
     /// </summary>
-    public void Clear() => _cache.Clear();
+    public void Clear()
+    {
+        lock (_writeLock)
+        {
+            Interlocked.Increment(ref _version);
+            _cache.Clear();
+        }
+    }
 
     /// <inheritdoc/>
     public void Dispose()
