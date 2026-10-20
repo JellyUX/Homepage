@@ -260,7 +260,11 @@ public sealed class WidgetService
 
         try
         {
-            return await widget.GetItemsAsync(payload, cancellationToken).ConfigureAwait(false);
+            var result = await widget.GetItemsAsync(payload, cancellationToken).ConfigureAwait(false);
+
+            // Projected here, so a failed projection is answered like a failed read.
+            _ = result.Items;
+            return result;
         }
         catch (Exception ex)
         {

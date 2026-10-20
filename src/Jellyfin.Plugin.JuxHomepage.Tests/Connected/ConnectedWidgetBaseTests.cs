@@ -156,6 +156,7 @@ public sealed class ConnectedWidgetBaseTests
         var result = await widget.GetItemsAsync(
             new WidgetPayload { UserId = Guid.NewGuid(), StartIndex = 0, Limit = 20 },
             CancellationToken.None);
+        _ = result.Items; // the page is projected on its first read (PERF-03.a)
 
         Assert.Equal(2, result.TotalRecordCount);
         Assert.NotNull(capturedItems);
@@ -198,6 +199,7 @@ public sealed class ConnectedWidgetBaseTests
         var result = await widget.GetItemsAsync(
             new WidgetPayload { UserId = Guid.NewGuid(), Limit = 20 },
             CancellationToken.None);
+        _ = result.Items;
 
         // The total counts only items that resolve and are visible to the user, so a cached match
         // whose library item was deleted is excluded from both the page and the total.
@@ -256,6 +258,7 @@ public sealed class ConnectedWidgetBaseTests
         var result = await widget.GetItemsAsync(
             new WidgetPayload { UserId = Guid.NewGuid(), StartIndex = 2, Limit = 2 },
             CancellationToken.None);
+        _ = result.Items;
 
         Assert.Equal(5, result.TotalRecordCount);
         Assert.NotNull(capturedItems);
@@ -296,6 +299,7 @@ public sealed class ConnectedWidgetBaseTests
         var result = await widget.GetItemsAsync(
             new WidgetPayload { UserId = user.Id, StartIndex = 0, Limit = 20 },
             CancellationToken.None);
+        _ = result.Items;
 
         Assert.Equal(1, result.TotalRecordCount);
         Assert.Equal(allowed.Id, Assert.Single(capturedItems!).Id);

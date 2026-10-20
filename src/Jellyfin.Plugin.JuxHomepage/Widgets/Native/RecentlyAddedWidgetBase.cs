@@ -96,8 +96,7 @@ public abstract class RecentlyAddedWidgetBase : NativeWidgetBase
             .Take(payload.Limit)
             .ToList();
 
-        var dtos = DtoService.GetBaseItemDtos(items, dtoOptions, user);
-        return Task.FromResult(new WidgetResult(dtos, dtos.Count));
+        return Task.FromResult(WidgetResult.Project(DtoService, items, dtoOptions, user));
     }
 
     private IEnumerable<BaseItem> CapPerSeries(IEnumerable<BaseItem> items)

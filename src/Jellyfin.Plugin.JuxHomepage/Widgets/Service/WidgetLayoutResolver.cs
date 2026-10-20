@@ -329,7 +329,7 @@ public sealed class WidgetLayoutResolver
             return null;
         }
 
-        var found = Math.Max(result.TotalRecordCount, result.Items.Count);
+        var found = Math.Max(result.TotalRecordCount, result.ItemCount);
         if (found < config.MinItems)
         {
             _logger.LogDebug(

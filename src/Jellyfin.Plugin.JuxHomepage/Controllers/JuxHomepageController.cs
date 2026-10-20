@@ -380,7 +380,14 @@ public class JuxHomepageController : ControllerBase
         userId = resolvedUserId.Value;
 
         (startIndex, limit) = BoundPage(startIndex, limit);
-        return ReadView("Watchlist", userId, () => _watchlistService.GetItems(userId, sortBy, sortOrder, includeItemTypes, searchTerm, startIndex, limit, includeTotalRecordCount: true, cancellationToken));
+        return ReadView("Watchlist", userId, () =>
+        {
+            var page = _watchlistService.GetItems(userId, sortBy, sortOrder, includeItemTypes, searchTerm, startIndex, limit, includeTotalRecordCount: true, cancellationToken);
+
+            // Projected here, so a failed projection is answered like a failed read.
+            _ = page.Items;
+            return page;
+        });
     }
 
     /// <summary>

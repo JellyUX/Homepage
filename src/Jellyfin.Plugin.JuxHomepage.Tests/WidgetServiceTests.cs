@@ -324,6 +324,24 @@ public sealed class WidgetServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GetWidgetItems_FailedProjection_ReturnsEmptyLikeAFailedRead()
+    {
+        // The DTOs are built after the widget returned its page (PERF-03.a): a projection that
+        // throws must not escape as an unhandled error of the section request.
+        var widget = MakeWidget("projection", totalRecordCount: 1);
+        Mock.Get(widget)
+            .Setup(w => w.GetItemsAsync(It.IsAny<WidgetPayload>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => WidgetResult.Defer(1, 1, () => throw new InvalidOperationException("dto")));
+        var service = BuildService(registeredWidgets: [widget], globalWidgets: []);
+
+        var result = await service.GetWidgetItems(
+            Guid.NewGuid(), "projection", additionalData: null, sectionKey: null,
+            startIndex: 0, limit: 20, CancellationToken.None);
+
+        Assert.Same(WidgetResult.Empty, result);
+    }
+
+    [Fact]
     public async Task GetWidgetItems_TwoRowsSameType_ForwardsOwnInstanceExtraParams()
     {
         const string widgetType = "jux.connected.discover-movies";

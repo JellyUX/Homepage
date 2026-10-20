@@ -67,13 +67,11 @@ public sealed class MyMediaWidget : NativeWidgetBase
 
         int total = folders.Length;
 
-        var dtos = folders
-            .Skip(payload.StartIndex)
-            .Take(payload.Limit)
-            .Select(f => DtoService.GetBaseItemDto(f, dtoOptions, user))
-            .ToList()
-            .AsReadOnly();
+        var page = folders.Skip(payload.StartIndex).Take(payload.Limit).ToList();
 
-        return Task.FromResult(new WidgetResult(dtos, total));
+        return Task.FromResult(WidgetResult.Defer(
+            page.Count,
+            total,
+            () => page.Select(f => DtoService.GetBaseItemDto(f, dtoOptions, user)).ToList().AsReadOnly()));
     }
 }

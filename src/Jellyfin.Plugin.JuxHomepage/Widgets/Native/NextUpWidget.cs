@@ -67,7 +67,6 @@ public sealed class NextUpWidget : NativeWidgetBase
             },
             dtoOptions);
 
-        var dtos = DtoService.GetBaseItemDtos(result.Items, dtoOptions, user);
-        return Task.FromResult(new WidgetResult(dtos, dtos.Count));
+        return Task.FromResult(WidgetResult.Project(DtoService, result.Items, dtoOptions, user));
     }
 }

@@ -73,8 +73,7 @@ public sealed class WidgetItemFetcher
             items = _libraryManager.GetItemsResult(query).Items;
         }
 
-        var dtos = _dtoService.GetBaseItemDtos(items, dtoOptions, user);
-        return new WidgetResult(dtos, dtos.Count);
+        return WidgetResult.Project(_dtoService, items, dtoOptions, user);
     }
 
     /// <summary>

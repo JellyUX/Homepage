@@ -197,8 +197,7 @@ public abstract class PersonalizedWidgetBase : IWidget
         }
 
         QueryResult<BaseItem> result = LibraryManager.GetItemsResult(query);
-        var dtos = DtoService.GetBaseItemDtos(result.Items, dtoOptions, user);
-        return Task.FromResult(new WidgetResult(dtos, dtos.Count));
+        return Task.FromResult(WidgetResult.Project(DtoService, result.Items, dtoOptions, user));
     }
 
     /// <inheritdoc/>

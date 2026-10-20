@@ -62,8 +62,7 @@ public sealed class WatchlistService : IWatchlistService
         };
 
         var result = _libraryManager.GetItemsResult(query);
-        var dtos = _dtoService.GetBaseItemDtos(result.Items, dtoOptions, user);
-        return new WidgetResult(dtos, includeTotalRecordCount ? result.TotalRecordCount : dtos.Count);
+        return WidgetResult.Project(_dtoService, result.Items, dtoOptions, user, includeTotalRecordCount ? result.TotalRecordCount : null);
     }
 
     /// <inheritdoc/>
