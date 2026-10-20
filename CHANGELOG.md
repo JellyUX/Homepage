@@ -1,3 +1,18 @@
+## [2.15.1](https://github.com/JellyUX/Homepage/compare/v2.15.0...v2.15.1) (2026-10-20)
+
+### Bug Fixes
+
+* keep only ids in the TMDb library index instead of whole library items ([e179629](https://github.com/JellyUX/Homepage/commit/e179629136fa5cb0bcc4ef0330ad15b4a053c7f0))
+* let one failed library read fail only its own TMDb list ([2c90208](https://github.com/JellyUX/Homepage/commit/2c90208a4e58b357b9434dfc91fb04e3a0cd1c92))
+* log a skipped TMDb task run instead of completed when a refresh is running ([5e1cb5b](https://github.com/JellyUX/Homepage/commit/5e1cb5b6d9c5db2d70b0354ad465f6a2a0c255c8))
+* match TMDb and Rewards titles against one in-memory library index ([b56626f](https://github.com/JellyUX/Homepage/commit/b56626fb37adb45c42c7c48179857cb855d4ab41))
+* probe the layout rows four at a time instead of one after another ([8474454](https://github.com/JellyUX/Homepage/commit/84744547f1468ae5f6499d611c7354616f3c8296))
+* refresh each TMDb list on TMDbRefreshIntervalHours, checked hourly ([1d6231e](https://github.com/JellyUX/Homepage/commit/1d6231e7412680155dd30aa2a8223f027b978f9a))
+* serve the expired layout while one background rebuild replaces it ([22f05c4](https://github.com/JellyUX/Homepage/commit/22f05c43028c037603848a3bc67e80d195c9134e))
+* skip the hourly TMDb refresh without an API key and empty lists' library reads ([69cd26a](https://github.com/JellyUX/Homepage/commit/69cd26ac883a0594e27f408513d9e6f0263de83b))
+* start a new layout build after a cache clear instead of joining the old one ([f7a2fe8](https://github.com/JellyUX/Homepage/commit/f7a2fe89f92734ac3f15a9cb7af5c51bf8d87b52))
+* stop asking TMDb every refresh for titles that have no IMDb id ([8d761ec](https://github.com/JellyUX/Homepage/commit/8d761ec5acbca5ea86833d48ec6e93c8fe5f2e9b))
+
 ## [2.15.0](https://github.com/JellyUX/Homepage/compare/v2.14.2...v2.15.0) (2026-10-19)
 
 ### Features
