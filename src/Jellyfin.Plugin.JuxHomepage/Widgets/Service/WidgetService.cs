@@ -27,7 +27,7 @@ public sealed class WidgetService
     /// <summary>Maximum number of expired layouts waiting for their background rebuild.</summary>
     private const int MaxQueuedRebuilds = 8;
 
-    private readonly ConcurrentDictionary<(Guid UserId, string Lang), Lazy<Task<IReadOnlyList<WidgetDescriptor>>>> _builds = new();
+    private readonly ConcurrentDictionary<(Guid UserId, string Lang), (long Version, Lazy<Task<IReadOnlyList<WidgetDescriptor>>> Build)> _builds = new();
     private readonly ConcurrentDictionary<(Guid UserId, string Lang), byte> _queuedRebuilds = new();
     private readonly ConcurrentDictionary<Task, byte> _backgroundRebuilds = new();
     private readonly SemaphoreSlim _rebuildGate = new(1, 1);
@@ -115,20 +115,28 @@ public sealed class WidgetService
 
     /// <summary>
     /// Builds the user's layout, or joins the build already running for the same user and language,
-    /// so simultaneous misses cost one build (<c>Sections_SimultaneousMisses_BuildOnce</c>). The shared
+    /// so simultaneous misses cost one build (<c>Sections_SimultaneousMisses_BuildOnce</c>). A build
+    /// started before the cache was cleared or invalidated is not joined: it read the old
+    /// configuration (<c>Sections_MissAfterClear_DoesNotJoinTheBuildStartedBefore</c>). The shared
     /// build ignores any one caller's cancellation; each caller stops waiting on its own.
     /// </summary>
     private Task<IReadOnlyList<WidgetDescriptor>> BuildOnce(Guid userId, string? lang)
     {
         var key = (userId, SessionCache.NormalizeKey(lang));
-        return _builds.GetOrAdd(key, _ => new Lazy<Task<IReadOnlyList<WidgetDescriptor>>>(() => BuildAndStore(key, lang))).Value;
+        var version = _sessionCache.VersionOf(userId);
+        return _builds.AddOrUpdate(
+            key,
+            _ => NewBuild(key, lang, version),
+            (_, running) => running.Version == version ? running : NewBuild(key, lang, version)).Build.Value;
     }
 
-    private async Task<IReadOnlyList<WidgetDescriptor>> BuildAndStore((Guid UserId, string Lang) key, string? lang)
+    private (long Version, Lazy<Task<IReadOnlyList<WidgetDescriptor>>> Build) NewBuild((Guid UserId, string Lang) key, string? lang, long version) =>
+        (version, new Lazy<Task<IReadOnlyList<WidgetDescriptor>>>(() => BuildAndStore(key, lang, version)));
+
+    private async Task<IReadOnlyList<WidgetDescriptor>> BuildAndStore((Guid UserId, string Lang) key, string? lang, long version)
     {
         try
         {
-            var version = _sessionCache.VersionOf(key.UserId);
             var descriptors = await _layoutResolver.BuildDescriptors(key.UserId, lang, CancellationToken.None).ConfigureAwait(false);
 
             // A layout built before the user's first scoring finished is served, never cached, so an
@@ -142,7 +150,10 @@ public sealed class WidgetService
         }
         finally
         {
-            _builds.TryRemove(key, out _);
+            if (_builds.TryGetValue(key, out var current) && current.Version == version)
+            {
+                _builds.TryRemove(KeyValuePair.Create(key, current));
+            }
         }
     }
 

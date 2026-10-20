@@ -477,6 +477,48 @@ public sealed class WidgetServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Sections_MissAfterClear_DoesNotJoinTheBuildStartedBefore()
+    {
+        // R11: a build that started before a configuration change reads the old configuration, so the
+        // first request after the change must start its own build instead of being served that one.
+        using var sessionCache = new SessionCache(new ManualTimeProvider());
+        using var firstBuildStarted = new ManualResetEventSlim(false);
+        using var gate = new ManualResetEventSlim(false);
+        var probes = 0;
+        var widget = MakeCountingWidget("after-clear", () =>
+        {
+            if (Interlocked.Increment(ref probes) == 1)
+            {
+                firstBuildStarted.Set();
+                gate.Wait(TimeSpan.FromSeconds(5));
+                return 0;
+            }
+
+            return 10;
+        });
+        var service = BuildService([widget], [new WidgetConfig { WidgetType = "after-clear", Enabled = true, MinItems = 1 }], sessionCache: sessionCache);
+        var userId = Guid.NewGuid();
+
+        try
+        {
+            var before = Task.Run(() => service.GetWidgetsForUser(userId, page: 0, lang: "en", CancellationToken.None));
+            Assert.True(firstBuildStarted.Wait(TimeSpan.FromSeconds(5)));
+            sessionCache.Clear();
+
+            var after = await service.GetWidgetsForUser(userId, page: 0, lang: "en", CancellationToken.None)
+                .WaitAsync(TimeSpan.FromSeconds(2));
+
+            Assert.Single(after.Sections);
+            gate.Set();
+            Assert.Empty((await before).Sections);
+        }
+        finally
+        {
+            gate.Set();
+        }
+    }
+
+    [Fact]
     public async Task Sections_ClearDuringRebuild_DropsTheRebuiltLayout()
     {
         // PERF-01.c: a rebuild that started before a configuration change must not store a layout
