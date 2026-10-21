@@ -167,7 +167,7 @@
   },
   "fileSystem": {
     "Collections/IncludedIn": 4,
-    "MovieHistory/Items": 6,
+    "MovieHistory/Items": 2,
     "Section/jux.admin.actor": 0,
     "Section/jux.admin.actor (uncached)": 0,
     "Section/jux.admin.collection": 0,
@@ -215,7 +215,7 @@
     "Section/jux.personalized.favorite-genre (uncached)": 0,
     "Sections (cached layout)": 0,
     "Sections (layout build)": 6,
-    "SeriesProgress/Items": 6,
+    "SeriesProgress/Items": 2,
     "TMDb refresh (6 lists of 20 titles)": 50,
     "Watchlist/Ids": 0,
     "Watchlist/Ids (repeat)": 0

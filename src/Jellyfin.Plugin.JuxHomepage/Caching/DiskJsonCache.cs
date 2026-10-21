@@ -83,16 +83,33 @@ public sealed class DiskJsonCache<T> : IDisposable
                 return [];
             }
 
-            var lastWrite = _fileSystem.GetLastWriteTimeUtc(path);
-            if (_memo.TryGetValue(fileName, out var memo) && memo.LastWriteUtc == lastWrite)
-            {
-                return memo.Items;
-            }
+            return ReadAt(fileName, path, _fileSystem.GetLastWriteTimeUtc(path));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to read cache file '{FileName}'.", fileName);
+            return [];
+        }
+        finally
+        {
+            _lock.ExitReadLock();
+        }
+    }
 
-            var json = _fileSystem.ReadAllText(path);
-            var items = JsonSerializer.Deserialize<CacheEntry<T>>(json)?.Items ?? [];
-            _memo[fileName] = new Memo(lastWrite, items);
-            return items;
+    /// <summary>
+    /// Reads the cached items of a file whose last-write time the caller has just read with
+    /// <see cref="GetLastWriteUtc"/>: no second existence and date check (Annexe.a). An empty list if
+    /// the file is gone since or fails to parse.
+    /// </summary>
+    /// <param name="fileName">The cache file name (not a full path).</param>
+    /// <param name="lastWriteUtc">The file's last-write time, as just read.</param>
+    /// <returns>The cached items, or an empty list.</returns>
+    public IReadOnlyList<T> Read(string fileName, DateTime lastWriteUtc)
+    {
+        _lock.EnterReadLock();
+        try
+        {
+            return ReadAt(fileName, Path.Combine(_directory, fileName), lastWriteUtc);
         }
         catch (Exception ex)
         {
@@ -174,8 +191,15 @@ public sealed class DiskJsonCache<T> : IDisposable
             return true;
         }
 
-        return _timeProvider.GetUtcNow().UtcDateTime - _fileSystem.GetLastWriteTimeUtc(path) >= maxAge;
+        return IsOlderThan(_fileSystem.GetLastWriteTimeUtc(path), maxAge);
     }
+
+    /// <summary>Returns whether a file written at <paramref name="lastWriteUtc"/> is older than <paramref name="maxAge"/>.</summary>
+    /// <param name="lastWriteUtc">The file's last-write time.</param>
+    /// <param name="maxAge">The maximum age before the cache is considered stale.</param>
+    /// <returns>True if the file is stale.</returns>
+    public bool IsOlderThan(DateTime lastWriteUtc, TimeSpan maxAge) =>
+        _timeProvider.GetUtcNow().UtcDateTime - lastWriteUtc >= maxAge;
 
     /// <summary>
     /// Returns the UTC timestamp of the last write to the given cache file, for display in the admin UI.
@@ -186,6 +210,20 @@ public sealed class DiskJsonCache<T> : IDisposable
     {
         var path = Path.Combine(_directory, fileName);
         return _fileSystem.FileExists(path) ? _fileSystem.GetLastWriteTimeUtc(path) : null;
+    }
+
+    /// <summary>Serves the memo of a file still at <paramref name="lastWrite"/>, or reads and memoizes it.</summary>
+    private IReadOnlyList<T> ReadAt(string fileName, string path, DateTime lastWrite)
+    {
+        if (_memo.TryGetValue(fileName, out var memo) && memo.LastWriteUtc == lastWrite)
+        {
+            return memo.Items;
+        }
+
+        var json = _fileSystem.ReadAllText(path);
+        var items = JsonSerializer.Deserialize<CacheEntry<T>>(json)?.Items ?? [];
+        _memo[fileName] = new Memo(lastWrite, items);
+        return items;
     }
 
     private void TryDeleteStrayTempFile(string tmpPath)

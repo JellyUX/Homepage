@@ -65,8 +65,11 @@ internal sealed class PerUserComputedCache<T>
             return kept;
         }
 
+        // One existence and date check per read (Annexe.a): the date decides missing or stale, and the
+        // read serves its memo without checking the file again.
         var fileName = FileName(userId);
-        if (_cache.GetLastWriteUtc(fileName) is null)
+        var lastWrite = _cache.GetLastWriteUtc(fileName);
+        if (lastWrite is null)
         {
             lock (UserLock(userId))
             {
@@ -81,7 +84,7 @@ internal sealed class PerUserComputedCache<T>
                 return kept;
             }
         }
-        else if (IsStale(userId) && _backgroundRefreshes.TryAdd(userId, 0))
+        else if (_cache.IsOlderThan(lastWrite.Value, _ttl) && _backgroundRefreshes.TryAdd(userId, 0))
         {
             _ = Task.Run(() =>
             {
@@ -100,7 +103,7 @@ internal sealed class PerUserComputedCache<T>
             });
         }
 
-        return _cache.Read(fileName);
+        return lastWrite is { } known ? _cache.Read(fileName, known) : _cache.Read(fileName);
     }
 
     /// <summary>Returns whether a user's file is missing or older than the time-to-live.</summary>

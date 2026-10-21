@@ -48,6 +48,20 @@ public sealed class PerUserComputedCacheTests : IDisposable
     }
 
     [Fact]
+    public void Get_OfAFreshFileAlreadyRead_ChecksTheFileOnce()
+    {
+        // Annexe.a: the tabs read their user's file on each request; one existence and date check
+        // decides missing or stale and serves the memo (6 checks before).
+        var cache = BuildCache();
+        cache.Get(_userId);
+        _fileSystem.Reads = 0;
+
+        Assert.Equal(["watched-1"], cache.Get(_userId));
+        Assert.Equal(2, _fileSystem.Reads);
+        Assert.Equal(1, _computes);
+    }
+
+    [Fact]
     public void Get_AfterTheDiskAcceptsWritesAgain_ReadsTheFileItWrote()
     {
         _fileSystem.FailWrites = true;

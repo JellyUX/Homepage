@@ -14,9 +14,20 @@ internal sealed class FailingFileSystem : IFileSystem
 
     public bool FailCreateDirectory { get; set; }
 
-    public bool FileExists(string path) => _inner.FileExists(path);
+    /// <summary>Gets or sets the number of existence checks, date reads and file reads.</summary>
+    public int Reads { get; set; }
 
-    public string ReadAllText(string path) => _inner.ReadAllText(path);
+    public bool FileExists(string path)
+    {
+        Reads++;
+        return _inner.FileExists(path);
+    }
+
+    public string ReadAllText(string path)
+    {
+        Reads++;
+        return _inner.ReadAllText(path);
+    }
 
     public void WriteAllText(string path, string contents)
     {
@@ -46,5 +57,9 @@ internal sealed class FailingFileSystem : IFileSystem
 
     public IReadOnlyList<string> GetFiles(string path, string searchPattern, SearchOption searchOption) => _inner.GetFiles(path, searchPattern, searchOption);
 
-    public DateTime GetLastWriteTimeUtc(string path) => _inner.GetLastWriteTimeUtc(path);
+    public DateTime GetLastWriteTimeUtc(string path)
+    {
+        Reads++;
+        return _inner.GetLastWriteTimeUtc(path);
+    }
 }
