@@ -49,6 +49,7 @@ public class JuxHomepageController : ControllerBase
     private readonly IStatisticsService _statisticsService;
     private readonly ICollectionsIndexCacheService _collectionsIndexCacheService;
     private readonly IAuthorizationContext _authContext;
+    private readonly HomeLanguageMemory _homeLanguages;
     private readonly ILogger<JuxHomepageController> _logger;
 
     /// <summary>
@@ -68,6 +69,7 @@ public class JuxHomepageController : ControllerBase
     /// <param name="statisticsService">Watch-history statistics service.</param>
     /// <param name="collectionsIndexCacheService">Collections reverse index cache service.</param>
     /// <param name="authContext">Jellyfin request authorization context.</param>
+    /// <param name="homeLanguages">Remembers the language of each user's last home screen (DEC-P07-10).</param>
     /// <param name="logger">Logger.</param>
     public JuxHomepageController(
         IWidgetRegistry registry,
@@ -84,6 +86,7 @@ public class JuxHomepageController : ControllerBase
         IStatisticsService statisticsService,
         ICollectionsIndexCacheService collectionsIndexCacheService,
         IAuthorizationContext authContext,
+        HomeLanguageMemory homeLanguages,
         ILogger<JuxHomepageController> logger)
     {
         _registry = registry;
@@ -100,6 +103,7 @@ public class JuxHomepageController : ControllerBase
         _statisticsService = statisticsService;
         _collectionsIndexCacheService = collectionsIndexCacheService;
         _authContext = authContext;
+        _homeLanguages = homeLanguages;
         _logger = logger;
     }
 
@@ -265,8 +269,10 @@ public class JuxHomepageController : ControllerBase
             return Ok(new SectionsPage([], HasMore: false, Enabled: false));
         }
 
+        var language = _localizationService.NormalizeLanguage(lang);
+        _homeLanguages.Remember(userId, language);
         var sectionsPage = await _widgetService
-            .GetWidgetsForUser(userId, page, _localizationService.NormalizeLanguage(lang), cancellationToken)
+            .GetWidgetsForUser(userId, page, language, cancellationToken)
             .ConfigureAwait(false);
 
         return Ok(sectionsPage);

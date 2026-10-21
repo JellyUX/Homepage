@@ -34,6 +34,13 @@ public sealed class UserConfiguration
     public string[] HiddenSections { get; set; } = [];
 
     /// <summary>
+    /// Gets or sets the language of this user's last home screen (normalized, e.g. "fr"), so the
+    /// home screen built ahead after a restart is the one the user will ask for (PERF-07, DEC-P07-10).
+    /// Null until the first home screen; not a setting the user edits.
+    /// </summary>
+    public string? HomeLanguage { get; set; }
+
+    /// <summary>
     /// Gets or sets the configuration schema version. See
     /// <see cref="PluginConfiguration.SchemaVersion"/> and CONTRIBUTING.md
     /// "Configuration Schema Versioning" for the migration policy.

@@ -49,6 +49,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddHostedService<StartupService>();
         serviceCollection.AddSingleton<IFileSystem, FileSystem>();
         serviceCollection.AddSingleton<IUserConfigurationStore, UserConfigurationStore>();
+        serviceCollection.AddSingleton<HomeLanguageMemory>();
         serviceCollection.AddSingleton<ILocalizationService, LocalizationService>();
         serviceCollection.AddHttpClient("TMDb", client =>
         {

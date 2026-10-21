@@ -72,29 +72,11 @@ public sealed class UserConfigurationStore : IUserConfigurationStore, IDisposabl
     /// <returns>The user configuration, or null if none has been saved yet.</returns>
     public UserConfiguration? GetUserConfiguration(Guid userId)
     {
-        var path = GetPath(userId);
-
+        // Under the read lock, so a read never overtakes a save in progress.
         _lock.EnterReadLock();
         try
         {
-            // Under the read lock, so a read never overtakes a save in progress.
-            var json = _texts.GetOrAdd(userId, _ => new StoredText(_fileSystem.FileExists(path) ? _fileSystem.ReadAllText(path) : null)).Json;
-            if (json is null)
-            {
-                return null;
-            }
-
-            var config = JsonSerializer.Deserialize<UserConfiguration>(json);
-
-            // Migrate in memory on read, mirroring PluginConfiguration's own migration timing (see
-            // Plugin.cs) -- the on-disk file is only corrected the next time this user's overrides
-            // are saved, not immediately.
-            if (config is not null)
-            {
-                Plugin.MigrateUserConfiguration(config);
-            }
-
-            return config;
+            return ReadLocked(userId);
         }
         catch (Exception ex)
         {
@@ -114,10 +96,83 @@ public sealed class UserConfigurationStore : IUserConfigurationStore, IDisposabl
     /// <returns>False when the file could not be written.</returns>
     public bool SaveUserConfiguration(UserConfiguration config)
     {
+        _lock.EnterWriteLock();
+        try
+        {
+            return WriteLocked(config);
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
+    }
+
+    /// <inheritdoc/>
+    public bool UpdateUserConfiguration(Guid userId, Func<UserConfiguration, bool> change)
+    {
+        _lock.EnterWriteLock();
+        try
+        {
+            UserConfiguration? current;
+            try
+            {
+                current = ReadLocked(userId);
+            }
+            catch (Exception ex)
+            {
+                // An unreadable file reads as no settings (GetUserConfiguration): the change starts afresh.
+                _logger.LogWarning(ex, "Failed to read user configuration for {UserId}.", userId);
+                current = null;
+            }
+
+            var config = current ?? new UserConfiguration { UserId = userId };
+            config.UserId = userId;
+            return !change(config) || WriteLocked(config);
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
+    }
+
+    /// <inheritdoc/>
+    public void Dispose()
+    {
+        if (!_disposed)
+        {
+            _lock.Dispose();
+            _disposed = true;
+        }
+    }
+
+    /// <summary>Reads, parses and migrates a user's settings; the caller holds the lock.</summary>
+    private UserConfiguration? ReadLocked(Guid userId)
+    {
+        var path = GetPath(userId);
+        var json = _texts.GetOrAdd(userId, _ => new StoredText(_fileSystem.FileExists(path) ? _fileSystem.ReadAllText(path) : null)).Json;
+        if (json is null)
+        {
+            return null;
+        }
+
+        var config = JsonSerializer.Deserialize<UserConfiguration>(json);
+
+        // Migrate in memory on read, mirroring PluginConfiguration's own migration timing (see
+        // Plugin.cs) -- the on-disk file is only corrected the next time this user's overrides
+        // are saved, not immediately.
+        if (config is not null)
+        {
+            Plugin.MigrateUserConfiguration(config);
+        }
+
+        return config;
+    }
+
+    /// <summary>Writes a user's settings and keeps their text; the caller holds the write lock.</summary>
+    private bool WriteLocked(UserConfiguration config)
+    {
         var path = GetPath(config.UserId);
         var tmpPath = path + ".tmp";
-
-        _lock.EnterWriteLock();
         try
         {
             var json = JsonSerializer.Serialize(config, SerializerOptions);
@@ -138,20 +193,6 @@ public sealed class UserConfigurationStore : IUserConfigurationStore, IDisposabl
             _logger.LogError(ex, "Failed to save user configuration for {UserId}.", config.UserId);
             TryDeleteStrayTempFile(tmpPath);
             return false;
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
-    }
-
-    /// <inheritdoc/>
-    public void Dispose()
-    {
-        if (!_disposed)
-        {
-            _lock.Dispose();
-            _disposed = true;
         }
     }
 
