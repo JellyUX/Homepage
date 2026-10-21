@@ -6,6 +6,7 @@ using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Plugins;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Collections;
+using MediaBrowser.Controller.Configuration;
 using MediaBrowser.Controller.Dto;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Controller.TV;
@@ -46,6 +47,7 @@ public sealed class PluginServiceRegistratorTests : IDisposable
         _services.AddSingleton(Mock.Of<ICollectionManager>());
         _services.AddSingleton(Mock.Of<IPluginManager>());
         _services.AddSingleton(Mock.Of<IHostApplicationLifetime>());
+        _services.AddSingleton(Mock.Of<IServerConfigurationManager>());
 
         new PluginServiceRegistrator().RegisterServices(_services, Mock.Of<IServerApplicationHost>());
         _provider = _services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });

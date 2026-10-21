@@ -89,21 +89,4 @@ public sealed class StartupServiceTests
         await service.StopAsync(CancellationToken.None);
         Assert.True(refreshToken.IsCancellationRequested);
     }
-
-    private sealed class FakeLifetime : IHostApplicationLifetime
-    {
-        private readonly CancellationTokenSource _started = new();
-
-        public CancellationToken ApplicationStarted => _started.Token;
-
-        public CancellationToken ApplicationStopping => CancellationToken.None;
-
-        public CancellationToken ApplicationStopped => CancellationToken.None;
-
-        public void Start() => _started.Cancel();
-
-        public void StopApplication()
-        {
-        }
-    }
 }

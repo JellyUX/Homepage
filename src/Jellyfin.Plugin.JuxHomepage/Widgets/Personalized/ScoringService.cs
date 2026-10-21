@@ -209,6 +209,36 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
     /// <inheritdoc/>
     public bool TakePendingServed(Guid userId) => _pendingServed.TryRemove(userId, out _);
 
+    /// <summary>
+    /// Computes the user's snapshot ahead of their first home screen (PERF-07): starts or joins the
+    /// computation and waits for the full one, past the partial first pass, without the bounded wait
+    /// of a request. Returns false, without waiting, when the queue is full.
+    /// </summary>
+    /// <param name="userId">The user.</param>
+    /// <param name="cancellationToken">Stops waiting; the computation itself goes on.</param>
+    /// <returns>True when a fresh snapshot is held for the user.</returns>
+    internal async Task<bool> WarmAsync(Guid userId, CancellationToken cancellationToken)
+    {
+        // At most the partial pass, then the full one it chains (RunCompute).
+        for (var pass = 0; pass < 2; pass++)
+        {
+            if (HasFreshSnapshot(userId))
+            {
+                return true;
+            }
+
+            var compute = StartCompute(userId);
+            if (compute is null)
+            {
+                return false;
+            }
+
+            await compute.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        return HasFreshSnapshot(userId);
+    }
+
     /// <inheritdoc/>
     public void Dispose()
     {
@@ -275,6 +305,13 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
 
         _pendingServed[userId] = 0;
         return ScoreSnapshot.CreateEmpty(UtcNow, Today);
+    }
+
+    private bool HasFreshSnapshot(Guid userId)
+    {
+        var today = Today;
+        PurgeIfNewDay(today);
+        return _cache.TryGetValue(userId, out var cached) && IsFresh(cached, today);
     }
 
     private bool IsFresh(ScoreSnapshot snapshot, DateOnly today)

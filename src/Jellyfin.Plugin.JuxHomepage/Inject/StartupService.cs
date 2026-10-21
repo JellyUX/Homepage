@@ -25,8 +25,7 @@ public sealed class StartupService : IHostedService, IDisposable
     private readonly IHostApplicationLifetime _lifetime;
     private readonly PatchStatus _patchStatus;
     private readonly ConfigurationBackup _backup;
-    private readonly CancellationTokenSource _stopping = new();
-    private CancellationTokenRegistration _startedRegistration;
+    private readonly ServerStartedRun _afterStart = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="StartupService"/> class.
@@ -71,8 +70,7 @@ public sealed class StartupService : IHostedService, IDisposable
         // registration above must never wait for it. The shutdown token stops it with the server.
         // RefreshStaleTMDbCacheAsync wraps its own body in try/catch and logs failures, so
         // discarding the task is safe.
-        _startedRegistration = _lifetime.ApplicationStarted.Register(
-            () => _ = RefreshStaleTMDbCacheAsync(_stopping.Token));
+        _afterStart.Register(_lifetime, RefreshStaleTMDbCacheAsync);
 
         return Task.CompletedTask;
     }
@@ -80,16 +78,12 @@ public sealed class StartupService : IHostedService, IDisposable
     /// <inheritdoc/>
     public Task StopAsync(CancellationToken cancellationToken)
     {
-        _stopping.Cancel();
+        _afterStart.Stop();
         return Task.CompletedTask;
     }
 
     /// <inheritdoc/>
-    public void Dispose()
-    {
-        _startedRegistration.Dispose();
-        _stopping.Dispose();
-    }
+    public void Dispose() => _afterStart.Dispose();
 
     /// <summary>
     /// Logs each Rewards row that lost its Q-id, as an admin Save before FIAB-02 left it: the row loads

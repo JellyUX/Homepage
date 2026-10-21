@@ -93,6 +93,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddHostedService<CollectionsIndexInvalidationListener>();
         serviceCollection.AddHostedService<SectionCacheInvalidationListener>();
         serviceCollection.AddHostedService<LikedItemIdsUpdateListener>();
+        serviceCollection.AddHostedService<HomeWarmupService>();
         serviceCollection.AddSingleton<ISeriesProgressViewService, SeriesProgressViewService>();
         serviceCollection.AddSingleton<IMovieHistoryViewService, MovieHistoryViewService>();
         serviceCollection.AddSingleton<IStatisticsService, StatisticsService>();
