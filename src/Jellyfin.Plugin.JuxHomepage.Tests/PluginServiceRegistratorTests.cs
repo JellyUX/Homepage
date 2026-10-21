@@ -1,4 +1,5 @@
 using System.Reflection;
+using Jellyfin.Plugin.JuxHomepage.Watchlist;
 using Jellyfin.Plugin.JuxHomepage.Widgets;
 using Jellyfin.Plugin.JuxHomepage.Widgets.Personalized;
 using MediaBrowser.Common.Configuration;
@@ -113,5 +114,18 @@ public sealed class PluginServiceRegistratorTests : IDisposable
 
         Assert.Same(_provider.GetRequiredService<SectionResultCache>(), cache);
         Assert.Contains(_provider.GetServices<IHostedService>(), s => s is SectionCacheInvalidationListener);
+    }
+
+    [Fact]
+    public void RegisterServices_HandsTheLikedIdsCacheToTheWatchlistService()
+    {
+        var watchlist = _provider.GetRequiredService<IWatchlistService>();
+
+        var cache = typeof(WatchlistService)
+            .GetField("_likedIds", BindingFlags.NonPublic | BindingFlags.Instance)!
+            .GetValue(watchlist);
+
+        Assert.Same(_provider.GetRequiredService<LikedItemIdsCache>(), cache);
+        Assert.Contains(_provider.GetServices<IHostedService>(), s => s is LikedItemIdsUpdateListener);
     }
 }

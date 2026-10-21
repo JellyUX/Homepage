@@ -17,6 +17,7 @@ public sealed class WatchlistDailyRefreshTask : IScheduledTask
     private readonly ISeriesProgressCacheService _seriesProgressCache;
     private readonly IMovieHistoryCacheService _movieHistoryCache;
     private readonly ICollectionsIndexCacheService _collectionsIndexCache;
+    private readonly LikedItemIdsCache _likedIds;
     private readonly ILogger<WatchlistDailyRefreshTask> _logger;
 
     /// <summary>
@@ -25,16 +26,19 @@ public sealed class WatchlistDailyRefreshTask : IScheduledTask
     /// <param name="seriesProgressCache">Series progress cache service.</param>
     /// <param name="movieHistoryCache">Movie history cache service.</param>
     /// <param name="collectionsIndexCache">Collections reverse index cache service.</param>
+    /// <param name="likedIds">The in-memory liked ids, dropped once a day (DEC-P07-7).</param>
     /// <param name="logger">Logger.</param>
     public WatchlistDailyRefreshTask(
         ISeriesProgressCacheService seriesProgressCache,
         IMovieHistoryCacheService movieHistoryCache,
         ICollectionsIndexCacheService collectionsIndexCache,
+        LikedItemIdsCache likedIds,
         ILogger<WatchlistDailyRefreshTask> logger)
     {
         _seriesProgressCache = seriesProgressCache;
         _movieHistoryCache = movieHistoryCache;
         _collectionsIndexCache = collectionsIndexCache;
+        _likedIds = likedIds;
         _logger = logger;
     }
 
@@ -62,6 +66,9 @@ public sealed class WatchlistDailyRefreshTask : IScheduledTask
         progress.Report(66);
 
         await _collectionsIndexCache.RefreshAsync(cancellationToken).ConfigureAwait(false);
+
+        // Read again on the next request: covers what no event reports, such as a library access change.
+        _likedIds.Clear();
         progress.Report(100);
 
         _logger.LogInformation("Watchlist daily refresh completed.");

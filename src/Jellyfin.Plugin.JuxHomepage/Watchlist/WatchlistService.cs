@@ -14,6 +14,7 @@ public sealed class WatchlistService : IWatchlistService
     private readonly IUserManager _userManager;
     private readonly ILibraryManager _libraryManager;
     private readonly IDtoService _dtoService;
+    private readonly LikedItemIdsCache? _likedIds;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WatchlistService"/> class.
@@ -21,11 +22,13 @@ public sealed class WatchlistService : IWatchlistService
     /// <param name="userManager">Jellyfin user manager.</param>
     /// <param name="libraryManager">Jellyfin library manager.</param>
     /// <param name="dtoService">Jellyfin DTO projection service.</param>
-    public WatchlistService(IUserManager userManager, ILibraryManager libraryManager, IDtoService dtoService)
+    /// <param name="likedIds">Keeps each user's liked ids in memory (PERF-05.a); null queries every time.</param>
+    public WatchlistService(IUserManager userManager, ILibraryManager libraryManager, IDtoService dtoService, LikedItemIdsCache? likedIds = null)
     {
         _userManager = userManager;
         _libraryManager = libraryManager;
         _dtoService = dtoService;
+        _likedIds = likedIds;
     }
 
     /// <inheritdoc/>
@@ -68,21 +71,35 @@ public sealed class WatchlistService : IWatchlistService
     /// <inheritdoc/>
     public IReadOnlyList<Guid> GetLikedItemIds(Guid userId, CancellationToken cancellationToken)
     {
+        // Every page load calls this: the ids are kept in memory between two changes (PERF-05.a).
+        if (_likedIds is not null && _likedIds.TryGet(userId, out var cached))
+        {
+            return cached;
+        }
+
         var user = _userManager.GetUserById(userId);
         if (user is null)
         {
             return [];
         }
 
-        // Ids only, movies and series only (F-06): every page load calls this, and without a type the
-        // liked filter was evaluated on every library row (~1 s on a 3000-film library).
-        return _libraryManager.GetItemIds(new InternalItemsQuery(user)
+        var version = _likedIds?.VersionOf(userId);
+
+        // Ids only, movies and series only (F-06): without a type the liked filter was evaluated on
+        // every library row (~1 s on a 3000-film library).
+        var ids = _libraryManager.GetItemIds(new InternalItemsQuery(user)
         {
             IncludeItemTypes = [BaseItemKind.Movie, BaseItemKind.Series],
             IsLiked = true,
             Recursive = true,
             IsMissing = false
         });
+        if (version is { } readVersion)
+        {
+            _likedIds!.Set(userId, ids, readVersion);
+        }
+
+        return ids;
     }
 
     /// <summary>

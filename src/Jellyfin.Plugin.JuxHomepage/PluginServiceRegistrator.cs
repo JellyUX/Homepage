@@ -84,12 +84,14 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<ISeriesProgressCacheService, SeriesProgressCacheService>();
         serviceCollection.AddSingleton<IMovieHistoryCacheService, MovieHistoryCacheService>();
         serviceCollection.AddSingleton<ICollectionsIndexCacheService, CollectionsIndexCacheService>();
+        serviceCollection.AddSingleton<LikedItemIdsCache>();
         serviceCollection.AddSingleton<IWatchlistService, WatchlistService>();
         serviceCollection.AddHostedService<WatchlistAutoRemoveService>();
         serviceCollection.AddHostedService<ScoringInvalidationListener>();
         serviceCollection.AddHostedService<TabCachesUpdateListener>();
         serviceCollection.AddHostedService<CollectionsIndexInvalidationListener>();
         serviceCollection.AddHostedService<SectionCacheInvalidationListener>();
+        serviceCollection.AddHostedService<LikedItemIdsUpdateListener>();
         serviceCollection.AddSingleton<ISeriesProgressViewService, SeriesProgressViewService>();
         serviceCollection.AddSingleton<IMovieHistoryViewService, MovieHistoryViewService>();
         serviceCollection.AddSingleton<IStatisticsService, StatisticsService>();
