@@ -202,6 +202,9 @@ public sealed class PerfBudgetTests : IDisposable
         }
 
         await Measure(measured, "Watchlist/Ids", () => controller.GetWatchlistIds(_user.Id));
+
+        // Every page load asks for the liked ids again (jux-card-hooks.js): the second request is the usual one.
+        await Measure(measured, "Watchlist/Ids (repeat)", () => controller.GetWatchlistIds(_user.Id));
         await Measure(measured, "Collections/IncludedIn", () => controller.GetCollectionsForItem(_movies[0].Id));
         await Measure(
             measured,

@@ -50,7 +50,8 @@
     "Sections (cached layout)": 0,
     "Sections (layout build)": 17,
     "TMDb refresh (6 lists of 20 titles)": 2,
-    "Watchlist/Ids": 1
+    "Watchlist/Ids": 1,
+    "Watchlist/Ids (repeat)": 1
   },
   "userData": {
     "Collections/IncludedIn": 0,
@@ -102,7 +103,8 @@
     "Sections (cached layout)": 0,
     "Sections (layout build)": 0,
     "TMDb refresh (6 lists of 20 titles)": 0,
-    "Watchlist/Ids": 0
+    "Watchlist/Ids": 0,
+    "Watchlist/Ids (repeat)": 0
   },
   "dto": {
     "Collections/IncludedIn": 0,
@@ -154,6 +156,7 @@
     "Sections (cached layout)": 0,
     "Sections (layout build)": 0,
     "TMDb refresh (6 lists of 20 titles)": 0,
-    "Watchlist/Ids": 0
+    "Watchlist/Ids": 0,
+    "Watchlist/Ids (repeat)": 0
   }
 }

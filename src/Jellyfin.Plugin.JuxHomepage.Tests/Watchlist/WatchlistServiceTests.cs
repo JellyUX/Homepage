@@ -183,4 +183,22 @@ public sealed class WatchlistServiceTests
         Assert.Equal([BaseItemKind.Movie, BaseItemKind.Series], capturedQuery.IncludeItemTypes);
         Assert.Equal([movie.Id], ids);
     }
+
+    [Fact(Skip = "PERF-05.a, phase 07: no liked ids cache yet, every request queries the library.")]
+    public void GetLikedItemIds_ReadTwice_QueriesOnce()
+    {
+        var user = new User("test", "Default", "Default");
+        var movie = Guid.NewGuid();
+        var userManagerMock = new Mock<IUserManager>();
+        userManagerMock.Setup(m => m.GetUserById(user.Id)).Returns(user);
+        var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([movie]);
+        var service = new WatchlistService(userManagerMock.Object, libraryManagerMock.Object, new Mock<IDtoService>().Object);
+
+        service.GetLikedItemIds(user.Id, CancellationToken.None);
+        var ids = service.GetLikedItemIds(user.Id, CancellationToken.None);
+
+        Assert.Equal([movie], ids);
+        libraryManagerMock.Verify(m => m.GetItemIds(It.IsAny<InternalItemsQuery>()), Times.Once);
+    }
 }
