@@ -1,8 +1,8 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using Jellyfin.Plugin.JuxHomepage.IO;
 using MediaBrowser.Common.Configuration;
 using Microsoft.Extensions.Logging;
-
 
 namespace Jellyfin.Plugin.JuxHomepage.Configuration;
 
@@ -14,6 +14,13 @@ namespace Jellyfin.Plugin.JuxHomepage.Configuration;
 /// assemblies: a stray DLL there once made Jellyfin disable and wipe the whole configurations tree).
 /// All file access is protected by a <see cref="ReaderWriterLockSlim"/> to allow concurrent reads
 /// while serializing writes.
+/// <para>
+/// A user's file is read from disk once: its text, or its absence, is kept in memory and replaced by
+/// each successful save (Annexe.a, DEC-P07-8), since only this store writes these files; every request
+/// that checks whether JellyUX runs for the user read it again before. The text is deserialized on each
+/// read, so no caller shares an instance another one may change. A file edited by hand is read after a
+/// restart.
+/// </para>
 /// </summary>
 public sealed class UserConfigurationStore : IUserConfigurationStore, IDisposable
 {
@@ -26,6 +33,7 @@ public sealed class UserConfigurationStore : IUserConfigurationStore, IDisposabl
     private readonly IFileSystem _fileSystem;
     private readonly ILogger<UserConfigurationStore> _logger;
     private readonly ReaderWriterLockSlim _lock = new();
+    private readonly ConcurrentDictionary<Guid, StoredText> _texts = new();
     private bool _disposed;
 
     /// <summary>
@@ -69,12 +77,13 @@ public sealed class UserConfigurationStore : IUserConfigurationStore, IDisposabl
         _lock.EnterReadLock();
         try
         {
-            if (!_fileSystem.FileExists(path))
+            // Under the read lock, so a read never overtakes a save in progress.
+            var json = _texts.GetOrAdd(userId, _ => new StoredText(_fileSystem.FileExists(path) ? _fileSystem.ReadAllText(path) : null)).Json;
+            if (json is null)
             {
                 return null;
             }
 
-            var json = _fileSystem.ReadAllText(path);
             var config = JsonSerializer.Deserialize<UserConfiguration>(json);
 
             // Migrate in memory on read, mirroring PluginConfiguration's own migration timing (see
@@ -121,6 +130,7 @@ public sealed class UserConfigurationStore : IUserConfigurationStore, IDisposabl
             _fileSystem.CreateDirectory(_usersDir);
             _fileSystem.WriteAllText(tmpPath, json);
             _fileSystem.Move(tmpPath, path, overwrite: true);
+            _texts[config.UserId] = new StoredText(json);
             return true;
         }
         catch (Exception ex)
@@ -162,4 +172,7 @@ public sealed class UserConfigurationStore : IUserConfigurationStore, IDisposabl
             _logger.LogWarning(ex, "Failed to clean up stray temp file {TmpPath}.", tmpPath);
         }
     }
+
+    /// <summary>The text of a user's file as last read or saved; null when the user has none.</summary>
+    private sealed record StoredText(string? Json);
 }

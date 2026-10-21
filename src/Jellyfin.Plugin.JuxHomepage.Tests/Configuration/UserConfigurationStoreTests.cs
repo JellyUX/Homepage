@@ -113,6 +113,41 @@ public sealed class UserConfigurationStoreTests : IDisposable
         Assert.Empty(tmpFiles);
     }
 
+    [Fact]
+    public void GetUserConfiguration_ReadAgain_ReadsTheDiskOnce_AndASaveIsSeenAtOnce()
+    {
+        // Annexe.a (DEC-P07-8): every request that checks whether JellyUX runs for the user reads
+        // the settings; the file is read once, and the store's own saves replace what it kept.
+        var fileSystem = new CountingFileSystem();
+        var store = BuildStore(fileSystem);
+        var saved = Guid.NewGuid();
+        var none = Guid.NewGuid();
+        Assert.True(store.SaveUserConfiguration(new UserConfiguration { UserId = saved, Enabled = false }));
+        File.Delete(Path.Combine(_tempDir, "Jellyfin.Plugin.JuxHomepage", "users", $"{saved}.json"));
+        fileSystem.Reads = 0;
+
+        Assert.False(store.GetUserConfiguration(saved)!.Enabled);
+        Assert.Null(store.GetUserConfiguration(none));
+        Assert.Null(store.GetUserConfiguration(none));
+        Assert.Equal(1, fileSystem.Reads);
+
+        Assert.True(store.SaveUserConfiguration(new UserConfiguration { UserId = none, Enabled = false }));
+        Assert.False(store.GetUserConfiguration(none)!.Enabled);
+        Assert.Equal(1, fileSystem.Reads);
+    }
+
+    [Fact]
+    public void GetUserConfiguration_ReturnsANewInstanceEachTime()
+    {
+        var userId = Guid.NewGuid();
+        _store.SaveUserConfiguration(new UserConfiguration { UserId = userId, Enabled = false });
+
+        var first = _store.GetUserConfiguration(userId)!;
+        first.Enabled = true;
+
+        Assert.False(_store.GetUserConfiguration(userId)!.Enabled);
+    }
+
     // Proves that the ReaderWriterLockSlim correctly serializes a concurrent reader against a
     // writer: the reader started while the writer is mid-save must wait for the writer to finish
     // (never interleave), and must then see the newly-written value. A reader observing a
@@ -185,6 +220,42 @@ public sealed class UserConfigurationStoreTests : IDisposable
             applicationPathsMock.Object,
             fileSystem,
             NullLogger<UserConfigurationStore>.Instance);
+    }
+
+    /// <summary>Wraps a real <see cref="FileSystem"/>, counting the existence checks and reads of files.</summary>
+    private sealed class CountingFileSystem : IFileSystem
+    {
+        private readonly FileSystem _inner = new();
+
+        /// <summary>Gets or sets the number of FileExists and ReadAllText calls.</summary>
+        public int Reads { get; set; }
+
+        public bool FileExists(string path)
+        {
+            Reads++;
+            return _inner.FileExists(path);
+        }
+
+        public string ReadAllText(string path)
+        {
+            Reads++;
+            return _inner.ReadAllText(path);
+        }
+
+        public void WriteAllText(string path, string contents) => _inner.WriteAllText(path, contents);
+
+        public void Move(string sourceFileName, string destFileName, bool overwrite) => _inner.Move(sourceFileName, destFileName, overwrite);
+
+        public void Delete(string path) => _inner.Delete(path);
+
+        public void CreateDirectory(string path) => _inner.CreateDirectory(path);
+
+        public bool DirectoryExists(string path) => _inner.DirectoryExists(path);
+
+        public IReadOnlyList<string> GetFiles(string path, string searchPattern, SearchOption searchOption) =>
+            _inner.GetFiles(path, searchPattern, searchOption);
+
+        public DateTime GetLastWriteTimeUtc(string path) => _inner.GetLastWriteTimeUtc(path);
     }
 
     /// <summary>
