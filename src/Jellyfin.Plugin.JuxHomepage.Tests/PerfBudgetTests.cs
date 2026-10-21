@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.Controllers;
+using Jellyfin.Plugin.JuxHomepage.IO;
 using Jellyfin.Plugin.JuxHomepage.Library;
 using Jellyfin.Plugin.JuxHomepage.TMDb;
 using Jellyfin.Plugin.JuxHomepage.TMDb.Models;
@@ -50,8 +51,11 @@ public sealed class PerfBudgetTests : IDisposable
 
     private static readonly DateTimeOffset FixedNow = new(2026, 10, 18, 12, 0, 0, TimeSpan.Zero);
 
-    /// <summary>The budget tables: ILibraryManager calls, then IUserDataManager and IDtoService calls (DEC-P06-6).</summary>
-    private static readonly string[] Tables = ["endpoints", "userData", "dto"];
+    /// <summary>
+    /// The budget tables: ILibraryManager calls, then IUserDataManager and IDtoService calls (DEC-P06-6),
+    /// then IFileSystem calls (DEC-P07-9).
+    /// </summary>
+    private static readonly string[] Tables = ["endpoints", "userData", "dto", "fileSystem"];
 
     private static readonly Dictionary<string, string> AdminValues = new(StringComparer.Ordinal)
     {
@@ -68,6 +72,7 @@ public sealed class PerfBudgetTests : IDisposable
     private readonly TestMocks.CountingLibraryManager _library = new();
     private readonly TestMocks.CountingService<IUserDataManager> _userData = new();
     private readonly TestMocks.CountingService<IDtoService> _dto = new();
+    private readonly TestMocks.CountingService<IFileSystem> _fileSystem = new();
     private readonly User _user = TestMocks.DefaultUser();
     private readonly Movie[] _movies;
     private readonly ServiceProvider _provider;
@@ -87,6 +92,7 @@ public sealed class PerfBudgetTests : IDisposable
             .Returns((InternalItemsQuery q) => [.. Page(q).Select(m => m.Id)]);
         _library.Inner.Setup(m => m.GetItemById(It.IsAny<Guid>())).Returns((Guid id) => _movies.FirstOrDefault(m => m.Id == id));
         SetUpDtoMappingEachItem(_dto.Inner);
+        ForwardTo(_fileSystem.Inner, new FileSystem());
 
         var paths = new Mock<IApplicationPaths>();
         paths.SetupGet(p => p.DataPath).Returns(_dataPath);
@@ -121,6 +127,7 @@ public sealed class PerfBudgetTests : IDisposable
         var configuration = ReferenceConfiguration(services.BuildServiceProvider());
         services.AddSingleton<Func<PluginConfiguration?>>(() => configuration);
         services.AddSingleton(FakeTmdbClient());
+        services.AddSingleton(_fileSystem.Object);
         _provider = services.BuildServiceProvider();
     }
 
@@ -206,6 +213,12 @@ public sealed class PerfBudgetTests : IDisposable
         // Every page load asks for the liked ids again (jux-card-hooks.js): the second request is the usual one.
         await Measure(measured, "Watchlist/Ids (repeat)", () => controller.GetWatchlistIds(_user.Id));
         await Measure(measured, "Collections/IncludedIn", () => controller.GetCollectionsForItem(_movies[0].Id));
+
+        // The tabs read their per-user file, computed by the first request: the second one is the usual one.
+        await controller.GetSeriesProgressItems(_user.Id);
+        await Measure(measured, "SeriesProgress/Items", () => controller.GetSeriesProgressItems(_user.Id));
+        await controller.GetMovieHistoryItems(_user.Id);
+        await Measure(measured, "MovieHistory/Items", () => controller.GetMovieHistoryItems(_user.Id));
         await Measure(
             measured,
             $"TMDb refresh (6 lists of {TmdbListSize} titles)",
@@ -219,10 +232,27 @@ public sealed class PerfBudgetTests : IDisposable
         _library.Reset();
         _userData.Reset();
         _dto.Reset();
+        _fileSystem.Reset();
         await request();
         measured["endpoints"][key] = _library.Total;
         measured["userData"][key] = _userData.Total;
         measured["dto"][key] = _dto.Total;
+        measured["fileSystem"][key] = _fileSystem.Total;
+    }
+
+    /// <summary>The counted file system reads and writes the real temporary data path.</summary>
+    private static void ForwardTo(Mock<IFileSystem> inner, FileSystem real)
+    {
+        inner.Setup(f => f.FileExists(It.IsAny<string>())).Returns((string p) => real.FileExists(p));
+        inner.Setup(f => f.ReadAllText(It.IsAny<string>())).Returns((string p) => real.ReadAllText(p));
+        inner.Setup(f => f.WriteAllText(It.IsAny<string>(), It.IsAny<string>())).Callback((string p, string c) => real.WriteAllText(p, c));
+        inner.Setup(f => f.Move(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<bool>())).Callback((string s, string d, bool o) => real.Move(s, d, o));
+        inner.Setup(f => f.Delete(It.IsAny<string>())).Callback((string p) => real.Delete(p));
+        inner.Setup(f => f.CreateDirectory(It.IsAny<string>())).Callback((string p) => real.CreateDirectory(p));
+        inner.Setup(f => f.DirectoryExists(It.IsAny<string>())).Returns((string p) => real.DirectoryExists(p));
+        inner.Setup(f => f.GetFiles(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<SearchOption>()))
+            .Returns((string p, string pattern, SearchOption o) => real.GetFiles(p, pattern, o));
+        inner.Setup(f => f.GetLastWriteTimeUtc(It.IsAny<string>())).Returns((string p) => real.GetLastWriteTimeUtc(p));
     }
 
     private IEnumerable<Movie> Page(InternalItemsQuery query) =>
