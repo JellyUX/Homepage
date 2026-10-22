@@ -1,3 +1,25 @@
+## [2.15.2](https://github.com/JellyUX/Homepage/compare/v2.15.1...v2.15.2) (2026-10-22)
+
+### Bug Fixes
+
+* build no DTO in the home layout probe ([733a260](https://github.com/JellyUX/Homepage/commit/733a2604da81b372a9fef21d8707fd94b7fc0aee))
+* build recently active users' home screens ahead after a restart ([80121a4](https://github.com/JellyUX/Homepage/commit/80121a4d5298f3b1287c67f84b19cc9039c393fc))
+* check a tab's per-user file once per read ([3c68e4d](https://github.com/JellyUX/Homepage/commit/3c68e4def65f753e62ca050c4379c04cc1fb8648))
+* clear the rating when an item is removed from the watchlist instead of disliking it ([3ddd4d8](https://github.com/JellyUX/Homepage/commit/3ddd4d8d124ff7349e8f1dc967c7c8da880df634))
+* drop a user's cached home screen after an administrator changes what they may see ([07c0c8f](https://github.com/JellyUX/Homepage/commit/07c0c8fbe653b161009d970b5697784e27dd904d))
+* drop cached home section pages when a TMDb or Rewards list is rewritten ([ecb2547](https://github.com/JellyUX/Homepage/commit/ecb25474d0f92a9cf8acbb508c1d706da316771f))
+* keep building the other users' home screens ahead after one is cancelled ([f7e5597](https://github.com/JellyUX/Homepage/commit/f7e5597d807881e8b041e61852cbb89c80c06ca4))
+* keep each user's liked ids in memory for the watchlist buttons ([5625463](https://github.com/JellyUX/Homepage/commit/56254631d85e7a7fe4176c8f4279a376ecc587d1))
+* never overwrite a user's settings file that could not be read ([3a53468](https://github.com/JellyUX/Homepage/commit/3a53468e9c920ab65d88a87eacd4d9367b8fadfb))
+* read each user's settings file once instead of on every request ([ee98782](https://github.com/JellyUX/Homepage/commit/ee98782fea2f0a507891afd2353297b444352571))
+* read the movie library once per Rewards refresh instead of once per row ([ac72cde](https://github.com/JellyUX/Homepage/commit/ac72cde141bba6264bdb7b47f8f47cdf087a4698))
+* read the request's user from Jellyfin's claims instead of a second token lookup ([bdb15bb](https://github.com/JellyUX/Homepage/commit/bdb15bb0161065dacf57d9d338efb34bf698d690))
+* recompute a user's favorite genres and people after their access changes ([e5404ca](https://github.com/JellyUX/Homepage/commit/e5404cafcffcbdb683a4c15beff6938904ff4d72))
+* remember the home language only from the user's own home screen ([b50b919](https://github.com/JellyUX/Homepage/commit/b50b9192022838fd3b21780b510cf7e444bed6d5))
+* remember the language of each user's last home screen ([ca1ad4d](https://github.com/JellyUX/Homepage/commit/ca1ad4de164b984381d1e00a1f89eeaa58f8dc75))
+* serve home sections from the layout probe and keep them per user ([6176de1](https://github.com/JellyUX/Homepage/commit/6176de143b97ccfc739d784d8064f2045d46b33c))
+* write only the fields read back to the TMDb and Rewards caches ([7be0859](https://github.com/JellyUX/Homepage/commit/7be0859aa8413518657fb23af655a9182aec82b3))
+
 ## [2.15.1](https://github.com/JellyUX/Homepage/compare/v2.15.0...v2.15.1) (2026-10-20)
 
 ### Bug Fixes
