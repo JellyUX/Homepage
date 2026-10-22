@@ -68,6 +68,27 @@
         });
     }
 
+    // The History tiles and the Statistics tab read the same route: one request serves both for a
+    // minute (Annexe.a); a failure is not kept (test: jux-core.test.js "getStatistics").
+    var STATISTICS_TTL_MS = 60000;
+    var _statistics = null;
+
+    function getStatistics(userId) {
+        if (_statistics && _statistics.userId === userId && Date.now() - _statistics.at < STATISTICS_TTL_MS) {
+            return _statistics.promise;
+        }
+        var entry = { userId: userId, at: Date.now() };
+        entry.promise = window.ApiClient.getJSON(window.ApiClient.getUrl('JuxHomepage/Statistics', { userId: userId }))
+            .catch(function (err) {
+                if (_statistics === entry) {
+                    _statistics = null;
+                }
+                throw err;
+            });
+        _statistics = entry;
+        return entry.promise;
+    }
+
     // A JSON request that rejects when the server has not answered within ms (FIAB-08, default 15 s):
     // a server that accepts the connection but never answers would otherwise keep the page waiting
     // for good. A late answer is dropped (test: jux-core.test.js "fetchWithTimeout").
@@ -485,6 +506,7 @@
         cached: cached,
         getItem: getItem,
         getIncludedIn: getIncludedIn,
+        getStatistics: getStatistics,
         fetchWithTimeout: fetchWithTimeout,
         observeCardImages: observeCardImages,
         resolveLang: resolveLang,

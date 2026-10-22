@@ -115,8 +115,9 @@ describe('watch date and tiles (F-58)', () => {
     });
 
     it('leaves the tiles out when the counters cannot be read', async () => {
+        // Another user: the counters of u1 read above are kept for a minute (JuxCore.getStatistics).
         window.ApiClient = {
-            getCurrentUserId: () => 'u1',
+            getCurrentUserId: () => 'u2',
             getUrl: (route) => route,
             getJSON: vi.fn(() => Promise.reject(new Error('down')))
         };

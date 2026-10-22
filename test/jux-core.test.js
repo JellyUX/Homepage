@@ -87,6 +87,44 @@ describe('cached', () => {
     });
 });
 
+describe('getStatistics (Annexe.a)', () => {
+    afterEach(() => {
+        vi.useRealTimers();
+        delete window.ApiClient;
+    });
+
+    function client(getJSON) {
+        window.ApiClient = { getUrl: (route, query) => route + '?userId=' + query.userId, getJSON };
+        return getJSON;
+    }
+
+    it('serves the History tiles and the Statistics tab with one request for a minute', async () => {
+        vi.useFakeTimers();
+        const getJSON = client(vi.fn().mockResolvedValue({ MoviesWatched: 3 }));
+
+        const history = await juxCore.getStatistics('stats1');
+        const statistics = await juxCore.getStatistics('stats1');
+        expect(getJSON).toHaveBeenCalledTimes(1);
+        expect(getJSON).toHaveBeenCalledWith('JuxHomepage/Statistics?userId=stats1');
+        expect(statistics).toBe(history);
+
+        vi.advanceTimersByTime(60000);
+        await juxCore.getStatistics('stats1');
+        expect(getJSON).toHaveBeenCalledTimes(2);
+    });
+
+    it('asks again after a failure, and for another user', async () => {
+        const getJSON = client(vi.fn().mockRejectedValueOnce(new Error('down')).mockResolvedValue({}));
+
+        await expect(juxCore.getStatistics('stats2')).rejects.toThrow('down');
+        await juxCore.getStatistics('stats2');
+        await juxCore.getStatistics('stats3');
+
+        expect(getJSON.mock.calls.map((c) => c[0])).toEqual([
+            'JuxHomepage/Statistics?userId=stats2', 'JuxHomepage/Statistics?userId=stats2', 'JuxHomepage/Statistics?userId=stats3']);
+    });
+});
+
 describe('observeCardImages (F-10, F-35)', () => {
     const originalObserver = globalThis.IntersectionObserver;
     let observers = [];

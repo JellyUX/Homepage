@@ -98,8 +98,7 @@
     function _renderTiles(container, lang) {
         if (!container || !window.ApiClient) { return; }
         var t = window.JuxCore.labels('history', lang);
-        var url = window.ApiClient.getUrl('JuxHomepage/Statistics', { userId: window.ApiClient.getCurrentUserId() });
-        window.ApiClient.getJSON(url).then(function (stats) {
+        window.JuxCore.getStatistics(window.ApiClient.getCurrentUserId()).then(function (stats) {
             container.innerHTML =
                 window.JuxUI.buildStatCard('movie', stats.MoviesWatched, t.moviesWatched) +
                 window.JuxUI.buildStatCard('calendar_month', stats.MoviesWatchedThisMonth, t.moviesThisMonth);

@@ -47,9 +47,7 @@
             var body = sections.querySelector('.jux-statistics-body');
             if (window.JuxUI) { window.JuxUI.showLoading(body); }
 
-            var url = window.ApiClient.getUrl('JuxHomepage/Statistics', { userId: userId });
-
-            window.ApiClient.getJSON(url).then(function (stats) {
+            window.JuxCore.getStatistics(userId).then(function (stats) {
                 body.innerHTML = _buildTilesHtml(stats, lang) + _buildTopSeriesHtml(stats, lang, window.ApiClient.serverId());
                 var seeProgress = body.querySelector('.jux-top-series-more');
                 if (seeProgress) {
