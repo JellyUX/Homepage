@@ -18,7 +18,7 @@ public sealed class RewardsCacheServiceTests : IDisposable
 {
     private readonly string _tempDir = Path.Combine(Path.GetTempPath(), "jux-rewards-tests-" + Guid.NewGuid());
 
-    private RewardsCacheService BuildService(IWikidataApiClient apiClient, ILibraryManager libraryManager, WidgetConfig[]? widgets = null)
+    private RewardsCacheService BuildService(IWikidataApiClient apiClient, ILibraryManager libraryManager, WidgetConfig[]? widgets = null, SectionResultCache? sectionResults = null)
     {
         var applicationPathsMock = new Mock<IApplicationPaths>();
         applicationPathsMock.Setup(p => p.DataPath).Returns(_tempDir);
@@ -29,7 +29,8 @@ public sealed class RewardsCacheServiceTests : IDisposable
             apiClient,
             libraryManager,
             () => new PluginConfiguration { Widgets = widgets ?? [] },
-            NullLogger<RewardsCacheService>.Instance);
+            NullLogger<RewardsCacheService>.Instance,
+            sectionResults);
     }
 
     private string CacheFilePath(string instanceId) =>
@@ -200,6 +201,29 @@ public sealed class RewardsCacheServiceTests : IDisposable
         await BuildService(apiClientMock.Object, library.Object, widgets).RefreshAllInstancesAsync(CancellationToken.None);
 
         library.Verify(m => m.GetItemList(It.IsAny<InternalItemsQuery>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RefreshInstanceAsync_RewrittenList_DropsTheCachedHomeSectionPages()
+    {
+        // R11 review (DEC-P07-15): a section page cached before the refresh would keep the old list.
+        var apiClientMock = new Mock<IWikidataApiClient>();
+        apiClientMock
+            .Setup(c => c.GetAwardWinnersAsync(It.IsAny<RewardsFilter>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<RewardsWinner>)[new RewardsWinner { Id = 1, FilmQid = "Q1", FilmLabel = "Film", ImdbId = "tt0000001" }]);
+        var library = new Mock<ILibraryManager>();
+        library.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([]);
+        using var sessionCache = new SessionCache();
+        using var sections = new SectionResultCache(sessionCache);
+        var user = Guid.NewGuid();
+        var instanceId = Guid.NewGuid().ToString();
+        var section = new SectionId(user, RewardsWidgetTypes.Rewards, instanceId, null);
+        Assert.True(sections.Set(section, 0, 20, new WidgetResult([], 0), sections.StampOf(user), TimeSpan.FromMinutes(15)));
+
+        await BuildService(apiClientMock.Object, library.Object, sectionResults: sections)
+            .RefreshInstanceAsync(instanceId, new RewardsFilter { CategoryQid = "Q102427" }, CancellationToken.None);
+
+        Assert.False(sections.TryGet(section, 0, 20, out _));
     }
 
     // -------------------------------------------------------------------------

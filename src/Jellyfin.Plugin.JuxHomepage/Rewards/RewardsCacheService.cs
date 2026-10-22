@@ -35,6 +35,7 @@ public sealed class RewardsCacheService : IRewardsCacheService, IDisposable
     private readonly IWikidataApiClient _apiClient;
     private readonly Func<PluginConfiguration?> _getConfiguration;
     private readonly ILogger<RewardsCacheService> _logger;
+    private readonly SectionResultCache? _sectionResults;
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private bool _disposed;
 
@@ -50,15 +51,18 @@ public sealed class RewardsCacheService : IRewardsCacheService, IDisposable
     /// instances. Defaults to <c>Plugin.Instance?.Configuration</c> in production.
     /// </param>
     /// <param name="logger">Logger.</param>
+    /// <param name="sectionResults">Home section pages, dropped when a list is rewritten.</param>
     public RewardsCacheService(
         IApplicationPaths applicationPaths,
         IFileSystem fileSystem,
         IWikidataApiClient apiClient,
         ILibraryManager libraryManager,
         Func<PluginConfiguration?> getConfiguration,
-        ILogger<RewardsCacheService> logger)
+        ILogger<RewardsCacheService> logger,
+        SectionResultCache? sectionResults = null)
     {
         _apiClient = apiClient;
+        _sectionResults = sectionResults;
         _getConfiguration = getConfiguration;
         _logger = logger;
         _crossReferencer = new LibraryCrossReferencer(libraryManager, logger);
@@ -122,6 +126,7 @@ public sealed class RewardsCacheService : IRewardsCacheService, IDisposable
                 fallbackProvider: null).ConfigureAwait(false);
 
             _cache.WriteUnlessEmpty(GetFileName(instanceId), items);
+            _sectionResults?.Clear();
             LogRefreshOutcome(instanceId, items.Count, matched);
         }
         catch (Exception ex)

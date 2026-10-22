@@ -42,6 +42,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
     private readonly ITMDbApiClient _apiClient;
     private readonly Func<PluginConfiguration?> _getConfiguration;
     private readonly ILogger<TMDbCacheService> _logger;
+    private readonly SectionResultCache? _sectionResults;
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
     private bool _disposed;
 
@@ -58,6 +59,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
     /// </param>
     /// <param name="logger">Logger.</param>
     /// <param name="timeProvider">Time source of the cache ages. Defaults to <see cref="TimeProvider.System"/>.</param>
+    /// <param name="sectionResults">Home section pages, dropped when a list is rewritten.</param>
     public TMDbCacheService(
         IApplicationPaths applicationPaths,
         IFileSystem fileSystem,
@@ -65,9 +67,11 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
         ILibraryManager libraryManager,
         Func<PluginConfiguration?> getConfiguration,
         ILogger<TMDbCacheService> logger,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        SectionResultCache? sectionResults = null)
     {
         _apiClient = apiClient;
+        _sectionResults = sectionResults;
         _getConfiguration = getConfiguration;
         _logger = logger;
         _crossReferencer = new LibraryCrossReferencer(libraryManager, logger);
@@ -225,6 +229,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
             var matched = await MatchAsync(items, _movieExternalIds.GetImdbIdAsync, () => indexes.Movies, cancellationToken).ConfigureAwait(false);
             _movieExternalIds.Save();
             _movieCache.WriteUnlessEmpty(GetDiscoverFileName(instanceId), items);
+            _sectionResults?.Clear();
             _logger.LogInformation(
                 "TMDb Discover cache '{InstanceId}' refreshed: {ItemCount} item(s), {MatchedCount} matched to the local library.",
                 instanceId,
@@ -302,6 +307,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
             var matched = await MatchAsync(items, _movieExternalIds.GetImdbIdAsync, () => indexes.Movies, cancellationToken).ConfigureAwait(false);
             _movieExternalIds.Save();
             _movieCache.WriteUnlessEmpty(GetFileName(type), items);
+            _sectionResults?.Clear();
             LogRefreshOutcome(type, items.Count, matched);
         }
         catch (Exception ex)
@@ -322,6 +328,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
             var matched = await MatchAsync(items, _showExternalIds.GetImdbIdAsync, () => indexes.Shows, cancellationToken).ConfigureAwait(false);
             _showExternalIds.Save();
             _showCache.WriteUnlessEmpty(GetFileName(type), items);
+            _sectionResults?.Clear();
             LogRefreshOutcome(type, items.Count, matched);
         }
         catch (Exception ex)

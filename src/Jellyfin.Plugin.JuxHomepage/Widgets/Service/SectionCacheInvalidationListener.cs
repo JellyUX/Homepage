@@ -9,7 +9,8 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets;
 /// any user data save drops that user's pages (a title watched, resumed, rated or liked changes
 /// Continue Watching, Next Up, the Watchlist and the sections that hide watched titles), and an item
 /// added to or removed from the library drops every page (Recently Added). A configuration change or a
-/// user's settings change already drops them through the layout cache's version.
+/// user's settings change already drops them through the layout cache's version, and a rewritten TMDb or
+/// Rewards list drops every page from <c>TMDbCacheService</c> and <c>RewardsCacheService</c>.
 /// </summary>
 public sealed class SectionCacheInvalidationListener : IHostedService
 {

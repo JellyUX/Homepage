@@ -23,7 +23,8 @@ public sealed class TMDbCacheServiceTests : IDisposable
         ILibraryManager libraryManager,
         int refreshIntervalHours = 24,
         TMDbListsConfig? lists = null,
-        string? apiKey = null)
+        string? apiKey = null,
+        SectionResultCache? sectionResults = null)
     {
         var applicationPathsMock = new Mock<IApplicationPaths>();
         applicationPathsMock.Setup(p => p.DataPath).Returns(_tempDir);
@@ -39,7 +40,8 @@ public sealed class TMDbCacheServiceTests : IDisposable
                 TMDbLists = lists ?? new TMDbListsConfig(),
                 ApiKeys = new ApiKeysConfig { TMDb = apiKey }
             },
-            NullLogger<TMDbCacheService>.Instance);
+            NullLogger<TMDbCacheService>.Instance,
+            sectionResults: sectionResults);
     }
 
     private TMDbCacheService BuildServiceWithWidgets(ITMDbApiClient apiClient, ILibraryManager libraryManager, WidgetConfig[] widgets)
@@ -125,6 +127,24 @@ public sealed class TMDbCacheServiceTests : IDisposable
         await service.RefreshTrendingMoviesAsync(CancellationToken.None);
 
         Assert.False(service.IsStale(TMDbCacheType.TrendingMovies));
+    }
+
+    [Fact]
+    public async Task Refresh_RewrittenList_DropsTheCachedHomeSectionPages()
+    {
+        // R11 review (DEC-P07-15): a section page cached before the refresh would keep the old list.
+        var apiClientMock = new Mock<ITMDbApiClient>();
+        apiClientMock.Setup(c => c.GetTrendingMoviesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<TMDbMovie>)[new TMDbMovie { Id = 1, Title = "A" }]);
+        using var sessionCache = new SessionCache();
+        using var sections = new SectionResultCache(sessionCache);
+        var user = Guid.NewGuid();
+        var section = new SectionId(user, "jux.connected.trending-movies", null, null);
+        Assert.True(sections.Set(section, 0, 20, new WidgetResult([], 0), sections.StampOf(user), TimeSpan.FromMinutes(15)));
+
+        await BuildService(apiClientMock.Object, NoMatchLibraryManager(), sectionResults: sections).RefreshAllAsync(null, CancellationToken.None);
+
+        Assert.False(sections.TryGet(section, 0, 20, out _));
     }
 
     [Fact]
