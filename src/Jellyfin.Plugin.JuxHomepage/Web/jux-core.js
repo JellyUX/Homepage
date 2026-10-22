@@ -1,9 +1,7 @@
 'use strict';
 
-// JellyUX shared core (TODO_V4.md 5.1, F-35): the helpers every client module needs, loaded first
-// whenever the plugin is enabled, so a defect fixed here is fixed in every module. Its only UI is
-// the error state the home sections share with the tabs; the tab widgets live in jux-ui.js, which
-// builds on this file.
+// JellyUX shared core (F-35): the helpers of every client module, loaded first. Its only UI is the
+// error state shared by the home sections and the tabs (tab widgets: jux-ui.js).
 (function () {
     if (typeof window.JuxCore !== 'undefined') {
         return;
@@ -39,10 +37,8 @@
         return /^[a-z0-9_]+$/.test(String(name || '')) ? String(name) : (fallback || 'info');
     }
 
-    // Network results of the current detail item, shared by every detail-page module (collections,
-    // breadcrumb, flattened seasons): one Promise per key, so the same request is sent at most once
-    // per item however many modules and mutation batches ask for it. A failed request stays cached
-    // (no retry loop on every DOM mutation) until another item is opened.
+    // One Promise per key for the detail item shown, shared by the detail-page modules; a failure
+    // stays cached (no retry on every DOM mutation) until another item is opened.
     var _itemCache = { itemId: null };
 
     function cached(itemId, key, request) {
@@ -89,9 +85,8 @@
         return entry.promise;
     }
 
-    // A JSON request that rejects when the server has not answered within ms (FIAB-08, default 15 s):
-    // a server that accepts the connection but never answers would otherwise keep the page waiting
-    // for good. A late answer is dropped (test: jux-core.test.js "fetchWithTimeout").
+    // A JSON request that rejects after ms without an answer (FIAB-08, 15 s); a late answer is dropped
+    // (test: jux-core.test.js "fetchWithTimeout").
     var REQUEST_TIMEOUT_MS = 15000;
 
     function fetchWithTimeout(apiClient, url, ms) {
@@ -112,10 +107,9 @@
         });
     }
 
-    // Deferred card images (TODO_V4.md 2.3, F-10). cardBuilder.getCardsHtml emits
-    // ".cardImageContainer.lazy[data-src]", but a JellyUX container never gets Jellyfin's native lazy
-    // loading, so each image is applied when its card comes near the viewport. One observer per
-    // container: re-rendering a container drops the observer of its previous, now detached cards.
+    // Deferred card images (F-10): a JellyUX container gets no native lazy loading, so each
+    // ".lazy[data-src]" image is applied near the viewport. One observer per container, replaced on
+    // each render.
     var _imageObservers = typeof WeakMap === 'function' ? new WeakMap() : null;
 
     function _applyCardImage(el) {
@@ -137,8 +131,6 @@
             return;
         }
 
-        // Every still-lazy image of the container is selected again, so cards appended to it (infinite
-        // scroll) and cards not reached yet are both observed by the new observer.
         var previous = _imageObservers.get(container);
         if (previous) {
             previous.disconnect();
@@ -158,19 +150,21 @@
         });
     }
 
-    // Labels (TODO_V4.md 9.4, F-64): the client strings live in Localization/<lang>.json under
-    // "client.*" keys, served by jux-i18n.js (window.JuxI18n, one dictionary per language), injected
-    // before this script. A key missing from the user's language falls back to English.
+    // Labels (F-64): the "client.*" keys of Localization/<lang>.json, served as window.JuxI18n by
+    // jux-i18n.js before this script; a key missing from a language falls back to English.
     function _dictionaries() {
         return window.JuxI18n || {};
     }
 
-    // The language of the labels: the web client's language when JellyUX has a dictionary for it,
-    // English otherwise. lang overrides the page language (a document other than this one).
+    function _has(object, key) {
+        return Object.prototype.hasOwnProperty.call(object, key);
+    }
+
+    // The page language (or lang) when JellyUX has a dictionary for it, English otherwise.
     function resolveLang(lang) {
         var code = String(lang === undefined ? document.documentElement.lang || 'en' : lang || 'en')
             .toLowerCase().split('-')[0];
-        return Object.prototype.hasOwnProperty.call(_dictionaries(), code) ? code : 'en';
+        return _has(_dictionaries(), code) ? code : 'en';
     }
 
     // One label, its {name} placeholders filled from params; the key itself when no language has it.
@@ -178,8 +172,7 @@
         var dictionaries = _dictionaries();
         var own = dictionaries[resolveLang(lang)] || {};
         var english = dictionaries.en || {};
-        var text = Object.prototype.hasOwnProperty.call(own, key) ? own[key]
-            : Object.prototype.hasOwnProperty.call(english, key) ? english[key] : key;
+        var text = _has(own, key) ? own[key] : _has(english, key) ? english[key] : key;
         Object.keys(params || {}).forEach(function (name) {
             text = text.split('{' + name + '}').join(String(params[name]));
         });
@@ -210,14 +203,9 @@
         return result;
     }
 
-    // Error state (TODO_V4.md 5.2, F-40): what a failed request shows instead of an empty state, so
-    // an outage never reads as "nothing here". Here rather than in jux-ui.js because the home
-    // sections need it with the tabs module off. The retry button reuses Jellyfin's own raised
-    // button (emby-button), measured live on 10.11.10.
-    // options: { name } for a full-pane error naming what failed, or { compact: true } for one line
-    // inside a home section.
-    // A missing dictionary (jux-i18n.js not served) leaves the labels empty instead of throwing inside
-    // the caller's .catch (Annexe.b): the retry button still works.
+    // Error state (F-40), so an outage never reads as "nothing here", with Jellyfin's raised button.
+    // options: { name } for a full pane, { compact: true } for one line in a home section. Missing
+    // labels leave the text empty, never throw (Annexe.b).
     function errorHtml(options) {
         var text = labels('error');
         var compact = !!(options && options.compact);
@@ -248,13 +236,10 @@
         });
     }
 
-    // "Turn JellyUX off for me" (TODO_V4.md 8.3, F-36). The server reports it in answers the
-    // client already reads (Watchlist/Ids on every page while the cards module is on, Sections on the
-    // home page); the answer is kept for the browser session, per user: '0' on, '1' off, nothing while
-    // unknown (in memory only when storage is blocked). The detail-page modules wait for it before
-    // they arm (H-09): a tab opened straight on a detail page has no answer yet, so they wait for the
-    // request a module already sent (reportUserStateRequest) or JuxCore reads UserSettings once
-    // (tests: jux-core.test.js "on a detail page opened directly").
+    // "Turn JellyUX off for me" (F-36), read from answers the client already gets (Watchlist/Ids,
+    // Sections) and kept per user for the session: '0' on, '1' off, nothing while unknown (in memory
+    // when storage is blocked). Detail-page modules wait for it (H-09): for a request a module sent,
+    // else one UserSettings read (tests: jux-core.test.js "on a detail page opened directly").
     var USER_OFF_KEY = 'jux-user-off:';
     var _blockedStorageStates = {};
     var _userStateRequests = {};
@@ -401,12 +386,10 @@
         };
     }
 
-    // In-flight guard of the detail-page renders: the mutation handlers run many times in quick
-    // succession while the DOM settles, each well before the previous call's requests resolve. The
-    // element is marked with dataset[key] = id synchronously, start() runs only when no call for the
-    // same id is in flight, and the mark is cleared when the promise start() returns settles, unless
-    // a newer id took it meanwhile. Returns that promise, or null when a call was already in flight
-    // (test: jux-collections.test.js "in-flight guard").
+    // In-flight guard of the detail-page renders, run many times while the DOM settles: start() runs
+    // only when no call for the same id is in flight (el.dataset[key] = id, cleared when its promise
+    // settles unless a newer id took it). Returns that promise, or null (test: jux-collections.test.js
+    // "in-flight guard").
     function runInFlight(el, key, id, start) {
         if (el.dataset[key] === id) {
             return null;
@@ -429,13 +412,9 @@
         return Promise.resolve(result).finally(release);
     }
 
-    // Runs onChange on every DOM mutation while a detail page is shown and JellyUX is on for the user;
-    // it subscribes to the shared observer only then, so on every other page a detail-page module
-    // costs nothing. A tab opened straight on a detail page loads the scripts before the user is
-    // signed in and before any answer said whether JellyUX runs for them (H-09): each run first waits
-    // for a user, then for that answer. onLeave (optional) runs on every other page and when the user
-    // turns out to be off. Returns the sync function, run again 400 ms after each hash change (the
-    // time Jellyfin takes to swap the view).
+    // Runs onChange on every DOM mutation while a detail page is shown and JellyUX is on for the user,
+    // subscribed only then. Each run waits for a user, then for the user state (H-09). onLeave runs on
+    // other pages and when the user is off. Returns sync, run again 400 ms after each hash change.
     function watchDetailPages(onChange, onLeave) {
         var unsubscribe = null;
         // One wait for the user state at a time: the mutations that arrive meanwhile are covered by

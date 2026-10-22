@@ -1,9 +1,7 @@
 'use strict';
 
-// JellyUX Homepage - home screen override.
-// This script is injected into Jellyfin's index.html by the plugin.
-// window.JellyfinAPI is populated by the loadSections splice fragment (jux-loadsections-inject.js)
-// before control reaches window.JUXHomepage.loadSections.
+// JellyUX home screen. The loadSections splice (jux-loadsections-inject.js) sets window.JellyfinAPI
+// before it calls window.JUXHomepage.loadSections.
 
 (function () {
     if (typeof window.JUXHomepage !== 'undefined') {
@@ -17,19 +15,11 @@
         loadSections: function (elem, apiClient, user, userSettings, page) {
             var self = this;
 
-            // Graceful disable on TV layout only (D-02 a). layoutManager sets "layout-tv" on the html
-            // element, not on body (jellyfin-web 10.11.10: documentElement.classList.add("layout-"+t)).
-            // Windows/Android native apps also expose window.NativeShell, but they run the exact same
-            // jellyfin-web bundle in an embedded WebView, loaded live from the connected server -- same
-            // DOM, same loadSections chunk, same FileTransformation patches -- so there is no technical
-            // reason to bail out there.
-            if (document.documentElement.classList.contains('layout-tv')) {
-                return _fallback(self, elem, apiClient, user, userSettings);
-            }
-
-            // Turned off for this user (TODO_V4.md 8.3): Jellyfin renders the home screen, without a
-            // Sections request.
-            if (!_isHomePage() || window.JuxCore.isOffForUser()) {
+            // The native home in the TV layout (D-02 a), set on <html> (FIAB-05), off the home page and
+            // for a user who turned JellyUX off (F-36), with no Sections request. The desktop apps run
+            // the same bundle in a WebView: no reason to bail out there.
+            if (document.documentElement.classList.contains('layout-tv') || !_isHomePage() ||
+                window.JuxCore.isOffForUser()) {
                 return _fallback(self, elem, apiClient, user, userSettings);
             }
 
@@ -129,24 +119,14 @@
             _rowObservers.delete(elem);
         }
 
-        // Only the first page load falls back to native rendering on failure: at that point
-        // nothing has been rendered yet, so a permanently blank home screen would otherwise result.
-        // Later lazy-loaded pages (see _setupLazyLoader) intentionally do NOT fall back -- by then
-        // JUX has already rendered a working layout, and swapping to native mid-page would break it.
+        // Only a failed first page hands the home back to Jellyfin: a later page fails alone, below
+        // a working layout.
         return _loadPage(elem, apiClient, userId, userSettings, 0, function () {
             elem.classList.remove('jux-homepage-active', 'homeSectionsContainer');
             return _fallback(self, elem, apiClient, user, userSettings);
         }).then(function (result) {
-            // TODO_V3.md Phase 7.3 fix: the lazy loader used to be armed above, before this first page
-            // had actually rendered anything -- on a short layout its sentinel sat in a still-empty
-            // container and intersected almost immediately, firing page=1 in a near-simultaneous race
-            // with page=0. Arming it only here, after page 0 has resolved, removes that race; a short
-            // (but non-empty) first page still correctly triggering an immediate page=1 fill afterward
-            // is the intended lazy-fill-viewport behavior, not a bug. The class check guards against
-            // arming it when page 0 failed and fell back to native rendering above (that failure path
-            // strips the "jux-homepage-active" class).
-            // Armed only when page 0 reported a later page: a layout that fits in one page never
-            // requests an empty one.
+            // The page loader is armed once page 0 rendered (it raced page 0 before, TODO_V3.md 7.3),
+            // unless page 0 fell back to native, and only when a later page exists.
             if (elem.classList.contains('jux-homepage-active') && elem.dataset.juxHasMore === 'true') {
                 _setupLazyLoader(elem, apiClient, userId, userSettings);
             }
@@ -222,9 +202,7 @@
             'verticalSection jux-widget-section jux-widget-' +
             descriptor.WidgetType.replace(/\./g, '-');
 
-        // TODO_V3.md Phase 9.1: generic hook for any widget instance carrying a Theme (currently
-        // only the Seasonal widget's presets set one). No style reads it today (TODO_V4.md 7.4): it
-        // stays as a stable anchor for a future per-theme look, scoped to this one section only.
+        // Seasonal presets set a Theme; no style reads it yet (TODO_V4.md 7.4).
         if (descriptor.Theme) {
             sectionEl.setAttribute('data-jux-theme', descriptor.Theme);
         }
@@ -304,17 +282,10 @@
         return api.getBackdropShape;
     }
 
-    // The native sections read the same Jellyfin routes as the native home page, with the query
-    // their server widget mirrors (identical items and order, measured on 8096): other plugins hook
-    // their filters on these routes and never see /JuxHomepage/Section, so Jellyfin Enhanced hidden
-    // content, Remove from Continue Watching and Spoiler Guard apply here too (TODO_V4.md 4.3, F-15).
-    // Recently Added reads Items/Latest, the native "Latest" route, so the user's home preferences
-    // apply as on the native home: libraries excluded from latest media, and played items hidden
-    // (TODO_V4.md 8.3, F-36). Shows are episodes grouped by series, as the native Latest of a shows
-    // library: Latest filtered on Series took over 150 s on a 200-series library (measured on 8096).
-    // Latest counts its limit in episodes, so the shows read more episodes than cards, and Recently Added
-    // Episodes caps the cards of one series (TODO_V4.md 9.3, F-65): both values come from the section's
-    // descriptor (LimitFactor, MaxPerSeries), the ones its server widget probes with (PERF-03.c).
+    // These native sections read the native home's routes, so the filters other plugins hook there
+    // apply too (F-15), and Items/Latest honours the user's home preferences (F-36). Shows are
+    // episodes grouped by series (Latest on Series took 150 s, 8096); LimitFactor and MaxPerSeries
+    // (F-65) are the values the server probe uses (PERF-03.c).
     var NATIVE_ROUTES = {
         'jux.native.continue-watching': { path: 'UserItems/Resume', params: { mediaTypes: 'Video' } },
         'jux.native.next-up': { path: 'Shows/NextUp', params: {} },
@@ -377,16 +348,12 @@
         };
     }
 
-    // A failed section request (TODO_V4.md 5.2, F-40). The native itemscontainer hides its section
-    // when it receives no item and never catches a rejected fetchData (one unhandledrejection per
-    // section): the failure resolves to a single marker row instead, so the section stays visible
-    // and renders the error, with a retry button, in place of its cards.
+    // A failed section request (F-40) resolves to one marker row: the native container would hide an
+    // empty section and never catches a rejected fetchData. The row renders the error and a retry.
     var SECTION_ERROR = { juxSectionError: true };
 
-    // Leaving the home page runs Jellyfin's destroySections, which nulls fetchData and getItemsHtml on
-    // every container it removes; a section still loading then answered into a dead container, whose
-    // native render threw "this.getItemsHtml is not a function" (A-02, jellyfin-web 10.11.10). Its
-    // answer is dropped instead: the promise never settles (test: jux-homepage.test.js "destroyed").
+    // destroySections nulls the hooks of the containers it removes when the user leaves home; an
+    // answer arriving later is dropped, never settled (A-02; test: jux-homepage.test.js "destroyed").
     function _guardFetchData(fetchData, descriptor) {
         return function () {
             var container = this;
@@ -553,12 +520,9 @@
     // Routing helpers
     // -------------------------------------------------------------------------
 
-    // The "see all" of a section (TODO_V4.md 9.3, F-56), from its server Route (WidgetRoutes.cs) and
-    // its AdditionalData. Every target was checked live on Jellyfin 10.11 (8097): the native list and
-    // detail pages take ids, never names (a genre name in genreId opens an empty list), #/nextup.html
-    // does not exist, and #/list ignores a year. A target the descriptor fully describes is a plain
-    // link ({ href }); one that needs an id, the user's library or a JellyUX tab is resolved when the
-    // link is clicked ({ resolve }), so the home screen itself sends no request for it.
+    // The "see all" of a section (F-56) from its Route (WidgetRoutes.cs), checked live on 10.11: the
+    // native pages take ids, not names. A plain link is { href }; one that needs an id, the library
+    // or a JellyUX tab is { resolve }, run on click, so the home screen sends no request for it.
     function _seeAllTarget(apiClient, userId, descriptor) {
         var value = descriptor.AdditionalData;
         var server = '&serverId=' + encodeURIComponent(apiClient.serverId());
@@ -632,24 +596,15 @@
     }
 
     // -------------------------------------------------------------------------
-    // Utilities
-    // -------------------------------------------------------------------------
-
-    // -------------------------------------------------------------------------
     // Stale chunk guard (TODO_V4.md 4.2, F-13)
     // -------------------------------------------------------------------------
 
-    // A chunk fetched before JellyUX was installed only carries Last-Modified, so the browser may
-    // keep serving that native copy from its heuristic cache; Ctrl+Shift+R does not refetch it
-    // because it is loaded dynamically. Only fetch(url, { cache: 'reload' }) replaces it (E8-04).
-    // The guard does that once per browser session, then reloads; if the home page is still native
-    // after that reload, an intermediate cache (CDN, proxy) serves it and a message says so. A native
-    // home page is also what a Jellyfin Web update the server cannot patch gives: the guard asks the
-    // server first and reloads only for a chunk it patches (FIAB-04; tests: jux-homepage.test.js
-    // "asks the server before reloading", "neither reloads nor blames a cache"). It polls
-    // only while the home page is shown, at most CHUNK_GUARD_MAX_TICKS seconds there; on another page
-    // it pauses until the next view is shown (Annexe.a: it used to poll 300 s on any page; test:
-    // jux-homepage.test.js "does not poll while another page is shown").
+    // A chunk cached before JellyUX was installed can outlive Ctrl+Shift+R; only fetch(url, { cache:
+    // 'reload' }) replaces it (E8-04). Once per session the guard refetches and reloads; a home page
+    // still native after that comes from a CDN or proxy, and a message says so. It reloads only for a
+    // chunk the server patches (FIAB-04; tests: jux-homepage.test.js "asks the server before
+    // reloading", "neither reloads nor blames a cache") and polls only while the home page is shown
+    // (Annexe.a; test: "does not poll while another page is shown").
     var CHUNK_RELOAD_KEY = 'jux-chunk-reload';
     var CHUNK_GUARD_INTERVAL_MS = 1000;
     var CHUNK_GUARD_MAX_TICKS = 300;
@@ -820,13 +775,7 @@
         start();
     }
 
-    // Guarded UMD-lite export (TODO_V2.md Phase 15.3): `module` is undefined in a browser, so this
-    // branch never executes in production -- zero behavior change there. It lets a Node-based test
-    // runner (Vitest) `require()`/`import` this file and exercise its pure functions directly,
-    // without needing to convert this script to a real ES module (which would work fine here, since
-    // it's injected via a plain <script src> tag -- see TransformationPatches.cs -- rather than the
-    // AJAX-evaluated fragment mechanism that ruled out ES modules for config.js in Phase 11; this
-    // file simply doesn't need that conversion for testing purposes).
+    // Exported for the Vitest suite only: `module` is undefined in a browser (TODO_V2.md 15.3).
     if (typeof module !== 'undefined' && module.exports) {
         module.exports = {
             _seeAllTarget: _seeAllTarget,

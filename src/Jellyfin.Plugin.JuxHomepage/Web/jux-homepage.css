@@ -1,19 +1,7 @@
-/* JellyUX Homepage - home screen styles.
- * Only jux-prefixed classes are styled here.
- * Native Jellyfin classes (.homeSectionsContainer, .verticalSection, .itemsContainer, etc.)
- * are never redefined, ensuring compatibility with ZestyTheme and Media Bar.
- * All colors use native Jellyfin CSS custom properties - no hardcoded values.
- * The following variables are intentionally never redefined: --accent, --dark, --darkest.
- */
+/* JellyUX home screen: jux classes only, native classes never redefined (ZestyTheme, Media Bar),
+ * colors from Jellyfin's custom properties; --accent, --dark, --darkest never redefined. */
 
-/* Items container inside a JUX section - no visual override, purely a targeting anchor. */
-.jux-items-container {
-    /* Inherits all layout from Jellyfin's native .itemsContainer / .scrollSlider rules. */
-}
-
-/* A long section title wraps left of the native scroll buttons instead of running under them
- * (KTW-04.a): they sit absolutely at the right of the title row, 7.83em wide (116.5 px at 390 px,
- * measured on 8096), plus a gap. */
+/* A long title wraps left of the native scroll buttons, 7.83em wide (KTW-04.a, 8096). */
 .jux-widget-section.emby-scroller-container > .sectionTitleContainer {
     padding-right: 8.4em;
 }
