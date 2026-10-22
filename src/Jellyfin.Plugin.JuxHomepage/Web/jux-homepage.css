@@ -11,6 +11,13 @@
     /* Inherits all layout from Jellyfin's native .itemsContainer / .scrollSlider rules. */
 }
 
+/* A long section title wraps left of the native scroll buttons instead of running under them
+ * (KTW-04.a): they sit absolutely at the right of the title row, 7.83em wide (116.5 px at 390 px,
+ * measured on 8096), plus a gap. */
+.jux-widget-section.emby-scroller-container > .sectionTitleContainer {
+    padding-right: 8.4em;
+}
+
 /* Sentinel used by IntersectionObserver for lazy loading. */
 .jux-lazy-sentinel {
     height: 1px;

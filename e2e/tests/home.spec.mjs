@@ -129,6 +129,25 @@ test('a fresh install renders the seven native sections, each with cards (F-25)'
     expect(errors).toEqual([]);
 });
 
+test('a long section title wraps left of the native scroll buttons at 390 px (KTW-04)', async ({ page }) => {
+    // A mouse at 390 px: the touch project gets no scroll buttons, so nothing to overlap there.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await login(page, env.admin);
+    await page.locator('.jux-widget-section .emby-scrollbuttons').first().waitFor();
+    await page.locator('.jux-widget-section .sectionTitle').first()
+        .evaluate((title) => { title.textContent = 'Because you watched House of the Dragon'; });
+
+    const overlaps = await page.locator('.jux-widget-section').evaluateAll((sections) => sections
+        .map((s) => [s.querySelector('.sectionTitle'), s.querySelector('.emby-scrollbuttons')])
+        .filter(([title, buttons]) => title && buttons)
+        .map(([title, buttons]) => [title.getBoundingClientRect(), buttons.getBoundingClientRect(), title.textContent])
+        .filter(([t, b]) => t.right > b.left && t.left < b.right && t.bottom > b.top && t.top < b.bottom)
+        .map(([, , text]) => text));
+
+    await test.info().attach('titles at 390 px', { body: await page.screenshot(), contentType: 'image/png' });
+    expect(overlaps).toEqual([]);
+});
+
 test('the four JellyUX tabs open, one pane at a time', async ({ page }) => {
     const errors = watchJuxErrors(page);
     await login(page, env.admin);
