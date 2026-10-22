@@ -10,7 +10,8 @@ const {
     _parseSortSettings,
     _buildItemsQuery,
     _hasMoreItems,
-    _syncSession
+    _syncSession,
+    _toggle
 } = juxCardHooks;
 
 describe('_iconName', () => {
@@ -259,6 +260,47 @@ describe('_syncSession (F-51)', () => {
 
         expect(api.getJSON).toHaveBeenCalledTimes(2);
         errorSpy.mockRestore();
+    });
+});
+
+describe('_toggle', () => {
+    const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+    afterEach(() => {
+        delete window.ApiClient;
+    });
+
+    function client() {
+        return {
+            getCurrentUserId: () => 'alice',
+            updateUserItemRating: vi.fn(() => Promise.resolve()),
+            clearUserItemRating: vi.fn(() => Promise.resolve())
+        };
+    }
+
+    it('adds an item by liking it', async () => {
+        const api = client();
+        window.ApiClient = api;
+        const likedIds = new Set();
+
+        _toggle('m1', likedIds);
+        await flush();
+
+        expect(api.updateUserItemRating).toHaveBeenCalledWith('alice', 'm1', true);
+        expect([...likedIds]).toEqual(['m1']);
+    });
+
+    it('removes an item by clearing its rating, not by disliking it', async () => {
+        const api = client();
+        window.ApiClient = api;
+        const likedIds = new Set(['m1']);
+
+        _toggle('m1', likedIds);
+        await flush();
+
+        expect(api.clearUserItemRating).toHaveBeenCalledWith('alice', 'm1');
+        expect(api.updateUserItemRating).not.toHaveBeenCalled();
+        expect(likedIds.size).toBe(0);
     });
 });
 

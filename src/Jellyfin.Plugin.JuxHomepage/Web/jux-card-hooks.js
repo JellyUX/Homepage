@@ -422,7 +422,12 @@
         var userId = window.ApiClient.getCurrentUserId();
         var nowLiked = !likedIds.has(itemId);
 
-        window.ApiClient.updateUserItemRating(userId, itemId, nowLiked).then(function () {
+        // Removing clears the rating: a false "likes" would leave the item disliked in Jellyfin.
+        var request = nowLiked
+            ? window.ApiClient.updateUserItemRating(userId, itemId, true)
+            : window.ApiClient.clearUserItemRating(userId, itemId);
+
+        request.then(function () {
             if (nowLiked) {
                 likedIds.add(itemId);
             } else {
@@ -839,7 +844,8 @@
             _parseSortSettings: _parseSortSettings,
             _buildItemsQuery: _buildItemsQuery,
             _hasMoreItems: _hasMoreItems,
-            _syncSession: _syncSession
+            _syncSession: _syncSession,
+            _toggle: _toggle
         };
     }
 })();
