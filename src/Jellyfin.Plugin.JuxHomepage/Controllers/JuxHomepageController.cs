@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Reflection;
-using System.Text.Json;
 using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.Inject;
 using Jellyfin.Plugin.JuxHomepage.Library;
@@ -129,7 +128,7 @@ public class JuxHomepageController : ControllerBase
         if (name == TransformationPatches.ClientI18nAsset)
         {
             SetCacheHeaders(Request, Response);
-            return Content(ClientI18nScript(_localizationService), "application/javascript");
+            return Content(_localizationService.GetClientScript(), "application/javascript");
         }
 
         var stream = name is null ? null : PluginAssembly.GetManifestResourceStream(WebResourcePrefix + name);
@@ -910,15 +909,6 @@ public class JuxHomepageController : ControllerBase
             User.IsInRole("Administrator"));
         return (userId, !caller.IsApiKey && userId == caller.UserId);
     }
-
-    /// <summary>
-    /// Builds <c>jux-i18n.js</c>: the client labels of every language as <c>window.JuxI18n</c>, read
-    /// synchronously by <c>JuxCore.t</c> and <c>JuxCore.labels</c> (TODO_V4.md 9.4, F-64).
-    /// </summary>
-    /// <param name="localizationService">The service holding the embedded language files.</param>
-    /// <returns>The script source.</returns>
-    internal static string ClientI18nScript(ILocalizationService localizationService) =>
-        "window.JuxI18n = " + JsonSerializer.Serialize(localizationService.GetClientDictionaries()) + ";\n";
 
     private static void SetCacheHeaders(HttpRequest request, HttpResponse response)
     {

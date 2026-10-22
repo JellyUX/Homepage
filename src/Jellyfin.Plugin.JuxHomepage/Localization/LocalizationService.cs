@@ -28,6 +28,8 @@ public sealed class LocalizationService : ILocalizationService
 
     private readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> _dictionaries;
 
+    private string? _clientScript;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="LocalizationService"/> class, loading every
     /// <c>Localization/&lt;lang&gt;.json</c> embedded in this assembly.
@@ -98,6 +100,13 @@ public sealed class LocalizationService : ILocalizationService
             d => (IReadOnlyDictionary<string, string>)d.Value
                 .Where(e => e.Key.StartsWith(ClientKeyPrefix, StringComparison.Ordinal))
                 .ToDictionary(e => e.Key, e => e.Value));
+
+    /// <inheritdoc/>
+    /// <remarks>The language files are embedded, so the script never changes while the plugin runs; two
+    /// first requests at once may both build it, with the same result (test:
+    /// GetClientScript_ReadTwice_IsBuiltOnce).</remarks>
+    public string GetClientScript() =>
+        _clientScript ??= "window.JuxI18n = " + JsonSerializer.Serialize(GetClientDictionaries()) + ";\n";
 
     /// <inheritdoc />
     public string NormalizeLanguage(string? lang)

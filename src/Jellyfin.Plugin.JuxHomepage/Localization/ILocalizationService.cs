@@ -49,4 +49,11 @@ public interface ILocalizationService
     /// </summary>
     /// <returns>The client keys of each language, by short language code.</returns>
     IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> GetClientDictionaries();
+
+    /// <summary>
+    /// Returns <c>jux-i18n.js</c>: the <see cref="GetClientDictionaries"/> of every language as
+    /// <c>window.JuxI18n</c>, read synchronously by <c>JuxCore.t</c> and <c>JuxCore.labels</c>.
+    /// </summary>
+    /// <returns>The script source, built once per service (Annexe.a).</returns>
+    string GetClientScript();
 }

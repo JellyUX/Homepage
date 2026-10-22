@@ -362,7 +362,7 @@ public sealed class JuxHomepageControllerTests
         Assert.Equal(JavaScript, result.ContentType);
         Assert.Equal("public, max-age=3600", response.Headers.CacheControl.ToString());
 
-        var script = JuxHomepageController.ClientI18nScript(new LocalizationService(NullLogger<LocalizationService>.Instance));
+        var script = new LocalizationService(NullLogger<LocalizationService>.Instance).GetClientScript();
         const string Prefix = "window.JuxI18n = ";
         Assert.StartsWith(Prefix, script);
         using var json = JsonDocument.Parse(script[Prefix.Length..script.LastIndexOf(';')]);

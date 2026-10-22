@@ -267,6 +267,21 @@ describe('labels (F-64)', () => {
         expect(juxCore.t('client.unknown.key')).toBe('client.unknown.key');
     });
 
+    it('builds the labels of a scope once, and again when another dictionary is served (Annexe.a)', () => {
+        const first = juxCore.labels('list', 'de');
+        expect(juxCore.labels('list', 'de')).toBe(first);
+
+        window.JuxI18n.de = { 'client.list.more': 'Mehr laden' };
+
+        const served = juxCore.labels('list', 'de');
+        expect(served).not.toBe(first);
+        expect(served.more).toBe('Mehr laden');
+        expect(juxCore.labels('list', 'de')).toBe(served);
+
+        window.JuxI18n.de = { 'client.list.more': 'Weitere laden' };
+        expect(juxCore.labels('list', 'de').more).toBe('Weitere laden');
+    });
+
     it('leaves no label dictionary in the client scripts', () => {
         const web = resolve(__dirname, '../src/Jellyfin.Plugin.JuxHomepage/Web');
         const offenders = readdirSync(web)

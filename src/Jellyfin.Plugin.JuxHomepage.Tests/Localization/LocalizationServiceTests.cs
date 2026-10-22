@@ -90,6 +90,15 @@ public sealed class LocalizationServiceTests
     }
 
     [Fact]
+    public void GetClientScript_ReadTwice_IsBuiltOnce()
+    {
+        // Annexe.a: jux-i18n.js used to be serialized again on every request.
+        var service = new LocalizationService(NullLogger<LocalizationService>.Instance);
+
+        Assert.Same(service.GetClientScript(), service.GetClientScript());
+    }
+
+    [Fact]
     public void Translate_KeyPresentInRequestedLanguage_ReturnsTranslatedValue()
     {
         var service = BuildService();

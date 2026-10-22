@@ -186,12 +186,21 @@
         return text;
     }
 
-    // Every label of a script, "client.<scope>.<name>" read as labels(scope).name.
+    // Every label of a script, "client.<scope>.<name>" read as labels(scope).name. Built once per scope
+    // and language while the same dictionaries are served (Annexe.a; test: jux-core.test.js "labels").
+    var _labelCache = {};
+
     function labels(scope, lang) {
         var prefix = 'client.' + scope + '.';
         var dictionaries = _dictionaries();
+        var code = resolveLang(lang);
+        var hit = _labelCache[scope + '|' + code];
+        if (hit && hit.en === dictionaries.en && hit.own === dictionaries[code]) {
+            return hit.result;
+        }
         var result = {};
-        [dictionaries.en || {}, dictionaries[resolveLang(lang)] || {}].forEach(function (dictionary) {
+        _labelCache[scope + '|' + code] = { en: dictionaries.en, own: dictionaries[code], result: result };
+        [dictionaries.en || {}, dictionaries[code] || {}].forEach(function (dictionary) {
             Object.keys(dictionary).forEach(function (key) {
                 if (key.indexOf(prefix) === 0) {
                     result[key.slice(prefix.length)] = dictionary[key];
