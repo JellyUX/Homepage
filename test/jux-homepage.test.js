@@ -811,6 +811,24 @@ describe('sections loaded near the viewport (PERF-09)', () => {
         rows.forEach((row) => expect(row.querySelectorAll('.card.jux-skeleton-card').length).toBeGreaterThan(0));
     });
 
+    it('stops watching the rows of the previous render when Jellyfin reuses the container', async () => {
+        const elem = document.createElement('div');
+        document.body.appendChild(elem);
+        const client = {
+            getCurrentUserId: () => 'u1',
+            getUrl: (route) => route,
+            getJSON: vi.fn().mockResolvedValue({ Sections: [{ WidgetType: 'jux.genre', DisplayName: 'a' }], HasMore: false, Enabled: true })
+        };
+
+        await _renderHome({}, elem, client, {}, {});
+        const first = observers[0];
+        await _renderHome({}, elem, client, {}, {});
+
+        expect(observers).toHaveLength(2);
+        expect(first.targets).toEqual([]);
+        expect(observers[1].targets).toEqual([...elem.querySelectorAll('.jux-items-container')]);
+    });
+
     it('fetches every row at once in a browser without IntersectionObserver', async () => {
         delete globalThis.IntersectionObserver;
 
