@@ -27,6 +27,13 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
     /// </summary>
     internal static readonly TimeSpan RefreshTaskPeriod = TimeSpan.FromHours(1);
 
+    /// <summary>
+    /// The properties of a cached title written to disk: the widgets read only <c>libraryItemId</c>
+    /// (<c>ConnectedWidgetBase</c>) and the status counts the entries; the id names the entry
+    /// (Annexe.b, DEC-P07-11).
+    /// </summary>
+    private static readonly string[] StoredProperties = ["id", "libraryItemId"];
+
     private readonly DiskJsonCache<TMDbMovie> _movieCache;
     private readonly DiskJsonCache<TMDbShow> _showCache;
     private readonly TMDbExternalIdCache _movieExternalIds;
@@ -75,8 +82,8 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
         // movie cache serves the fixed trending/top-rated/now-playing movie files as well as every
         // per-instance Discover file (also movies), the show cache serves the fixed trending/airing
         // today/top-rated show files.
-        _movieCache = new DiskJsonCache<TMDbMovie>(cacheDir, fileSystem, logger, timeProvider);
-        _showCache = new DiskJsonCache<TMDbShow>(cacheDir, fileSystem, logger, timeProvider);
+        _movieCache = new DiskJsonCache<TMDbMovie>(cacheDir, fileSystem, logger, timeProvider, StoredProperties);
+        _showCache = new DiskJsonCache<TMDbShow>(cacheDir, fileSystem, logger, timeProvider, StoredProperties);
         _movieExternalIds = new TMDbExternalIdCache(cacheDir, "external_ids_movies.json", fileSystem, apiClient.GetMovieExternalIdsAsync, logger, timeProvider);
         _showExternalIds = new TMDbExternalIdCache(cacheDir, "external_ids_shows.json", fileSystem, apiClient.GetShowExternalIdsAsync, logger, timeProvider);
     }

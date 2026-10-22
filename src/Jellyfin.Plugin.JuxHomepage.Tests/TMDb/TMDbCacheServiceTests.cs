@@ -353,7 +353,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
         // The good cache from the first refresh must still be there.
         var result = service.GetTrendingMovies();
         Assert.Single(result);
-        Assert.Equal("Inception", result[0].Title);
+        Assert.Equal(27205, result[0].Id);
     }
 
     // -------------------------------------------------------------------------
@@ -632,9 +632,9 @@ public sealed class TMDbCacheServiceTests : IDisposable
         var itemsA = service.GetDiscoverMovies(instanceA);
         var itemsB = service.GetDiscoverMovies(instanceB);
         Assert.Single(itemsA);
-        Assert.Equal("From A", itemsA[0].Title);
+        Assert.Equal(1, itemsA[0].Id);
         Assert.Single(itemsB);
-        Assert.Equal("From B", itemsB[0].Title);
+        Assert.Equal(2, itemsB[0].Id);
     }
 
     public void Dispose()

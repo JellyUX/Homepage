@@ -23,6 +23,13 @@ namespace Jellyfin.Plugin.JuxHomepage.Rewards;
 /// </summary>
 public sealed class RewardsCacheService : IRewardsCacheService, IDisposable
 {
+    /// <summary>
+    /// The properties of a cached winner written to disk: the widget reads only
+    /// <c>LibraryItemId</c> (<c>ConnectedWidgetBase</c>); the ids name the entry (Annexe.b,
+    /// DEC-P07-11).
+    /// </summary>
+    private static readonly string[] StoredProperties = ["Id", "LibraryItemId", "ImdbId"];
+
     private readonly DiskJsonCache<RewardsWinner> _cache;
     private readonly LibraryCrossReferencer _crossReferencer;
     private readonly IWikidataApiClient _apiClient;
@@ -62,7 +69,7 @@ public sealed class RewardsCacheService : IRewardsCacheService, IDisposable
             "cache",
             "rewards");
 
-        _cache = new DiskJsonCache<RewardsWinner>(cacheDir, fileSystem, logger);
+        _cache = new DiskJsonCache<RewardsWinner>(cacheDir, fileSystem, logger, storedProperties: StoredProperties);
     }
 
     /// <inheritdoc/>

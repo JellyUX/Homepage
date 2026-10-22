@@ -76,6 +76,10 @@ public sealed class RewardsCacheServiceTests : IDisposable
         var cached = service.GetRewards(instanceId);
         Assert.Single(cached);
         Assert.Equal(libraryItem.Id, cached[0].LibraryItemId);
+
+        // Annexe.b, DEC-P07-11: only what is read back is written.
+        using var file = System.Text.Json.JsonDocument.Parse(File.ReadAllText(CacheFilePath(instanceId)));
+        Assert.Equal(["Id", "LibraryItemId", "ImdbId"], file.RootElement.GetProperty("Items")[0].EnumerateObject().Select(p => p.Name));
     }
 
     // -------------------------------------------------------------------------

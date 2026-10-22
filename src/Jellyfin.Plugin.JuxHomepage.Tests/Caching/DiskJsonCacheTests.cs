@@ -1,5 +1,7 @@
 using Jellyfin.Plugin.JuxHomepage.IO;
+using System.Text.Json;
 using Jellyfin.Plugin.JuxHomepage.Caching;
+using Jellyfin.Plugin.JuxHomepage.TMDb.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -226,6 +228,46 @@ public sealed class DiskJsonCacheTests : IDisposable
         Assert.NotNull(lastWrite);
         Assert.True(DateTime.UtcNow - lastWrite.Value < TimeSpan.FromMinutes(1));
     }
+
+    [Fact]
+    public void Write_WithStoredProperties_WritesAndKeepsOnlyThem()
+    {
+        // Annexe.b, DEC-P07-11: a cached TMDb title keeps its id and library match, nothing else.
+        var libraryItemId = Guid.NewGuid();
+        var cache = new DiskJsonCache<TMDbMovie>(_tempDir, new FileSystem(), NullLogger.Instance, storedProperties: ["id", "libraryItemId"]);
+
+        cache.Write("movies.json", [FullMovie(7, libraryItemId)]);
+
+        using var file = JsonDocument.Parse(File.ReadAllText(Path.Combine(_tempDir, "movies.json")));
+        var stored = file.RootElement.GetProperty("Items")[0].EnumerateObject().Select(p => p.Name);
+        Assert.Equal(["id", "libraryItemId"], stored);
+        var read = Assert.Single(cache.Read("movies.json"));
+        Assert.Equal((7, libraryItemId, string.Empty), (read.Id, read.LibraryItemId, read.Title));
+    }
+
+    [Fact]
+    public void Read_FileWrittenWithEveryProperty_KeepsItsEntriesAndLibraryMatches()
+    {
+        var matched = Guid.NewGuid();
+        new DiskJsonCache<TMDbMovie>(_tempDir, new FileSystem(), NullLogger.Instance).Write("movies.json", [FullMovie(1, matched), FullMovie(2, null)]);
+
+        var read = new DiskJsonCache<TMDbMovie>(_tempDir, new FileSystem(), NullLogger.Instance, storedProperties: ["id", "libraryItemId"]).Read("movies.json");
+
+        Assert.Equal([(1, (Guid?)matched), (2, null)], read.Select(m => (m.Id, m.LibraryItemId)));
+    }
+
+    private static TMDbMovie FullMovie(int id, Guid? libraryItemId) => new()
+    {
+        Id = id,
+        Title = "Title",
+        Overview = "An overview of the film.",
+        ReleaseDate = "2024-06-01",
+        PosterPath = "/poster.jpg",
+        BackdropPath = "/backdrop.jpg",
+        VoteAverage = 7.5,
+        GenreIds = [18, 36],
+        LibraryItemId = libraryItemId
+    };
 
     private sealed record TestItem(int Id, string Name);
 }

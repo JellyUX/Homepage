@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using System.Text.Json.Serialization.Metadata;
 using Jellyfin.Plugin.JuxHomepage.IO;
 using Microsoft.Extensions.Logging;
 
@@ -36,6 +37,8 @@ public sealed class DiskJsonCache<T> : IDisposable
     private readonly TimeProvider _timeProvider;
     private readonly ReaderWriterLockSlim _lock = new();
     private readonly ConcurrentDictionary<string, Memo> _memo = new();
+    private readonly JsonSerializerOptions _writeOptions;
+    private readonly bool _projected;
     private bool _disposed;
 
     /// <summary>
@@ -45,12 +48,19 @@ public sealed class DiskJsonCache<T> : IDisposable
     /// <param name="fileSystem">File system abstraction, for testability.</param>
     /// <param name="logger">Logger.</param>
     /// <param name="timeProvider">Time source of cache timestamps. Defaults to <see cref="TimeProvider.System"/>.</param>
-    public DiskJsonCache(string directory, IFileSystem fileSystem, ILogger logger, TimeProvider? timeProvider = null)
+    /// <param name="storedProperties">
+    /// The JSON names of the item properties written to disk, the ones read back; null writes them all.
+    /// The others are left out of the file and of the memo of a write; a file that still holds them
+    /// reads as before, unknown properties being ignored (Annexe.b, DEC-P07-11).
+    /// </param>
+    public DiskJsonCache(string directory, IFileSystem fileSystem, ILogger logger, TimeProvider? timeProvider = null, IReadOnlyCollection<string>? storedProperties = null)
     {
         _directory = directory;
         _fileSystem = fileSystem;
         _logger = logger;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        _projected = storedProperties is not null;
+        _writeOptions = storedProperties is null ? SerializerOptions : ProjectedOptions(storedProperties);
 
         // An unwritable DataPath must not fail the construction of every service built on a cache
         // (H-07): the cache reads nothing and each write reports its failure.
@@ -63,6 +73,29 @@ public sealed class DiskJsonCache<T> : IDisposable
             _logger.LogError(ex, "Cannot create the cache directory '{Directory}'; the cache will not be saved to disk.", _directory);
         }
     }
+
+    private static JsonSerializerOptions ProjectedOptions(IReadOnlyCollection<string> storedProperties) => new()
+    {
+        WriteIndented = true,
+        TypeInfoResolver = new DefaultJsonTypeInfoResolver
+        {
+            Modifiers =
+            {
+                info =>
+                {
+                    if (info.Type != typeof(T))
+                    {
+                        return;
+                    }
+
+                    foreach (var property in info.Properties.Where(p => !storedProperties.Contains(p.Name)).ToList())
+                    {
+                        info.Properties.Remove(property);
+                    }
+                }
+            }
+        }
+    };
 
     /// <summary>
     /// Reads the cached items from the given file, or an empty list if the file does not exist yet
@@ -153,7 +186,8 @@ public sealed class DiskJsonCache<T> : IDisposable
         var path = Path.Combine(_directory, fileName);
         var tmpPath = path + ".tmp";
         var entry = new CacheEntry<T> { RefreshedAtUtc = _timeProvider.GetUtcNow().UtcDateTime, Items = items };
-        var json = JsonSerializer.Serialize(entry, SerializerOptions);
+        var json = JsonSerializer.Serialize(entry, _writeOptions);
+        var written = _projected ? JsonSerializer.Deserialize<CacheEntry<T>>(json)?.Items ?? [] : items;
 
         _lock.EnterWriteLock();
         try
@@ -162,7 +196,7 @@ public sealed class DiskJsonCache<T> : IDisposable
             _fileSystem.CreateDirectory(_directory);
             _fileSystem.WriteAllText(tmpPath, json);
             _fileSystem.Move(tmpPath, path, overwrite: true);
-            _memo[fileName] = new Memo(_fileSystem.GetLastWriteTimeUtc(path), items);
+            _memo[fileName] = new Memo(_fileSystem.GetLastWriteTimeUtc(path), written);
             return true;
         }
         catch (Exception ex)
