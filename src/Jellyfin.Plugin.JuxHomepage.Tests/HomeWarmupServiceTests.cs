@@ -28,6 +28,8 @@ public sealed class HomeWarmupServiceTests : IDisposable
     private readonly Dictionary<Guid, UserConfiguration> _settings = [];
     private readonly ScoringService _scoring;
     private readonly FakeLifetime _lifetime = new();
+    private readonly Dictionary<Guid, int> _settingsReads = [];
+    private Guid _languageReadCancelled;
 
     public HomeWarmupServiceTests()
     {
@@ -94,6 +96,24 @@ public sealed class HomeWarmupServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Warmup_OneUserCancelledWhileTheServerRuns_StillBuildsTheOthers()
+    {
+        // R11 review (DEC-P07-17): only the server stopping ends the warmup.
+        var first = AddUser(TimeSpan.FromHours(1));
+        var second = AddUser(TimeSpan.FromHours(2));
+        _languageReadCancelled = first.Id;
+        using var warmup = Build();
+        await warmup.StartAsync(CancellationToken.None);
+        _lifetime.Start();
+
+        _clock.Advance(warmup.Delay);
+        await warmup.RunningForTesting!;
+
+        Assert.False(Cached(first, "de"));
+        Assert.True(Cached(second, "de"));
+    }
+
+    [Fact]
     public async Task Warmup_ServerStoppingBeforeTheDelay_BuildsNothing()
     {
         var user = AddUser(TimeSpan.FromHours(1));
@@ -133,7 +153,17 @@ public sealed class HomeWarmupServiceTests : IDisposable
     private HomeWarmupService Build(int processors = 8)
     {
         var store = new Mock<IUserConfigurationStore>();
-        store.Setup(s => s.GetUserConfiguration(It.IsAny<Guid>())).Returns((Guid id) => _settings.GetValueOrDefault(id));
+        store.Setup(s => s.GetUserConfiguration(It.IsAny<Guid>())).Returns((Guid id) =>
+        {
+            // The second read of a user's settings is the language read of the warmup.
+            _settingsReads[id] = _settingsReads.GetValueOrDefault(id) + 1;
+            if (id == _languageReadCancelled && _settingsReads[id] == 2)
+            {
+                throw new OperationCanceledException("A cancellation unrelated to the server stopping.");
+            }
+
+            return _settings.GetValueOrDefault(id);
+        });
         var localization = new LocalizationService(new Dictionary<string, IReadOnlyDictionary<string, string>>
         {
             ["en"] = new Dictionary<string, string>(),

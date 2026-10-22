@@ -151,7 +151,7 @@ public sealed class HomeWarmupService : IHostedService, IDisposable
             // a full scoring queue skips the user.
             if (!await _scoring.WarmAsync(userId, cancellationToken).ConfigureAwait(false))
             {
-                _logger.LogDebug("Scoring queue full; the home screen of user {UserId} is not built ahead.", userId);
+                _logger.LogDebug("Scoring queue full or scoring dropped while computed; the home screen of user {UserId} is not built ahead.", userId);
                 return false;
             }
 
@@ -159,8 +159,10 @@ public sealed class HomeWarmupService : IHostedService, IDisposable
             await _widgets.GetWidgetsForUser(userId, 0, language, cancellationToken).ConfigureAwait(false);
             return true;
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
         {
+            // Only the server stopping ends the loop: any other failure, a cancellation included,
+            // skips this user alone.
             _logger.LogWarning(ex, "Failed to build the home screen of user {UserId} ahead.", userId);
             return false;
         }
