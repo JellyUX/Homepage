@@ -137,9 +137,15 @@
     margin: 0.6em 0;
 }
 
-/* A row waiting to be fetched (PERF-09.a) holds grey cards: not an item to click. */
+/* A row waiting to be fetched (PERF-09.a) holds grey cards: not an item to click, and still, since
+ * it waits off screen (a pulse on every waiting row cost 300-400 ms of style recalculation). */
 .jux-skeleton-card {
     pointer-events: none;
+}
+
+.jux-items-container .jux-skeleton-block,
+.jux-items-container .jux-skeleton-bar {
+    animation: none;
 }
 
 .jux-skeleton-text .jux-skeleton-bar {

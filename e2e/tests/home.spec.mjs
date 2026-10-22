@@ -61,6 +61,8 @@ test('the home page reads each JellyUX section once, plus the layout and the wat
 });
 
 test('an unscrolled home page fetches only the rows within one screen below the viewport (PERF-09.b)', async ({ page }) => {
+    // A short screen, so that rows of the small test library wait below it.
+    await page.setViewportSize({ width: 1280, height: 400 });
     const requests = trackJuxRequests(page);
     await login(page, env.admin);
     await page.locator('.homeSectionsContainer.jux-homepage-active .jux-widget-section').first().waitFor();
@@ -76,9 +78,13 @@ test('an unscrolled home page fetches only the rows within one screen below the 
 
     test.info().annotations.push({ type: 'rows fetched / built', description: `${rowRequests.length} / ${rows.length}` });
     expect(rows[0].waiting).toBe(false);
+    expect(rows.filter((r) => r.waiting).length).toBeGreaterThan(0);
     expect(rowRequests).toHaveLength(rows.filter((r) => !r.waiting).length);
     expect(rows.filter((r) => r.waiting && r.top < 2 * r.screen)).toEqual([]);
     expect(requests.duplicates()).toEqual([]);
+    // A waiting row stays still: its grey cards run no animation (each frame restyled them).
+    expect(await page.evaluate(() => document.getAnimations()
+        .filter((a) => a.effect && a.effect.target && a.effect.target.closest('.jux-items-container')).length)).toBe(0);
 });
 
 test('coming back to the home page within the app issues no JellyUX or home section request (PROC-03.a, A-08)', async ({ page }) => {
