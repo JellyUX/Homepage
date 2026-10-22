@@ -2,6 +2,7 @@
     "description": "C# names ci/dead-code.mjs finds only at their declarations, each with the reason it has no visible caller. A new candidate fails the static job until it is deleted or listed here; an entry that has callers again is reported for removal.",
     "csharp": {
         "BackdropPath": "TMDb JSON property, set by the deserializer",
+        "CountForTesting": "test seam (ForTesting suffix), called by the tests only",
         "DrawCountForTesting": "test seam (ForTesting suffix), called by the tests only",
         "ExecuteAsync": "IScheduledTask member, called by the Jellyfin task manager",
         "FirstAirDate": "TMDb JSON property, set by the deserializer",
@@ -28,6 +29,7 @@
         "PreviewSection": "HTTP route of JuxHomepageController, called by the client scripts and the admin page through the API",
         "RefreshTMDbCache": "HTTP route of JuxHomepageController, called by the client scripts and the admin page through the API",
         "RegisterServices": "IPluginServiceRegistrator entry point, called by Jellyfin at startup",
+        "RunningForTesting": "test seam (ForTesting suffix), called by the tests only",
         "SearchRewardsCategory": "HTTP route of JuxHomepageController, called by the client scripts and the admin page through the API",
         "SearchTMDbCompany": "HTTP route of JuxHomepageController, called by the client scripts and the admin page through the API",
         "SearchTMDbKeyword": "HTTP route of JuxHomepageController, called by the client scripts and the admin page through the API",
