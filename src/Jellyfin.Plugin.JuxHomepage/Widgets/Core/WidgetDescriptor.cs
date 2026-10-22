@@ -40,7 +40,11 @@ public sealed class WidgetDescriptor
     /// </summary>
     public string? SectionKey { get; set; }
 
-    /// <summary>Gets or sets the display order on the home screen (lower values appear first).</summary>
+    /// <summary>
+    /// Gets or sets the display order on the home screen (lower values appear first). The server sends
+    /// the sections already in this order, so no client reads it: not sent (Annexe.a).
+    /// </summary>
+    [JsonIgnore]
     public int Order { get; set; }
 
     /// <summary>Gets or sets the minimum number of items required to display this widget.</summary>
