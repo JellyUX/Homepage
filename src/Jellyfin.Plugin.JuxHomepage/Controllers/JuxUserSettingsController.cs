@@ -73,7 +73,7 @@ public class JuxUserSettingsController : ControllerBase
 
     private async Task<Guid?> ResolveUserIdAsync(Guid requestedUserId)
     {
-        var authInfo = await _authContext.GetAuthorizationInfo(HttpContext).ConfigureAwait(false);
-        return UserAccessGuard.ResolveUserId(requestedUserId, authInfo.UserId, authInfo.IsApiKey, User.IsInRole("Administrator"));
+        var caller = await RequestCaller.ResolveAsync(HttpContext, _authContext).ConfigureAwait(false);
+        return UserAccessGuard.ResolveUserId(requestedUserId, caller.UserId, caller.IsApiKey, User.IsInRole("Administrator"));
     }
 }

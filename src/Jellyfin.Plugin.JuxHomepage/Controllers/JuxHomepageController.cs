@@ -559,13 +559,13 @@ public class JuxHomepageController : ControllerBase
 
         // A server API key is not tied to a user and keeps the global answer; any user session only
         // sees collections (and items) its own library access and parental rules allow.
-        var authInfo = await _authContext.GetAuthorizationInfo(HttpContext).ConfigureAwait(false);
-        if (authInfo.IsApiKey)
+        var caller = await RequestCaller.ResolveAsync(HttpContext, _authContext).ConfigureAwait(false);
+        if (caller.IsApiKey)
         {
             return Ok(_collectionsIndexCacheService.GetCollectionsFor(itemId));
         }
 
-        var user = _userManager.GetUserById(authInfo.UserId);
+        var user = _userManager.GetUserById(caller.UserId);
         if (user is null)
         {
             return Ok(Array.Empty<CollectionRef>());
@@ -887,11 +887,11 @@ public class JuxHomepageController : ControllerBase
     /// <returns>The user to read, or null when the request must be refused.</returns>
     private async Task<Guid?> ResolveRequestUserIdAsync(Guid requestedUserId)
     {
-        var authInfo = await _authContext.GetAuthorizationInfo(HttpContext).ConfigureAwait(false);
+        var caller = await RequestCaller.ResolveAsync(HttpContext, _authContext).ConfigureAwait(false);
         return UserAccessGuard.ResolveUserId(
             requestedUserId,
-            authInfo.UserId,
-            authInfo.IsApiKey,
+            caller.UserId,
+            caller.IsApiKey,
             User.IsInRole("Administrator"));
     }
 
