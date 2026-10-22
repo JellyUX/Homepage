@@ -38,6 +38,7 @@ public sealed class WidgetService
     private readonly ILogger<WidgetService> _logger;
     private readonly IPersonalizationState? _personalizationState;
     private readonly SectionResultCache? _sectionResults;
+    private readonly UserAccessWatch? _accessWatch;
     private int _queuedRebuildCount;
 
     /// <summary>
@@ -60,6 +61,10 @@ public sealed class WidgetService
     /// read, so the client's section requests read no widget (PERF-03.b, PERF-06.a). Null reads every
     /// section from its widget.
     /// </param>
+    /// <param name="accessWatch">
+    /// Drops the user's cached home screen after an administrator changed what they may see. Null
+    /// never reads the user's access.
+    /// </param>
     public WidgetService(
         IWidgetRegistry registry,
         SessionCache sessionCache,
@@ -67,7 +72,8 @@ public sealed class WidgetService
         Func<PluginConfiguration?> getConfiguration,
         ILogger<WidgetService> logger,
         IPersonalizationState? personalizationState = null,
-        SectionResultCache? sectionResults = null)
+        SectionResultCache? sectionResults = null,
+        UserAccessWatch? accessWatch = null)
     {
         _registry = registry;
         _sessionCache = sessionCache;
@@ -76,6 +82,7 @@ public sealed class WidgetService
         _logger = logger;
         _personalizationState = personalizationState;
         _sectionResults = sectionResults;
+        _accessWatch = accessWatch;
     }
 
     /// <summary>
@@ -99,6 +106,7 @@ public sealed class WidgetService
         string? lang,
         CancellationToken cancellationToken)
     {
+        _accessWatch?.Check(userId);
         if (_sessionCache.TryGet(userId, lang, SessionTtl, out var cached, out var expired) && cached is not null)
         {
             if (expired)
@@ -275,6 +283,7 @@ public sealed class WidgetService
         // The page the layout probe or an earlier request kept is served without reading the widget
         // (Section_AfterLayoutBuild_IsServedFromTheProbe, Section_ReadTwice_ReadsItsWidgetOnce).
         var section = new SectionId(userId, widgetType, additionalData, sectionKey);
+        _accessWatch?.Check(userId);
         WidgetResult? stored = null;
         var hit = _sectionResults?.TryGet(section, payload.StartIndex, payload.Limit, out stored) == true;
         var stamp = _sectionResults?.StampOf(userId);
