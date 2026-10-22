@@ -55,10 +55,30 @@ export function extractCarrierUses(source) {
     return uses;
 }
 
+// JellyUX state classes without the jux prefix, set by the scripts in concatenated strings
+// (jux-ui.js: 'jux-progress-chunk ' + (i < watched ? 'watched' : 'unwatched')).
+const OWN_CSS_CLASSES = new Set(['watched', 'unwatched']);
+
+/** Native classes a stylesheet's selectors name, as "class:name" strings (jux-* and own state classes excluded). */
+export function extractCssNativeClasses(source) {
+    const selectors = source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\{[^{}]*\}/g, '\n');
+    const tokens = new Set();
+    for (const m of selectors.matchAll(/\.([A-Za-z][\w-]*)/g)) {
+        if (!/jux/i.test(m[1]) && !OWN_CSS_CLASSES.has(m[1])) {
+            tokens.add(`class:${m[1]}`);
+        }
+    }
+    return tokens;
+}
+
 function scriptTokens() {
     const tokens = new Set();
     for (const file of readdirSync(WEB_DIR).filter((f) => /^jux-.*\.js$/.test(f) && f !== 'jux-loadsections-inject.js')) {
         extractNativeTokens(readFileSync(path.join(WEB_DIR, file), 'utf8')).forEach((t) => tokens.add(t));
+    }
+    // A stylesheet that hooks on a native class breaks as silently as a script when Jellyfin renames it.
+    for (const file of readdirSync(WEB_DIR).filter((f) => /^jux-.*\.css$/.test(f))) {
+        extractCssNativeClasses(readFileSync(path.join(WEB_DIR, file), 'utf8')).forEach((t) => tokens.add(t));
     }
     return tokens;
 }
@@ -82,6 +102,20 @@ describe('extractNativeTokens', () => {
         expect([...extractNativeTokens(src)].sort()).toEqual([
             'attribute:data-id', 'class:actionSheetScroller', 'class:emby-button', 'class:emby-tab-button',
             'class:is-active', 'class:sectionTitle', 'element:paper-icon-button-light', 'id:indexPage'
+        ]);
+    });
+});
+
+describe('extractCssNativeClasses', () => {
+    it('reads the native classes of the selectors, not of declarations, comments or JellyUX names', () => {
+        const css = `
+            /* .commentClass */
+            .jux-widget-section.emby-scroller-container > .sectionTitleContainer { padding-right: 8.4em; }
+            .jux-progress-chunk.watched { background: url("a.b.png"); }
+            @media (max-width: 50em) { .layout-tv .card { opacity: 0.5; } }
+        `;
+        expect([...extractCssNativeClasses(css)].sort()).toEqual([
+            'class:card', 'class:emby-scroller-container', 'class:layout-tv', 'class:sectionTitleContainer'
         ]);
     });
 });

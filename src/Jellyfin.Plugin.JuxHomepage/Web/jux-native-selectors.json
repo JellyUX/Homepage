@@ -47,6 +47,7 @@
     "emby-button-foreground",
     "emby-checkbox",
     "emby-checkbox-label",
+    "emby-scroller-container",
     "emby-tab-button",
     "emby-tab-button-active",
     "emby-tabs-slider",
