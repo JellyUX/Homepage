@@ -19,18 +19,20 @@ public sealed class JuxUserSettingsControllerTests
     [Fact]
     public async Task Save_StoresTheCallersSettings_AndAnswersNoContent()
     {
-        _store.Setup(s => s.SaveUserConfiguration(It.IsAny<UserConfiguration>())).Returns(true);
+        var saved = new UserConfiguration { UserId = _caller.Id };
+        _store.Setup(s => s.UpdateUserConfiguration(_caller.Id, It.IsAny<Func<UserConfiguration, bool>>()))
+            .Returns((Guid _, Func<UserConfiguration, bool> change) => change(saved));
 
         var result = await BuildController().Save(Guid.Empty, new UserSettingsUpdate { Enabled = false });
 
         Assert.IsType<NoContentResult>(result);
-        _store.Verify(s => s.SaveUserConfiguration(It.Is<UserConfiguration>(c => c.UserId == _caller.Id && c.Enabled == false)), Times.Once);
+        Assert.False(saved.Enabled);
     }
 
     [Fact]
     public async Task Save_WhenTheSettingsCannotBeWritten_Answers500()
     {
-        _store.Setup(s => s.SaveUserConfiguration(It.IsAny<UserConfiguration>())).Returns(false);
+        _store.Setup(s => s.UpdateUserConfiguration(It.IsAny<Guid>(), It.IsAny<Func<UserConfiguration, bool>>())).Returns(false);
 
         var result = await BuildController().Save(Guid.Empty, new UserSettingsUpdate { Enabled = false });
 
@@ -43,7 +45,7 @@ public sealed class JuxUserSettingsControllerTests
         var result = await BuildController().Save(Guid.NewGuid(), new UserSettingsUpdate { Enabled = false });
 
         Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<StatusCodeResult>(result).StatusCode);
-        _store.Verify(s => s.SaveUserConfiguration(It.IsAny<UserConfiguration>()), Times.Never);
+        _store.Verify(s => s.UpdateUserConfiguration(It.IsAny<Guid>(), It.IsAny<Func<UserConfiguration, bool>>()), Times.Never);
     }
 
     [Fact]
@@ -79,7 +81,7 @@ public sealed class JuxUserSettingsControllerTests
     [Fact]
     public async Task Save_WithAnApiKey_MustNameAUser()
     {
-        _store.Setup(s => s.SaveUserConfiguration(It.IsAny<UserConfiguration>())).Returns(true);
+        _store.Setup(s => s.UpdateUserConfiguration(It.IsAny<Guid>(), It.IsAny<Func<UserConfiguration, bool>>())).Returns(true);
         var other = Guid.NewGuid();
 
         var withoutUser = await BuildController(apiKey: true).Save(Guid.Empty, new UserSettingsUpdate { Enabled = false });
@@ -87,7 +89,7 @@ public sealed class JuxUserSettingsControllerTests
 
         Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<StatusCodeResult>(withoutUser).StatusCode);
         Assert.IsType<NoContentResult>(namingAUser);
-        _store.Verify(s => s.SaveUserConfiguration(It.Is<UserConfiguration>(c => c.UserId == other)), Times.Once);
+        _store.Verify(s => s.UpdateUserConfiguration(other, It.IsAny<Func<UserConfiguration, bool>>()), Times.Once);
     }
 
     private JuxUserSettingsController BuildController(bool isAdministrator = false, bool apiKey = false)

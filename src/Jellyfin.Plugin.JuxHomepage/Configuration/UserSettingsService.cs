@@ -77,12 +77,15 @@ public sealed class UserSettingsService
         var keys = WidgetLayoutResolver.SectionKeys(rows);
         var hideable = keys.Values.ToHashSet(StringComparer.Ordinal);
 
-        var config = _store.GetUserConfiguration(userId) ?? new UserConfiguration { UserId = userId };
-        config.UserId = userId;
-        config.Enabled = update.Enabled ? null : false;
-        config.HiddenSections = (update.HiddenSections ?? []).Where(hideable.Contains).Distinct(StringComparer.Ordinal).ToArray();
-        Plugin.MigrateUserConfiguration(config);
-        if (!_store.SaveUserConfiguration(config))
+        // Under the store's lock, so a home language remembered in between is kept.
+        var hidden = (update.HiddenSections ?? []).Where(hideable.Contains).Distinct(StringComparer.Ordinal).ToArray();
+        var saved = _store.UpdateUserConfiguration(userId, config =>
+        {
+            config.Enabled = update.Enabled ? null : false;
+            config.HiddenSections = hidden;
+            return true;
+        });
+        if (!saved)
         {
             return false;
         }

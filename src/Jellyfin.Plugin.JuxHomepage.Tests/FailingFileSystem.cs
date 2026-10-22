@@ -3,8 +3,8 @@ using Jellyfin.Plugin.JuxHomepage.IO;
 namespace Jellyfin.Plugin.JuxHomepage.Tests;
 
 /// <summary>
-/// The real file system, made to refuse writes or the creation of a directory on demand: a full or
-/// read-only disk, or a DataPath the server cannot write to (FIAB-03, H-07).
+/// The real file system, made to refuse writes, reads or the creation of a directory on demand: a full or
+/// read-only disk, a file locked by another process, or a DataPath the server cannot write to (FIAB-03, H-07).
 /// </summary>
 internal sealed class FailingFileSystem : IFileSystem
 {
@@ -13,6 +13,8 @@ internal sealed class FailingFileSystem : IFileSystem
     public bool FailWrites { get; set; }
 
     public bool FailCreateDirectory { get; set; }
+
+    public bool FailReads { get; set; }
 
     /// <summary>Gets or sets the number of existence checks, date reads and file reads.</summary>
     public int Reads { get; set; }
@@ -26,6 +28,11 @@ internal sealed class FailingFileSystem : IFileSystem
     public string ReadAllText(string path)
     {
         Reads++;
+        if (FailReads)
+        {
+            throw new IOException("The file is being used by another process.");
+        }
+
         return _inner.ReadAllText(path);
     }
 

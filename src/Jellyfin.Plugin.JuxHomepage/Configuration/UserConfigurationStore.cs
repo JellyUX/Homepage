@@ -118,14 +118,27 @@ public sealed class UserConfigurationStore : IUserConfigurationStore, IDisposabl
             {
                 current = ReadLocked(userId);
             }
-            catch (Exception ex)
+            catch (JsonException ex)
             {
-                // An unreadable file reads as no settings (GetUserConfiguration): the change starts afresh.
-                _logger.LogWarning(ex, "Failed to read user configuration for {UserId}.", userId);
+                // A corrupt file is already lost: the change starts afresh and replaces it.
+                _logger.LogWarning(ex, "User configuration for {UserId} is corrupt; it is replaced.", userId);
                 current = null;
             }
+            catch (Exception ex)
+            {
+                // A file that exists but cannot be read now (locked, I/O error) still holds the user's
+                // settings: writing a fresh configuration over it would wipe them.
+                _logger.LogWarning(ex, "Failed to read user configuration for {UserId}; it is left unchanged.", userId);
+                return false;
+            }
 
-            var config = current ?? new UserConfiguration { UserId = userId };
+            var config = current;
+            if (config is null)
+            {
+                config = new UserConfiguration { UserId = userId };
+                Plugin.MigrateUserConfiguration(config);
+            }
+
             config.UserId = userId;
             return !change(config) || WriteLocked(config);
         }

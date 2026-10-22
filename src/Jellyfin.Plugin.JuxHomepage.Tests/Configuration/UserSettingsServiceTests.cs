@@ -35,7 +35,16 @@ public sealed class UserSettingsServiceTests
             ExtraParams = [new WidgetExtraParam { Key = "value", Value = _seasonalId }]
         };
         _store.Setup(s => s.GetUserConfiguration(_userId)).Returns(() => _saved);
-        _store.Setup(s => s.SaveUserConfiguration(It.IsAny<UserConfiguration>())).Callback<UserConfiguration>(c => _saved = c).Returns(true);
+        _store.Setup(s => s.UpdateUserConfiguration(_userId, It.IsAny<Func<UserConfiguration, bool>>())).Returns((Guid id, Func<UserConfiguration, bool> change) =>
+        {
+            var config = _saved ?? new UserConfiguration { UserId = id };
+            if (change(config))
+            {
+                _saved = config;
+            }
+
+            return true;
+        });
     }
 
     private WidgetConfig[] Rows => [_shows, _genre1, _genre2, _adminGenre, _seasonal, _disabled];
@@ -63,7 +72,7 @@ public sealed class UserSettingsServiceTests
     }
 
     [Fact]
-    public void Save_KeepsOnlyKnownKeys_StampsTheSchemaAndDropsTheCachedLayout()
+    public void Save_KeepsOnlyKnownKeysAndDropsTheCachedLayout()
     {
         using var cache = new SessionCache();
         cache.Set(_userId, "en", []);
@@ -74,7 +83,6 @@ public sealed class UserSettingsServiceTests
         Assert.Equal([GenreType + "#2", "jux.admin.genre#1"], _saved!.HiddenSections);
         Assert.False(_saved.Enabled);
         Assert.Equal(_userId, _saved.UserId);
-        Assert.Equal(11, _saved.SchemaVersion);
         Assert.False(cache.TryGet(_userId, "en", TimeSpan.FromMinutes(5), out _, out _));
         Assert.True(service.Get(_userId, "en").Sections.Single(s => s.Name == "Favorite Genre (2)").Hidden);
     }
@@ -113,11 +121,21 @@ public sealed class UserSettingsServiceTests
     {
         using var cache = new SessionCache();
         cache.Set(_userId, "en", []);
-        _store.Setup(s => s.SaveUserConfiguration(It.IsAny<UserConfiguration>())).Returns(false);
+        _store.Setup(s => s.UpdateUserConfiguration(_userId, It.IsAny<Func<UserConfiguration, bool>>())).Returns(false);
         var service = BuildService(cache);
 
         Assert.False(service.Save(_userId, new UserSettingsUpdate { Enabled = false }));
         Assert.True(cache.TryGet(_userId, "en", TimeSpan.FromMinutes(5), out _, out _));
+    }
+
+    [Fact]
+    public void Save_KeepsTheRememberedHomeLanguage()
+    {
+        _saved = new UserConfiguration { UserId = _userId, HomeLanguage = "fr" };
+
+        BuildService(new SessionCache()).Save(_userId, new UserSettingsUpdate { Enabled = false });
+
+        Assert.Equal(("fr", false), (_saved.HomeLanguage, _saved.Enabled));
     }
 
     private UserSettingsService BuildService(SessionCache cache)

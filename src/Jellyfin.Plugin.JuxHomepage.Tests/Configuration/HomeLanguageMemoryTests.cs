@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.Widgets;
 using MediaBrowser.Common.Configuration;
@@ -81,11 +82,48 @@ public sealed class HomeLanguageMemoryTests : IDisposable
         Assert.Null(reopened.GetUserConfiguration(_userId));
     }
 
+    [Fact]
+    public void HomeLanguage_SettingsFileThatCannotBeRead_IsLeftUnchanged()
+    {
+        _store.SaveUserConfiguration(new UserConfiguration { UserId = _userId, Enabled = false, HiddenSections = ["jux.admin.genre#1"] });
+        var before = File.ReadAllText(UserFile);
+        using var locked = Reopened(new FailingFileSystem { FailReads = true });
+
+        new HomeLanguageMemory(locked).Remember(_userId, "fr");
+
+        Assert.False(locked.UpdateUserConfiguration(_userId, _ => true));
+        Assert.Equal(before, File.ReadAllText(UserFile));
+    }
+
+    [Fact]
+    public void UpdateUserConfiguration_CorruptFile_IsReplaced()
+    {
+        _store.SaveUserConfiguration(new UserConfiguration { UserId = _userId });
+        File.WriteAllText(UserFile, "{\"UserId\": \"" + _userId + "\", \"Enabled\": fal");
+        using var store = Reopened();
+
+        new HomeLanguageMemory(store).Remember(_userId, "fr");
+
+        using var reopened = Reopened();
+        Assert.Equal("fr", reopened.GetUserConfiguration(_userId)?.HomeLanguage);
+    }
+
+    [Fact]
+    public void HomeLanguage_FirstSettingsFile_IsStampedWithTheCurrentSchema()
+    {
+        new HomeLanguageMemory(_store).Remember(_userId, "fr");
+
+        using var file = JsonDocument.Parse(File.ReadAllText(UserFile));
+        Assert.Equal(11, file.RootElement.GetProperty("SchemaVersion").GetInt32());
+    }
+
+    private string UserFile => Path.Combine(_tempDir, "Jellyfin.Plugin.JuxHomepage", "users", $"{_userId}.json");
+
     /// <summary>A store over the same directory with nothing in memory: what a restart reads.</summary>
-    private UserConfigurationStore Reopened()
+    private UserConfigurationStore Reopened(FailingFileSystem? fileSystem = null)
     {
         var paths = new Mock<IApplicationPaths>();
         paths.Setup(p => p.DataPath).Returns(_tempDir);
-        return new UserConfigurationStore(paths.Object, new FailingFileSystem(), NullLogger<UserConfigurationStore>.Instance);
+        return new UserConfigurationStore(paths.Object, fileSystem ?? new FailingFileSystem(), NullLogger<UserConfigurationStore>.Instance);
     }
 }
