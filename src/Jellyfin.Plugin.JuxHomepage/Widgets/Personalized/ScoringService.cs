@@ -206,6 +206,19 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
         }
     }
 
+    /// <summary>
+    /// Drops the user's snapshot after an administrator changed what they may see: it was computed
+    /// from the items of their former access, so the next read computes a new one instead of serving
+    /// it for the rest of the day. A computation already running does not store its result.
+    /// </summary>
+    /// <param name="userId">The user whose access changed.</param>
+    public void Forget(Guid userId)
+    {
+        Interlocked.Increment(ref _generation);
+        _inFlight.TryRemove(userId, out _);
+        _cache.TryRemove(userId, out _);
+    }
+
     /// <inheritdoc/>
     public bool TakePendingServed(Guid userId) => _pendingServed.TryRemove(userId, out _);
 
