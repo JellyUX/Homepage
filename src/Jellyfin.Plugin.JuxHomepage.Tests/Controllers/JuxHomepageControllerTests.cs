@@ -527,6 +527,22 @@ public sealed class JuxHomepageControllerTests
     }
 
     [Fact]
+    public async Task GetSections_RemembersTheLanguageOfTheUsersOwnHomeScreenOnly()
+    {
+        // R11 review (DEC-P07-17): an administrator reading another user's home screen in their own
+        // language must not change the language that user's home screen is built ahead in.
+        var admin = TestMocks.DefaultUser();
+        var other = Guid.NewGuid();
+        var store = new Mock<IUserConfigurationStore>();
+
+        await BuildUserController(admin, isAdministrator: true, userConfigStore: store.Object).GetSections(other, lang: "de");
+        store.Verify(s => s.UpdateUserConfiguration(It.IsAny<Guid>(), It.IsAny<Func<UserConfiguration, bool>>()), Times.Never);
+
+        await BuildUserController(admin, isAdministrator: true, userConfigStore: store.Object).GetSections(Guid.Empty, lang: "de");
+        store.Verify(s => s.UpdateUserConfiguration(admin.Id, It.IsAny<Func<UserConfiguration, bool>>()), Times.Once);
+    }
+
+    [Fact]
     public async Task UserWhoTurnedJellyUxOff_GetsDisabledSectionsAndWatchlistIds()
     {
         var caller = TestMocks.DefaultUser();

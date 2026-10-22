@@ -255,7 +255,7 @@ public class JuxHomepageController : ControllerBase
         [FromQuery] string? lang = null,
         CancellationToken cancellationToken = default)
     {
-        var resolvedUserId = await ResolveRequestUserIdAsync(userId).ConfigureAwait(false);
+        var (resolvedUserId, isCaller) = await ResolveRequestUserAsync(userId).ConfigureAwait(false);
         if (resolvedUserId is null)
         {
             return StatusCode(StatusCodes.Status403Forbidden);
@@ -270,7 +270,12 @@ public class JuxHomepageController : ControllerBase
         }
 
         var language = _localizationService.NormalizeLanguage(lang);
-        _homeLanguages.Remember(userId, language);
+        // Only the user's own home screen tells their language, not an administrator reading it.
+        if (isCaller)
+        {
+            _homeLanguages.Remember(userId, language);
+        }
+
         var sectionsPage = await _widgetService
             .GetWidgetsForUser(userId, page, language, cancellationToken)
             .ConfigureAwait(false);
@@ -885,14 +890,24 @@ public class JuxHomepageController : ControllerBase
     /// </summary>
     /// <param name="requestedUserId">The userId from the query string, or <see cref="Guid.Empty"/>.</param>
     /// <returns>The user to read, or null when the request must be refused.</returns>
-    private async Task<Guid?> ResolveRequestUserIdAsync(Guid requestedUserId)
+    private async Task<Guid?> ResolveRequestUserIdAsync(Guid requestedUserId) =>
+        (await ResolveRequestUserAsync(requestedUserId).ConfigureAwait(false)).UserId;
+
+    /// <summary>
+    /// <see cref="ResolveRequestUserIdAsync"/>, and whether the caller reads their own data rather than
+    /// an administrator or an API key reading someone else's.
+    /// </summary>
+    /// <param name="requestedUserId">The userId from the query string, or <see cref="Guid.Empty"/>.</param>
+    /// <returns>The user to read, or null when the request must be refused, and whether it is the caller.</returns>
+    private async Task<(Guid? UserId, bool IsCaller)> ResolveRequestUserAsync(Guid requestedUserId)
     {
         var caller = await RequestCaller.ResolveAsync(HttpContext, _authContext).ConfigureAwait(false);
-        return UserAccessGuard.ResolveUserId(
+        var userId = UserAccessGuard.ResolveUserId(
             requestedUserId,
             caller.UserId,
             caller.IsApiKey,
             User.IsInRole("Administrator"));
+        return (userId, !caller.IsApiKey && userId == caller.UserId);
     }
 
     /// <summary>
