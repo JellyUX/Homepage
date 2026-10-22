@@ -77,7 +77,18 @@ public sealed class RewardsCacheService : IRewardsCacheService, IDisposable
     }
 
     /// <inheritdoc/>
-    public async Task RefreshInstanceAsync(string instanceId, RewardsFilter filter, CancellationToken cancellationToken)
+    public Task RefreshInstanceAsync(string instanceId, RewardsFilter filter, CancellationToken cancellationToken) =>
+        RefreshInstanceAsync(instanceId, filter, NewMoviesIndex(), cancellationToken);
+
+    /// <summary>
+    /// The movie library index of one refresh, read on first use and shared by every row of that
+    /// refresh (R11.c, <c>RefreshAllInstancesAsync_TwoRows_ReadTheMovieLibraryOnce</c>). A failed read is
+    /// not kept, so it fails its own row only.
+    /// </summary>
+    private Lazy<LibraryProviderIndex> NewMoviesIndex() =>
+        new(() => _crossReferencer.BuildIndex([BaseItemKind.Movie]), LazyThreadSafetyMode.PublicationOnly);
+
+    private async Task RefreshInstanceAsync(string instanceId, RewardsFilter filter, Lazy<LibraryProviderIndex> movies, CancellationToken cancellationToken)
     {
         if (!Guid.TryParse(instanceId, out _))
         {
@@ -99,7 +110,7 @@ public sealed class RewardsCacheService : IRewardsCacheService, IDisposable
             var matched = await _crossReferencer.CrossReferenceAsync(
                 items,
                 (id, _) => Task.FromResult(imdbById.GetValueOrDefault(id)),
-                _crossReferencer.BuildIndex([BaseItemKind.Movie]),
+                movies.Value,
                 cancellationToken,
                 fallbackProvider: null).ConfigureAwait(false);
 
@@ -136,6 +147,7 @@ public sealed class RewardsCacheService : IRewardsCacheService, IDisposable
                 .Where(c => c.WidgetType == RewardsWidgetTypes.Rewards)
                 .ToList() ?? [];
 
+            var movies = NewMoviesIndex();
             foreach (var row in rows)
             {
                 var extra = row.GetExtraParamsDictionary();
@@ -145,7 +157,7 @@ public sealed class RewardsCacheService : IRewardsCacheService, IDisposable
                 }
 
                 var filter = RewardsFilter.FromExtraParams(extra, _logger, instanceId);
-                await RefreshInstanceAsync(instanceId, filter, cancellationToken).ConfigureAwait(false);
+                await RefreshInstanceAsync(instanceId, filter, movies, cancellationToken).ConfigureAwait(false);
             }
         }
         finally

@@ -174,7 +174,7 @@ public sealed class RewardsCacheServiceTests : IDisposable
         Assert.True(File.Exists(CacheFilePath(instanceId)));
     }
 
-    [Fact(Skip = "R11.c: each Rewards row reads the whole movie library; enabled by the fix that shares one index per refresh.")]
+    [Fact]
     public async Task RefreshAllInstancesAsync_TwoRows_ReadTheMovieLibraryOnce()
     {
         var apiClientMock = new Mock<IWikidataApiClient>();
