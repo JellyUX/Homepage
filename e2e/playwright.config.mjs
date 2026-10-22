@@ -26,7 +26,7 @@ export default defineConfig({
         {
             name: 'mobile',
             testMatch: /(home|errors)\.spec/,
-            grep: /F-25|one pane at a time|F-40/,
+            grep: /F-25|one pane at a time|F-40|KTW-04/,
             use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }
         },
         { name: 'baseurl', testMatch: /baseurl\.spec/ },

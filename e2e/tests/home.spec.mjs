@@ -130,7 +130,7 @@ test('a fresh install renders the seven native sections, each with cards (F-25)'
 });
 
 test('a long section title wraps left of the native scroll buttons at 390 px (KTW-04)', async ({ page }) => {
-    // A mouse at 390 px: the touch project gets no scroll buttons, so nothing to overlap there.
+    // Run at 390 px by both projects: the scroll buttons show with a mouse and with touch.
     await page.setViewportSize({ width: 390, height: 844 });
     await login(page, env.admin);
     await page.locator('.jux-widget-section .emby-scrollbuttons').first().waitFor();
