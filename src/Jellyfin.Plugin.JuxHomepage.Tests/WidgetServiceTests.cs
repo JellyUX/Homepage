@@ -493,6 +493,33 @@ public sealed class WidgetServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Sections_PagesAroundAStaleRebuild_ComeFromTwoLayouts()
+    {
+        // R11.a, verdict kept (DEC-P07-12): page 0 of an expired layout is served stale and queues the
+        // rebuild, so page 1, loaded on scroll, is cut from the new layout. Here the first section went
+        // empty meanwhile: the new layout starts one section earlier and section 20 is never shown.
+        // Only a layout of more than 20 sections pages at all (7 enabled by default, 16 at most).
+        var clock = new ManualTimeProvider();
+        using var sessionCache = new SessionCache(clock);
+        var firstEmpty = false;
+        var types = Enumerable.Range(0, 22).Select(i => $"w{i:D2}").ToArray();
+        var widgets = types.Select(t => MakeCountingWidget(t, () => t == "w00" && Volatile.Read(ref firstEmpty) ? 0 : 10)).ToArray();
+        var rows = types.Select((t, i) => new WidgetConfig { WidgetType = t, Enabled = true, MinItems = 1, Order = i }).ToArray();
+        var service = BuildService(widgets, rows, sessionCache: sessionCache);
+        var userId = Guid.NewGuid();
+        Assert.Equal(20, (await service.GetWidgetsForUser(userId, page: 0, lang: "en", CancellationToken.None)).Sections.Count);
+
+        clock.UtcNowValue += TimeSpan.FromMinutes(16);
+        Volatile.Write(ref firstEmpty, true);
+        var page0 = await service.GetWidgetsForUser(userId, page: 0, lang: "en", CancellationToken.None);
+        await service.WhenIdleForTesting();
+        var page1 = await service.GetWidgetsForUser(userId, page: 1, lang: "en", CancellationToken.None);
+
+        Assert.Equal(types[..20], page0.Sections.Select(s => s.WidgetType));
+        Assert.Equal(["w21"], page1.Sections.Select(s => s.WidgetType));
+    }
+
+    [Fact]
     public async Task Sections_SimultaneousMisses_BuildOnce()
     {
         // PERF-01.b: ten requests arriving while the first build of a layout runs share that build.

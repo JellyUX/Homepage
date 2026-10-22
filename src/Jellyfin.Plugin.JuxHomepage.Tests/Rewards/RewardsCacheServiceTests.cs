@@ -174,6 +174,30 @@ public sealed class RewardsCacheServiceTests : IDisposable
         Assert.True(File.Exists(CacheFilePath(instanceId)));
     }
 
+    [Fact(Skip = "R11.c: each Rewards row reads the whole movie library; enabled by the fix that shares one index per refresh.")]
+    public async Task RefreshAllInstancesAsync_TwoRows_ReadTheMovieLibraryOnce()
+    {
+        var apiClientMock = new Mock<IWikidataApiClient>();
+        apiClientMock
+            .Setup(c => c.GetAwardWinnersAsync(It.IsAny<RewardsFilter>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<RewardsWinner>)[new RewardsWinner { Id = 1, FilmQid = "Q1", FilmLabel = "Film", ImdbId = "tt0000001" }]);
+        var library = new Mock<ILibraryManager>();
+        library.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([MovieWith(MetadataProvider.Imdb, "tt0000001")]);
+        var widgets = Enumerable.Range(0, 2).Select(_ => new WidgetConfig
+        {
+            WidgetType = RewardsWidgetTypes.Rewards,
+            ExtraParams =
+            [
+                new WidgetExtraParam { Key = "value", Value = Guid.NewGuid().ToString() },
+                new WidgetExtraParam { Key = "categoryQid", Value = "Q102427" }
+            ]
+        }).ToArray();
+
+        await BuildService(apiClientMock.Object, library.Object, widgets).RefreshAllInstancesAsync(CancellationToken.None);
+
+        library.Verify(m => m.GetItemList(It.IsAny<InternalItemsQuery>()), Times.Once);
+    }
+
     // -------------------------------------------------------------------------
     // RefreshAllInstancesAsync: concurrency guard (Phase 1.1 of TODO_V3.md)
     // -------------------------------------------------------------------------

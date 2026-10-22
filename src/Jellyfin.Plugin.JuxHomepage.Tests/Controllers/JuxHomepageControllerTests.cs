@@ -198,7 +198,7 @@ public sealed class JuxHomepageControllerTests
         cacheMock.Setup(c => c.IsStale()).Returns(false);
         cacheMock.Setup(c => c.GetCollectionsFor(itemId)).Returns(refs);
 
-        var controller = BuildController(collectionsIndexCacheServiceMock: cacheMock, authContextMock: ApiKeyAuth());
+        var controller = AsCaller(BuildController(collectionsIndexCacheServiceMock: cacheMock, authContextMock: TestCaller.AuthContext(null)), null);
 
         var result = await controller.GetCollectionsForItem(itemId);
 
@@ -214,7 +214,7 @@ public sealed class JuxHomepageControllerTests
         cacheMock.Setup(c => c.IsStale()).Returns(false);
         cacheMock.Setup(c => c.GetCollectionsFor(It.IsAny<Guid>())).Returns([]);
 
-        var controller = BuildController(collectionsIndexCacheServiceMock: cacheMock, authContextMock: ApiKeyAuth());
+        var controller = AsCaller(BuildController(collectionsIndexCacheServiceMock: cacheMock, authContextMock: TestCaller.AuthContext(null)), null);
 
         var result = await controller.GetCollectionsForItem(Guid.NewGuid());
 
@@ -231,7 +231,7 @@ public sealed class JuxHomepageControllerTests
         cacheMock.Setup(c => c.RunRefreshLockedAsync(It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         cacheMock.Setup(c => c.GetCollectionsFor(It.IsAny<Guid>())).Returns([]);
 
-        var controller = BuildController(collectionsIndexCacheServiceMock: cacheMock, authContextMock: ApiKeyAuth());
+        var controller = AsCaller(BuildController(collectionsIndexCacheServiceMock: cacheMock, authContextMock: TestCaller.AuthContext(null)), null);
 
         var result = await controller.GetCollectionsForItem(Guid.NewGuid());
 
@@ -249,7 +249,7 @@ public sealed class JuxHomepageControllerTests
         cacheMock.Setup(c => c.TryAcquireRefreshLock()).Returns(false);
         cacheMock.Setup(c => c.GetCollectionsFor(It.IsAny<Guid>())).Returns([]);
 
-        var controller = BuildController(collectionsIndexCacheServiceMock: cacheMock, authContextMock: ApiKeyAuth());
+        var controller = AsCaller(BuildController(collectionsIndexCacheServiceMock: cacheMock, authContextMock: TestCaller.AuthContext(null)), null);
 
         var result = await controller.GetCollectionsForItem(Guid.NewGuid());
 
@@ -273,15 +273,12 @@ public sealed class JuxHomepageControllerTests
         cacheMock.Setup(c => c.GetCollectionsFor(itemId)).Returns([.. visibleRefs, new CollectionRef { CollectionId = Guid.NewGuid(), CollectionName = "Hidden" }]);
         cacheMock.Setup(c => c.GetCollectionsFor(itemId, user)).Returns(visibleRefs);
 
-        var authContextMock = new Mock<IAuthorizationContext>();
-        authContextMock
-            .Setup(a => a.GetAuthorizationInfo(It.IsAny<HttpContext>()))
-            .ReturnsAsync(new AuthorizationInfo { User = user, IsApiKey = false });
-
-        var controller = BuildController(
-            userManagerMock: TestMocks.UserManagerReturning(user),
-            collectionsIndexCacheServiceMock: cacheMock,
-            authContextMock: authContextMock);
+        var controller = AsCaller(
+            BuildController(
+                userManagerMock: TestMocks.UserManagerReturning(user),
+                collectionsIndexCacheServiceMock: cacheMock,
+                authContextMock: TestCaller.AuthContext(user)),
+            user);
 
         var result = await controller.GetCollectionsForItem(itemId);
 
@@ -548,9 +545,37 @@ public sealed class JuxHomepageControllerTests
         watchlist.Verify(w => w.GetLikedItemIds(It.IsAny<Guid>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
-    private static async Task<int?> InvokeAsUser(MethodInfo action, User caller, Guid requestedUserId)
+    [Fact]
+    public async Task UserScopedActions_AdministratorAskingForAnotherUser_IsServed()
     {
-        var controller = BuildUserController(caller, isAdministrator: false);
+        var admin = TestMocks.DefaultUser();
+
+        foreach (var action in UserScopedActions())
+        {
+            var status = await Invoke(action, BuildUserController(admin, isAdministrator: true), requestedUserId: Guid.NewGuid());
+
+            Assert.True(status != StatusCodes.Status403Forbidden, $"{action.Name} refused an administrator");
+        }
+    }
+
+    [Fact]
+    public async Task UserScopedActions_ApiKey_MustNameAUser()
+    {
+        foreach (var action in UserScopedActions())
+        {
+            var withoutUser = await Invoke(action, BuildApiKeyController(), requestedUserId: Guid.Empty);
+            var namingAUser = await Invoke(action, BuildApiKeyController(), requestedUserId: Guid.NewGuid());
+
+            Assert.True(withoutUser == StatusCodes.Status403Forbidden, $"{action.Name} returned {withoutUser} to an API key naming no user");
+            Assert.True(namingAUser != StatusCodes.Status403Forbidden, $"{action.Name} refused an API key naming a user");
+        }
+    }
+
+    private static Task<int?> InvokeAsUser(MethodInfo action, User caller, Guid requestedUserId) =>
+        Invoke(action, BuildUserController(caller, isAdministrator: false), requestedUserId);
+
+    private static async Task<int?> Invoke(MethodInfo action, JuxHomepageController controller, Guid requestedUserId)
+    {
         var args = action.GetParameters()
             .Select(p => p.Name == "userId" ? requestedUserId
                 : p.ParameterType == typeof(string) ? (p.HasDefaultValue ? p.DefaultValue : "jux.test")
@@ -572,25 +597,19 @@ public sealed class JuxHomepageControllerTests
         SessionCache? sessionCache = null,
         IUserConfigurationStore? userConfigStore = null)
     {
-        var authContextMock = new Mock<IAuthorizationContext>();
-        authContextMock
-            .Setup(a => a.GetAuthorizationInfo(It.IsAny<HttpContext>()))
-            .ReturnsAsync(new AuthorizationInfo { User = caller, IsApiKey = false });
-
         var controller = BuildController(
             userManagerMock: TestMocks.UserManagerReturning(caller),
             watchlistServiceMock: watchlistServiceMock,
-            authContextMock: authContextMock,
+            authContextMock: TestCaller.AuthContext(caller),
             sessionCache: sessionCache,
             userConfigStore: userConfigStore);
 
-        var roles = isAdministrator ? new[] { new Claim(ClaimTypes.Role, "Administrator") } : [];
-        controller.ControllerContext = new ControllerContext
-        {
-            HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity(roles, "test")) }
-        };
-        return controller;
+        return AsCaller(controller, caller, isAdministrator);
     }
+
+    private static JuxHomepageController BuildApiKeyController() => AsCaller(
+        BuildController(userManagerMock: TestMocks.UserManagerReturning(TestMocks.DefaultUser()), authContextMock: TestCaller.AuthContext(null)),
+        null);
 
     [Fact]
     public void GetPatchStatus_SendsTheStateByName_AndUnknownBeforeStartupRan()
@@ -611,12 +630,14 @@ public sealed class JuxHomepageControllerTests
     // Helpers
     // -------------------------------------------------------------------------
 
-    private static Mock<IAuthorizationContext> ApiKeyAuth()
+    /// <summary>Sets the request's caller: a user session, or a server API key when <paramref name="user"/> is null.</summary>
+    private static JuxHomepageController AsCaller(JuxHomepageController controller, User? user, bool isAdministrator = false)
     {
-        var mock = new Mock<IAuthorizationContext>();
-        mock.Setup(a => a.GetAuthorizationInfo(It.IsAny<HttpContext>()))
-            .ReturnsAsync(new AuthorizationInfo { IsApiKey = true });
-        return mock;
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext { User = TestCaller.Principal(user, isAdministrator) }
+        };
+        return controller;
     }
 
     private static JuxHomepageController BuildController(

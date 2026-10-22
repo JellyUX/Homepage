@@ -1,10 +1,8 @@
-using System.Security.Claims;
 using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.Controllers;
 using Jellyfin.Plugin.JuxHomepage.Localization;
 using Jellyfin.Plugin.JuxHomepage.Widgets;
-using MediaBrowser.Controller.Net;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -67,12 +65,34 @@ public sealed class JuxUserSettingsControllerTests
         Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<StatusCodeResult>(result.Result).StatusCode);
     }
 
-    private JuxUserSettingsController BuildController()
+    [Fact]
+    public async Task Get_AnotherUsersSettings_IsServedToAnAdministrator()
     {
-        var authContext = new Mock<IAuthorizationContext>();
-        authContext
-            .Setup(a => a.GetAuthorizationInfo(It.IsAny<HttpContext>()))
-            .ReturnsAsync(new AuthorizationInfo { User = _caller, IsApiKey = false });
+        var other = Guid.NewGuid();
+        _store.Setup(s => s.GetUserConfiguration(other)).Returns(new UserConfiguration { UserId = other, Enabled = false });
+
+        var result = await BuildController(isAdministrator: true).Get(other, "en");
+
+        Assert.False(Assert.IsType<UserSettingsView>(Assert.IsType<OkObjectResult>(result.Result).Value).Enabled);
+    }
+
+    [Fact]
+    public async Task Save_WithAnApiKey_MustNameAUser()
+    {
+        _store.Setup(s => s.SaveUserConfiguration(It.IsAny<UserConfiguration>())).Returns(true);
+        var other = Guid.NewGuid();
+
+        var withoutUser = await BuildController(apiKey: true).Save(Guid.Empty, new UserSettingsUpdate { Enabled = false });
+        var namingAUser = await BuildController(apiKey: true).Save(other, new UserSettingsUpdate { Enabled = false });
+
+        Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<StatusCodeResult>(withoutUser).StatusCode);
+        Assert.IsType<NoContentResult>(namingAUser);
+        _store.Verify(s => s.SaveUserConfiguration(It.Is<UserConfiguration>(c => c.UserId == other)), Times.Once);
+    }
+
+    private JuxUserSettingsController BuildController(bool isAdministrator = false, bool apiKey = false)
+    {
+        var caller = apiKey ? null : _caller;
 
         var localization = new LocalizationService(new Dictionary<string, IReadOnlyDictionary<string, string>>());
         Func<PluginConfiguration?> configuration = () => new PluginConfiguration();
@@ -80,11 +100,11 @@ public sealed class JuxUserSettingsControllerTests
         var widgetService = new WidgetService(new WidgetRegistry(), new SessionCache(), resolver, configuration, NullLogger<WidgetService>.Instance);
         var service = new UserSettingsService(_store.Object, localization, widgetService, configuration);
 
-        return new JuxUserSettingsController(service, authContext.Object)
+        return new JuxUserSettingsController(service, TestCaller.AuthContext(caller).Object)
         {
             ControllerContext = new ControllerContext
             {
-                HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity([], "test")) }
+                HttpContext = new DefaultHttpContext { User = TestCaller.Principal(caller, isAdministrator) }
             }
         };
     }
