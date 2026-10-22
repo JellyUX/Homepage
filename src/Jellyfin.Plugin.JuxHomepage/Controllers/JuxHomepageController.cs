@@ -285,7 +285,8 @@ public class JuxHomepageController : ControllerBase
 
     /// <summary>
     /// Returns items for a specific widget section.
-    /// Called lazily by the front end when a section scrolls into view.
+    /// Called by the front end when a section comes within one screen below the viewport
+    /// (test: jux-homepage.test.js "sections loaded near the viewport").
     /// </summary>
     /// <param name="widgetType">The widget type identifier.</param>
     /// <param name="userId">The requesting user's Jellyfin identifier.</param>

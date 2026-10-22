@@ -60,6 +60,27 @@ test('the home page reads each JellyUX section once, plus the layout and the wat
     expect(longFrames.filter((d) => d > 100)).toEqual([]);
 });
 
+test('an unscrolled home page fetches only the rows within one screen below the viewport (PERF-09.b)', async ({ page }) => {
+    const requests = trackJuxRequests(page);
+    await login(page, env.admin);
+    await page.locator('.homeSectionsContainer.jux-homepage-active .jux-widget-section').first().waitFor();
+    await page.waitForTimeout(3000);
+
+    // A fetched row has lost its grey cards; a waiting one still lies more than a screen below.
+    const rows = await page.locator('.jux-items-container').evaluateAll((all) => all.map((row) => ({
+        waiting: !!row.querySelector('.jux-skeleton-card'),
+        top: row.getBoundingClientRect().top,
+        screen: innerHeight
+    })));
+    const rowRequests = requests.since().filter((r) => /\/JuxHomepage\/Section\/|\/Resume$|\/Shows\/NextUp$|\/Items\/Latest$/.test(r.path));
+
+    test.info().annotations.push({ type: 'rows fetched / built', description: `${rowRequests.length} / ${rows.length}` });
+    expect(rows[0].waiting).toBe(false);
+    expect(rowRequests).toHaveLength(rows.filter((r) => !r.waiting).length);
+    expect(rows.filter((r) => r.waiting && r.top < 2 * r.screen)).toEqual([]);
+    expect(requests.duplicates()).toEqual([]);
+});
+
 test('coming back to the home page within the app issues no JellyUX or home section request (PROC-03.a, A-08)', async ({ page }) => {
     const requests = trackJuxRequests(page);
     await login(page, env.admin);

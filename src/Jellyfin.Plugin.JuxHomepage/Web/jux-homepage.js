@@ -81,9 +81,9 @@
     var SKELETON_SECTIONS = 3;
     var SKELETON_CARDS = 8;
 
-    function _skeletonHtml() {
-        var card =
-            '<div class="card overflowBackdropCard">' +
+    function _skeletonCardsHtml() {
+        return new Array(SKELETON_CARDS + 1).join(
+            '<div class="card overflowBackdropCard jux-skeleton-card">' +
             '<div class="cardBox cardBox-bottompadded">' +
             '<div class="cardScalable">' +
             '<div class="cardPadder cardPadder-overflowBackdrop"></div>' +
@@ -91,13 +91,16 @@
             '</div>' +
             '<div class="cardText jux-skeleton-text"><div class="jux-skeleton-bar"></div></div>' +
             '</div>' +
-            '</div>';
+            '</div>');
+    }
+
+    function _skeletonHtml() {
         var section =
             '<div class="verticalSection jux-skeleton-section">' +
             '<div class="sectionTitleContainer sectionTitleContainer-cards padded-left">' +
             '<div class="jux-skeleton-bar jux-skeleton-title"></div>' +
             '</div>' +
-            '<div class="jux-skeleton-row padded-left">' + new Array(SKELETON_CARDS + 1).join(card) + '</div>' +
+            '<div class="jux-skeleton-row padded-left">' + _skeletonCardsHtml() + '</div>' +
             '</div>';
         return '<div class="jux-skeleton" aria-busy="true">' + new Array(SKELETON_SECTIONS + 1).join(section) + '</div>';
     }
@@ -120,6 +123,11 @@
         // emptied (destroySections), so every call starts from a blank container.
         elem.innerHTML = _skeletonHtml();
         elem.classList.add('homeSectionsContainer', 'jux-homepage-active');
+        var rowObserver = _rowObservers && _rowObservers.get(elem);
+        if (rowObserver) {
+            rowObserver.disconnect();
+            _rowObservers.delete(elem);
+        }
 
         // Only the first page load falls back to native rendering on failure: at that point
         // nothing has been rendered yet, so a permanently blank home screen would otherwise result.
@@ -184,12 +192,11 @@
             });
 
             return Promise.all(tasks).then(function () {
-                // Trigger native lazy fetch on all new itemsContainers
                 var containers = elem.querySelectorAll('.jux-items-container:not([data-jux-loaded])');
                 Array.prototype.forEach.call(containers, function (c) {
                     c.setAttribute('data-jux-loaded', '1');
                     if (typeof c.resume === 'function') {
-                        _resumeContainer(c);
+                        _resumeWhenNear(elem, c);
                     }
                 });
             });
@@ -424,6 +431,33 @@
         Promise.resolve(container.resume({ refresh: true })).catch(function (err) {
             console.error('[JellyUX] Section render failed:', err);
         });
+    }
+
+    // A row is fetched once it comes within one screen below the viewport (PERF-09.a), not with
+    // every other row of the page. Until then grey cards hold it at a row's height, so the rows
+    // further down stay out of reach; the native render replaces them (test: jux-homepage.test.js
+    // "sections loaded near the viewport"). The TV layout never gets here: it keeps the native home.
+    var _rowObservers = typeof WeakMap === 'function' ? new WeakMap() : null;
+
+    function _resumeWhenNear(elem, container) {
+        if (typeof IntersectionObserver === 'undefined' || !_rowObservers) {
+            _resumeContainer(container);
+            return;
+        }
+        var observer = _rowObservers.get(elem);
+        if (!observer) {
+            observer = new IntersectionObserver(function (entries) {
+                entries.forEach(function (entry) {
+                    if (entry.isIntersecting) {
+                        observer.unobserve(entry.target);
+                        _resumeContainer(entry.target);
+                    }
+                });
+            }, { rootMargin: '0px 0px 100% 0px' });
+            _rowObservers.set(elem, observer);
+        }
+        container.innerHTML = _skeletonCardsHtml();
+        observer.observe(container);
     }
 
     function _makeGetItemsHtml(descriptor, shapeFn, useEpisodeImages) {

@@ -60,6 +60,14 @@ export async function loadedSections(page) {
         await page.waitForTimeout(1500);
         count = await page.locator('.jux-widget-section').count();
     }
+    // A row is fetched only once it comes near the viewport (PERF-09.a): bring each one into view.
+    await page.evaluate(async () => {
+        for (const row of document.querySelectorAll('.jux-items-container')) {
+            row.scrollIntoView({ block: 'center' });
+            await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+    });
+    await expect(page.locator('.jux-items-container .jux-skeleton-card')).toHaveCount(0);
     return page.locator('.jux-widget-section').evaluateAll((sections) =>
         sections.map((s) => [...s.classList].find((c) => c.startsWith('jux-widget-jux-')).replace('jux-widget-', '')));
 }

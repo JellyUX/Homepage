@@ -739,3 +739,83 @@ describe('first render (F-41)', () => {
         expect(native).toHaveBeenCalledTimes(1);
     });
 });
+
+describe('sections loaded near the viewport (PERF-09)', () => {
+    const originalObserver = globalThis.IntersectionObserver;
+    let observers;
+
+    beforeEach(() => {
+        observers = [];
+        globalThis.IntersectionObserver = class {
+            constructor(callback, options) {
+                this.callback = callback;
+                this.options = options;
+                this.targets = [];
+                observers.push(this);
+            }
+            observe(target) { this.targets.push(target); }
+            unobserve(target) { this.targets = this.targets.filter((t) => t !== target); }
+            disconnect() { this.targets = []; }
+            fire(entries) { this.callback(entries.map(([target, isIntersecting]) => ({ target, isIntersecting })), this); }
+        };
+        HTMLDivElement.prototype.resume = vi.fn(() => Promise.resolve());
+    });
+
+    afterEach(() => {
+        globalThis.IntersectionObserver = originalObserver;
+        delete HTMLDivElement.prototype.resume;
+        document.body.innerHTML = '';
+    });
+
+    async function renderThreeSections() {
+        const elem = document.createElement('div');
+        document.body.appendChild(elem);
+        const client = {
+            getCurrentUserId: () => 'u1',
+            getUrl: (route) => route,
+            getJSON: vi.fn().mockResolvedValue({
+                Sections: ['a', 'b', 'c'].map((name) => ({ WidgetType: 'jux.genre', DisplayName: name })),
+                HasMore: false,
+                Enabled: true
+            })
+        };
+        await _renderHome({}, elem, client, {}, {});
+        return [...elem.querySelectorAll('.jux-items-container')];
+    }
+
+    it('fetches no row before it comes within one screen below the viewport', async () => {
+        const rows = await renderThreeSections();
+
+        expect(HTMLDivElement.prototype.resume).not.toHaveBeenCalled();
+        expect(observers).toHaveLength(1);
+        expect(observers[0].options.rootMargin).toBe('0px 0px 100% 0px');
+        expect(observers[0].targets).toEqual(rows);
+    });
+
+    it('fetches each row once, when it comes near, and stops watching it', async () => {
+        const rows = await renderThreeSections();
+        const resume = HTMLDivElement.prototype.resume;
+
+        observers[0].fire([[rows[0], true], [rows[1], false], [rows[2], false]]);
+        expect(resume.mock.contexts).toEqual([rows[0]]);
+        expect(resume).toHaveBeenCalledWith({ refresh: true });
+
+        observers[0].fire([[rows[1], true]]);
+        expect(resume.mock.contexts).toEqual([rows[0], rows[1]]);
+        expect(observers[0].targets).toEqual([rows[2]]);
+    });
+
+    it('holds a waiting row open with grey cards, which the native render replaces', async () => {
+        const rows = await renderThreeSections();
+
+        rows.forEach((row) => expect(row.querySelectorAll('.card.jux-skeleton-card').length).toBeGreaterThan(0));
+    });
+
+    it('fetches every row at once in a browser without IntersectionObserver', async () => {
+        delete globalThis.IntersectionObserver;
+
+        const rows = await renderThreeSections();
+
+        expect(HTMLDivElement.prototype.resume.mock.contexts).toEqual(rows);
+    });
+});

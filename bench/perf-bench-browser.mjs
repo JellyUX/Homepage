@@ -35,11 +35,11 @@ const INIT = `(() => {
         seen.set(s, rec); P.sections.push(rec); P.lastChange = now;
       }
       if (rec.card === null) {
-        const card = s.querySelector('.card');
+        const card = s.querySelector('.card:not(.jux-skeleton-card)');
         if (card) { rec.card = now - P.t0; P.lastChange = now; }
       }
       if (rec.visible === null && rec.card !== null) {
-        const card = s.querySelector('.card');
+        const card = s.querySelector('.card:not(.jux-skeleton-card)');
         const r = card.getBoundingClientRect();
         if (r.height > 0 && r.width > 0 && r.top < innerHeight && r.bottom > 0) {
           rec.visible = now - P.t0;

@@ -142,6 +142,11 @@
     margin: 0.6em 0;
 }
 
+/* A row waiting to be fetched (PERF-09.a) holds grey cards: not an item to click. */
+.jux-skeleton-card {
+    pointer-events: none;
+}
+
 .jux-skeleton-text .jux-skeleton-bar {
     width: 60%;
     margin: 0.5em auto 0;
