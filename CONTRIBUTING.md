@@ -43,6 +43,10 @@ Thank you for your interest in contributing. This document covers the developmen
   - Types: `feat`, `fix`, `refactor`, `style`, `docs`, `chore`, `test`
   - One atomic commit per logical change
   - Example: `feat: add ContinueWatching widget`
+  - A `fix:` adds lines to a test file (`test/*.test.js`, `e2e/*.spec.mjs`, `*.Tests/**/*Tests.cs`), or
+    says why it cannot in an `Untestable: <reason>` trailer (`node ci/static-checks.mjs --commits`). A
+    fixture, a helper or a deleted line does not count. The type itself is not checked: a behavior
+    change committed as `refactor:` escapes the rule, so the review checks that the type matches the diff.
 - **No commented-out code**: Dead code must be deleted, not commented.
 - **CSS prefix**: All plugin CSS classes must use the `jux-` prefix.
 - **CSS variables**: Reuse native Jellyfin CSS variables (`var(--primaryTextColor)`, `var(--accent)`, etc.) instead of hardcoding colors.

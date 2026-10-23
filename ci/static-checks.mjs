@@ -27,6 +27,7 @@ const VAR_FALLBACK = /var\(\s*--[\w-]+\s*,\s*(?:#[0-9a-fA-F]{3,8}|(?:rgba?|hsla?
 const DEFERRED_MARKER = /\bTODO\b|\bFIXME\b|future phase|worth revisiting/gi;
 // Only the registry prefixes: V5 findings, hypotheses, anomalies and decisions, V4 findings (A-03.e).
 const REGISTRY_ID = /\b(?:PERF|FIAB|QUAL|PROC|KTW|ADM|H|A|D|F)-\d{2}\b/;
+const TEST_FILE = /(?:^test\/.*\.test\.js|^e2e\/.*\.spec\.mjs|\.Tests\/.*Tests\.cs)$/;
 const MARKER_EXTENSIONS = new Set(['.cs', '.js', '.mjs', '.css', '.html']);
 
 /**
@@ -211,10 +212,11 @@ export function checkTargetAbi({ buildYaml, manifest, csproj }) {
 
 /**
  * Checks one commit against the commit rules.
- * @param {{sha: string, subject: string, body: string, files: string[]}} commit
+ * @param {{sha: string, subject: string, body: string, files: string[], added: Record<string, number>}} commit
+ *   added: the lines each file gains (git diff-tree --numstat).
  * @returns {{errors: string[], warnings: string[]}}
  */
-export function checkCommit({ sha, subject, body, files }) {
+export function checkCommit({ sha, subject, body, files, added }) {
     const errors = [];
     const warnings = [];
     const short = sha.slice(0, 7);
@@ -233,8 +235,9 @@ export function checkCommit({ sha, subject, body, files }) {
     }
 
     if (type === 'fix') {
-        // Every fix, server or client, ships the test that proves it (TODO_V5 PROC-mineur.a).
-        const touchesTests = files.some((f) => f.startsWith('test/') || f.startsWith('e2e/') || f.includes('.Tests/'));
+        // Every fix, server or client, ships the test that proves it (TODO_V5 PROC-mineur.a): lines added
+        // to a test file, not a fixture, a helper or a deletion (A-03.c).
+        const touchesTests = files.some((f) => TEST_FILE.test(f) && (added[f] ?? 0) > 0);
         if (!touchesTests && !/^untestable:\s*\S/im.test(body)) {
             errors.push(`${short}: a fix: without a test needs an "Untestable: <reason>" trailer.`);
         }
@@ -529,8 +532,13 @@ function main() {
                 continue;
             }
             const body = git(['log', '-1', '--format=%b', sha]);
-            const files = git(['diff-tree', '--no-commit-id', '--name-only', '-r', sha]).split('\n').filter(Boolean);
-            const result = checkCommit({ sha, subject: git(['log', '-1', '--format=%s', sha]).trim(), body, files });
+            const added = {};
+            for (const line of git(['diff-tree', '--no-commit-id', '--numstat', '-r', sha]).split('\n').filter(Boolean)) {
+                const [plus, , file] = line.split('\t');
+                added[file] = plus === '-' ? 0 : Number(plus);
+            }
+            const files = Object.keys(added);
+            const result = checkCommit({ sha, subject: git(['log', '-1', '--format=%s', sha]).trim(), body, files, added });
             result.errors.forEach((message) => errors.push({ message }));
             result.warnings.forEach((message) => warnings.push({ message }));
             for (const file of BUDGET_FILES.filter((f) => files.includes(f))) {

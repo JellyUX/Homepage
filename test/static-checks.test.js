@@ -186,7 +186,10 @@ describe('checkBudget', () => {
 });
 
 describe('checkCommit', () => {
-    const commit = (over) => ({ sha: 'abcdef0123', subject: 'fix: x', body: '', files: ['src/Foo.cs'], ...over });
+    const commit = (over) => {
+        const merged = { sha: 'abcdef0123', subject: 'fix: x', body: '', files: ['src/Foo.cs'], ...over };
+        return { added: Object.fromEntries(merged.files.map((f) => [f, 1])), ...merged };
+    };
 
     it('accepts a Conventional Commit', () => {
         expect(checkCommit(commit({ subject: 'chore(release): 2.10.0 [skip ci]' }))).toEqual({ errors: [], warnings: [] });
@@ -209,6 +212,14 @@ describe('checkCommit', () => {
         expect(checkCommit(commit({ files: web, body: 'Untestable: needs a live bundle' })).errors).toEqual([]);
         expect(checkCommit(commit({ files: [...web, 'test/jux-ui.test.js'] })).errors).toEqual([]);
         expect(checkCommit(commit({ files: [...server, 'src/Jellyfin.Plugin.JuxHomepage.Tests/Personalized/ScoringServiceTests.cs'] })).errors).toEqual([]);
+    });
+
+    it('takes as a test only added lines in a test file, not a fixture or a deletion (A-03.c)', () => {
+        const web = 'src/Jellyfin.Plugin.JuxHomepage/Web/jux-ui.js';
+        const added = (entries) => ({ [web]: 4, ...entries });
+        expect(checkCommit(commit({ files: [web, 'e2e/fixtures/config-2.13.0.xml'], added: added({ 'e2e/fixtures/config-2.13.0.xml': 3 }) })).errors).toHaveLength(1);
+        expect(checkCommit(commit({ files: [web, 'test/jux-ui.test.js'], added: added({ 'test/jux-ui.test.js': 0 }) })).errors).toHaveLength(1);
+        expect(checkCommit(commit({ files: [web, 'e2e/home.spec.mjs'], added: added({ 'e2e/home.spec.mjs': 2 }) })).errors).toEqual([]);
     });
 
     it('warns on a large fix without a body', () => {
