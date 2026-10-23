@@ -88,18 +88,24 @@ describe('previewHtml (F-62)', () => {
 });
 
 describe('toConfigRow', () => {
-    it('stores an admin row without user override and clamps its item range', () => {
-        const row = toConfigRow({ WidgetType: 'jux.admin.genre', Enabled: true, MinItems: -2, MaxItems: 0, AllowUserOverride: true }, 3, true);
-        expect(row).toMatchObject({ Order: 30, MinItems: 0, MaxItems: 1, AllowUserOverride: false, MinInstances: 1, MaxInstances: 1, ExtraParams: [], CustomDisplayName: null });
+    it('clamps the item range of a row and orders it by its place', () => {
+        const row = toConfigRow({ WidgetType: 'jux.admin.genre', Enabled: true, MinItems: -2, MaxItems: 0 }, 3);
+        expect(row).toMatchObject({ Order: 30, MinItems: 0, MaxItems: 1, ExtraParams: [], CustomDisplayName: null });
+    });
+
+    it('saves the frozen per-user override settings as they were loaded, without writing them (QUAL-02)', () => {
+        const loaded = { WidgetType: 'jux.admin.genre', AllowUserOverride: true, MinInstances: 1, MaxInstances: 5 };
+        expect(toConfigRow(loaded, 0)).toMatchObject({ AllowUserOverride: true, MinInstances: 1, MaxInstances: 5 });
+        expect(toConfigRow({ WidgetType: 'jux.admin.genre' }, 0)).not.toHaveProperty('AllowUserOverride');
     });
 });
 
 describe('sortOption (F-53)', () => {
     it('keeps a known order, ignores the direction of Random and falls back to the name', () => {
-        expect(toConfigRow({ SortBy: 'DateCreated', SortOrder: 'Descending' }, 0, false)).toMatchObject({ SortBy: 'DateCreated', SortOrder: 'Descending' });
+        expect(toConfigRow({ SortBy: 'DateCreated', SortOrder: 'Descending' }, 0)).toMatchObject({ SortBy: 'DateCreated', SortOrder: 'Descending' });
         expect(sortOption({ SortBy: 'Random', SortOrder: 'Descending' })[2]).toBe('admin.sort.random');
-        expect(toConfigRow({ SortBy: 'Bogus' }, 0, false)).toMatchObject({ SortBy: 'SortName', SortOrder: 'Ascending' });
-        expect(toConfigRow({}, 0, false)).toMatchObject({ SortBy: 'SortName', SortOrder: 'Ascending' });
+        expect(toConfigRow({ SortBy: 'Bogus' }, 0)).toMatchObject({ SortBy: 'SortName', SortOrder: 'Ascending' });
+        expect(toConfigRow({}, 0)).toMatchObject({ SortBy: 'SortName', SortOrder: 'Ascending' });
     });
 });
 

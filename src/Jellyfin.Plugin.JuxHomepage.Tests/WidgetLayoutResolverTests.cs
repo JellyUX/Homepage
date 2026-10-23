@@ -16,96 +16,36 @@ using Xunit;
 
 namespace Jellyfin.Plugin.JuxHomepage.Tests;
 
-// Covers the global/user-override merge logic extracted into WidgetLayoutResolver (Phase 7.1 of
-// TODO_V2.md). This is a real coverage gap fix: WidgetServiceTests' BuildService helper always mocks
-// IUserConfigurationStore.GetUserConfiguration to return null, so the override-merge branch was never
-// previously exercised by any test. Everything else (sorting, pagination, fan-out, MinItems
-// filtering, translation) is already covered end-to-end via WidgetServiceTests' public entry points
-// and is not duplicated here.
+// Covers the layout built by WidgetLayoutResolver from the global rows: section keys, personalized
+// ranks, the row a section reads, and per-user overrides ignored while frozen (QUAL-02). Sorting,
+// pagination and MinItems filtering are covered end-to-end via WidgetServiceTests' public entry points.
 public sealed class WidgetLayoutResolverTests
 {
+    // QUAL-02 (D-05): per-user overrides are frozen; a user file that still has one changes nothing.
     [Fact]
-    public async Task BuildDescriptors_AllowUserOverrideTrue_UserOverrideWins()
+    public async Task BuildDescriptors_UserWidgetOverride_IsIgnoredWhileFrozen()
     {
-        var widget = MakeWidget("jux.test.widget", totalRecordCount: 10);
         var registry = new WidgetRegistry();
-        registry.Register(widget);
+        registry.Register(MakeWidget("jux.test.widget", totalRecordCount: 10));
+        var global = new WidgetConfig { WidgetType = "jux.test.widget", CustomDisplayName = "Global Name", AllowUserOverride = true, Enabled = true, MinItems = 4 };
+        var userOverride = new WidgetConfig { WidgetType = "jux.test.widget", CustomDisplayName = "Override Name", AllowUserOverride = true, Enabled = true, MinItems = 4 };
 
-        var globalConfig = new WidgetConfig
-        {
-            WidgetType = "jux.test.widget",
-            CustomDisplayName = "Global Name",
-            AllowUserOverride = true,
-            Enabled = true,
-            MinItems = 4
-        };
-        var userOverride = new WidgetConfig
-        {
-            WidgetType = "jux.test.widget",
-            CustomDisplayName = "Override Name",
-            AllowUserOverride = true,
-            Enabled = true,
-            MinItems = 4
-        };
+        var descriptors = await BuildResolverWithOverrides(registry, [global], [userOverride])
+            .BuildDescriptors(Guid.NewGuid(), lang: null, CancellationToken.None);
 
-        var userConfigStoreMock = new Mock<IUserConfigurationStore>();
-        userConfigStoreMock
-            .Setup(s => s.GetUserConfiguration(It.IsAny<Guid>()))
-            .Returns(new UserConfiguration { WidgetOverrides = [userOverride] });
-
-        var resolver = new WidgetLayoutResolver(
-            registry,
-            userConfigStoreMock.Object,
-            new LocalizationService(new Dictionary<string, IReadOnlyDictionary<string, string>>()),
-            () => new PluginConfiguration { Widgets = [globalConfig] },
-            NullLogger<WidgetLayoutResolver>.Instance);
-
-        var descriptors = await resolver.BuildDescriptors(Guid.NewGuid(), lang: null, CancellationToken.None);
-
-        var descriptor = Assert.Single(descriptors);
-        Assert.Equal("Override Name", descriptor.DisplayName);
+        Assert.Equal("Global Name", Assert.Single(descriptors).DisplayName);
     }
 
     [Fact]
-    public async Task BuildDescriptors_AllowUserOverrideFalse_UserOverrideIgnored()
+    public void ResolveConfigRow_UserWidgetOverride_IsIgnoredWhileFrozen()
     {
-        var widget = MakeWidget("jux.test.widget", totalRecordCount: 10);
-        var registry = new WidgetRegistry();
-        registry.Register(widget);
+        var global = new WidgetConfig { WidgetType = "jux.test.widget", Order = 10, AllowUserOverride = true, SortBy = WidgetSort.SortName };
+        var userOverride = new WidgetConfig { WidgetType = "jux.test.widget", Order = 10, AllowUserOverride = true, SortBy = WidgetSort.Random };
 
-        var globalConfig = new WidgetConfig
-        {
-            WidgetType = "jux.test.widget",
-            CustomDisplayName = "Global Name",
-            AllowUserOverride = false,
-            Enabled = true,
-            MinItems = 4
-        };
-        var userOverride = new WidgetConfig
-        {
-            WidgetType = "jux.test.widget",
-            CustomDisplayName = "Override Name",
-            AllowUserOverride = false,
-            Enabled = true,
-            MinItems = 4
-        };
+        var row = BuildResolverWithOverrides(new WidgetRegistry(), [global], [userOverride])
+            .ResolveConfigRow("jux.test.widget", additionalData: null);
 
-        var userConfigStoreMock = new Mock<IUserConfigurationStore>();
-        userConfigStoreMock
-            .Setup(s => s.GetUserConfiguration(It.IsAny<Guid>()))
-            .Returns(new UserConfiguration { WidgetOverrides = [userOverride] });
-
-        var resolver = new WidgetLayoutResolver(
-            registry,
-            userConfigStoreMock.Object,
-            new LocalizationService(new Dictionary<string, IReadOnlyDictionary<string, string>>()),
-            () => new PluginConfiguration { Widgets = [globalConfig] },
-            NullLogger<WidgetLayoutResolver>.Instance);
-
-        var descriptors = await resolver.BuildDescriptors(Guid.NewGuid(), lang: null, CancellationToken.None);
-
-        var descriptor = Assert.Single(descriptors);
-        Assert.Equal("Global Name", descriptor.DisplayName);
+        Assert.Same(global, row);
     }
 
     // -------------------------------------------------------------------------
@@ -164,53 +104,6 @@ public sealed class WidgetLayoutResolverTests
     }
 
     [Fact]
-    public async Task BuildDescriptors_TwoRowsOfTheSameType_OverrideAppliesToOneRowByRank()
-    {
-        var registry = new WidgetRegistry();
-        registry.Register(MakeWidget("jux.test.widget", totalRecordCount: 10));
-
-        var first = new WidgetConfig { WidgetType = "jux.test.widget", CustomDisplayName = "Row 1", Order = 10, AllowUserOverride = true, Enabled = true, MinItems = 1 };
-        var second = new WidgetConfig { WidgetType = "jux.test.widget", CustomDisplayName = "Row 2", Order = 20, AllowUserOverride = true, Enabled = true, MinItems = 1 };
-        var userOverride = new WidgetConfig { WidgetType = "jux.test.widget", CustomDisplayName = "Mine", Order = 10, AllowUserOverride = true, Enabled = true, MinItems = 1 };
-
-        var descriptors = await BuildResolverWithOverrides(registry, [first, second], [userOverride])
-            .BuildDescriptors(Guid.NewGuid(), lang: null, CancellationToken.None);
-
-        Assert.Equal(["Mine", "Row 2"], descriptors.Select(d => d.DisplayName));
-    }
-
-    [Fact]
-    public async Task BuildDescriptors_InstanceRows_OverrideMatchedByInstanceValue()
-    {
-        var registry = new WidgetRegistry();
-        registry.Register(MakeWidget("jux.test.widget", totalRecordCount: 10));
-
-        // Instance rows (Discover, Rewards, Seasonal) carry a GUID instance id in ExtraParams["value"].
-        var idA = Guid.NewGuid().ToString();
-        var idB = Guid.NewGuid().ToString();
-        var a = new WidgetConfig { WidgetType = "jux.test.widget", CustomDisplayName = "A", Order = 10, AllowUserOverride = true, Enabled = true, MinItems = 1, ExtraParams = [new WidgetExtraParam { Key = "value", Value = idA }] };
-        var b = new WidgetConfig { WidgetType = "jux.test.widget", CustomDisplayName = "B", Order = 20, AllowUserOverride = true, Enabled = true, MinItems = 1, ExtraParams = [new WidgetExtraParam { Key = "value", Value = idB }] };
-        var overrideB = new WidgetConfig { WidgetType = "jux.test.widget", CustomDisplayName = "Mine B", Order = 20, AllowUserOverride = true, Enabled = true, MinItems = 1, ExtraParams = [new WidgetExtraParam { Key = "value", Value = idB }] };
-
-        var descriptors = await BuildResolverWithOverrides(registry, [a, b], [overrideB])
-            .BuildDescriptors(Guid.NewGuid(), lang: null, CancellationToken.None);
-
-        Assert.Equal(["A", "Mine B"], descriptors.Select(d => d.DisplayName));
-    }
-
-    [Fact]
-    public void ResolveConfigRow_ReadsTheUsersOverride_SoASectionKeepsTheOrderOfItsProbe()
-    {
-        var global = new WidgetConfig { WidgetType = "jux.test.widget", Order = 10, AllowUserOverride = true, SortBy = WidgetSort.SortName };
-        var userOverride = new WidgetConfig { WidgetType = "jux.test.widget", Order = 10, AllowUserOverride = true, SortBy = WidgetSort.Random };
-
-        var row = BuildResolverWithOverrides(new WidgetRegistry(), [global], [userOverride])
-            .ResolveConfigRow(Guid.NewGuid(), "jux.test.widget", additionalData: null);
-
-        Assert.Equal(WidgetSort.Random, row!.SortBy);
-    }
-
-    [Fact]
     public async Task BuildDescriptors_GivesEachSectionTheKeyOfItsRow()
     {
         var registry = new WidgetRegistry();
@@ -238,8 +131,8 @@ public sealed class WidgetLayoutResolverTests
         };
         var resolver = BuildResolverWithOverrides(new WidgetRegistry(), [Row(10, "true"), Row(20, "false")], []);
 
-        var keyed = resolver.ResolveConfigRow(Guid.NewGuid(), "jux.personalized.favorite-genre", "Drama", "jux.personalized.favorite-genre#2");
-        var unkeyed = resolver.ResolveConfigRow(Guid.NewGuid(), "jux.personalized.favorite-genre", "Drama");
+        var keyed = resolver.ResolveConfigRow("jux.personalized.favorite-genre", "Drama", "jux.personalized.favorite-genre#2");
+        var unkeyed = resolver.ResolveConfigRow("jux.personalized.favorite-genre", "Drama");
 
         Assert.Equal("false", keyed!.ExtraParams.Single(p => p.Key == "excludeWatched").Value);
         Assert.Equal("true", unkeyed!.ExtraParams.Single(p => p.Key == "excludeWatched").Value);
@@ -281,7 +174,7 @@ public sealed class WidgetLayoutResolverTests
         var row = new WidgetConfig { WidgetType = "jux.test.widget", Order = 10 };
 
         var resolved = BuildResolverWithOverrides(new WidgetRegistry(), [row], [])
-            .ResolveConfigRow(Guid.NewGuid(), "jux.test.widget", additionalData: null, sectionKey: "jux.test.widget#9");
+            .ResolveConfigRow("jux.test.widget", additionalData: null, sectionKey: "jux.test.widget#9");
 
         Assert.Same(row, resolved);
     }

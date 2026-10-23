@@ -37,7 +37,7 @@ public sealed class UserSettingsService
     /// <summary>
     /// Returns the user's settings: whether JellyUX runs for them, and every home section the
     /// administrator enabled, which they may hide, in home screen order. Hiding changes none of the
-    /// section's settings, so it does not depend on <see cref="WidgetConfig.AllowUserOverride"/>.
+    /// section's settings.
     /// </summary>
     /// <param name="userId">The user.</param>
     /// <param name="lang">The language of the section names.</param>

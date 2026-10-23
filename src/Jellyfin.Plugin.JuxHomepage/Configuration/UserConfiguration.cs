@@ -12,9 +12,9 @@ public sealed class UserConfiguration
     public Guid UserId { get; set; }
 
     /// <summary>
-    /// Gets or sets user-specific widget overrides.
-    /// Each entry overrides the matching global <see cref="PluginConfiguration.Widgets"/> entry
-    /// for widgets where <see cref="WidgetConfig.AllowUserOverride"/> is true.
+    /// Gets or sets user-specific widget overrides, frozen by QUAL-02: read from the file and carried
+    /// by the migrations, ignored by the layout, written by no page. See
+    /// CONTRIBUTING.md "Configuration Schema Versioning".
     /// </summary>
     public WidgetConfig[] WidgetOverrides { get; set; } = [];
 

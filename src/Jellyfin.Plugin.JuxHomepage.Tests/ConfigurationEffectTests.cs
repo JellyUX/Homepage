@@ -36,9 +36,15 @@ public sealed class ConfigurationEffectTests
         ["ModulesConfig.Breadcrumb (b)"] = ModulesWrittenByAttribute,
     };
 
-    // Settings with no effect today, each fixed by a later phase: checked by the skipped facts below.
-    private static readonly string[] Deferred =
-        ["WidgetConfig.MinInstances", "WidgetConfig.MaxInstances", "UserConfiguration.WidgetOverrides"];
+    // Settings frozen by QUAL-02 (D-05): still read from the files and carried by the migrations, read by
+    // nothing else. See CONTRIBUTING.md "Configuration Schema Versioning".
+    private static readonly string[] Frozen =
+    [
+        "WidgetConfig.AllowUserOverride",
+        "WidgetConfig.MinInstances",
+        "WidgetConfig.MaxInstances",
+        "UserConfiguration.WidgetOverrides"
+    ];
 
     private static readonly Lazy<Sources> Code = new(Sources.Load);
 
@@ -48,7 +54,7 @@ public sealed class ConfigurationEffectTests
         foreach (var setting in ConfigurationTypes.SelectMany(t => t.GetProperties(BindingFlags.Public | BindingFlags.Instance))
                      .Where(p => p.CanWrite)
                      .Select(p => $"{p.DeclaringType!.Name}.{p.Name}")
-                     .Where(s => !Deferred.Contains(s)))
+                     .Where(s => !Frozen.Contains(s)))
         {
             data.Add(setting);
         }
@@ -63,14 +69,19 @@ public sealed class ConfigurationEffectTests
         Assert.Empty(Problems(setting));
     }
 
-    [Fact(Skip = "QUAL-02, phase 09: MinInstances is read by the migrations only, no section count depends on it.")]
-    public void MinInstances_IsReadWrittenAndTested() => Assert.Empty(Problems("WidgetConfig.MinInstances"));
+    public static TheoryData<string> FrozenSettings() => new(Frozen);
 
-    [Fact(Skip = "QUAL-02, phase 09: MaxInstances is read by the migrations only (the old fan-out), no section count depends on it.")]
-    public void MaxInstances_IsReadWrittenAndTested() => Assert.Empty(Problems("WidgetConfig.MaxInstances"));
+    // A frozen setting that production code reads again, or that a page names, is a thawed one: it
+    // needs the CONTRIBUTING.md policy changed first, double migrations included.
+    [Theory]
+    [MemberData(nameof(FrozenSettings))]
+    public void FrozenSetting_IsReadByNoProductionCodeAndNamedByNoPage(string setting)
+    {
+        var name = setting.Split('.')[1];
 
-    [Fact(Skip = "QUAL-02, phase 09: no page writes the per-user WidgetOverrides, only the migrations do.")]
-    public void WidgetOverrides_IsReadWrittenAndTested() => Assert.Empty(Problems("UserConfiguration.WidgetOverrides"));
+        Assert.DoesNotMatch($@"\.{name}\b", Code.Value.Readers);
+        Assert.DoesNotMatch($@"\b{name}\b", Code.Value.Scripts);
+    }
 
     private static List<string> Problems(string setting)
     {
@@ -99,7 +110,7 @@ public sealed class ConfigurationEffectTests
         return problems;
     }
 
-    private sealed record Sources(string Readers, string Writers, IReadOnlyList<string> TestNames)
+    private sealed record Sources(string Readers, string Writers, string Scripts, IReadOnlyList<string> TestNames)
     {
         public static Sources Load()
         {
@@ -123,7 +134,13 @@ public sealed class ConfigurationEffectTests
                 .SelectMany(f => Regex.Matches(File.ReadAllText(f), @"public (?:async Task|void) (\w+)\(").Select(m => m.Groups[1].Value))
                 .ToList();
 
-            return new Sources(string.Join('\n', readers.Select(f => f.Text)), string.Join('\n', writers.Select(f => f.Text)), testNames);
+            var scripts = files.Where(f => f.Path.EndsWith(".js", StringComparison.Ordinal));
+
+            return new Sources(
+                string.Join('\n', readers.Select(f => f.Text)),
+                string.Join('\n', writers.Select(f => f.Text)),
+                string.Join('\n', scripts.Select(f => f.Text)),
+                testNames);
         }
 
         private static string StripComments(string text) => Regex.Replace(text, @"//[^\n]*|/\*[\s\S]*?\*/", string.Empty);

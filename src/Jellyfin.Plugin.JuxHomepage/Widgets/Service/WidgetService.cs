@@ -262,7 +262,7 @@ public sealed class WidgetService
         // Forward the configured ExtraParams (e.g. "excludeWatched" for personalized widgets, or a
         // Discover instance's filter parameters) so on-demand section fetches honor the same
         // settings as the layout probe.
-        var configRow = _layoutResolver.ResolveConfigRow(userId, widgetType, additionalData, sectionKey);
+        var configRow = _layoutResolver.ResolveConfigRow(widgetType, additionalData, sectionKey);
         var extra = configRow?.GetExtraParamsDictionary();
 
         // A section never returns more than its configured MaxItems (TODO_V4.md 5.5, F-21).

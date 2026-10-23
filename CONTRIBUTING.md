@@ -242,8 +242,13 @@ on-disk configuration format. They are two separate tracks, compared with `Curre
 - **Tiers**: each tier is its own `if (config.SchemaVersion < N)` block, never `else if`, so an
   installation several versions behind applies every intermediate transformation in order. A new tier
   bumps the matching constant.
-- **Widget rows**: `UserConfiguration.WidgetOverrides` shares the `WidgetConfig[]` structure of
-  `PluginConfiguration.Widgets`, so a migration of widget rows applies the same transformation to both.
+- **Widget rows**: a migration of widget rows transforms `PluginConfiguration.Widgets`.
+  `UserConfiguration.WidgetOverrides` is frozen (QUAL-02): it shares the `WidgetConfig[]` structure and
+  is still read from the user files, but the layout ignores it and no page writes it, so a new tier does
+  not have to transform it. The existing tiers still do. Frozen with it: `WidgetConfig.AllowUserOverride`,
+  `MinInstances` and `MaxInstances`, saved as loaded by the admin page (`ConfigurationEffectTests` fails
+  if production code reads them again). Accepted risk: an override written by hand in a user file has
+  no effect. Thawing them means restoring the double migration first.
 
 ---
 

@@ -15,9 +15,8 @@ public class PluginConfiguration : BasePluginConfiguration
 
     /// <summary>
     /// Gets or sets the global widget configuration list.
-    /// Defines which widgets are enabled, their order, and their display settings.
-    /// Users may override individual entries via <see cref="UserConfiguration.WidgetOverrides"/>
-    /// when <see cref="WidgetConfig.AllowUserOverride"/> is true.
+    /// Defines which widgets are enabled, their order, and their display settings, the same for every
+    /// user (per-user overrides are frozen, see <see cref="UserConfiguration.WidgetOverrides"/>).
     /// </summary>
     public WidgetConfig[] Widgets { get; set; } = [];
 

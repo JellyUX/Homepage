@@ -17,7 +17,10 @@ public sealed class WidgetConfig
     /// <summary>Gets or sets a value indicating whether this widget is visible on the home screen.</summary>
     public bool Enabled { get; set; } = true;
 
-    /// <summary>Gets or sets a value indicating whether users may override this widget's settings.</summary>
+    /// <summary>
+    /// Gets or sets a value indicating whether users may override this widget's settings. Frozen with
+    /// <see cref="Configuration.UserConfiguration.WidgetOverrides"/> (QUAL-02): kept as loaded, read by nothing.
+    /// </summary>
     public bool AllowUserOverride { get; set; } = true;
 
     /// <summary>Gets or sets the display order on the home screen (lower values appear first).</summary>
@@ -56,9 +59,9 @@ public sealed class WidgetConfig
 
     /// <summary>
     /// Gets or sets the minimum number of instances to create for this widget type.
-    /// Retained for schema stability but no longer read by the widget engine as of TODO_V2.md
-    /// Phase 8: every row is now assigned a rank by <see cref="WidgetLayoutResolver"/>
-    /// instead (see <see cref="MaxInstances"/>).
+    /// Frozen (QUAL-02): kept on the model for schema stability, read by nothing since TODO_V2.md
+    /// Phase 8 (every row is assigned a rank by <see cref="WidgetLayoutResolver"/> instead, see
+    /// <see cref="MaxInstances"/>), and written by no page.
     /// </summary>
     public int MinInstances { get; set; } = 1;
 
@@ -67,7 +70,8 @@ public sealed class WidgetConfig
     /// fan-out count passed to <see cref="IWidget.Resolve"/> for Personalized widgets; as of
     /// TODO_V2.md Phase 8, every category's row is instead assigned a 1-indexed rank by
     /// <see cref="WidgetLayoutResolver.BuildDescriptors(Guid, string?, CancellationToken)"/>, so this field is no longer read by
-    /// the widget engine for any category. Retained on the model for schema stability.
+    /// the widget engine for any category. Frozen (QUAL-02): read by the V1-to-V2 migration only,
+    /// written by no page.
     /// </summary>
     public int MaxInstances { get; set; } = 1;
 

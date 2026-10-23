@@ -125,9 +125,10 @@ export function sortOption(widget) {
 }
 
 // The configuration row stored for a widget row at index i of the page: what Save writes and
-// what Preview sends, so a preview always shows what saving would store.
-export function toConfigRow(widget, i, isAdmin) {
-    return {
+// what Preview sends, so a preview always shows what saving would store. A field the page does not
+// edit, such as the frozen per-user override settings (QUAL-02), is saved as it was loaded.
+export function toConfigRow(widget, i) {
+    return Object.assign({}, widget, {
         WidgetType: widget.WidgetType,
         Enabled: widget.Enabled,
         CustomDisplayName: widget.CustomDisplayName || null,
@@ -137,11 +138,8 @@ export function toConfigRow(widget, i, isAdmin) {
         ViewMode: widget.ViewMode,
         SortBy: sortOption(widget)[0],
         SortOrder: sortOption(widget)[1],
-        AllowUserOverride: isAdmin ? false : (typeof widget.AllowUserOverride === 'boolean' ? widget.AllowUserOverride : true),
-        MinInstances: widget.MinInstances || 1,
-        MaxInstances: widget.MaxInstances || 1,
         ExtraParams: widget.ExtraParams || []
-    };
+    });
 }
 
 // The preview of a row (POST JuxHomepage/Preview, TODO_V4.md 6.5): a poster grid of its own, so
@@ -1100,7 +1098,7 @@ function createConfigPage() {
             return ApiClient.ajax({
                 type: 'POST',
                 url: ApiClient.getUrl('JuxHomepage/Preview', { lang: self._currentLang() }),
-                data: JSON.stringify(toConfigRow(w, index, self.isAdmin(w.WidgetType))),
+                data: JSON.stringify(toConfigRow(w, index)),
                 contentType: 'application/json',
                 dataType: 'json'
             }).then(function (preview) {
@@ -1608,7 +1606,7 @@ function createConfigPage() {
                 }
 
                 config.Widgets = self.state.sortedWidgets.map(function (w, i) {
-                    return toConfigRow(w, i, self.isAdmin(w.WidgetType));
+                    return toConfigRow(w, i);
                 });
 
                 return ApiClient.updatePluginConfiguration(self.PLUGIN_ID, config).then(function (result) {
@@ -1652,8 +1650,6 @@ function createConfigPage() {
 
                         var desc = self.getDescriptor(widgetType);
                         var isPers = self.isPersonalized(widgetType);
-                        var isConn = self.isConnected(widgetType);
-                        var isNat = self.isNative(widgetType);
                         var isDisc = self.isDiscover(widgetType);
                         var isRew = self.isRewards(widgetType);
                         var isSeas = self.isSeasonal(widgetType);
@@ -1703,9 +1699,6 @@ function createConfigPage() {
                             MinItems: desc ? desc.MinItems : 4,
                             MaxItems: 20,
                             ViewMode: desc ? (desc.ViewMode || 'Portrait') : 'Portrait',
-                            AllowUserOverride: isNat,
-                            MinInstances: 1,
-                            MaxInstances: (isPers || isConn || isNat) ? 1 : 5,
                             ExtraParams: extraParams
                         });
                         self._expandedRows.add(self.state.sortedWidgets[self.state.sortedWidgets.length - 1]);

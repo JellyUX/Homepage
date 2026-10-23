@@ -80,17 +80,14 @@ public sealed class WidgetLayoutResolver
     {
         var globalConfig = _getConfiguration()?.Widgets ?? [];
         var userConfig = _userConfigStore.GetUserConfiguration(userId);
-        var overrides = userConfig?.WidgetOverrides ?? [];
 
-        // A section the user hid (TODO_V4.md 8.3, F-36) is left out by the key of its global row.
-        // Hiding changes none of the row's settings, so it does not depend on AllowUserOverride.
+        // A section the user hid (TODO_V4.md 8.3, F-36) is left out by the key of its global row. The
+        // rows are the global ones: per-user overrides are frozen (QUAL-02, CONTRIBUTING.md).
         var hidden = new HashSet<string>(userConfig?.HiddenSections ?? [], StringComparer.Ordinal);
         var keys = SectionKeys(globalConfig);
         var effectiveConfigs = globalConfig
-            .OrderBy(g => g.Order)
-            .Zip(MergeOverrides(globalConfig, overrides))
-            .Where(pair => !hidden.Contains(keys[pair.First]))
-            .Select(pair => (Config: pair.Second, Key: keys[pair.First]))
+            .Where(row => !hidden.Contains(keys[row]))
+            .Select(row => (Config: row, Key: keys[row]))
             .Where(c => c.Config.Enabled)
             .OrderBy(c => c.Config.Order)
             .ToList();
@@ -129,43 +126,9 @@ public sealed class WidgetLayoutResolver
     }
 
     /// <summary>
-    /// Replaces each global row that allows it with the user's override for that same row. Several
-    /// rows can share a widget type, so an override is paired with one row only: by instance id
+    /// Identifies each global row for the user's hidden sections (TODO_V4.md 8.3, F-36): by instance id
     /// (a GUID in <c>ExtraParams["value"]</c>, as Discover, Rewards and Seasonal rows carry) when the
-    /// row has one, otherwise by rank within the type (k-th row by <see cref="WidgetConfig.Order"/>
-    /// takes the k-th override of that type). Each override is used at most once.
-    /// </summary>
-    /// <param name="globalRows">The global widget rows.</param>
-    /// <param name="overrides">The user's override rows.</param>
-    /// <returns>The effective rows, one per global row.</returns>
-    private static IEnumerable<WidgetConfig> MergeOverrides(WidgetConfig[] globalRows, WidgetConfig[] overrides)
-    {
-        var unused = overrides.ToList();
-        foreach (var row in globalRows.OrderBy(g => g.Order))
-        {
-            if (!row.AllowUserOverride)
-            {
-                yield return row;
-                continue;
-            }
-
-            var instanceId = InstanceId(row);
-            var match = unused.FirstOrDefault(o => o.WidgetType == row.WidgetType && InstanceId(o) == instanceId);
-            if (match is null)
-            {
-                yield return row;
-                continue;
-            }
-
-            unused.Remove(match);
-            yield return match;
-        }
-    }
-
-    /// <summary>
-    /// Identifies each global row for the user's hidden sections (TODO_V4.md 8.3, F-36), the way
-    /// <see cref="MergeOverrides"/> pairs rows: by instance id (a GUID in <c>ExtraParams["value"]</c>)
-    /// when the row has one, otherwise by widget type and rank within the type, ordered by
+    /// row has one, otherwise by widget type and rank within the type, ordered by
     /// <see cref="WidgetConfig.Order"/> (e.g. <c>jux.personalized.favorite-genre#2</c>).
     /// </summary>
     /// <param name="globalRows">The global widget rows.</param>
@@ -197,20 +160,17 @@ public sealed class WidgetLayoutResolver
     /// row whose <c>ExtraParams["value"]</c> matches <paramref name="additionalData"/> is preferred
     /// so each instance's own parameters are forwarded rather than always the first configured row.
     /// Falls back to the first match by type, preserving prior behavior for single-instance widgets.
-    /// The rows are the user's effective ones, overrides merged as for the layout, so a section reads
-    /// the same settings (sort order included, TODO_V4.md 8.1) as the layout probe that showed it.
+    /// The rows are the global ones, as for the layout, so a section reads the same settings (sort
+    /// order included, TODO_V4.md 8.1) as the layout probe that showed it.
     /// </summary>
-    /// <param name="userId">The requesting user's identifier.</param>
     /// <param name="widgetType">The widget type identifier.</param>
     /// <param name="additionalData">Optional instance-specific data (e.g. a Discover instance id).</param>
     /// <param name="sectionKey">The section's <see cref="WidgetDescriptor.SectionKey"/>, preferred when it names a row.</param>
     /// <returns>The matching config row, or null if none is configured for this widget type.</returns>
-    public WidgetConfig? ResolveConfigRow(Guid userId, string widgetType, string? additionalData, string? sectionKey = null)
+    public WidgetConfig? ResolveConfigRow(string widgetType, string? additionalData, string? sectionKey = null)
     {
-        var overrides = _userConfigStore.GetUserConfiguration(userId)?.WidgetOverrides ?? [];
         var globalRows = _getConfiguration()?.Widgets ?? [];
-        var merged = globalRows.OrderBy(g => g.Order).Zip(MergeOverrides(globalRows, overrides)).ToList();
-        var candidates = merged.Select(pair => pair.Second).Where(c => c.WidgetType == widgetType).ToList();
+        var candidates = globalRows.OrderBy(g => g.Order).Where(c => c.WidgetType == widgetType).ToList();
         if (candidates.Count == 0)
         {
             return null;
@@ -221,10 +181,10 @@ public sealed class WidgetLayoutResolver
         if (sectionKey is not null)
         {
             var keys = SectionKeys(globalRows);
-            var keyed = merged.FirstOrDefault(pair => pair.Second.WidgetType == widgetType && keys[pair.First] == sectionKey);
-            if (keyed.Second is not null)
+            var keyed = candidates.FirstOrDefault(row => keys[row] == sectionKey);
+            if (keyed is not null)
             {
-                return keyed.Second;
+                return keyed;
             }
         }
 
