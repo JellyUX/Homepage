@@ -372,7 +372,7 @@ export function compareWithBaseline(families, baseline) {
     for (const [key, copies] of allowed) {
         const now = current.get(key) ?? [];
         if (now.length < copies.length || now.some((c, i) => c < copies[i])) {
-            warnings.push(`duplication went down, shrink ${BASELINE_PATH}: ${key}`);
+            errors.push(`duplication went down, shrink ${BASELINE_PATH} in the same commit: ${key}`);
         }
     }
     return { errors, warnings };
@@ -419,7 +419,8 @@ export function measureDuplication(duplicates) {
 
 /**
  * Compares the large pairs and the per-format totals with the baseline: no new pair of files, no more
- * large clones per pair, no more duplicated lines per format.
+ * large clones per pair, no more duplicated lines per format, and a drop recorded in the baseline by the
+ * commit that makes it (ratchet, A-03.b).
  * @param {{pairs: {files: string[], count: number}[], totals: Record<string, number>}} current
  * @param {{pairs?: {files: string[], count: number}[], totals?: Record<string, number>}} baseline
  * @returns {{errors: string[], warnings: string[]}}
@@ -436,7 +437,7 @@ export function compareDuplication(current, baseline) {
     }
     for (const [key, count] of allowed) {
         if ((now.get(key) ?? 0) < count) {
-            warnings.push(`duplication went down, shrink ${BASELINE_PATH}: ${key}`);
+            errors.push(`duplication went down, shrink ${BASELINE_PATH} in the same commit: ${key}`);
         }
     }
     for (const format of new Set([...Object.keys(current.totals), ...Object.keys(baseline.totals ?? {})])) {
@@ -445,7 +446,7 @@ export function compareDuplication(current, baseline) {
         if (lines > limit) {
             errors.push(`${lines} duplicated ${format} lines, baseline ${limit}`);
         } else if (lines < limit) {
-            warnings.push(`duplicated ${format} lines went down to ${lines}, shrink ${BASELINE_PATH} (${limit})`);
+            errors.push(`duplicated ${format} lines went down to ${lines}, shrink ${BASELINE_PATH} (${limit}) in the same commit`);
         }
     }
     return { errors, warnings };

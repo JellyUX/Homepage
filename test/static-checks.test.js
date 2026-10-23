@@ -229,12 +229,13 @@ describe('duplication ratchet', () => {
         expect(families).toEqual([{ files: ['a.js', 'b.js', 'c.js'], copies: 3 }]);
     });
 
-    it('fails on a new family or an extra copy, and warns when duplication went down', () => {
+    it('fails on a new family, an extra copy, or a drop the baseline does not record (A-03.b)', () => {
         const baseline = [{ files: ['a.js', 'b.js', 'c.js'], copies: 3 }, { files: ['x.js', 'y.js', 'z.js'], copies: 3 }];
-        expect(compareWithBaseline([{ files: ['a.js', 'b.js', 'c.js'], copies: 4 }], baseline).errors).toHaveLength(1);
-        expect(compareWithBaseline([{ files: ['d.js', 'e.js', 'f.js'], copies: 3 }], baseline).errors).toHaveLength(1);
+        const kept = baseline[1];
+        expect(compareWithBaseline([{ files: ['a.js', 'b.js', 'c.js'], copies: 4 }, kept], baseline).errors).toHaveLength(1);
+        expect(compareWithBaseline([...baseline, { files: ['d.js', 'e.js', 'f.js'], copies: 3 }], baseline).errors).toHaveLength(1);
         const shrunk = compareWithBaseline([{ files: ['a.js', 'b.js', 'c.js'], copies: 3 }], baseline);
-        expect(shrunk).toEqual({ errors: [], warnings: [expect.stringContaining('x.js')] });
+        expect(shrunk).toEqual({ errors: [expect.stringContaining('x.js')], warnings: [] });
     });
 });
 
@@ -262,12 +263,12 @@ describe('duplication pairs and totals', () => {
         expect(measured).toEqual({ pairs: [{ files: ['A.cs', 'B.cs'], count: 2 }], totals: { csharp: 49, javascript: 6 } });
     });
 
-    it('fails on a new large pair or more duplicated lines, and warns when they went down', () => {
+    it('fails on a new large pair, more duplicated lines, or a drop the baseline does not record (A-03.b)', () => {
         const baseline = { pairs: [{ files: ['A.cs', 'B.cs'], count: 2 }], totals: { csharp: 49, javascript: 6 } };
         const grown = compareDuplication({ pairs: [...baseline.pairs, { files: ['A.cs', 'E.cs'], count: 1 }], totals: { csharp: 70, javascript: 6 } }, baseline);
         expect(grown.errors).toEqual([expect.stringContaining('A.cs | E.cs'), expect.stringContaining('70 duplicated csharp lines')]);
         const shrunk = compareDuplication({ pairs: [{ files: ['A.cs', 'B.cs'], count: 1 }], totals: { csharp: 30, javascript: 6 } }, baseline);
-        expect(shrunk.errors).toEqual([]);
-        expect(shrunk.warnings).toHaveLength(2);
+        expect(shrunk.errors).toEqual([expect.stringContaining('A.cs | B.cs'), expect.stringContaining('csharp lines went down to 30')]);
+        expect(shrunk.warnings).toEqual([]);
     });
 });
