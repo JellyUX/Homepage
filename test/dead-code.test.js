@@ -29,6 +29,14 @@ describe('jsUnused', () => {
         const unused = jsUnused([['lib.js', code]], `${code}\nwindow.Lib.used();`, babel);
         expect(unused).toEqual([{ file: 'lib.js', line: 3, name: 'orphan' }]);
     });
+
+    it('reports a function assigned to a variable, arrow or expression (A-06.a)', () => {
+        const code = 'const used = () => 1;\nconst arrow = (x) => x;\nvar expr = function () {};\nused();';
+        expect(jsUnused([['lib.js', code]], code, babel)).toEqual([
+            { file: 'lib.js', line: 2, name: 'arrow' },
+            { file: 'lib.js', line: 3, name: 'expr' }
+        ]);
+    });
 });
 
 describe('cssUnreferenced', () => {
@@ -60,8 +68,17 @@ describe('builtFromPrefix', () => {
 
 describe('checkAllowlist', () => {
     it('fails on an unlisted candidate and warns on a listed name that has callers again', () => {
-        const result = checkAllowlist(new Map([['GetSections', ['Controller.cs']], ['Orphan', ['A.cs']]]), { GetSections: 'route', Revived: 'route' });
+        const result = checkAllowlist(
+            new Map([['GetSections', ['Controller.cs']], ['Orphan', ['A.cs']]]),
+            { 'Controller.cs:GetSections': 'route', 'B.cs:Revived': 'route' });
         expect(result.errors).toEqual([expect.stringContaining('Orphan (A.cs)')]);
-        expect(result.warnings).toEqual([expect.stringContaining('Revived')]);
+        expect(result.warnings).toEqual([expect.stringContaining('B.cs:Revived')]);
+    });
+
+    it('lists a name per declaring file, so a new dead homonym elsewhere is not covered (A-06.a)', () => {
+        const result = checkAllowlist(
+            new Map([['GetSection', ['Controller.cs', 'Widgets/Other.cs']]]),
+            { 'Controller.cs:GetSection': 'route' });
+        expect(result.errors).toEqual([expect.stringContaining('GetSection (Widgets/Other.cs)')]);
     });
 });

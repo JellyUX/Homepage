@@ -1,9 +1,10 @@
 // Dead code checks of the plugin (TODO_V5 PROC-06.b), promoted from the audit's quality scripts:
 //   - C#: a member or type name seen only at its declarations in the plugin sources is a candidate; each
-//     candidate must be listed in ci/dead-code-allowlist.json with the reason it has no visible caller
-//     (HTTP route, framework entry point, JSON property, test seam); a listed name that is no longer a
-//     candidate is reported so the list stays short;
-//   - JS: a function of Web/*.js named nowhere else in the production files;
+//     declaring file must be listed in ci/dead-code-allowlist.json ("File.cs:Name") with the reason it has
+//     no visible caller (HTTP route, framework entry point, JSON property, test seam); a listed entry that
+//     is no longer a candidate is reported so the list stays short;
+//   - JS: a function of Web/*.js, declared or assigned to a variable, named nowhere else in the
+//     production files;
 //   - CSS: a jux class or id of Web/*.css that no script, page or C# file names, nor builds from a prefix;
 //   - i18n: a key missing from one language, or a non-client key no production file names, nor builds
 //     from a prefix ('admin.warning.' + code).
@@ -87,6 +88,10 @@ export function jsUnused(scripts, production, parse) {
             if (node.type === 'FunctionDeclaration' && node.id) {
                 names.push([node.id.name, node.loc.start.line]);
             }
+            // const f = () => {} and var f = function () {} (A-06.a).
+            if (node.type === 'VariableDeclarator' && node.id?.type === 'Identifier' && /Function/.test(node.init?.type ?? '')) {
+                names.push([node.id.name, node.loc.start.line]);
+            }
             if ((node.type === 'ObjectProperty' && /Function/.test(node.value?.type ?? '')) || node.type === 'ObjectMethod') {
                 if (node.key?.name) {
                     names.push([node.key.name, node.loc.start.line]);
@@ -151,19 +156,24 @@ export function i18nProblems(en, fr, production) {
 }
 
 /**
- * Compares the C# candidates with the allowlist.
- * @param {Map<string, string[]>} candidates
- * @param {Record<string, string>} allowlist Name -> reason it has no visible caller.
+ * Compares the C# candidates with the allowlist, one entry per declaring file and name, so a new dead
+ * declaration of a listed name in another file is still reported (A-06.a).
+ * @param {Map<string, string[]>} candidates Name -> declaring files, relative to the plugin folder.
+ * @param {Record<string, string>} allowlist "File.cs:Name" -> reason it has no visible caller.
  * @returns {{errors: string[], warnings: string[]}}
  */
 export function checkAllowlist(candidates, allowlist) {
+    const found = new Set([...candidates].flatMap(([name, files]) => files.map((file) => `${file}:${name}`)));
     return {
-        errors: [...candidates]
-            .filter(([name]) => !allowlist[name])
-            .map(([name, files]) => `${name} (${files.join(', ')}) has no caller: delete it, or list it with its reason in ${ALLOWLIST}.`),
+        errors: [...candidates].flatMap(([name, files]) => {
+            const unlisted = files.filter((file) => !allowlist[`${file}:${name}`]);
+            return unlisted.length === 0
+                ? []
+                : [`${name} (${unlisted.join(', ')}) has no caller: delete it, or list it with its reason in ${ALLOWLIST}.`];
+        }),
         warnings: Object.keys(allowlist)
-            .filter((name) => !candidates.has(name))
-            .map((name) => `${name} is listed in ${ALLOWLIST} but has callers now: remove the entry.`)
+            .filter((key) => !found.has(key))
+            .map((key) => `${key} is listed in ${ALLOWLIST} but has callers now: remove the entry.`)
     };
 }
 
@@ -178,7 +188,8 @@ function main() {
     const productionOutsideLocalization = sources.filter(([f]) => !f.startsWith(LOCALIZATION) && /\.(cs|js|html)$/.test(f)).map(([, t]) => t).join('\n');
 
     const allowlist = JSON.parse(readFileSync(ALLOWLIST, 'utf8')).csharp;
-    const cs = checkAllowlist(csUnreferenced(sources), allowlist);
+    const relative = new Map([...csUnreferenced(sources)].map(([name, files]) => [name, files.map((f) => f.slice(PLUGIN.length))]));
+    const cs = checkAllowlist(relative, allowlist);
     const js = jsUnused(scripts, production, (code, script) => parse(code, { sourceType: script ? 'script' : 'module', errorRecovery: true }))
         .map((u) => `${u.file}:${u.line} ${u.name} has no caller in the production files: delete it.`);
     const css = cssUnreferenced(read(tracked.filter((f) => f.startsWith(WEB) && f.endsWith('.css'))), production)
@@ -191,7 +202,7 @@ function main() {
     const errors = [...cs.errors, ...js, ...css, ...i18n];
     cs.warnings.forEach((w) => console.log(`warning: ${w}`));
     errors.forEach((e) => console.error(`error: ${e}`));
-    console.log(`Dead code: ${Object.keys(allowlist).length} listed C# names, ${errors.length} error(s), ${cs.warnings.length} warning(s).`);
+    console.log(`Dead code: ${Object.keys(allowlist).length} listed C# declarations, ${errors.length} error(s), ${cs.warnings.length} warning(s).`);
     process.exitCode = errors.length > 0 ? 1 : 0;
 }
 
