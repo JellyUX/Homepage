@@ -4,7 +4,7 @@
     <title>JellyUX Homepage</title>
 </head>
 <body>
-<div data-role="page" id="juxHomepageConfigPage" class="page type-interior pluginConfigurationPage fullWidthContent" data-controller="__plugin/juxhomepageconfigjs">
+<div data-role="page" id="juxHomepageConfigPage" class="page type-interior fullWidthContent" data-controller="__plugin/juxhomepageconfigjs">
     <div class="content-primary">
 
         <div class="verticalSection">
@@ -13,7 +13,7 @@
             </div>
         </div>
 
-        <div id="juxWarningBanner" class="verticalSection" style="display: none;"></div>
+        <div id="juxWarningBanner" class="verticalSection" hidden></div>
 
         <div id="juxDraftNotice" class="verticalSection jux-admin-draft" role="status" hidden>
             <span data-i18n="admin.draft.restored">Your unsaved changes from before you left this page were restored.</span>
@@ -116,21 +116,21 @@
                     <h3 class="sectionTitle" data-i18n="admin.widgets.title">Widgets</h3>
                     <p class="fieldDescription" data-i18n="admin.widgets.help">Drag a section by its handle, type its position or use the arrows to change the display order. Changes take effect after saving.</p>
                     <div class="jux-admin-add-section">
-                        <h4 class="sectionTitle" style="margin-top: 1.5em;" data-i18n="admin.addsection.title">Add a section</h4>
-                        <div class="jux-admin-row" style="align-items: flex-end;">
+                        <h4 class="sectionTitle" data-i18n="admin.addsection.title">Add a section</h4>
+                        <div class="jux-admin-row jux-admin-add-row">
                             <div class="inputContainer jux-admin-half">
                                 <label class="inputLabel inputLabelUnfocused" for="juxAddWidgetType" data-i18n="admin.addsection.type.label">Section type</label>
                                 <select id="juxAddWidgetType" class="emby-select-withcolor emby-select">
                                     <option value="" data-i18n="admin.addsection.type.placeholder">-- choose a type --</option>
                                 </select>
                             </div>
-                            <div class="jux-admin-half" style="padding-bottom: 0.5em;">
+                            <div class="jux-admin-half jux-admin-add-action">
                                 <button type="button" id="juxBtnAddWidget" class="emby-button raised">
                                     <span data-i18n="admin.addsection.add">Add</span>
                                 </button>
                             </div>
                         </div>
-                        <div id="juxAddWidgetError" class="fieldDescription jux-admin-field-error" style="display: none;" data-i18n="admin.addsection.error">Please choose a section type before adding.</div>
+                        <div id="juxAddWidgetError" class="fieldDescription jux-admin-field-error" data-i18n="admin.addsection.error" hidden>Please choose a section type before adding.</div>
                     </div>
                     <div id="juxWidgetList"></div>
                 </div>
@@ -148,7 +148,7 @@
                             </button>
                         </div>
                         <div class="fieldDescription" data-i18n="admin.apikeys.tmdb.help">Required for Connected widgets that use The Movie Database. Leave empty if not needed. Accepted formats: 32-character hexadecimal key (v3), or v4 bearer token starting with "ey".</div>
-                        <div id="juxTmdbError" class="fieldDescription jux-admin-field-error" style="display: none;" data-i18n="admin.apikeys.tmdb.error">Invalid TMDb key format. Expected: 32 hexadecimal characters, a v4 bearer token, or leave empty.</div>
+                        <div id="juxTmdbError" class="fieldDescription jux-admin-field-error" data-i18n="admin.apikeys.tmdb.error" hidden>Invalid TMDb key format. Expected: 32 hexadecimal characters, a v4 bearer token, or leave empty.</div>
                     </div>
                 </div>
 
@@ -165,7 +165,7 @@
                     <button type="button" id="juxBtnRefreshTmdb" class="emby-button raised">
                         <span data-i18n="admin.tmdbcache.refreshnow">Refresh now</span>
                     </button>
-                    <div id="juxTmdbRefreshMsg" class="fieldDescription" style="display: none;"></div>
+                    <div id="juxTmdbRefreshMsg" class="fieldDescription" role="status" hidden></div>
                 </div>
             </div>
 

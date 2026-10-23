@@ -597,7 +597,8 @@ describe('configuration page controller (F-33)', () => {
 
         const cards = [...view.querySelectorAll('.jux-admin-widget-card')];
         expect(cards.every((c) => c.classList.contains('jux-admin-widget-card-collapsed'))).toBe(true);
-        expect(card(0).querySelector('.jux-admin-widget-summary').textContent).toContain('Drame');
+        expect(card(0).querySelector('.jux-admin-widget-instance').textContent).toBe('Drame');
+        expect(card(0).querySelector('.jux-admin-widget-summary').textContent).toContain('admin.viewmode.portrait');
 
         card(0).querySelector('.jux-admin-btn-toggle').click();
         await settle();
@@ -1061,6 +1062,28 @@ describe('configuration page controller (F-33)', () => {
         type(view.querySelector('#numSessionTtl'), '5');
         type(interval, '24');
         expect(button.disabled).toBe(false);
+    });
+
+    it('names each section by its type, then by its own name once, so two of a type tell apart (Annexe.b)', async () => {
+        const twoGenres = JSON.parse(JSON.stringify(config));
+        twoGenres.Widgets.splice(1, 0, { WidgetType: 'jux.admin.genre', Enabled: true, Order: 0, MinItems: 4, MaxItems: 20, ViewMode: 'Portrait', CustomDisplayName: 'Comedy', ExtraParams: [{ Key: 'value', Value: 'Comedy' }] });
+        window.ApiClient.getPluginConfiguration = vi.fn(() => Promise.resolve(JSON.parse(JSON.stringify(twoGenres))));
+        await open();
+
+        const header = (i) => [card(i).querySelector('.checkboxLabel').textContent, card(i).querySelector('.jux-admin-widget-instance')?.textContent];
+        expect([header(0), header(1)]).toEqual([['Genre', 'Drame'], ['Genre', 'Comedy']]);
+        expect(card(0).querySelector('.jux-admin-widget-summary').textContent).not.toContain('Drame');
+        expect(card(3).querySelector('.jux-admin-widget-instance')).toBeNull();
+    });
+
+    it('colors the region select like the others, and the page has no inline style left (Annexe.b)', async () => {
+        await open();
+        tab('sources').click();
+        await settle();
+
+        expect(view.querySelector('#selNowPlayingRegion')?.classList.contains('emby-select-withcolor') ?? true).toBe(true);
+        expect(CONFIG_HTML).not.toMatch(/style="/);
+        expect(view.querySelector('#juxWarningBanner').hidden).toBe(true);
     });
 
     it('asks the TMDb status and countries once, when External sources first opens (Annexe.a)', async () => {

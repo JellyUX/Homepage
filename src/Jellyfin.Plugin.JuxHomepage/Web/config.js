@@ -919,6 +919,9 @@ function createConfigPage() {
                     html += '<span class="checkboxLabel">' + self.escHtml(defaultName) + '</span>';
                     html += CHECKBOX_OUTLINE_HTML;
                     html += '</label>';
+                    // Two sections of one type (two Rewards) tell apart by their own name (annex A).
+                    var instanceName = w.CustomDisplayName && w.CustomDisplayName !== defaultName ? w.CustomDisplayName : '';
+                    if (instanceName) { html += '<span class="jux-admin-widget-instance">' + self.escHtml(instanceName) + '</span>'; }
 
                     if (category !== undefined && category !== null && category !== '') {
                         var categoryLabels = {};
@@ -957,7 +960,9 @@ function createConfigPage() {
 
                     html += '</div>';
 
-                    html += '<div class="fieldDescription jux-admin-widget-summary">' + self.escHtml(widgetSummary(w, isAdm ? currentLabel : '', self.t.bind(self))) + '</div>';
+                    var summarized = instanceName ? Object.assign({}, w, { CustomDisplayName: null }) : w;
+                    var summaryValue = isAdm && currentLabel !== instanceName ? currentLabel : '';
+                    html += '<div class="fieldDescription jux-admin-widget-summary">' + self.escHtml(widgetSummary(summarized, summaryValue, self.t.bind(self))) + '</div>';
                     html += '<div class="jux-admin-widget-body" id="' + bodyId + '">';
 
                     html += editor.render(self, w, i, defaultName);
@@ -1322,10 +1327,9 @@ function createConfigPage() {
                 var pagesKey = self._tmdbPagesConfigKey[s.Type];
                 var pages = pagesKey ? (tmdbLists[pagesKey] || 1) : 1;
                 html += '<div class="jux-admin-tmdb-status-row">';
-                html += '<span id="tmdbLabel_' + s.Type + '">' + self.escHtml(self.t('admin.tmdbstatus.cached', { label: label, count: s.ItemCount, matched: s.MatchedCount || 0 })) + '</span>';
-                html += '<span id="tmdbRefreshed_' + s.Type + '">' + self.escHtml(lastRefreshed) + '</span>';
-                html += '<span id="tmdbError_' + s.Type + '" class="jux-admin-field-error"' + (s.LastError ? '' : ' hidden') + '>';
-                html += self.escHtml(self.tmdbErrorText(s)) + '</span>';
+                html += '<span id="tmdbLabel_' + s.Type + '" class="jux-admin-tmdb-label">' + self.escHtml(self.t('admin.tmdbstatus.cached', { label: label, count: s.ItemCount, matched: s.MatchedCount || 0 })) + '</span>';
+                html += '<span id="tmdbRefreshed_' + s.Type + '" class="jux-admin-tmdb-refreshed">' + self.escHtml(lastRefreshed) + '</span>';
+                html += '<span class="jux-admin-tmdb-controls">';
                 if (pagesKey) {
                     html += '<span class="jux-admin-tmdb-pages">';
                     html += '<label for="numTmdbPages_' + s.Type + '">' + self.escHtml(self.t('admin.tmdbstatus.pages')) + '</label>';
@@ -1336,7 +1340,7 @@ function createConfigPage() {
                 if (s.Type === 'NowPlayingMovies') {
                     html += '<span class="jux-admin-tmdb-pages">';
                     html += '<label for="selNowPlayingRegion">' + self.escHtml(self.t('admin.tmdbregion.label')) + '</label>';
-                    html += '<select id="selNowPlayingRegion" class="emby-select jux-admin-tmdb-region">';
+                    html += '<select id="selNowPlayingRegion" class="emby-select-withcolor emby-select jux-admin-tmdb-region">';
                     html += listOptionsHtml(self, self.t('admin.tmdbregion.default'), self._tmdbCountries, currentRegion);
                     html += '</select>';
                     html += '</span>';
@@ -1350,6 +1354,9 @@ function createConfigPage() {
                     html += ' class="emby-input jux-admin-tmdb-pages-input" value="' + currentVoteCountMin + '" />';
                     html += '</span>';
                 }
+                html += '</span>';
+                html += '<span id="tmdbError_' + s.Type + '" class="jux-admin-field-error jux-admin-tmdb-error"' + (s.LastError ? '' : ' hidden') + '>';
+                html += self.escHtml(self.tmdbErrorText(s)) + '</span>';
                 html += '</div>';
                 if (s.Type === 'NowPlayingMovies') {
                     html += '<div class="fieldDescription">' + self.escHtml(self.t('admin.tmdbstatus.nowplaying.help')) + '</div>';
@@ -1553,7 +1560,7 @@ function createConfigPage() {
             button.disabled = unsaved || !!this._refreshing;
             if (this._refreshing) { return; }
             message.textContent = unsaved ? this.t('admin.tmdbrefresh.unsaved') : '';
-            message.style.display = unsaved ? '' : 'none';
+            message.hidden = !unsaved;
         },
 
         // POST TMDb/Refresh, then TMDb/Status every refreshPollMs until refreshSettled or refreshPolls tries.
@@ -1563,7 +1570,7 @@ function createConfigPage() {
             var before = self._tmdbStatuses || [];
             var show = function (key) {
                 message.textContent = self.t(key);
-                message.style.display = '';
+                message.hidden = false;
             };
             var finish = function (key) {
                 self._refreshing = false;
@@ -1618,7 +1625,7 @@ function createConfigPage() {
                 if (code === 'ConfigurationReset') { self.appendRestoreAction(p); }
                 banner.appendChild(p);
             });
-            banner.style.display = warnings.length ? '' : 'none';
+            banner.hidden = !warnings.length;
         },
 
         // After a refresh the TMDb warnings may be gone: the banner is read again.
@@ -1758,12 +1765,12 @@ function createConfigPage() {
             var tmdbVal = document.getElementById('txtTMDb').value.trim();
             var tmdbError = document.getElementById('juxTmdbError');
             if (!self.validateTmdb(tmdbVal)) {
-                tmdbError.style.display = '';
+                tmdbError.hidden = false;
                 self.revealField(document.getElementById('txtTMDb'));
                 document.getElementById('txtTMDb').focus();
                 return;
             }
-            tmdbError.style.display = 'none';
+            tmdbError.hidden = true;
 
             self.readDomIntoState();
 
@@ -1893,10 +1900,10 @@ function createConfigPage() {
                         var errEl = document.getElementById('juxAddWidgetError');
                         var widgetType = sel ? sel.value : '';
                         if (!widgetType) {
-                            if (errEl) { errEl.style.display = ''; }
+                            if (errEl) { errEl.hidden = false; }
                             return;
                         }
-                        if (errEl) { errEl.style.display = 'none'; }
+                        if (errEl) { errEl.hidden = true; }
 
                         // The row the server describes for this type (Admin/Catalog DefaultRow, QUAL-03.c); an
                         // empty instance id asks for a new one.

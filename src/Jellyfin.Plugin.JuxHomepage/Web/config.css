@@ -142,20 +142,58 @@ ul.jux-admin-warning {
     font-size: 0.85em;
 }
 .jux-admin-add-section {
-    margin-top: 0.5em;
-    padding-top: 0.75em;
-    border-top: 1px solid rgb(var(--jf-palette-text-primaryChannel, 255 255 255) / 0.1);
-}
-.jux-admin-tmdb-status-row {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    gap: 1em;
-    padding: 0.4em 0;
+    margin-bottom: 1.5em;
+    padding-bottom: 0.5em;
     border-bottom: 1px solid rgb(var(--jf-palette-text-primaryChannel, 255 255 255) / 0.1);
 }
-.jux-admin-tmdb-status-row:last-child {
+.jux-admin-add-section .sectionTitle {
+    margin-top: 1em;
+}
+.jux-admin-add-row {
+    align-items: flex-end;
+}
+.jux-admin-add-action {
+    padding-bottom: 0.5em;
+}
+.jux-admin-widget-instance {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    color: var(--jf-palette-text-secondary, rgb(var(--jf-palette-text-primaryChannel, 255 255 255) / 0.7));
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+/* One TMDb list per row, its columns aligned from row to row (annex A); stacked on a narrow screen. */
+.jux-admin-tmdb-status-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) minmax(9em, 0.9fr) minmax(0, 2fr);
+    align-items: center;
+    gap: 0.35em 1.5em;
+    padding: 0.5em 0;
+    border-bottom: 1px solid rgb(var(--jf-palette-text-primaryChannel, 255 255 255) / 0.1);
+}
+.jux-admin-tmdb-status-row:last-of-type {
     border-bottom: none;
+}
+.jux-admin-tmdb-refreshed {
+    color: var(--jf-palette-text-secondary, rgb(var(--jf-palette-text-primaryChannel, 255 255 255) / 0.7));
+    font-variant-numeric: tabular-nums;
+}
+.jux-admin-tmdb-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5em 1.25em;
+    min-width: 0;
+}
+.jux-admin-tmdb-error {
+    grid-column: 1 / -1;
+    color: var(--error-color, #e5350b);
+}
+@media (max-width: 50em) {
+    .jux-admin-tmdb-status-row {
+        grid-template-columns: minmax(0, 1fr);
+    }
 }
 /* Wraps under its status on a narrow screen instead of pushing the page sideways. */
 .jux-admin-tmdb-pages {
@@ -276,17 +314,17 @@ ul.jux-admin-warning {
 .jux-admin-panel:focus-visible {
     outline: none;
 }
+/* hidden wins over the display of the dashboard's classes (.fieldDescription, emby-*), so the page
+   shows and hides its parts with the attribute instead of inline styles (annex A). */
+#juxHomepageConfigPage [hidden] {
+    display: none;
+}
 /* Unsaved changes in a tab (ADM-01.c), in the dashboard's warning color. */
 .jux-admin-tab-dirty {
     width: 0.45em;
     height: 0.45em;
     border-radius: 50%;
     background-color: var(--jf-palette-warning-main, rgb(255, 167, 38));
-}
-.jux-admin-tab-dirty[hidden],
-.jux-admin-unsaved[hidden],
-.jux-admin-draft[hidden] {
-    display: none;
 }
 .jux-admin-unsaved {
     margin: 0 0 0.6em;
