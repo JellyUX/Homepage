@@ -332,6 +332,7 @@ ul.jux-admin-warning {
 }
 .jux-admin-draft {
     display: flex;
+    margin-bottom: 1.25em;
     flex-wrap: wrap;
     align-items: center;
     gap: 0.75em 1em;
