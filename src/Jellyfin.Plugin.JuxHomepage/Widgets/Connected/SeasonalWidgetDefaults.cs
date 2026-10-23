@@ -64,13 +64,13 @@ public static class SeasonalWidgetDefaults
     /// <returns>A fixed-order array of seven <see cref="WidgetConfig"/> entries.</returns>
     public static WidgetConfig[] Build() =>
     [
-        BuildRow(HalloweenId, "jux.seasonal.halloween", "10-01", "10-31", "halloween", ("tag", "halloween"), order: 200),
-        BuildRow(HalloweenHorrorId, "jux.seasonal.halloween-horror", "10-01", "10-31", "halloween", ("genre", "Horror|Horreur"), order: 201),
-        BuildRow(HalloweenThrillerId, "jux.seasonal.halloween-thrillers", "10-01", "10-31", "halloween", ("genre", "Thriller"), order: 202),
-        BuildRow(ChristmasId, "jux.seasonal.christmas", "12-01", "12-25", "christmas", ("tag", "christmas"), order: 210),
-        BuildRow(ValentinesId, "jux.seasonal.valentines", "02-07", "02-14", "valentines", ("tag", "valentine's day"), order: 220),
-        BuildRow(ValentinesRomanceId, "jux.seasonal.valentines-romance", "02-07", "02-14", "valentines", ("genre", "Romance"), order: 221),
-        BuildRow(NewYearId, "jux.seasonal.newyear", "12-26", "01-06", "newyear", ("tag", "new year's eve"), order: 230)
+        BuildRow(HalloweenId, "jux.seasonal.halloween", "10-01", "10-31", "halloween", (SeasonalWidget.TagParam, "halloween"), order: 200),
+        BuildRow(HalloweenHorrorId, "jux.seasonal.halloween-horror", "10-01", "10-31", "halloween", (SeasonalWidget.GenreParam, "Horror|Horreur"), order: 201),
+        BuildRow(HalloweenThrillerId, "jux.seasonal.halloween-thrillers", "10-01", "10-31", "halloween", (SeasonalWidget.GenreParam, "Thriller"), order: 202),
+        BuildRow(ChristmasId, "jux.seasonal.christmas", "12-01", "12-25", "christmas", (SeasonalWidget.TagParam, "christmas"), order: 210),
+        BuildRow(ValentinesId, "jux.seasonal.valentines", "02-07", "02-14", "valentines", (SeasonalWidget.TagParam, "valentine's day"), order: 220),
+        BuildRow(ValentinesRomanceId, "jux.seasonal.valentines-romance", "02-07", "02-14", "valentines", (SeasonalWidget.GenreParam, "Romance"), order: 221),
+        BuildRow(NewYearId, "jux.seasonal.newyear", "12-26", "01-06", "newyear", (SeasonalWidget.TagParam, "new year's eve"), order: 230)
     ];
 
     private static WidgetConfig BuildRow(
@@ -93,11 +93,11 @@ public static class SeasonalWidgetDefaults
         AllowUserOverride = false,
         ExtraParams =
         [
-            new WidgetExtraParam { Key = "value", Value = id.ToString() },
-            new WidgetExtraParam { Key = WidgetConfig.NameKeyParam, Value = nameKey },
-            new WidgetExtraParam { Key = "startDate", Value = startDate },
-            new WidgetExtraParam { Key = "endDate", Value = endDate },
-            new WidgetExtraParam { Key = "theme", Value = theme },
+            new WidgetExtraParam { Key = SeasonalWidget.ValueParam, Value = id.ToString() },
+            new WidgetExtraParam { Key = SeasonalWidget.NameKeyParam, Value = nameKey },
+            new WidgetExtraParam { Key = SeasonalWidget.StartDateParam, Value = startDate },
+            new WidgetExtraParam { Key = SeasonalWidget.EndDateParam, Value = endDate },
+            new WidgetExtraParam { Key = SeasonalWidget.ThemeParam, Value = theme },
             new WidgetExtraParam { Key = filter.Key, Value = filter.Value }
         ]
     };

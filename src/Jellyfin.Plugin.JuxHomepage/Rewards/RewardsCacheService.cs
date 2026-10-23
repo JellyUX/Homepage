@@ -163,7 +163,7 @@ public sealed class RewardsCacheService : IRewardsCacheService, IDisposable
             foreach (var row in rows)
             {
                 var extra = row.GetExtraParamsDictionary();
-                if (!extra.TryGetValue("value", out var instanceId) || string.IsNullOrEmpty(instanceId))
+                if (!extra.TryGetValue(RewardsWidget.ValueParam, out var instanceId) || string.IsNullOrEmpty(instanceId))
                 {
                     continue;
                 }

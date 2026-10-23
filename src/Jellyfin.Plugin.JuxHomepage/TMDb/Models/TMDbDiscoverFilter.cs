@@ -1,4 +1,5 @@
 using System.Globalization;
+using Jellyfin.Plugin.JuxHomepage.Widgets.Connected;
 
 namespace Jellyfin.Plugin.JuxHomepage.TMDb.Models;
 
@@ -52,36 +53,36 @@ public sealed class TMDbDiscoverFilter
     {
         var filter = new TMDbDiscoverFilter
         {
-            GenreIds = ParseIntList(extraParams, "genreIds"),
-            PersonIds = ParseIntList(extraParams, "personIds"),
-            KeywordIds = ParseIntList(extraParams, "keywordIds"),
-            CompanyIds = ParseIntList(extraParams, "companyIds")
+            GenreIds = ParseIntList(extraParams, DiscoverMoviesWidget.GenreIdsParam),
+            PersonIds = ParseIntList(extraParams, DiscoverMoviesWidget.PersonIdsParam),
+            KeywordIds = ParseIntList(extraParams, DiscoverMoviesWidget.KeywordIdsParam),
+            CompanyIds = ParseIntList(extraParams, DiscoverMoviesWidget.CompanyIdsParam)
         };
 
-        if (extraParams.TryGetValue("sortBy", out var sortBy) && !string.IsNullOrWhiteSpace(sortBy))
+        if (extraParams.TryGetValue(DiscoverMoviesWidget.SortByParam, out var sortBy) && !string.IsNullOrWhiteSpace(sortBy))
         {
             filter.SortBy = sortBy;
         }
 
-        if (extraParams.TryGetValue("year", out var yearText)
+        if (extraParams.TryGetValue(DiscoverMoviesWidget.YearParam, out var yearText)
             && int.TryParse(yearText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var year))
         {
             filter.PrimaryReleaseYear = year;
         }
 
-        if (extraParams.TryGetValue("minRating", out var minRatingText)
+        if (extraParams.TryGetValue(DiscoverMoviesWidget.MinRatingParam, out var minRatingText)
             && double.TryParse(minRatingText, NumberStyles.Float, CultureInfo.InvariantCulture, out var minRating))
         {
             filter.VoteAverageGte = minRating;
         }
 
-        if (extraParams.TryGetValue("minVotes", out var minVotesText)
+        if (extraParams.TryGetValue(DiscoverMoviesWidget.MinVotesParam, out var minVotesText)
             && int.TryParse(minVotesText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var minVotes))
         {
             filter.VoteCountGte = minVotes;
         }
 
-        if (extraParams.TryGetValue("pages", out var pagesText)
+        if (extraParams.TryGetValue(DiscoverMoviesWidget.PagesParam, out var pagesText)
             && int.TryParse(pagesText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var pages))
         {
             filter.Pages = Math.Clamp(pages, 1, 5);

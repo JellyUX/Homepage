@@ -4,6 +4,7 @@ using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.IO;
 using Jellyfin.Plugin.JuxHomepage.TMDb.Models;
 using Jellyfin.Plugin.JuxHomepage.Widgets;
+using Jellyfin.Plugin.JuxHomepage.Widgets.Connected;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller.Library;
 using Microsoft.Extensions.Logging;
@@ -460,7 +461,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
             foreach (var row in discoverRows)
             {
                 var extra = row.GetExtraParamsDictionary();
-                if (!extra.TryGetValue("value", out var instanceId) || string.IsNullOrEmpty(instanceId))
+                if (!extra.TryGetValue(DiscoverMoviesWidget.ValueParam, out var instanceId) || string.IsNullOrEmpty(instanceId))
                 {
                     continue;
                 }

@@ -75,6 +75,12 @@ public sealed class WidgetConfig
     public WidgetExtraParam[] ExtraParams { get; set; } = [];
 
     /// <summary>
+    /// The <see cref="ExtraParams"/> key of a row's own value: the item an Admin row shows, or the
+    /// instance id of a Seasonal, Discover or Rewards row.
+    /// </summary>
+    public const string ValueParam = "value";
+
+    /// <summary>
     /// The <see cref="ExtraParams"/> key of a preset row's name: a translation key, shown in the
     /// user's language when <see cref="CustomDisplayName"/> is empty (TODO_V4.md 9.4, F-64).
     /// </summary>

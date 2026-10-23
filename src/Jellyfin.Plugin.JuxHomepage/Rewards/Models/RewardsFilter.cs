@@ -67,7 +67,7 @@ public sealed partial class RewardsFilter
     {
         var filter = new RewardsFilter();
 
-        if (extraParams.TryGetValue("ceremonyQid", out var ceremonyQid) && !string.IsNullOrWhiteSpace(ceremonyQid))
+        if (extraParams.TryGetValue(RewardsWidget.CeremonyQidParam, out var ceremonyQid) && !string.IsNullOrWhiteSpace(ceremonyQid))
         {
             if (QidPattern().IsMatch(ceremonyQid))
             {
@@ -82,7 +82,7 @@ public sealed partial class RewardsFilter
             }
         }
 
-        if (extraParams.TryGetValue("categoryQid", out var categoryQid) && !string.IsNullOrWhiteSpace(categoryQid))
+        if (extraParams.TryGetValue(RewardsWidget.CategoryQidParam, out var categoryQid) && !string.IsNullOrWhiteSpace(categoryQid))
         {
             if (QidPattern().IsMatch(categoryQid))
             {
@@ -97,7 +97,7 @@ public sealed partial class RewardsFilter
             }
         }
 
-        if (extraParams.TryGetValue("year", out var yearText)
+        if (extraParams.TryGetValue(RewardsWidget.YearParam, out var yearText)
             && int.TryParse(yearText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var year))
         {
             filter.Year = year;

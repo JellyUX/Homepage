@@ -1,5 +1,6 @@
 using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.Localization;
+using Jellyfin.Plugin.JuxHomepage.Widgets.Connected;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.JuxHomepage.Widgets;
@@ -186,7 +187,7 @@ public sealed class WidgetLayoutResolver
 
     private static Guid? InstanceId(WidgetConfig row)
     {
-        var value = row.ExtraParams.FirstOrDefault(p => p.Key == "value")?.Value;
+        var value = row.ExtraParams.FirstOrDefault(p => p.Key == WidgetConfig.ValueParam)?.Value;
         return Guid.TryParse(value, out var id) ? id : null;
     }
 
@@ -230,7 +231,7 @@ public sealed class WidgetLayoutResolver
         if (additionalData is not null)
         {
             var match = candidates.FirstOrDefault(c => c.ExtraParams.Any(p =>
-                p.Key == "value" && p.Value == additionalData));
+                p.Key == WidgetConfig.ValueParam && p.Value == additionalData));
             if (match is not null)
             {
                 return match;
@@ -374,7 +375,7 @@ public sealed class WidgetLayoutResolver
         // not need to know which widget type set it. Widgets that never set this key simply produce
         // a null Theme, which the front end ignores.
         string? theme = instanceConfig.ExtraParams is not null
-            && instanceConfig.ExtraParams.TryGetValue("theme", out var themeValue)
+            && instanceConfig.ExtraParams.TryGetValue(SeasonalWidget.ThemeParam, out var themeValue)
             && !string.IsNullOrEmpty(themeValue)
                 ? themeValue
                 : null;
@@ -459,7 +460,7 @@ public sealed class WidgetLayoutResolver
         ILocalizationService localizationService)
     {
         var extra = config.GetExtraParamsDictionary();
-        extra.TryGetValue("value", out var additionalData);
+        extra.TryGetValue(WidgetConfig.ValueParam, out var additionalData);
         return new WidgetInstanceConfig
         {
             // A preset names itself by a translated key (TODO_V4.md 9.4, F-64); a name the admin typed wins.

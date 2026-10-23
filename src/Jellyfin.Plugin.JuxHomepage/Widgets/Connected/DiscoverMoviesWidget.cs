@@ -15,6 +15,36 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets.Connected;
 /// </summary>
 public sealed class DiscoverMoviesWidget : ConnectedWidgetBase<TMDbMovie>
 {
+    /// <summary>The <c>ExtraParams</c> key of the instance id of the section.</summary>
+    public const string ValueParam = WidgetConfig.ValueParam;
+
+    /// <summary>The <c>ExtraParams</c> key of the TMDb genre ids, comma-separated.</summary>
+    public const string GenreIdsParam = "genreIds";
+
+    /// <summary>The <c>ExtraParams</c> key of the TMDb person ids, comma-separated.</summary>
+    public const string PersonIdsParam = "personIds";
+
+    /// <summary>The <c>ExtraParams</c> key of the TMDb keyword ids, comma-separated.</summary>
+    public const string KeywordIdsParam = "keywordIds";
+
+    /// <summary>The <c>ExtraParams</c> key of the TMDb company ids, comma-separated.</summary>
+    public const string CompanyIdsParam = "companyIds";
+
+    /// <summary>The <c>ExtraParams</c> key of the TMDb sort order.</summary>
+    public const string SortByParam = "sortBy";
+
+    /// <summary>The <c>ExtraParams</c> key of the primary release year.</summary>
+    public const string YearParam = "year";
+
+    /// <summary>The <c>ExtraParams</c> key of the minimum vote average.</summary>
+    public const string MinRatingParam = "minRating";
+
+    /// <summary>The <c>ExtraParams</c> key of the minimum vote count.</summary>
+    public const string MinVotesParam = "minVotes";
+
+    /// <summary>The <c>ExtraParams</c> key of the number of TMDb result pages read.</summary>
+    public const string PagesParam = "pages";
+
     private readonly ITMDbCacheService _cacheService;
 
     /// <summary>

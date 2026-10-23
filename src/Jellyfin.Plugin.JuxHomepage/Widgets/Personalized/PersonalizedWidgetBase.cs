@@ -31,6 +31,9 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets.Personalized;
 /// </summary>
 public abstract class PersonalizedWidgetBase : IWidget
 {
+    /// <summary>The <c>ExtraParams</c> key of the "hide watched items" switch, on unless "false".</summary>
+    public const string ExcludeWatchedParam = "excludeWatched";
+
     private string? _value;
     private string? _displayName;
 
@@ -227,7 +230,7 @@ public abstract class PersonalizedWidgetBase : IWidget
     private static bool ExcludeWatched(WidgetPayload payload)
     {
         if (payload.ExtraParams is not null &&
-            payload.ExtraParams.TryGetValue("excludeWatched", out var raw) &&
+            payload.ExtraParams.TryGetValue(ExcludeWatchedParam, out var raw) &&
             bool.TryParse(raw, out var value))
         {
             return value;

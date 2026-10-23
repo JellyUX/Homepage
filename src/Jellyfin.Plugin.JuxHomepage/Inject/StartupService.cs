@@ -1,5 +1,6 @@
 using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.IO;
+using Jellyfin.Plugin.JuxHomepage.Rewards;
 using Jellyfin.Plugin.JuxHomepage.TMDb;
 using Jellyfin.Plugin.JuxHomepage.Widgets;
 using MediaBrowser.Common.Configuration;
@@ -102,7 +103,7 @@ public sealed class StartupService : IHostedService, IDisposable
         {
             logger.LogWarning(
                 "Rewards section '{InstanceId}' has no ceremony or category and shows nothing: set one on the JellyUX admin page.",
-                row.GetExtraParamsDictionary().GetValueOrDefault("value"));
+                row.GetExtraParamsDictionary().GetValueOrDefault(RewardsWidget.ValueParam));
         }
     }
 

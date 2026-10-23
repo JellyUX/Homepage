@@ -15,6 +15,18 @@ namespace Jellyfin.Plugin.JuxHomepage.Rewards;
 /// </summary>
 public sealed class RewardsWidget : ConnectedWidgetBase<RewardsWinner>
 {
+    /// <summary>The <c>ExtraParams</c> key of the instance id of the section.</summary>
+    public const string ValueParam = WidgetConfig.ValueParam;
+
+    /// <summary>The <c>ExtraParams</c> key of the Wikidata Q-id of the ceremony.</summary>
+    public const string CeremonyQidParam = "ceremonyQid";
+
+    /// <summary>The <c>ExtraParams</c> key of the Wikidata Q-id of the award category.</summary>
+    public const string CategoryQidParam = "categoryQid";
+
+    /// <summary>The <c>ExtraParams</c> key of the ceremony year.</summary>
+    public const string YearParam = "year";
+
     private readonly IRewardsCacheService _cacheService;
 
     /// <summary>

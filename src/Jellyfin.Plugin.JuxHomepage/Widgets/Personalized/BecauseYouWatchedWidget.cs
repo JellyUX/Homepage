@@ -17,6 +17,9 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets.Personalized;
 /// </summary>
 public sealed class BecauseYouWatchedWidget : PersonalizedWidgetBase
 {
+    /// <summary>The <c>ExtraParams</c> key of the kind of watched item the section starts from.</summary>
+    public const string ScopeParam = "scope";
+
     /// <summary>
     /// Initializes a new instance of the <see cref="BecauseYouWatchedWidget"/> class.
     /// </summary>
@@ -90,7 +93,7 @@ public sealed class BecauseYouWatchedWidget : PersonalizedWidgetBase
     /// </summary>
     private static BecauseYouWatchedScope ResolveScope(WidgetInstanceConfig config)
     {
-        if (config.ExtraParams is not null && config.ExtraParams.TryGetValue("scope", out var raw))
+        if (config.ExtraParams is not null && config.ExtraParams.TryGetValue(ScopeParam, out var raw))
         {
             return raw switch
             {

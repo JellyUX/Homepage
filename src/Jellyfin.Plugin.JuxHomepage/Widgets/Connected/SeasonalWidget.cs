@@ -29,6 +29,27 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets.Connected;
 /// </summary>
 public sealed class SeasonalWidget : IWidget
 {
+    /// <summary>The <c>ExtraParams</c> key of the instance id of the season.</summary>
+    public const string ValueParam = WidgetConfig.ValueParam;
+
+    /// <summary>The <c>ExtraParams</c> key of a preset's translated name.</summary>
+    public const string NameKeyParam = WidgetConfig.NameKeyParam;
+
+    /// <summary>The <c>ExtraParams</c> key of the first day of the season, as MM-dd.</summary>
+    public const string StartDateParam = "startDate";
+
+    /// <summary>The <c>ExtraParams</c> key of the last day of the season, as MM-dd.</summary>
+    public const string EndDateParam = "endDate";
+
+    /// <summary>The <c>ExtraParams</c> key of the visual theme of the section.</summary>
+    public const string ThemeParam = "theme";
+
+    /// <summary>The <c>ExtraParams</c> key of the genres the section shows, separated by "|".</summary>
+    public const string GenreParam = "genre";
+
+    /// <summary>The <c>ExtraParams</c> key of the tags the section shows, separated by "|".</summary>
+    public const string TagParam = "tag";
+
     private readonly IUserManager _userManager;
     private readonly TimeProvider _timeProvider;
     private readonly WidgetItemFetcher _itemFetcher;
@@ -77,8 +98,8 @@ public sealed class SeasonalWidget : IWidget
             return Task.FromResult(WidgetResult.Empty);
         }
 
-        extra.TryGetValue("startDate", out var startDateRaw);
-        extra.TryGetValue("endDate", out var endDateRaw);
+        extra.TryGetValue(StartDateParam, out var startDateRaw);
+        extra.TryGetValue(EndDateParam, out var endDateRaw);
 
         if (!TryParseMonthDay(startDateRaw, out var start) || !TryParseMonthDay(endDateRaw, out var end))
         {
@@ -101,8 +122,8 @@ public sealed class SeasonalWidget : IWidget
         var dtoOptions = WidgetDtoOptions.Standard();
         var query = LibrarySectionQuery.Create(user, dtoOptions, [BaseItemKind.Movie, BaseItemKind.Series]);
 
-        var genres = ParseValues(extra, "genre");
-        var tags = ParseValues(extra, "tag");
+        var genres = ParseValues(extra, GenreParam);
+        var tags = ParseValues(extra, TagParam);
         if (genres.Length == 0 && tags.Length == 0)
         {
             // A season without any filter would show the whole library: hidden instead, like an Admin

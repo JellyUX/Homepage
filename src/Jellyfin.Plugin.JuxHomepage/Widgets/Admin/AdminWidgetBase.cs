@@ -24,6 +24,9 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets.Admin;
 /// </summary>
 public abstract class AdminWidgetBase : IWidget
 {
+    /// <summary>The <c>ExtraParams</c> key of the item the section shows.</summary>
+    public const string ValueParam = WidgetConfig.ValueParam;
+
     /// <summary>
     /// Initializes a new instance of the <see cref="AdminWidgetBase"/> class.
     /// </summary>
@@ -145,7 +148,7 @@ public abstract class AdminWidgetBase : IWidget
         string? value = payload.AdditionalData;
         if (string.IsNullOrEmpty(value) && payload.ExtraParams is not null)
         {
-            payload.ExtraParams.TryGetValue("value", out value);
+            payload.ExtraParams.TryGetValue(ValueParam, out value);
         }
 
         if (string.IsNullOrEmpty(value))

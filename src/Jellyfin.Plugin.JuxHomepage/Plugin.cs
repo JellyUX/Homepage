@@ -361,13 +361,13 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
     {
         var existingIds = widgets
             .Where(w => w.WidgetType == "jux.connected.seasonal")
-            .Select(w => w.ExtraParams.FirstOrDefault(p => p.Key == "value")?.Value)
+            .Select(w => w.ExtraParams.FirstOrDefault(p => p.Key == SeasonalWidget.ValueParam)?.Value)
             .Where(v => v is not null)
             .ToHashSet();
 
         var missingPresets = SeasonalWidgetDefaults.Build()
-            .Where(preset => onlyIds is null || onlyIds.Contains(Guid.Parse(preset.ExtraParams.First(p => p.Key == "value").Value)))
-            .Where(preset => !existingIds.Contains(preset.ExtraParams.First(p => p.Key == "value").Value));
+            .Where(preset => onlyIds is null || onlyIds.Contains(Guid.Parse(preset.ExtraParams.First(p => p.Key == SeasonalWidget.ValueParam).Value)))
+            .Where(preset => !existingIds.Contains(preset.ExtraParams.First(p => p.Key == SeasonalWidget.ValueParam).Value));
 
         return [.. widgets, .. missingPresets];
     }
@@ -435,14 +435,14 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
     private static void FillSeasonalPresetFilters(WidgetConfig[] widgets)
     {
         var presets = SeasonalWidgetDefaults.Build()
-            .ToDictionary(p => p.ExtraParams.First(e => e.Key == "value").Value, StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(p => p.ExtraParams.First(e => e.Key == SeasonalWidget.ValueParam).Value, StringComparer.OrdinalIgnoreCase);
 
         foreach (var widget in widgets.Where(w => w.WidgetType == "jux.connected.seasonal"))
         {
             // A hand-edited file can deserialize the array as null.
             var extra = widget.ExtraParams ?? [];
-            var id = extra.FirstOrDefault(e => e.Key == "value")?.Value;
-            var unfiltered = !extra.Any(e => (e.Key == "genre" || e.Key == "tag") && !string.IsNullOrWhiteSpace(e.Value));
+            var id = extra.FirstOrDefault(e => e.Key == SeasonalWidget.ValueParam)?.Value;
+            var unfiltered = !extra.Any(e => (e.Key == SeasonalWidget.GenreParam || e.Key == SeasonalWidget.TagParam) && !string.IsNullOrWhiteSpace(e.Value));
             if (id is null || !unfiltered || !presets.TryGetValue(id, out var preset))
             {
                 continue;
@@ -450,8 +450,8 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
 
             widget.ExtraParams =
             [
-                .. extra.Where(e => e.Key != "genre" && e.Key != "tag"),
-                .. preset.ExtraParams.Where(e => e.Key == "genre" || e.Key == "tag")
+                .. extra.Where(e => e.Key != SeasonalWidget.GenreParam && e.Key != SeasonalWidget.TagParam),
+                .. preset.ExtraParams.Where(e => e.Key == SeasonalWidget.GenreParam || e.Key == SeasonalWidget.TagParam)
             ];
         }
     }
@@ -466,12 +466,12 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
     private static void KeySeasonalPresetNames(WidgetConfig[] widgets)
     {
         var presets = SeasonalWidgetDefaults.Build()
-            .ToDictionary(p => p.ExtraParams.First(e => e.Key == "value").Value, StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(p => p.ExtraParams.First(e => e.Key == SeasonalWidget.ValueParam).Value, StringComparer.OrdinalIgnoreCase);
 
         foreach (var widget in widgets.Where(w => w.WidgetType == "jux.connected.seasonal"))
         {
             var extra = widget.ExtraParams ?? [];
-            var id = extra.FirstOrDefault(e => e.Key == "value")?.Value;
+            var id = extra.FirstOrDefault(e => e.Key == SeasonalWidget.ValueParam)?.Value;
             if (id is null
                 || !Guid.TryParse(id, out var guid)
                 || !SeasonalWidgetDefaults.ShippedNames.TryGetValue(guid, out var shippedName)
@@ -484,8 +484,8 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
             widget.CustomDisplayName = null;
             widget.ExtraParams =
             [
-                .. extra.Where(e => e.Key != WidgetConfig.NameKeyParam),
-                .. preset.ExtraParams.Where(e => e.Key == WidgetConfig.NameKeyParam)
+                .. extra.Where(e => e.Key != SeasonalWidget.NameKeyParam),
+                .. preset.ExtraParams.Where(e => e.Key == SeasonalWidget.NameKeyParam)
             ];
         }
     }
@@ -535,7 +535,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
         if (widget.WidgetType == "jux.connected.seasonal")
         {
             widget.ExtraParams = widget.ExtraParams
-                .Where(p => p.Key is not ("startDate" or "endDate") || SeasonalWidget.TryParseMonthDay(p.Value, out _))
+                .Where(p => p.Key is not (SeasonalWidget.StartDateParam or SeasonalWidget.EndDateParam) || SeasonalWidget.TryParseMonthDay(p.Value, out _))
                 .ToArray();
         }
     }
