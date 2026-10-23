@@ -967,6 +967,11 @@ describe('configuration page controller (F-33)', () => {
         expect(dirtyTabs()).toEqual([]);
     });
 
+    function withTmdbKey() {
+        const keyed = { ...JSON.parse(JSON.stringify(config)), ApiKeys: { TMDb: '0123456789abcdef0123456789abcdef' } };
+        window.ApiClient.getPluginConfiguration = vi.fn(() => Promise.resolve(JSON.parse(JSON.stringify(keyed))));
+    }
+
     function statusesAnswering(...answers) {
         const calls = { status: 0, warnings: 0 };
         window.ApiClient.getJSON = vi.fn((url) => {
@@ -988,6 +993,7 @@ describe('configuration page controller (F-33)', () => {
         const old = [{ Type: 'TrendingMovies', LastRefreshedUtc: '2026-10-23T10:00:00Z', ItemCount: 0, MatchedCount: 0, LastError: 'Unreachable', LastErrorUtc: '2026-10-23T10:30:00Z' }];
         const fresh = [{ Type: 'TrendingMovies', LastRefreshedUtc: '2026-10-23T11:00:00Z', ItemCount: 80, MatchedCount: 2, LastError: null }];
         const calls = statusesAnswering(old, old, fresh);
+        withTmdbKey();
         window.ApiClient.ajax = vi.fn(() => Promise.resolve());
         await open();
         tab('sources').click();
@@ -1022,6 +1028,7 @@ describe('configuration page controller (F-33)', () => {
     it('stops polling after its bound and says the status may not be final (ADM-02.a)', async () => {
         const old = [{ Type: 'TrendingMovies', LastRefreshedUtc: '2026-10-23T10:00:00Z', ItemCount: 0, MatchedCount: 0, LastError: null }];
         const calls = statusesAnswering(old);
+        withTmdbKey();
         window.ApiClient.ajax = vi.fn(() => Promise.resolve());
         await open();
 
@@ -1037,6 +1044,25 @@ describe('configuration page controller (F-33)', () => {
         expect(calls.status).toBe(1 + 30);
         expect(view.querySelector('#juxTmdbRefreshMsg').textContent).toBe('admin.tmdbrefresh.slow');
         expect(view.querySelector('#juxBtnRefreshTmdb').disabled).toBe(false);
+    });
+
+    it('ends at the first status without a saved TMDb key, since no TMDb list can change (ADM-02.a, bench 8098)', async () => {
+        const old = [{ Type: 'TrendingMovies', LastRefreshedUtc: null, ItemCount: 0, MatchedCount: 0, LastError: null }];
+        const calls = statusesAnswering(old);
+        window.ApiClient.ajax = vi.fn(() => Promise.resolve());
+        await open();
+
+        vi.useFakeTimers();
+        try {
+            view.querySelector('#juxBtnRefreshTmdb').click();
+            await vi.advanceTimersByTimeAsync(2000 * 3);
+        } finally {
+            vi.useRealTimers();
+        }
+        await settle();
+
+        expect(calls.status).toBe(2);
+        expect(view.querySelector('#juxTmdbRefreshMsg').textContent).toBe('admin.tmdbrefresh.done');
     });
 
     it('says a refresh is already running on a 409, not that it failed (ADM-02.a)', async () => {

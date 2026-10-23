@@ -1568,6 +1568,9 @@ function createConfigPage() {
             var self = this;
             var message = document.getElementById('juxTmdbRefreshMsg');
             var before = self._tmdbStatuses || [];
+            // Without a saved TMDb key no TMDb list can change: the refresh only redoes Rewards, which has no
+            // status to follow (bench 8098: 30 polls, then "taking longer").
+            var tmdbKey = !!((self._loaded || {}).ApiKeys || {}).TMDb;
             var show = function (key) {
                 message.textContent = self.t(key);
                 message.hidden = false;
@@ -1587,7 +1590,7 @@ function createConfigPage() {
                     ApiClient.getJSON(ApiClient.getUrl('JuxHomepage/TMDb/Status')).then(function (statuses) {
                         self._tmdbStatuses = statuses || [];
                         self.updateTmdbStatusText(self._tmdbStatuses);
-                        if (refreshSettled(before, self._tmdbStatuses)) {
+                        if (!tmdbKey || refreshSettled(before, self._tmdbStatuses)) {
                             self.loadWarnings();
                             finish('admin.tmdbrefresh.done');
                         } else if (tries >= self.refreshPolls) {
