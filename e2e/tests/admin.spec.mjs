@@ -44,6 +44,11 @@ test('the admin page keeps Save in view and moves a section by drag and drop or 
         await expect(page.locator('#juxHomepageConfigPage:visible .jux-admin-actions .button-submit')).toBeInViewport();
         await expect(page.locator('#txtTMDb')).toHaveAttribute('type', 'password');
 
+        // The sections live in their own tab (ADM-01.a), which the page does not open first.
+        await expect(cards.first()).toBeHidden();
+        await page.locator('#juxTab_sections').click();
+        await expect(cards.first()).toBeVisible();
+
         // Drag the Watchlist section onto the top half of the first card. Both must be on screen,
         // clear of the dashboard app bar and of the sticky Save bar, for the pointer to reach them.
         await page.setViewportSize({ width: 1920, height: 1700 });

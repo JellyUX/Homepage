@@ -1,8 +1,17 @@
 # Configuration
 
-All settings below are found in **Administration > Plugins > JellyUX Homepage**.
+All settings below are found in **Administration > Plugins > JellyUX Homepage**, in three tabs:
+**Settings**, **Sections** and **External sources**. The page opens on the tab last used in the
+browser session, or on **External sources** when a TMDb list failed to refresh. **Save** writes every
+tab at once; a dot marks each tab with unsaved changes, and the Save bar says so.
 
-## Modules
+Closing or reloading the browser tab with unsaved changes asks first. Going to another Jellyfin page
+cannot be stopped: the changes are kept for the browser session and shown again, with a **Discard**
+button, when you come back to the page, unless the saved configuration changed in the meantime.
+
+## Settings
+
+### Modules
 
 Each switch below turns one client module on or off. All are on by default. A disabled module is not
 loaded at all: its script is left out of the web client, so it costs nothing on any page. Changes
@@ -16,7 +25,25 @@ apply at the next page reload. Unchecking **Enable JellyUX Homepage** leaves out
 | Collections | "Included In" section on detail pages, and sort controls on collection pages. |
 | Breadcrumb | Library breadcrumb in the header of detail pages. |
 
-## Common per-widget parameters
+### Watchlist
+
+**Remove watched titles from the watchlist** (on by default): a movie leaves the watchlist when its
+playback finishes, a series when its last unwatched episode does. Marking a title as watched by hand
+never removes it. The watchlist is Jellyfin's "liked" list, which other plugins read too: Jellyfin
+Enhanced, for one, syncs it to Seerr, so a removed title also leaves the Seerr watchlist. Untick the
+setting to never change the list automatically.
+
+### Cache
+
+| Field | Default | Description |
+|---|---|---|
+| Session cache TTL (minutes) | 15 | How long the home screen widget layout is cached per user, counted from when it was built. The first visit after that still shows the previous layout while the new one is built in the background. Saving the configuration clears this cache at once, so a lower value is never needed to see a configuration change. Reduce to see new library content sooner; increase to lower server load. |
+
+## Sections
+
+The **Add a section** bar sits at the top of the tab; the new section opens unfolded and is brought into view.
+
+### Common per-widget parameters
 
 Every widget section shares this set of fields, no matter its category:
 
@@ -31,7 +58,7 @@ Every widget section shares this set of fields, no matter its category:
 Widget pages in this site only document parameters that are specific to that widget, on top of this
 shared set.
 
-## Sort order
+### Sort order
 
 Admin, Personalized (except Because You Watched) and Seasonal sections also have a **Sort order**:
 name, date added, release date or rating, in either direction, or **Random**. Sections saved before
@@ -42,41 +69,22 @@ same on every visit of that day; it changes at midnight (server time). Editing t
 filters or Max items) draws again at once. Native sections (Continue Watching, Next Up, Recently Added),
 TMDb sections and Because You Watched keep their own order.
 
-## Watchlist
+## External sources
 
-**Remove watched titles from the watchlist** (on by default): a movie leaves the watchlist when its
-playback finishes, a series when its last unwatched episode does. Marking a title as watched by hand
-never removes it. The watchlist is Jellyfin's "liked" list, which other plugins read too: Jellyfin
-Enhanced, for one, syncs it to Seerr, so a removed title also leaves the Seerr watchlist. Untick the
-setting to never change the list automatically.
-
-## User settings
-
-Each user finds a **JellyUX** block in *Settings > Home*: untick **Use JellyUX** to get Jellyfin's own
-home screen, tabs and pages back for that account, or untick a section to hide it from their own home
-screen. A hidden section keeps every setting chosen here; only its display is removed for that user.
-While JellyUX is on, the native *Home screen section* lists of that page are hidden, since the JellyUX
-sections replace them. Recently Added sections also follow the user's native *Latest media* choices
-(excluded libraries, hidden watched items).
-
-## Cache
-
-| Field | Default | Description |
-|---|---|---|
-| Session cache TTL (minutes) | 15 | How long the home screen widget layout is cached per user, counted from when it was built. The first visit after that still shows the previous layout while the new one is built in the background. Saving the configuration clears this cache at once, so a lower value is never needed to see a configuration change. Reduce to see new library content sooner; increase to lower server load. |
-| TMDb refresh interval (hours) | 24 | How often each TMDb list is refreshed, checked every hour. Increase to reduce external API calls; decrease for fresher content. |
-
-## API Keys
+### API Keys
 
 | Field | Description |
 |---|---|
 | TMDb API Key | Required for every TMDb-backed [Connected](widgets/connected/trending-movies.md) widget. Leave empty if not needed. Accepted formats: a 32-character hexadecimal key (v3), or a v4 bearer token starting with `ey`. **Not required** for the [Rewards](widgets/connected/rewards.md) widget, which uses Wikidata's free public data instead. |
 
-## TMDb Cache
+### TMDb Cache
 
 The **TMDb Cache** section shows, per TMDb list type, the last refresh time and the number of cached
 items, plus a **Refresh now** button. Each page is roughly 20 items from TMDb, so setting "Pages: 3"
 fetches about 60 items for that list.
+
+**TMDb refresh interval (hours)** (default 24): how often each TMDb list is refreshed, checked every
+hour. Increase to reduce external API calls; decrease for fresher content.
 
 | Field | Applies to | Default |
 |---|---|---|
@@ -97,3 +105,12 @@ key is changed; it is kept in memory only, so a server restart clears it until t
 
 TMDb and Wikidata searches in the section editors, and the TMDb country and genre lists, answer
 within 8 seconds: past that, they show no result instead of waiting for the external service.
+
+## User settings
+
+Each user finds a **JellyUX** block in *Settings > Home*: untick **Use JellyUX** to get Jellyfin's own
+home screen, tabs and pages back for that account, or untick a section to hide it from their own home
+screen. A hidden section keeps every setting chosen here; only its display is removed for that user.
+While JellyUX is on, the native *Home screen section* lists of that page are hidden, since the JellyUX
+sections replace them. Recently Added sections also follow the user's native *Latest media* choices
+(excluded libraries, hidden watched items).

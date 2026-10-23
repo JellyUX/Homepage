@@ -9,141 +9,168 @@
 
         <div class="verticalSection">
             <div class="sectionTitleContainer">
-                <h2 class="sectionTitle" data-i18n="admin.page.title">JellyUX Homepage</h2>
+                <h2 id="juxPageTitle" class="sectionTitle" data-i18n="admin.page.title">JellyUX Homepage</h2>
             </div>
         </div>
 
         <div id="juxWarningBanner" class="verticalSection" style="display: none;"></div>
 
+        <div id="juxDraftNotice" class="verticalSection jux-admin-draft" role="status" hidden>
+            <span data-i18n="admin.draft.restored">Your unsaved changes from before you left this page were restored.</span>
+            <button type="button" id="juxBtnDiscardDraft" class="emby-button raised">
+                <span data-i18n="admin.draft.discard">Discard</span>
+            </button>
+        </div>
+
         <form class="juxConfigForm">
 
-            <div class="verticalSection">
-                <h3 class="sectionTitle" data-i18n="admin.general.title">General</h3>
-                <div class="checkboxContainer checkboxContainer-withDescription">
-                    <label class="emby-checkbox-label">
-                        <input type="checkbox" id="chkEnabled" class="emby-checkbox" />
-                        <span class="checkboxLabel" data-i18n="admin.general.enable.label">Enable JellyUX Homepage</span>
-                    </label>
-                    <div class="fieldDescription" data-i18n="admin.general.enable.help">Show JellyUX widgets on the home screen. Disable to revert to the native Jellyfin home screen. To turn JellyUX off, always use this switch, never Disable on the plugin in the Jellyfin dashboard: Jellyfin 10.11 then deletes the plugin at the next restart.</div>
-                </div>
-            </div>
-
-            <div class="verticalSection">
-                <h3 class="sectionTitle" data-i18n="admin.modules.title">Modules</h3>
-                <div class="fieldDescription" data-i18n="admin.modules.help">A disabled module is not loaded at all. Changes apply after a page reload.</div>
-                <div class="checkboxContainer checkboxContainer-withDescription">
-                    <label class="emby-checkbox-label">
-                        <input type="checkbox" id="chkModuleTabs" class="emby-checkbox jux-admin-module" data-module="Tabs" />
-                        <span class="checkboxLabel" data-i18n="admin.modules.tabs.label">Home tabs</span>
-                    </label>
-                    <div class="fieldDescription" data-i18n="admin.modules.tabs.help">Watchlist, Progress, History and Statistics tabs on the home screen.</div>
-                </div>
-                <div class="checkboxContainer checkboxContainer-withDescription">
-                    <label class="emby-checkbox-label">
-                        <input type="checkbox" id="chkModuleCardEnhancements" class="emby-checkbox jux-admin-module" data-module="CardEnhancements" />
-                        <span class="checkboxLabel" data-i18n="admin.modules.cards.label">Card watchlist button and infinite scroll</span>
-                    </label>
-                    <div class="fieldDescription" data-i18n="admin.modules.cards.help">Watchlist button on movie and series cards, and infinite scrolling on library pages.</div>
-                </div>
-                <div class="checkboxContainer checkboxContainer-withDescription">
-                    <label class="emby-checkbox-label">
-                        <input type="checkbox" id="chkModuleSeriesFlatten" class="emby-checkbox jux-admin-module" data-module="SeriesFlatten" />
-                        <span class="checkboxLabel" data-i18n="admin.modules.seriesflatten.label">Single-season series</span>
-                    </label>
-                    <div class="fieldDescription" data-i18n="admin.modules.seriesflatten.help">Show the episodes of a single-season series directly on its page.</div>
-                </div>
-                <div class="checkboxContainer checkboxContainer-withDescription">
-                    <label class="emby-checkbox-label">
-                        <input type="checkbox" id="chkModuleCollections" class="emby-checkbox jux-admin-module" data-module="Collections" />
-                        <span class="checkboxLabel" data-i18n="admin.modules.collections.label">Collections</span>
-                    </label>
-                    <div class="fieldDescription" data-i18n="admin.modules.collections.help">"Included In" section on detail pages, and sort controls on collection pages.</div>
-                </div>
-                <div class="checkboxContainer checkboxContainer-withDescription">
-                    <label class="emby-checkbox-label">
-                        <input type="checkbox" id="chkModuleBreadcrumb" class="emby-checkbox jux-admin-module" data-module="Breadcrumb" />
-                        <span class="checkboxLabel" data-i18n="admin.modules.breadcrumb.label">Breadcrumb</span>
-                    </label>
-                    <div class="fieldDescription" data-i18n="admin.modules.breadcrumb.help">Library breadcrumb in the header of detail pages.</div>
-                </div>
-            </div>
-
-            <div class="verticalSection">
-                <h3 class="sectionTitle" data-i18n="admin.watchlist.title">Watchlist</h3>
-                <div class="checkboxContainer checkboxContainer-withDescription">
-                    <label class="emby-checkbox-label">
-                        <input type="checkbox" id="chkWatchlistAutoRemove" class="emby-checkbox" />
-                        <span class="checkboxLabel" data-i18n="admin.watchlist.autoremove.label">Remove watched titles from the watchlist</span>
-                    </label>
-                    <div class="fieldDescription" data-i18n="admin.watchlist.autoremove.help">A movie leaves the watchlist when its playback finishes, a series when its last unwatched episode does. The watchlist is Jellyfin's "liked" list, which other plugins read too: Jellyfin Enhanced, for one, syncs it to Seerr, so a removed title also leaves the Seerr watchlist. Untick to never change it automatically.</div>
-                </div>
-            </div>
-
-            <div class="verticalSection">
-                <h3 class="sectionTitle" data-i18n="admin.apikeys.title">API Keys</h3>
-                <div class="inputContainer">
-                    <label class="inputLabel inputLabelUnfocused" for="txtTMDb" data-i18n="admin.apikeys.tmdb.label">TMDb API Key</label>
-                    <div class="jux-admin-secret">
-                        <input id="txtTMDb" type="password" class="emby-input" autocomplete="off" spellcheck="false" />
-                        <button type="button" id="juxBtnShowTmdb" class="emby-button paper-icon-button-light" aria-controls="txtTMDb" aria-pressed="false">
-                            <span class="material-icons" aria-hidden="true">visibility</span>
-                        </button>
-                    </div>
-                    <div class="fieldDescription" data-i18n="admin.apikeys.tmdb.help">Required for Connected widgets that use The Movie Database. Leave empty if not needed. Accepted formats: 32-character hexadecimal key (v3), or v4 bearer token starting with "ey".</div>
-                    <div id="juxTmdbError" class="fieldDescription jux-admin-field-error" style="display: none;" data-i18n="admin.apikeys.tmdb.error">Invalid TMDb key format. Expected: 32 hexadecimal characters, a v4 bearer token, or leave empty.</div>
-                </div>
-            </div>
-
-            <div class="verticalSection">
-                <h3 class="sectionTitle" data-i18n="admin.cache.title">Cache</h3>
-                <div class="inputContainer">
-                    <label class="inputLabel inputLabelUnfocused" for="numSessionTtl" data-i18n="admin.cache.sessionttl.label">Session cache TTL (minutes)</label>
-                    <input id="numSessionTtl" type="number" min="1" class="emby-input" />
-                    <div class="fieldDescription" data-i18n="admin.cache.sessionttl.help">How long a user's home screen layout is kept before it is rebuilt, counted from when it was built. The first visit after that still shows the previous layout while the new one is built in the background. Saving this page applies changes at once. Personalized picks are recomputed once a day and after a title is finished, not on this schedule.</div>
-                </div>
-                <div class="inputContainer">
-                    <label class="inputLabel inputLabelUnfocused" for="numTMDbRefresh" data-i18n="admin.cache.tmdbrefresh.label">TMDb refresh interval (hours)</label>
-                    <input id="numTMDbRefresh" type="number" min="1" class="emby-input" />
-                    <div class="fieldDescription" data-i18n="admin.cache.tmdbrefresh.help">How often each TMDb list is refreshed, checked every hour. Increase to reduce external API calls; decrease for fresher content.</div>
-                </div>
-            </div>
-
-            <div class="verticalSection">
-                <h3 class="sectionTitle" data-i18n="admin.tmdbcache.title">TMDb Cache</h3>
-                <p class="fieldDescription" data-i18n="admin.tmdbcache.help">Status of the cached TMDb data used by Connected widgets.</p>
-                <p class="fieldDescription" data-i18n="admin.tmdbcache.pageshint">Each page is about 20 items from TMDb, so "Pages: 3" fetches roughly 60 items for that list.</p>
-                <div id="juxTmdbStatusList"></div>
-                <button type="button" id="juxBtnRefreshTmdb" class="emby-button raised">
-                    <span data-i18n="admin.tmdbcache.refreshnow">Refresh now</span>
+            <div class="jux-admin-tabs" role="tablist" aria-labelledby="juxPageTitle">
+                <button type="button" id="juxTab_settings" class="jux-admin-tab" role="tab" aria-selected="true" aria-controls="juxPanel_settings" data-tab="settings">
+                    <span data-i18n="admin.tab.settings">Settings</span><span class="jux-admin-tab-dirty" aria-hidden="true" hidden></span>
                 </button>
-                <div id="juxTmdbRefreshMsg" class="fieldDescription" style="display: none;"></div>
+                <button type="button" id="juxTab_sections" class="jux-admin-tab" role="tab" aria-selected="false" aria-controls="juxPanel_sections" data-tab="sections" tabindex="-1">
+                    <span data-i18n="admin.tab.sections">Sections</span><span class="jux-admin-tab-dirty" aria-hidden="true" hidden></span>
+                </button>
+                <button type="button" id="juxTab_sources" class="jux-admin-tab" role="tab" aria-selected="false" aria-controls="juxPanel_sources" data-tab="sources" tabindex="-1">
+                    <span data-i18n="admin.tab.sources">External sources</span><span class="jux-admin-tab-dirty" aria-hidden="true" hidden></span>
+                </button>
             </div>
 
-            <div class="verticalSection">
-                <h3 class="sectionTitle" data-i18n="admin.widgets.title">Widgets</h3>
-                <p class="fieldDescription" data-i18n="admin.widgets.help">Drag a section by its handle, type its position or use the arrows to change the display order. Changes take effect after saving.</p>
-                <div id="juxWidgetList"></div>
+            <div id="juxPanel_settings" class="jux-admin-panel" role="tabpanel" aria-labelledby="juxTab_settings" tabindex="0">
+                <div class="verticalSection">
+                    <h3 class="sectionTitle" data-i18n="admin.general.title">General</h3>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input type="checkbox" id="chkEnabled" class="emby-checkbox" />
+                            <span class="checkboxLabel" data-i18n="admin.general.enable.label">Enable JellyUX Homepage</span>
+                        </label>
+                        <div class="fieldDescription" data-i18n="admin.general.enable.help">Show JellyUX widgets on the home screen. Disable to revert to the native Jellyfin home screen. To turn JellyUX off, always use this switch, never Disable on the plugin in the Jellyfin dashboard: Jellyfin 10.11 then deletes the plugin at the next restart.</div>
+                    </div>
+                </div>
 
-                <div class="jux-admin-add-section">
-                    <h4 class="sectionTitle" style="margin-top: 1.5em;" data-i18n="admin.addsection.title">Add a section</h4>
-                    <div class="jux-admin-row" style="align-items: flex-end;">
-                        <div class="inputContainer jux-admin-half">
-                            <label class="inputLabel inputLabelUnfocused" for="juxAddWidgetType" data-i18n="admin.addsection.type.label">Section type</label>
-                            <select id="juxAddWidgetType" class="emby-select-withcolor emby-select">
-                                <option value="" data-i18n="admin.addsection.type.placeholder">-- choose a type --</option>
-                            </select>
+                <div class="verticalSection">
+                    <h3 class="sectionTitle" data-i18n="admin.modules.title">Modules</h3>
+                    <div class="fieldDescription" data-i18n="admin.modules.help">A disabled module is not loaded at all. Changes apply after a page reload.</div>
+                    <div class="jux-admin-modules">
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input type="checkbox" id="chkModuleTabs" class="emby-checkbox jux-admin-module" data-module="Tabs" />
+                                <span class="checkboxLabel" data-i18n="admin.modules.tabs.label">Home tabs</span>
+                            </label>
+                            <div class="fieldDescription" data-i18n="admin.modules.tabs.help">Watchlist, Progress, History and Statistics tabs on the home screen.</div>
                         </div>
-                        <div class="jux-admin-half" style="padding-bottom: 0.5em;">
-                            <button type="button" id="juxBtnAddWidget" class="emby-button raised">
-                                <span data-i18n="admin.addsection.add">Add</span>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input type="checkbox" id="chkModuleCardEnhancements" class="emby-checkbox jux-admin-module" data-module="CardEnhancements" />
+                                <span class="checkboxLabel" data-i18n="admin.modules.cards.label">Card watchlist button and infinite scroll</span>
+                            </label>
+                            <div class="fieldDescription" data-i18n="admin.modules.cards.help">Watchlist button on movie and series cards, and infinite scrolling on library pages.</div>
+                        </div>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input type="checkbox" id="chkModuleSeriesFlatten" class="emby-checkbox jux-admin-module" data-module="SeriesFlatten" />
+                                <span class="checkboxLabel" data-i18n="admin.modules.seriesflatten.label">Single-season series</span>
+                            </label>
+                            <div class="fieldDescription" data-i18n="admin.modules.seriesflatten.help">Show the episodes of a single-season series directly on its page.</div>
+                        </div>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input type="checkbox" id="chkModuleCollections" class="emby-checkbox jux-admin-module" data-module="Collections" />
+                                <span class="checkboxLabel" data-i18n="admin.modules.collections.label">Collections</span>
+                            </label>
+                            <div class="fieldDescription" data-i18n="admin.modules.collections.help">"Included In" section on detail pages, and sort controls on collection pages.</div>
+                        </div>
+                        <div class="checkboxContainer checkboxContainer-withDescription">
+                            <label class="emby-checkbox-label">
+                                <input type="checkbox" id="chkModuleBreadcrumb" class="emby-checkbox jux-admin-module" data-module="Breadcrumb" />
+                                <span class="checkboxLabel" data-i18n="admin.modules.breadcrumb.label">Breadcrumb</span>
+                            </label>
+                            <div class="fieldDescription" data-i18n="admin.modules.breadcrumb.help">Library breadcrumb in the header of detail pages.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="verticalSection">
+                    <h3 class="sectionTitle" data-i18n="admin.watchlist.title">Watchlist</h3>
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input type="checkbox" id="chkWatchlistAutoRemove" class="emby-checkbox" />
+                            <span class="checkboxLabel" data-i18n="admin.watchlist.autoremove.label">Remove watched titles from the watchlist</span>
+                        </label>
+                        <div class="fieldDescription" data-i18n="admin.watchlist.autoremove.help">A movie leaves the watchlist when its playback finishes, a series when its last unwatched episode does. The watchlist is Jellyfin's "liked" list, which other plugins read too: Jellyfin Enhanced, for one, syncs it to Seerr, so a removed title also leaves the Seerr watchlist. Untick to never change it automatically.</div>
+                    </div>
+                </div>
+
+                <div class="verticalSection">
+                    <h3 class="sectionTitle" data-i18n="admin.cache.title">Cache</h3>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="numSessionTtl" data-i18n="admin.cache.sessionttl.label">Session cache TTL (minutes)</label>
+                        <input id="numSessionTtl" type="number" min="1" class="emby-input" />
+                        <div class="fieldDescription" data-i18n="admin.cache.sessionttl.help">How long a user's home screen layout is kept before it is rebuilt, counted from when it was built. The first visit after that still shows the previous layout while the new one is built in the background. Saving this page applies changes at once. Personalized picks are recomputed once a day and after a title is finished, not on this schedule.</div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="juxPanel_sections" class="jux-admin-panel" role="tabpanel" aria-labelledby="juxTab_sections" tabindex="0" hidden>
+                <div class="verticalSection">
+                    <h3 class="sectionTitle" data-i18n="admin.widgets.title">Widgets</h3>
+                    <p class="fieldDescription" data-i18n="admin.widgets.help">Drag a section by its handle, type its position or use the arrows to change the display order. Changes take effect after saving.</p>
+                    <div class="jux-admin-add-section">
+                        <h4 class="sectionTitle" style="margin-top: 1.5em;" data-i18n="admin.addsection.title">Add a section</h4>
+                        <div class="jux-admin-row" style="align-items: flex-end;">
+                            <div class="inputContainer jux-admin-half">
+                                <label class="inputLabel inputLabelUnfocused" for="juxAddWidgetType" data-i18n="admin.addsection.type.label">Section type</label>
+                                <select id="juxAddWidgetType" class="emby-select-withcolor emby-select">
+                                    <option value="" data-i18n="admin.addsection.type.placeholder">-- choose a type --</option>
+                                </select>
+                            </div>
+                            <div class="jux-admin-half" style="padding-bottom: 0.5em;">
+                                <button type="button" id="juxBtnAddWidget" class="emby-button raised">
+                                    <span data-i18n="admin.addsection.add">Add</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="juxAddWidgetError" class="fieldDescription jux-admin-field-error" style="display: none;" data-i18n="admin.addsection.error">Please choose a section type before adding.</div>
+                    </div>
+                    <div id="juxWidgetList"></div>
+                </div>
+            </div>
+
+            <div id="juxPanel_sources" class="jux-admin-panel" role="tabpanel" aria-labelledby="juxTab_sources" tabindex="0" hidden>
+                <div class="verticalSection">
+                    <h3 class="sectionTitle" data-i18n="admin.apikeys.title">API Keys</h3>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="txtTMDb" data-i18n="admin.apikeys.tmdb.label">TMDb API Key</label>
+                        <div class="jux-admin-secret">
+                            <input id="txtTMDb" type="password" class="emby-input" autocomplete="off" spellcheck="false" />
+                            <button type="button" id="juxBtnShowTmdb" class="emby-button paper-icon-button-light" aria-controls="txtTMDb" aria-pressed="false">
+                                <span class="material-icons" aria-hidden="true">visibility</span>
                             </button>
                         </div>
+                        <div class="fieldDescription" data-i18n="admin.apikeys.tmdb.help">Required for Connected widgets that use The Movie Database. Leave empty if not needed. Accepted formats: 32-character hexadecimal key (v3), or v4 bearer token starting with "ey".</div>
+                        <div id="juxTmdbError" class="fieldDescription jux-admin-field-error" style="display: none;" data-i18n="admin.apikeys.tmdb.error">Invalid TMDb key format. Expected: 32 hexadecimal characters, a v4 bearer token, or leave empty.</div>
                     </div>
-                    <div id="juxAddWidgetError" class="fieldDescription jux-admin-field-error" style="display: none;" data-i18n="admin.addsection.error">Please choose a section type before adding.</div>
+                </div>
+
+                <div class="verticalSection">
+                    <h3 class="sectionTitle" data-i18n="admin.tmdbcache.title">TMDb Cache</h3>
+                    <p class="fieldDescription" data-i18n="admin.tmdbcache.help">Status of the cached TMDb data used by Connected widgets.</p>
+                    <p class="fieldDescription" data-i18n="admin.tmdbcache.pageshint">Each page is about 20 items from TMDb, so "Pages: 3" fetches roughly 60 items for that list.</p>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="numTMDbRefresh" data-i18n="admin.cache.tmdbrefresh.label">TMDb refresh interval (hours)</label>
+                        <input id="numTMDbRefresh" type="number" min="1" class="emby-input" />
+                        <div class="fieldDescription" data-i18n="admin.cache.tmdbrefresh.help">How often each TMDb list is refreshed, checked every hour. Increase to reduce external API calls; decrease for fresher content.</div>
+                    </div>
+                    <div id="juxTmdbStatusList"></div>
+                    <button type="button" id="juxBtnRefreshTmdb" class="emby-button raised">
+                        <span data-i18n="admin.tmdbcache.refreshnow">Refresh now</span>
+                    </button>
+                    <div id="juxTmdbRefreshMsg" class="fieldDescription" style="display: none;"></div>
                 </div>
             </div>
 
             <div class="jux-admin-actions">
+                <p id="juxUnsaved" class="jux-admin-unsaved" role="status" data-i18n="admin.unsaved" hidden>Unsaved changes</p>
                 <button type="submit" class="emby-button raised button-submit block">
                     <span data-i18n="admin.save">Save</span>
                 </button>

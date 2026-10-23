@@ -46,6 +46,12 @@
   "jux.personalized.because-you-watched.format": "Because you watched {value}",
 
   "admin.page.title": "JellyUX Homepage",
+  "admin.tab.settings": "Settings",
+  "admin.tab.sections": "Sections",
+  "admin.tab.sources": "External sources",
+  "admin.unsaved": "Unsaved changes",
+  "admin.draft.restored": "Your unsaved changes from before you left this page were restored.",
+  "admin.draft.discard": "Discard",
   "admin.warning.ConfigurationReset": "The JellyUX configuration file could not be read and was replaced by a blank configuration: your sections and keys are not shown below. A copy of the last saved configuration exists.",
   "admin.warning.restore": "Restore the saved configuration",
   "admin.warning.restore.failed": "The saved configuration could not be restored.",

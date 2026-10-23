@@ -46,6 +46,12 @@
   "jux.personalized.because-you-watched.format": "Parce que vous avez regardé {value}",
 
   "admin.page.title": "JellyUX Homepage",
+  "admin.tab.settings": "Réglages",
+  "admin.tab.sections": "Sections",
+  "admin.tab.sources": "Sources externes",
+  "admin.unsaved": "Modifications non enregistrées",
+  "admin.draft.restored": "Vos modifications non enregistrées avant de quitter cette page ont été restaurées.",
+  "admin.draft.discard": "Abandonner",
   "admin.warning.ConfigurationReset": "Le fichier de configuration de JellyUX n'a pas pu être lu et a été remplacé par une configuration vierge : vos sections et vos clés n'apparaissent pas ci-dessous. Une copie de la dernière configuration enregistrée existe.",
   "admin.warning.restore": "Restaurer la configuration enregistrée",
   "admin.warning.restore.failed": "La configuration enregistrée n'a pas pu être restaurée.",

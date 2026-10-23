@@ -234,3 +234,81 @@ ul.jux-admin-warning {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+/* Tabs of the page (ADM-01.a): the selected one is the primary text color with an underline, the
+   others the secondary text color, as the dashboard's own text; no accent color. */
+.jux-admin-tabs {
+    display: flex;
+    gap: 0.25em;
+    margin-bottom: 1.5em;
+    overflow-x: auto;
+    border-bottom: 1px solid rgb(var(--jf-palette-text-primaryChannel, 255 255 255) / 0.1);
+    scrollbar-width: none;
+}
+.jux-admin-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45em;
+    flex: 0 0 auto;
+    margin: 0 0 -1px;
+    padding: 0.8em 1.1em;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: none;
+    color: var(--jf-palette-text-secondary, rgb(var(--jf-palette-text-primaryChannel, 255 255 255) / 0.7));
+    font: inherit;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: color 150ms ease-out, border-color 150ms ease-out;
+}
+.jux-admin-tab:hover {
+    color: var(--jf-palette-text-primary, rgb(255, 255, 255));
+}
+.jux-admin-tab[aria-selected="true"] {
+    color: var(--jf-palette-text-primary, rgb(255, 255, 255));
+    border-bottom-color: currentColor;
+}
+.jux-admin-tab:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: -4px;
+    border-radius: 4px 4px 0 0;
+}
+.jux-admin-panel:focus-visible {
+    outline: none;
+}
+/* Unsaved changes in a tab (ADM-01.c), in the dashboard's warning color. */
+.jux-admin-tab-dirty {
+    width: 0.45em;
+    height: 0.45em;
+    border-radius: 50%;
+    background-color: var(--jf-palette-warning-main, rgb(255, 167, 38));
+}
+.jux-admin-tab-dirty[hidden],
+.jux-admin-unsaved[hidden],
+.jux-admin-draft[hidden] {
+    display: none;
+}
+.jux-admin-unsaved {
+    margin: 0 0 0.6em;
+    color: var(--jf-palette-warning-main, rgb(255, 167, 38));
+}
+.jux-admin-draft {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75em 1em;
+    padding: 0.75em;
+    border: 1px solid var(--jf-palette-warning-main, rgb(255, 167, 38));
+    border-radius: 4px;
+}
+.jux-admin-draft .emby-button {
+    margin: 0;
+}
+/* Modules side by side when there is room for two (DEC-P10-4). */
+@media (min-width: 64em) {
+    .jux-admin-modules {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        column-gap: 2.5em;
+    }
+}

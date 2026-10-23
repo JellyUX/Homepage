@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import createController, { dropIndex, editorKind, escHtml, getExtraParam, moveRow, previewHtml, sortOption, toConfigRow, validateTmdb, widgetSummary } from '../src/Jellyfin.Plugin.JuxHomepage/Web/config.js';
+import createController, { changedTabs, dropIndex, editorKind, escHtml, getExtraParam, initialTab, moveRow, previewHtml, sortOption, tabSnapshot, toConfigRow, validateTmdb, widgetSummary } from '../src/Jellyfin.Plugin.JuxHomepage/Web/config.js';
 
 const CONFIG_HTML = readFileSync(resolve(__dirname, '../src/Jellyfin.Plugin.JuxHomepage/Web/config.html'), 'utf8');
 
@@ -163,6 +163,28 @@ describe('escHtml', () => {
     });
 });
 
+describe('initialTab (DEC-P10-2)', () => {
+    it('opens the tab of this session, otherwise External sources on a TMDb failure, otherwise Settings', () => {
+        expect(initialTab('sections', ['TMDbInvalidKey'])).toBe('sections');
+        expect(initialTab(null, ['CustomTabsInstalled', 'TMDbUnreachable'])).toBe('sources');
+        expect(initialTab('unknown', ['CustomTabsInstalled'])).toBe('settings');
+        expect(initialTab(null, [])).toBe('settings');
+    });
+});
+
+describe('tabSnapshot and changedTabs (ADM-01.c)', () => {
+    const base = { Enabled: true, WatchlistAutoRemove: true, Modules: { Tabs: true }, Cache: { SessionTtlMinutes: 15, TMDbRefreshIntervalHours: 24 }, ApiKeys: { TMDb: null }, TMDbLists: {}, Widgets: [{ WidgetType: 'a', Order: 0 }] };
+    const edit = (change) => { const copy = JSON.parse(JSON.stringify(base)); change(copy); return tabSnapshot(copy); };
+
+    it('names only the tab a field belongs to', () => {
+        expect(changedTabs(tabSnapshot(base), tabSnapshot(base))).toEqual([]);
+        expect(changedTabs(tabSnapshot(base), edit((c) => { c.Cache.SessionTtlMinutes = 5; }))).toEqual(['settings']);
+        expect(changedTabs(tabSnapshot(base), edit((c) => { c.Cache.TMDbRefreshIntervalHours = 6; }))).toEqual(['sources']);
+        expect(changedTabs(tabSnapshot(base), edit((c) => { c.Widgets[0].Order = 10; }))).toEqual(['sections']);
+        expect(changedTabs(tabSnapshot(base), edit((c) => { c.ApiKeys.TMDb = 'k'; c.Modules.Tabs = false; }))).toEqual(['settings', 'sources']);
+    });
+});
+
 describe('configuration page controller (F-33)', () => {
     const descriptors = [
         { WidgetType: 'jux.admin.genre', DisplayName: 'Genre', Category: 1, MinItems: 4, ViewMode: 'Portrait' },
@@ -207,9 +229,11 @@ describe('configuration page controller (F-33)', () => {
             ajax: vi.fn(() => Promise.resolve())
         };
         window.Dashboard = { showLoadingMsg: vi.fn(), hideLoadingMsg: vi.fn() };
+        window.sessionStorage.clear();
     });
 
     afterEach(() => {
+        view.dispatchEvent(new Event('viewbeforehide'));
         view.remove();
         delete window.ApiClient;
         delete window.Dashboard;
@@ -749,6 +773,180 @@ describe('configuration page controller (F-33)', () => {
         expect(view.querySelector('#tmdbLabel_TrendingMovies').textContent).toBe('Trending Movies (80 cached, 2 in your library)');
         const help = [...view.querySelectorAll('#juxTmdbStatusList .fieldDescription')].map((d) => d.textContent);
         expect(help).toEqual(['admin.tmdbstatus.nowplaying.help']);
+    });
+
+    const tab = (name) => view.querySelector('#juxTab_' + name);
+    const panel = (name) => view.querySelector('#juxPanel_' + name);
+    const dirtyTabs = () => ['settings', 'sections', 'sources'].filter((name) => !tab(name).querySelector('.jux-admin-tab-dirty').hidden);
+    async function open() {
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+    }
+    function type(el, value) {
+        el.value = value;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    it('shows one panel at a time, as WAI-ARIA tabs that the arrows move between (ADM-01.a)', async () => {
+        await open();
+
+        expect(view.querySelector('.jux-admin-tabs').getAttribute('role')).toBe('tablist');
+        expect(tab('settings').getAttribute('aria-selected')).toBe('true');
+        expect([panel('settings').hidden, panel('sections').hidden, panel('sources').hidden]).toEqual([false, true, true]);
+
+        tab('sections').click();
+        expect(tab('sections').getAttribute('aria-selected')).toBe('true');
+        expect(tab('settings').getAttribute('aria-selected')).toBe('false');
+        expect([panel('settings').hidden, panel('sections').hidden]).toEqual([true, false]);
+        expect([tab('settings').tabIndex, tab('sections').tabIndex]).toEqual([-1, 0]);
+
+        tab('sections').focus();
+        tab('sections').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+        expect(panel('sources').hidden).toBe(false);
+        expect(document.activeElement).toBe(tab('sources'));
+        tab('sources').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+        expect(panel('settings').hidden).toBe(false);
+        tab('settings').dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+        expect(panel('sources').hidden).toBe(false);
+    });
+
+    it('opens the tab of the session again, and External sources on a TMDb failure (ADM-01.d, DEC-P10-2)', async () => {
+        window.ApiClient.getJSON = vi.fn((url) => (url === 'JuxHomepage/Admin/Warnings' ? Promise.resolve(['TMDbInvalidKey']) : getJSON(url)));
+        await open();
+
+        expect(panel('sources').hidden).toBe(false);
+        expect(view.querySelector('#juxWarningBanner').textContent).toContain('admin.warning.TMDbInvalidKey');
+
+        tab('sections').click();
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+        expect(panel('sections').hidden).toBe(false);
+    });
+
+    it('opens the tab of the field a Save refuses before focusing it (ADM-01.b)', async () => {
+        await open();
+        view.querySelector('#txtTMDb').value = 'not a key';
+        view.querySelector('.juxConfigForm').dispatchEvent(new Event('submit', { cancelable: true }));
+
+        expect(panel('sources').hidden).toBe(false);
+        expect(tab('sources').getAttribute('aria-selected')).toBe('true');
+
+        view.querySelector('#txtTMDb').value = '';
+        tab('settings').click();
+        card(0).querySelector('.jux-admin-widget-value').value = '';
+        view.querySelector('.juxConfigForm').dispatchEvent(new Event('submit', { cancelable: true }));
+
+        expect(panel('sections').hidden).toBe(false);
+        expect(tab('sections').getAttribute('aria-selected')).toBe('true');
+    });
+
+    it('brings a section it adds into view at the top of the Sections tab (ADM-01.a)', async () => {
+        const scrolled = vi.fn();
+        Element.prototype.scrollIntoView = scrolled;
+        const topRated = { ...descriptors[3], DefaultRow: { WidgetType: 'jux.local.top-rated', Enabled: true, MinItems: 4, MaxItems: 20, ViewMode: 'Portrait', ExtraParams: [] } };
+        window.ApiClient.getJSON = vi.fn((url) => (url === 'JuxHomepage/Admin/Catalog'
+            ? Promise.resolve({ WidgetCategories: ['Native', 'Admin', 'Personalized', 'Connected'], Widgets: [...descriptors.slice(0, 3), topRated] })
+            : getJSON(url)));
+        await open();
+        const addBar = panel('sections').querySelector('.jux-admin-add-section');
+        expect(addBar.compareDocumentPosition(view.querySelector('#juxWidgetList')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+        view.querySelector('#juxAddWidgetType').value = 'jux.local.top-rated';
+        view.querySelector('#juxBtnAddWidget').click();
+
+        expect(scrolled).toHaveBeenCalledTimes(1);
+        expect(scrolled.mock.contexts[0]).toBe(card(3));
+        delete Element.prototype.scrollIntoView;
+    });
+
+    it('loads with no unsaved change, even for an admin row with no name and no label yet (ADM-01.c)', async () => {
+        const unnamed = JSON.parse(JSON.stringify(config));
+        unnamed.Widgets[1].CustomDisplayName = null;
+        window.ApiClient.getPluginConfiguration = vi.fn(() => Promise.resolve(JSON.parse(JSON.stringify(unnamed))));
+        await open();
+
+        expect(dirtyTabs()).toEqual([]);
+        expect(view.querySelector('#juxUnsaved').hidden).toBe(true);
+        expect(card(1).querySelector('.jux-admin-widget-name').value).toBe('');
+    });
+
+    it('marks the tab a change belongs to and clears it when the change is undone or saved (ADM-01.c)', async () => {
+        await open();
+        const ttl = view.querySelector('#numSessionTtl');
+
+        type(ttl, '5');
+        expect(dirtyTabs()).toEqual(['settings']);
+        expect(view.querySelector('#juxUnsaved').hidden).toBe(false);
+
+        type(ttl, '15');
+        expect(dirtyTabs()).toEqual([]);
+
+        card(1).querySelector('.jux-admin-btn-up').click();
+        expect(dirtyTabs()).toEqual(['sections']);
+
+        window.ApiClient.updatePluginConfiguration = vi.fn(() => Promise.resolve({}));
+        window.Dashboard.processPluginConfigurationUpdateResult = vi.fn();
+        view.querySelector('.juxConfigForm').dispatchEvent(new Event('submit', { cancelable: true }));
+        await settle();
+
+        expect(dirtyTabs()).toEqual([]);
+        expect(view.querySelector('#juxUnsaved').hidden).toBe(true);
+    });
+
+    it('asks before the browser tab closes with unsaved changes, and not once they are gone (DEC-P10-5)', async () => {
+        await open();
+        const unload = () => {
+            const event = new Event('beforeunload', { cancelable: true });
+            window.dispatchEvent(event);
+            return event.defaultPrevented;
+        };
+        expect(unload()).toBe(false);
+
+        type(view.querySelector('#numSessionTtl'), '5');
+        expect(unload()).toBe(true);
+
+        view.dispatchEvent(new Event('viewbeforehide'));
+        expect(unload()).toBe(false);
+    });
+
+    it('shows the changes left unsaved again on return, until they are discarded (DEC-P10-5)', async () => {
+        await open();
+        type(view.querySelector('#numSessionTtl'), '5');
+        card(1).querySelector('.jux-admin-btn-up').click();
+        view.dispatchEvent(new Event('viewbeforehide'));
+
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+
+        expect(view.querySelector('#numSessionTtl').value).toBe('5');
+        expect(card(0).querySelector('.jux-admin-widget-value').value).toBe('Harry Potter - Saga');
+        expect(view.querySelector('#juxDraftNotice').hidden).toBe(false);
+        expect(dirtyTabs()).toEqual(['settings', 'sections']);
+
+        view.querySelector('#juxBtnDiscardDraft').click();
+
+        expect(view.querySelector('#numSessionTtl').value).toBe('15');
+        expect(card(0).querySelector('.jux-admin-widget-value').value).toBe('Drame');
+        expect(view.querySelector('#juxDraftNotice').hidden).toBe(true);
+        expect(dirtyTabs()).toEqual([]);
+    });
+
+    it('drops the kept changes when the saved configuration changed meanwhile (DEC-P10-5)', async () => {
+        await open();
+        type(view.querySelector('#numSessionTtl'), '5');
+        view.dispatchEvent(new Event('viewbeforehide'));
+
+        const changed = JSON.parse(JSON.stringify(config));
+        changed.Cache = { SessionTtlMinutes: 30 };
+        window.ApiClient.getPluginConfiguration = vi.fn(() => Promise.resolve(JSON.parse(JSON.stringify(changed))));
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+
+        expect(view.querySelector('#numSessionTtl').value).toBe('30');
+        expect(view.querySelector('#juxDraftNotice').hidden).toBe(true);
+        expect(dirtyTabs()).toEqual([]);
     });
 
     it('shows the page without waiting for the TMDb countries and genres (FIAB-10.b)', async () => {
