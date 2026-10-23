@@ -34,6 +34,10 @@
     line-height: 1.4;
 }
 
+.jux-chunk-notice[hidden] {
+    display: none;
+}
+
 .jux-chunk-notice-close {
     flex: none;
     border: 0;

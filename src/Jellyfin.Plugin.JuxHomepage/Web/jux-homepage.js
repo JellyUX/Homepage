@@ -673,6 +673,13 @@
             notice.className = 'jux-chunk-notice';
             notice.setAttribute('role', 'status');
             doc.body.appendChild(notice);
+            // About the home page: hidden on other views (it covered the admin Save button), back on home (A-12).
+            doc.addEventListener('viewshow', function (event) {
+                var shown = doc.getElementById('jux-chunk-notice');
+                if (shown) {
+                    shown.hidden = !(event.target && event.target.id === 'indexPage');
+                }
+            });
         }
 
         notice.textContent = window.JuxCore.t('client.chunk.' + key, null, lang);

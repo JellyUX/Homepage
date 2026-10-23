@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import juxHomepage from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-homepage.js';
 
 const { _seeAllTarget, _fallback, _isHomePage, _hasMorePages, _setupLazyLoader, _chunkState, _repairStaleChunks, _armChunkGuard, _guardFetchData, _guardGetItemsHtml, _renderHome } = juxHomepage;
@@ -397,6 +398,25 @@ describe('_repairStaleChunks', () => {
         expect(notice.textContent).toContain('CDN');
         notice.querySelector('button').click();
         expect(document.getElementById('jux-chunk-notice')).toBeNull();
+    });
+
+    it('hides the message on any other view and shows it again on the home page (A-12)', async () => {
+        const win = fakeWindow({ resources: [{ name: 'http://h/web/home-html.abc.chunk.js', transferSize: 0 }] });
+        await _repairStaleChunks(win, document);
+        await _repairStaleChunks(win, document);
+        document.body.insertAdjacentHTML('beforeend', '<div class="page" id="indexPage"></div><div class="page" id="pluginConfigPage"></div>');
+        const show = (id) => document.getElementById(id).dispatchEvent(new Event('viewshow', { bubbles: true }));
+        const notice = () => document.getElementById('jux-chunk-notice');
+
+        show('pluginConfigPage');
+        expect(notice().hidden).toBe(true);
+        show('indexPage');
+        expect(notice().hidden).toBe(false);
+    });
+
+    it('hides the message by attribute, which its own display rule must not override (A-12)', () => {
+        const css = readFileSync('src/Jellyfin.Plugin.JuxHomepage/Web/jux-homepage.css', 'utf8');
+        expect(css).toMatch(/\.jux-chunk-notice\[hidden\]\s*\{\s*display:\s*none;/);
     });
 
     it('never reloads without session storage to guard the loop', async () => {
