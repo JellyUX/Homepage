@@ -79,7 +79,8 @@ describe('KTW-01.a rendering', () => {
         render([item(0, { ImageTags: { Logo: 'L' }, Taglines: ['Tagline'] }), item(1), item(2)]);
         const slide = container.querySelector('.jux-featured-slide');
 
-        expect(slide.querySelector('.jux-featured-logo').alt).toBe('Movie 0');
+        expect(slide.querySelector('.jux-featured-logo').alt).toBe('');
+        expect(slide.querySelector('.jux-featured-heading').textContent).toBe('Movie 0');
         expect(slide.querySelector('.jux-featured-text').textContent).toBe('Tagline');
         expect(slide.querySelector('.jux-featured-meta').textContent).toBe('20202h 14m8.3');
         expect(slide.querySelector('.jux-featured-rating').getAttribute('aria-label')).toBe('Rated 8.3');

@@ -191,9 +191,14 @@
     border-radius: 0.4em;
 }
 
+/* The banner's own inks: white over the image whatever the theme (a light theme's dark text would sit on
+   the black scrim), the theme's text once it moves under the image on a phone. */
 .jux-featured {
+    --jux-featured-ink: var(--jf-palette-common-white, #fff);
+    --jux-featured-ink-soft: color-mix(in srgb, var(--jf-palette-common-white, #fff) 72%, transparent);
+    --jux-featured-ink-inverse: var(--jf-palette-common-black, #000);
     position: relative;
-    color: var(--jf-palette-text-primary);
+    color: var(--jux-featured-ink);
 }
 
 .jux-featured-stage {
@@ -271,7 +276,18 @@
     margin: 0 0 0.25rem;
 }
 
+/* Beside a logo the title stays for screen readers only. */
+.jux-featured-has-logo .jux-featured-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
 .jux-featured-title {
+    display: block;
     font-size: clamp(1.6rem, 2.4vw, 2.6rem);
     font-weight: 700;
     line-height: 1.08;
@@ -295,7 +311,7 @@
     gap: 0.35rem 1.1rem;
     margin: 0;
     font-size: 0.95rem;
-    color: var(--jf-palette-text-secondary);
+    color: var(--jux-featured-ink-soft);
     font-variant-numeric: tabular-nums;
 }
 
@@ -311,7 +327,7 @@
     display: inline-flex;
     align-items: center;
     gap: 0.25em;
-    color: var(--jf-palette-text-primary);
+    color: var(--jux-featured-ink);
 }
 
 .jux-featured-rating .material-icons {
@@ -344,8 +360,8 @@
     padding: 0 1.15em 0 0.9em;
     border: 0;
     border-radius: 0.3em;
-    background: color-mix(in srgb, var(--jf-palette-common-white, #fff) 16%, transparent);
-    color: var(--jf-palette-text-primary);
+    background: color-mix(in srgb, var(--jux-featured-ink) 16%, transparent);
+    color: var(--jux-featured-ink);
     font: inherit;
     font-weight: 600;
     cursor: pointer;
@@ -353,22 +369,22 @@
 }
 
 .jux-featured-button:hover {
-    background: color-mix(in srgb, var(--jf-palette-common-white, #fff) 26%, transparent);
+    background: color-mix(in srgb, var(--jux-featured-ink) 26%, transparent);
 }
 
 .jux-featured-button-play {
-    background: var(--jf-palette-text-primary);
-    color: var(--jf-palette-common-black, #000);
+    background: var(--jux-featured-ink);
+    color: var(--jux-featured-ink-inverse);
 }
 
 .jux-featured-button-play:hover {
-    background: color-mix(in srgb, var(--jf-palette-common-white, #fff) 82%, transparent);
+    background: color-mix(in srgb, var(--jux-featured-ink) 82%, transparent);
 }
 
 .jux-featured-button:focus-visible,
 .jux-featured-control:focus-visible,
 .jux-featured-thumb:focus-visible {
-    outline: 2px solid var(--jf-palette-text-primary);
+    outline: 2px solid var(--jux-featured-ink);
     outline-offset: 3px;
 }
 
@@ -399,7 +415,7 @@
     border: 0;
     border-radius: 50%;
     background: color-mix(in srgb, var(--jf-palette-common-black, #000) 45%, transparent);
-    color: var(--jf-palette-text-primary);
+    color: var(--jux-featured-ink);
     cursor: pointer;
     transition: background-color 0.2s ease-out;
 }
@@ -411,7 +427,7 @@
 .jux-featured-counter {
     display: none;
     min-width: 3.5em;
-    color: var(--jf-palette-text-secondary);
+    color: var(--jux-featured-ink-soft);
     font-variant-numeric: tabular-nums;
     text-align: center;
 }
@@ -448,7 +464,7 @@
 
 .jux-featured-thumb.jux-featured-active {
     opacity: 1;
-    box-shadow: 0 0 0 2px var(--jf-palette-text-primary), 0 4px 14px color-mix(in srgb, var(--jf-palette-common-black, #000) 45%, transparent);
+    box-shadow: 0 0 0 2px var(--jux-featured-ink), 0 4px 14px color-mix(in srgb, var(--jf-palette-common-black, #000) 45%, transparent);
 }
 
 /* The time left on the active slide while the banner rotates. */
@@ -459,7 +475,7 @@
     right: 0;
     bottom: 0;
     height: 3px;
-    background: var(--jf-palette-text-primary);
+    background: var(--jux-featured-ink);
     transform: scaleX(0);
     transform-origin: left;
 }
@@ -476,6 +492,12 @@
 
 /* Phones and narrow windows: the image on top at 16/9, the text below it, a counter for the strip. */
 @media (max-width: 50em) {
+    .jux-featured {
+        --jux-featured-ink: var(--jf-palette-text-primary);
+        --jux-featured-ink-soft: var(--jf-palette-text-secondary);
+        --jux-featured-ink-inverse: var(--jf-palette-background-default);
+    }
+
     .jux-featured-stage {
         aspect-ratio: auto;
         max-height: none;
@@ -502,8 +524,16 @@
     }
 
     .jux-featured-logo {
-        max-height: 3.5rem;
-        filter: none;
+        display: none;
+    }
+
+    .jux-featured-has-logo .jux-featured-title {
+        position: static;
+        width: auto;
+        height: auto;
+        overflow: visible;
+        clip: auto;
+        white-space: normal;
     }
 
     .jux-featured-title {

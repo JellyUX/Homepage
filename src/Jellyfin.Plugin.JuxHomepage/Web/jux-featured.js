@@ -85,10 +85,11 @@
         var tagline = item.Taglines && item.Taglines.length ? item.Taglines[0] : '';
         var text = tagline || item.Overview || '';
         var logoTag = item.ImageTags && item.ImageTags.Logo;
-        var heading = logoTag
-            ? '<h3 class="jux-featured-heading"><img class="jux-featured-logo" alt="' + _esc(item.Name) +
-                '" data-tag="' + _esc(logoTag) + '" decoding="async"></h3>'
-            : '<h3 class="jux-featured-heading jux-featured-title">' + _esc(item.Name) + '</h3>';
+        // The title is always text: shown on a phone, where a white logo would vanish on a light theme's
+        // page, and read by screen readers next to the logo elsewhere.
+        var heading = '<h3 class="jux-featured-heading' + (logoTag ? ' jux-featured-has-logo' : '') + '">' +
+            (logoTag ? '<img class="jux-featured-logo" alt="" data-tag="' + _esc(logoTag) + '" decoding="async">' : '') +
+            '<span class="jux-featured-title">' + _esc(item.Name) + '</span></h3>';
         var tag = _backdropTag(item);
         var blurhash = item.ImageBlurHashes && item.ImageBlurHashes.Backdrop && item.ImageBlurHashes.Backdrop[tag];
         var userData = item.UserData || {};
@@ -276,8 +277,9 @@
                 quality: 80
             });
         }
+        // A logo hidden by the phone layout is not downloaded.
         var logo = slide.querySelector('.jux-featured-logo');
-        if (logo) {
+        if (logo && logo.offsetParent !== null) {
             logo.src = _image(state.apiClient, id, { type: 'Logo', tag: logo.dataset.tag, maxWidth: LOGO_WIDTH, quality: 90 });
         }
     }
@@ -288,8 +290,7 @@
         for (var offset = 0; offset < Math.min(STRIP_SIZE, state.slides.length); offset++) {
             var index = (state.index + offset) % state.slides.length;
             var slide = state.slides[index];
-            var name = slide.querySelector('.jux-featured-logo, .jux-featured-title');
-            name = name ? (name.alt || name.textContent) : '';
+            var name = slide.querySelector('.jux-featured-title').textContent;
             html += '<button type="button" class="jux-featured-thumb' + (offset === 0 ? ' jux-featured-active' : '') + '"' +
                 ' data-index="' + index + '"' + (offset === 0 ? ' aria-current="true"' : '') +
                 ' aria-label="' + _esc(window.JuxCore.t('client.featured.goTo', { name: name })) + '">' +
