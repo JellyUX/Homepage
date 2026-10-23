@@ -24,7 +24,6 @@
         "GetWatchlistItems": "HTTP route of JuxHomepageController, called by the client scripts and the admin page through the API",
         "GetWidgetValues": "HTTP route of JuxHomepageController, called by the client scripts and the admin page through the API",
         "HasSnapshotForTesting": "test seam (ForTesting suffix), called by the tests only",
-        "Overview": "TMDb JSON property, set by the deserializer",
         "PosterPath": "TMDb JSON property, set by the deserializer",
         "PreviewSection": "HTTP route of JuxHomepageController, called by the client scripts and the admin page through the API",
         "RefreshTMDbCache": "HTTP route of JuxHomepageController, called by the client scripts and the admin page through the API",

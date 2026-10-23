@@ -122,7 +122,7 @@ public sealed class SeasonalWidget : IWidget
             return Task.FromResult(WidgetResult.Empty);
         }
 
-        var dtoOptions = WidgetDtoOptions.Standard();
+        var dtoOptions = FeaturedItems.DtoOptionsFor(payload);
         var query = LibrarySectionQuery.Create(user, dtoOptions, [BaseItemKind.Movie, BaseItemKind.Series]);
 
         var genres = ParseValues(extra, GenreParam);

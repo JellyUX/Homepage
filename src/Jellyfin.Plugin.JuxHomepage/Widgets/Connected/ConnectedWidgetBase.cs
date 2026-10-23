@@ -124,6 +124,10 @@ public abstract class ConnectedWidgetBase<T> : IWidget
         // Every cached id is checked against the user's rights before paginating, so the page and the
         // total only ever reflect items this user may open (the cache itself is shared by all users).
         var visibleItems = UserVisibleItems.Resolve(LibraryManager, user, libraryIds, out var unresolvedCount);
+        if (payload.Featured)
+        {
+            visibleItems = visibleItems.Where(item => FeaturedItems.Keeps(item, payload)).ToList();
+        }
 
         if (unresolvedCount > 0)
         {
@@ -136,7 +140,7 @@ public abstract class ConnectedWidgetBase<T> : IWidget
         // In-memory list in the TMDb ranking order, so pagination is a plain Skip/Take -- the same
         // pattern MyMediaWidget uses over its in-memory library folder list.
         var pageItems = visibleItems.Skip(payload.StartIndex).Take(payload.Limit).ToList();
-        return Task.FromResult(WidgetResult.Project(DtoService, pageItems, WidgetDtoOptions.Standard(), user, visibleItems.Count));
+        return Task.FromResult(WidgetResult.Project(DtoService, pageItems, FeaturedItems.DtoOptionsFor(payload), user, visibleItems.Count));
     }
 
     /// <inheritdoc/>

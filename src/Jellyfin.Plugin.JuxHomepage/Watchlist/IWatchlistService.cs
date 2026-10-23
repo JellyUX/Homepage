@@ -44,6 +44,15 @@ public interface IWatchlistService
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Returns the page of the Watchlist home section that <paramref name="payload"/> asks for, newest
+    /// first and without the total count, restricted like any featured section when it is one (KTW-01).
+    /// </summary>
+    /// <param name="payload">The section request: user, page and featured restrictions.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The page of items.</returns>
+    WidgetResult GetSectionItems(WidgetPayload payload, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Returns every item id currently in the user's Watchlist, with no image/metadata fields
     /// requested -- a lightweight payload for <c>jux-card-hooks.js</c> to pre-load once per page so
     /// each card can immediately show the correct toggle icon (TODO_V3.md Phase 5.2).

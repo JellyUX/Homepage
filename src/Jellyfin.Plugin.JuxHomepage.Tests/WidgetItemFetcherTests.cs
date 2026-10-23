@@ -7,6 +7,7 @@ using MediaBrowser.Controller.Dto;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Dto;
+using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Querying;
 using Moq;
 using Xunit;
@@ -149,6 +150,24 @@ public sealed class WidgetItemFetcherTests
 
         Assert.Equal(ItemSortBy.PremiereDate, seen!.OrderBy[0].OrderBy);
         Assert.Equal(["Action"], seen.Genres);
+    }
+
+    // A featured row and a row of cards of the same section draw separately: their sets of items differ.
+    [Fact]
+    public void Random_FeaturedAndRowOfCards_DrawSeparatelyAndOnlyTheFeaturedDrawNeedsABackdrop()
+    {
+        var fetcher = BuildFetcher();
+        var user = TestMocks.DefaultUser();
+        var featured = RandomPayload(limit: 4);
+        featured.Featured = true;
+        featured.FeaturedMinRating = 7;
+
+        fetcher.Fetch("jux.admin.genre", user, new InternalItemsQuery(user), new DtoOptions(), RandomPayload(limit: 4));
+        fetcher.Fetch("jux.admin.genre", user, new InternalItemsQuery(user), new DtoOptions(), featured);
+
+        Assert.Equal(2, fetcher.DrawCountForTesting());
+        Assert.Equal([[], [ImageType.Backdrop]], _idQueries.Select(q => q.ImageTypes));
+        Assert.Equal([null, 7.0], _idQueries.Select(q => (double?)q.MinCommunityRating));
     }
 
     private static WidgetPayload RandomPayload(int limit, int maxItems = 20, string value = "Action") => new()

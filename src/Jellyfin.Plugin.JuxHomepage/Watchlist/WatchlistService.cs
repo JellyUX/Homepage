@@ -42,6 +42,22 @@ public sealed class WatchlistService : IWatchlistService
         int limit,
         bool includeTotalRecordCount,
         CancellationToken cancellationToken)
+        => Read(userId, sortBy, sortOrder, includeItemTypes, searchTerm, startIndex, limit, includeTotalRecordCount, section: null);
+
+    /// <inheritdoc/>
+    public WidgetResult GetSectionItems(WidgetPayload payload, CancellationToken cancellationToken)
+        => Read(payload.UserId, null, null, null, null, payload.StartIndex, payload.Limit, includeTotalRecordCount: false, payload);
+
+    private WidgetResult Read(
+        Guid userId,
+        string? sortBy,
+        string? sortOrder,
+        string? includeItemTypes,
+        string? searchTerm,
+        int startIndex,
+        int limit,
+        bool includeTotalRecordCount,
+        WidgetPayload? section)
     {
         var user = _userManager.GetUserById(userId);
         if (user is null)
@@ -49,7 +65,7 @@ public sealed class WatchlistService : IWatchlistService
             return WidgetResult.Empty;
         }
 
-        var dtoOptions = WidgetDtoOptions.Standard();
+        var dtoOptions = section is null ? WidgetDtoOptions.Standard() : FeaturedItems.DtoOptionsFor(section);
         var query = new InternalItemsQuery(user)
         {
             IsLiked = true,
@@ -63,6 +79,11 @@ public sealed class WatchlistService : IWatchlistService
             Limit = limit,
             DtoOptions = dtoOptions
         };
+
+        if (section is not null)
+        {
+            FeaturedItems.Restrict(query, section);
+        }
 
         var result = _libraryManager.GetItemsResult(query);
         return WidgetResult.Project(_dtoService, result.Items, dtoOptions, user, includeTotalRecordCount ? result.TotalRecordCount : null);

@@ -28,4 +28,28 @@ public static class WidgetDtoOptions
             ImageType.Backdrop
         ]
     };
+
+    /// <summary>
+    /// Builds the <see cref="DtoOptions"/> of a featured section (KTW-01): the standard fields plus
+    /// the overview, taglines and genres of each slide, and its backdrop, logo and poster.
+    /// </summary>
+    /// <returns>A pre-configured <see cref="DtoOptions"/> instance.</returns>
+    public static DtoOptions Featured() => new()
+    {
+        Fields =
+        [
+            ItemFields.PrimaryImageAspectRatio,
+            ItemFields.DateCreated,
+            ItemFields.Overview,
+            ItemFields.Taglines,
+            ItemFields.Genres
+        ],
+        ImageTypeLimit = 1,
+        ImageTypes =
+        [
+            ImageType.Primary,
+            ImageType.Backdrop,
+            ImageType.Logo
+        ]
+    };
 }

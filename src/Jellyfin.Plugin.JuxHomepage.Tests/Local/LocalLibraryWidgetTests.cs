@@ -8,6 +8,7 @@ using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Dto;
+using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Querying;
 using Moq;
 using Xunit;
@@ -86,6 +87,43 @@ public sealed class LocalLibraryWidgetTests
         Assert.Equal(TopRatedWidget.MinCommunityRating, query.MinCommunityRating);
         Assert.False(query.EnableTotalRecordCount);
         Assert.Equal((ItemSortBy.CommunityRating, SortOrder.Descending), query.OrderBy[0]);
+    }
+
+    // KTW-01.a, KTW-02.a: a featured Top Rated reads rich items that all have a backdrop, at or above the
+    // row's minimum rating; Top Rated keeps its own floor when the row sets none.
+    [Theory]
+    [InlineData(0, TopRatedWidget.MinCommunityRating)]
+    [InlineData(7, 7.0)]
+    public async Task TopRated_FeaturedWithFeaturedMinRating_ReadsRichItemsWithABackdropAboveTheMinimum(int minRating, double expectedFloor)
+    {
+        var payload = Payload("Movie,Series");
+        payload.Featured = true;
+        payload.FeaturedMinRating = minRating;
+
+        await BuildTopRated().GetItemsAsync(payload, CancellationToken.None);
+
+        var query = Assert.Single(_queries);
+        Assert.Equal([ImageType.Backdrop], query.ImageTypes);
+        Assert.Equal(expectedFloor, query.MinCommunityRating!.Value, 3);
+        Assert.Contains(ItemFields.Overview, query.DtoOptions.Fields);
+        Assert.Contains(ImageType.Logo, query.DtoOptions.ImageTypes);
+        Assert.Equal((ItemSortBy.CommunityRating, SortOrder.Descending), query.OrderBy[0]);
+    }
+
+    // KTW-02.a, D-07: a row of cards is read exactly as before, whatever minimum rating it stores.
+    [Fact]
+    public async Task TopRated_RowOfCardsWithAStoredFeaturedMinRating_IsReadUnchanged()
+    {
+        var payload = Payload("Movie,Series");
+        payload.FeaturedMinRating = 8;
+
+        await BuildTopRated().GetItemsAsync(payload, CancellationToken.None);
+
+        var query = Assert.Single(_queries);
+        Assert.Empty(query.ImageTypes);
+        Assert.Equal(TopRatedWidget.MinCommunityRating, query.MinCommunityRating);
+        Assert.Equal(WidgetDtoOptions.Standard().Fields, query.DtoOptions.Fields);
+        Assert.Equal(WidgetDtoOptions.Standard().ImageTypes, query.DtoOptions.ImageTypes);
     }
 
     [Theory]

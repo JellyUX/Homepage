@@ -58,6 +58,7 @@ public sealed class WidgetItemFetcher
         DtoOptions dtoOptions,
         WidgetPayload payload)
     {
+        FeaturedItems.Restrict(query, payload);
         IReadOnlyList<BaseItem> items;
         if (WidgetSort.NormalizeSortBy(payload.SortBy) == WidgetSort.Random)
         {
@@ -117,15 +118,15 @@ public sealed class WidgetItemFetcher
 
     /// <summary>
     /// Identifies a section by everything that changes its set of items: two rows of the same type
-    /// with different values, filters or MaxItems never share a draw, and editing a row starts a new
-    /// one at once instead of the next day.
+    /// with different values, filters, MaxItems or featured restrictions never share a draw, and
+    /// editing a row starts a new one at once instead of the next day.
     /// </summary>
     private static string InstanceKey(string widgetType, WidgetPayload payload)
     {
         var extra = payload.ExtraParams is null
             ? string.Empty
             : string.Join('\u001f', payload.ExtraParams.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => p.Key + '=' + p.Value));
-        return string.Join('\u001e', widgetType, payload.AdditionalData ?? string.Empty, payload.MaxItems, extra);
+        return string.Join('\u001e', widgetType, payload.AdditionalData ?? string.Empty, payload.MaxItems, extra, payload.Featured, payload.FeaturedMinRating);
     }
 
     private static int StableHash(string value)

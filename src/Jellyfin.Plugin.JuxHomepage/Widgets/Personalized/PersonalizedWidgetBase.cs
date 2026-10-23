@@ -190,7 +190,7 @@ public abstract class PersonalizedWidgetBase : IWidget
             return Task.FromResult(WidgetResult.Empty);
         }
 
-        var dtoOptions = WidgetDtoOptions.Standard();
+        var dtoOptions = FeaturedItems.DtoOptionsFor(payload);
         var query = LibrarySectionQuery.Create(user, dtoOptions, IncludeItemTypes);
         query.StartIndex = payload.StartIndex;
         query.Limit = payload.Limit;
@@ -206,6 +206,7 @@ public abstract class PersonalizedWidgetBase : IWidget
             return Task.FromResult(ItemFetcher.Fetch(WidgetType, user, query, dtoOptions, payload));
         }
 
+        FeaturedItems.Restrict(query, payload);
         QueryResult<BaseItem> result = LibraryManager.GetItemsResult(query);
         return Task.FromResult(WidgetResult.Project(DtoService, result.Items, dtoOptions, user));
     }

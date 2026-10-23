@@ -51,17 +51,6 @@ public sealed class WatchlistWidget : NativeWidgetBase
     /// <inheritdoc/>
     public override Task<WidgetResult> GetItemsAsync(WidgetPayload payload, CancellationToken cancellationToken)
     {
-        var result = _watchlistService.GetItems(
-            payload.UserId,
-            sortBy: null,
-            sortOrder: null,
-            includeItemTypes: null,
-            searchTerm: null,
-            payload.StartIndex,
-            payload.Limit,
-            includeTotalRecordCount: false,
-            cancellationToken);
-
-        return Task.FromResult(result);
+        return Task.FromResult(_watchlistService.GetSectionItems(payload, cancellationToken));
     }
 }

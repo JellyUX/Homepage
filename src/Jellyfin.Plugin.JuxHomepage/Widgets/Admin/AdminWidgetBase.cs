@@ -165,7 +165,7 @@ public abstract class AdminWidgetBase : IWidget
             return Task.FromResult(WidgetResult.Empty);
         }
 
-        var dtoOptions = WidgetDtoOptions.Standard();
+        var dtoOptions = FeaturedItems.DtoOptionsFor(payload);
         var query = LibrarySectionQuery.Create(user, dtoOptions, IncludeItemTypes);
 
         if (!ApplyFilter(query, value))

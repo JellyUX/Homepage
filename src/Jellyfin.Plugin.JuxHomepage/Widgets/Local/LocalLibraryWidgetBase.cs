@@ -75,7 +75,7 @@ public abstract class LocalLibraryWidgetBase : IWidget
             return Task.FromResult(WidgetResult.Empty);
         }
 
-        var dtoOptions = WidgetDtoOptions.Standard();
+        var dtoOptions = FeaturedItems.DtoOptionsFor(payload);
         var query = LibrarySectionQuery.Create(user, dtoOptions, ParseItemTypes(payload.ExtraParams));
         ApplyFilter(query);
 
