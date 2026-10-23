@@ -21,12 +21,12 @@ export default defineConfig({
     projects: [
         { name: 'root', testIgnore: /(baseurl|legacy-config)\.spec/ },
         // A phone-sized viewport, next to root, for the cases whose rendering depends on it (DEC-P03-4,
-        // DEC-P03-12): the home sections, the tabs and the outage states. Request budgets and
-        // navigation do not depend on the viewport and run in root only.
+        // DEC-P03-12): the home sections, the tabs, the outage states and the detail header (A-10).
+        // Request budgets and navigation do not depend on the viewport and run in root only.
         {
             name: 'mobile',
-            testMatch: /(home|errors|featured)\.spec/,
-            grep: /F-25|one pane at a time|F-40|KTW-04|KTW-01\.a banner/,
+            testMatch: /(home|errors|featured|navigation)\.spec/,
+            grep: /F-25|one pane at a time|F-40|KTW-04|KTW-01\.a banner|A-10/,
             use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }
         },
         { name: 'baseurl', testMatch: /baseurl\.spec/ },

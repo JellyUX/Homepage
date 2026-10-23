@@ -37,3 +37,21 @@ test('the breadcrumb shows again on a detail page reopened from the home page (F
 
     await expect(breadcrumb).toBeVisible();
 });
+
+test('the breadcrumb leaves the header buttons uncovered, at every width (A-10)', async ({ page }) => {
+    await login(page, env.admin);
+    await page.locator('.jux-widget-section').first().waitFor();
+    const movies = await apiGet(env.admin, `/Items?recursive=true&includeItemTypes=Movie&userId=${env.admin.id}`);
+    await go(page, `#/details?id=${movies.Items[0].Id}`);
+    await expect(page.locator('.jux-breadcrumb')).toBeVisible();
+
+    const covered = await page.evaluate(() => {
+        const trail = document.querySelector('.jux-breadcrumb').getBoundingClientRect();
+        return [...document.querySelectorAll('.skinHeader .headerRight > *')]
+            .filter((button) => button.offsetParent !== null)
+            .map((button) => ({ name: button.className, box: button.getBoundingClientRect() }))
+            .filter(({ box }) => box.left < trail.right && trail.left < box.right && box.top < trail.bottom && trail.top < box.bottom)
+            .map(({ name }) => name);
+    });
+    expect(covered).toEqual([]);
+});
