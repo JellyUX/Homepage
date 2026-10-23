@@ -45,13 +45,19 @@ test('the breadcrumb leaves the header buttons uncovered, at every width (A-10)'
     await go(page, `#/details?id=${movies.Items[0].Id}`);
     await expect(page.locator('.jux-breadcrumb')).toBeVisible();
 
-    const covered = await page.evaluate(() => {
-        const trail = document.querySelector('.jux-breadcrumb').getBoundingClientRect();
-        return [...document.querySelectorAll('.skinHeader .headerRight > *')]
-            .filter((button) => button.offsetParent !== null)
-            .map((button) => ({ name: button.className, box: button.getBoundingClientRect() }))
-            .filter(({ box }) => box.left < trail.right && trail.left < box.right && box.top < trail.bottom && trail.top < box.bottom)
-            .map(({ name }) => name);
+    const layout = await page.evaluate(() => {
+        const element = document.querySelector('.jux-breadcrumb');
+        const trail = element.getBoundingClientRect();
+        // Painted, not only laid out: the native header's paint containment once clipped it.
+        const hit = document.elementFromPoint(trail.left + 20, (trail.top + trail.bottom) / 2);
+        return {
+            painted: element.contains(hit),
+            covered: [...document.querySelectorAll('.skinHeader .headerRight > *')]
+                .filter((button) => button.offsetParent !== null)
+                .map((button) => ({ name: button.className, box: button.getBoundingClientRect() }))
+                .filter(({ box }) => box.left < trail.right && trail.left < box.right && box.top < trail.bottom && trail.top < box.bottom)
+                .map(({ name }) => name)
+        };
     });
-    expect(covered).toEqual([]);
+    expect(layout).toEqual({ painted: true, covered: [] });
 });

@@ -674,6 +674,11 @@
 
 /* Narrow screens: the header buttons need the whole bar, the trail goes under it (A-10). */
 @media (max-width: 50em) {
+    /* The native header's paint containment would clip the trail below it. */
+    .skinHeader:has(.jux-breadcrumb) {
+        contain: layout style;
+    }
+
     .jux-breadcrumb {
         position: absolute;
         top: 100%;
