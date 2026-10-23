@@ -90,7 +90,9 @@ public abstract class LocalLibraryWidgetBase : IWidget
             ExtraParams = payload.ExtraParams,
             SortBy = SortBy,
             SortOrder = WidgetSort.Descending,
-            MaxItems = payload.MaxItems
+            MaxItems = payload.MaxItems,
+            Featured = payload.Featured,
+            FeaturedMinRating = payload.FeaturedMinRating
         };
 
         return Task.FromResult(_itemFetcher.Fetch(WidgetType, user, query, dtoOptions, ordered));

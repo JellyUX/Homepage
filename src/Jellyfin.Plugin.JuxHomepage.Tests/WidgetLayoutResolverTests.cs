@@ -433,6 +433,55 @@ public sealed class WidgetLayoutResolverTests
         Assert.Equal(WidgetSort.Descending, probed?.SortOrder);
     }
 
+    // KTW-01.a, DEC-P11-4: a featured row reaches the section and its probe, unless the widget cannot feature.
+    [Theory]
+    [InlineData(null, true, 7)]
+    [InlineData(false, false, 0)]
+    public async Task BuildDescriptors_FeaturedRowWithFeaturedMinRating_ReachesTheSectionAndProbeWhenTheWidgetCanFeature(
+        bool? canFeature, bool expectedFeatured, int expectedMinRating)
+    {
+        WidgetPayload? probed = null;
+        var widget = new Mock<IWidget>();
+        widget.Setup(w => w.WidgetType).Returns("jux.test.widget");
+        widget.Setup(w => w.DefaultDisplayName).Returns("jux.test.widget");
+        widget.Setup(w => w.Resolve(It.IsAny<Guid>(), It.IsAny<WidgetInstanceConfig>(), It.IsAny<int>())).Returns(() => widget.Object);
+        widget.Setup(w => w.GetDescriptor()).Returns(new WidgetDescriptor { WidgetType = "jux.test.widget", CanFeature = canFeature });
+        widget.Setup(w => w.GetItemsAsync(It.IsAny<WidgetPayload>(), It.IsAny<CancellationToken>()))
+            .Callback<WidgetPayload, CancellationToken>((payload, _) => probed = payload)
+            .ReturnsAsync(new WidgetResult([], 10));
+        var registry = new WidgetRegistry();
+        registry.Register(widget.Object);
+        var resolver = BuildResolver(registry,
+            [new WidgetConfig { WidgetType = "jux.test.widget", Enabled = true, MinItems = 1, Featured = true, FeaturedMinRating = 7 }]);
+
+        var descriptor = Assert.Single(await resolver.BuildDescriptors(Guid.NewGuid(), lang: null, CancellationToken.None));
+
+        Assert.Equal(expectedFeatured, descriptor.Featured);
+        Assert.Equal((expectedFeatured, expectedMinRating), (probed?.Featured, probed?.FeaturedMinRating));
+    }
+
+    [Fact]
+    public async Task BuildDescriptors_RowNotFeatured_SendsNoMinRatingToTheProbe()
+    {
+        WidgetPayload? probed = null;
+        var widget = new Mock<IWidget>();
+        widget.Setup(w => w.WidgetType).Returns("jux.test.widget");
+        widget.Setup(w => w.DefaultDisplayName).Returns("jux.test.widget");
+        widget.Setup(w => w.Resolve(It.IsAny<Guid>(), It.IsAny<WidgetInstanceConfig>(), It.IsAny<int>())).Returns(() => widget.Object);
+        widget.Setup(w => w.GetDescriptor()).Returns(new WidgetDescriptor { WidgetType = "jux.test.widget" });
+        widget.Setup(w => w.GetItemsAsync(It.IsAny<WidgetPayload>(), It.IsAny<CancellationToken>()))
+            .Callback<WidgetPayload, CancellationToken>((payload, _) => probed = payload)
+            .ReturnsAsync(new WidgetResult([], 10));
+        var registry = new WidgetRegistry();
+        registry.Register(widget.Object);
+        var resolver = BuildResolver(registry, [new WidgetConfig { WidgetType = "jux.test.widget", Enabled = true, MinItems = 1, FeaturedMinRating = 8 }]);
+
+        var descriptor = Assert.Single(await resolver.BuildDescriptors(Guid.NewGuid(), lang: null, CancellationToken.None));
+
+        Assert.False(descriptor.Featured);
+        Assert.Equal((false, 0), (probed?.Featured, probed?.FeaturedMinRating));
+    }
+
     // TODO_V4.md 6.5 (F-62): a preview reads the row sent by the admin page, never the saved one.
     [Fact]
     public async Task PreviewAsync_ReadsTheUnsavedRowUpToItsMaxItems()

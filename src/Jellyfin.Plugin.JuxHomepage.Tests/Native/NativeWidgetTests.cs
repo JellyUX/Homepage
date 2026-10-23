@@ -170,6 +170,27 @@ public sealed class NativeWidgetTests
         Assert.Equal(nativeRoutes, readNatively);
     }
 
+    // DEC-P11-4: a native-route section never reaches the Section endpoint, and My Media lists libraries.
+    [Fact]
+    public void CanFeature_IsFalseForNativeRoutesAndMyMediaOnly()
+    {
+        IWidget[] widgets =
+        [
+            new ContinueWatchingWidget(Mock.Of<IUserManager>(), Mock.Of<ILibraryManager>(), Mock.Of<IDtoService>()),
+            new NextUpWidget(Mock.Of<IUserManager>(), Mock.Of<ILibraryManager>(), Mock.Of<IDtoService>(), Mock.Of<ITVSeriesManager>()),
+            new RecentlyAddedMoviesWidget(Mock.Of<IUserManager>(), Mock.Of<ILibraryManager>(), Mock.Of<IDtoService>(), Mock.Of<IUserViewManager>()),
+            new RecentlyAddedShowsWidget(Mock.Of<IUserManager>(), Mock.Of<ILibraryManager>(), Mock.Of<IDtoService>(), Mock.Of<IUserViewManager>()),
+            new RecentlyAddedEpisodesWidget(Mock.Of<IUserManager>(), Mock.Of<ILibraryManager>(), Mock.Of<IDtoService>(), Mock.Of<IUserViewManager>()),
+            new MyMediaWidget(Mock.Of<IUserManager>(), Mock.Of<ILibraryManager>(), Mock.Of<IDtoService>(), Mock.Of<IUserViewManager>()),
+            new WatchlistWidget(Mock.Of<IUserManager>(), Mock.Of<ILibraryManager>(), Mock.Of<IDtoService>(), Mock.Of<IWatchlistService>())
+        ];
+
+        var canFeature = widgets.ToDictionary(w => w.WidgetType, w => w.GetDescriptor().CanFeature);
+
+        Assert.Null(canFeature["jux.native.watchlist"]);
+        Assert.All(canFeature.Where(p => p.Key != "jux.native.watchlist"), p => Assert.False(p.Value));
+    }
+
     [Fact]
     public void MyMedia_GetDescriptor_HasExpectedProperties()
     {

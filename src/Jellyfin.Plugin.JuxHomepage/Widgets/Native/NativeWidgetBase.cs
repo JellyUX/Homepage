@@ -65,6 +65,12 @@ public abstract class NativeWidgetBase : IWidget
     /// </summary>
     protected virtual bool ReadNatively => true;
 
+    /// <summary>
+    /// Gets a value indicating whether a row of this widget may show as a banner: never for a section
+    /// read from a native route, which never reaches the Section endpoint (DEC-P11-4).
+    /// </summary>
+    protected virtual bool CanFeature => !ReadNatively;
+
     /// <inheritdoc/>
     public IWidget? Resolve(Guid userId, WidgetInstanceConfig config, int rank) => this;
 
@@ -80,6 +86,7 @@ public abstract class NativeWidgetBase : IWidget
         ViewMode = DefaultViewMode,
         Route = Route,
         MinItems = DefaultMinItems,
-        ReadNatively = ReadNatively
+        ReadNatively = ReadNatively,
+        CanFeature = CanFeature ? null : false
     };
 }

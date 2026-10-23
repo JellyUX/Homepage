@@ -21,4 +21,20 @@ public class WidgetDescriptorTests
         Assert.True(json.RootElement.TryGetProperty(nameof(WidgetDescriptor.Category), out _));
         Assert.Equal(2, json.RootElement.GetProperty(nameof(WidgetDescriptor.MinItems)).GetInt32());
     }
+
+    // KTW-01.a: a row of cards sends neither field; a featured section and a widget that cannot feature do.
+    [Fact]
+    public void Serialize_SendsFeaturedAndCanFeatureOnlyWhenTheyCarrySomething()
+    {
+        static JsonElement Of(WidgetDescriptor d) => JsonDocument.Parse(JsonSerializer.Serialize(d)).RootElement;
+
+        var plain = Of(new WidgetDescriptor { WidgetType = "jux.genre" });
+        var featured = Of(new WidgetDescriptor { WidgetType = "jux.genre", Featured = true });
+        var native = Of(new WidgetDescriptor { WidgetType = "jux.native.next-up", CanFeature = false });
+
+        Assert.False(plain.TryGetProperty(nameof(WidgetDescriptor.Featured), out _));
+        Assert.False(plain.TryGetProperty(nameof(WidgetDescriptor.CanFeature), out _));
+        Assert.True(featured.GetProperty(nameof(WidgetDescriptor.Featured)).GetBoolean());
+        Assert.False(native.GetProperty(nameof(WidgetDescriptor.CanFeature)).GetBoolean());
+    }
 }

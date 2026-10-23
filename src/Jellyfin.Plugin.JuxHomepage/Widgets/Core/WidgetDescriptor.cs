@@ -23,6 +23,21 @@ public sealed class WidgetDescriptor
     /// </summary>
     public string ViewMode { get; set; } = WidgetViewMode.Landscape;
 
+    /// <summary>
+    /// Gets or sets a value indicating whether the section shows as a banner (KTW-01): its row sets
+    /// <see cref="WidgetConfig.Featured"/> and the widget can feature. Sent only when true.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Featured { get; set; }
+
+    /// <summary>
+    /// Gets or sets whether a row of this widget may be featured: false for a section the client reads
+    /// from a native route and for My Media (DEC-P11-4), null (sent as nothing) when it may. Read by the
+    /// admin page from Admin/Catalog.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? CanFeature { get; set; }
+
     /// <summary>Gets or sets the front-end route for browsing items of this type, if applicable.</summary>
     public string? Route { get; set; }
 

@@ -394,6 +394,32 @@ public sealed class WidgetServiceTests : IDisposable
         Assert.Equal("vote_average.desc", capturedPayload!.ExtraParams!["sortBy"]);
     }
 
+    // KTW-01.a: the Section endpoint reads a featured row the way the layout probe does (DEC-P11-4).
+    [Theory]
+    [InlineData(null, true, 8)]
+    [InlineData(false, false, 0)]
+    public async Task GetWidgetItems_FeaturedRowWithFeaturedMinRating_ReachesTheWidgetWhenItCanFeature(
+        bool? canFeature, bool expectedFeatured, int expectedMinRating)
+    {
+        const string widgetType = "jux.admin.genre";
+        WidgetPayload? capturedPayload = null;
+        var mock = new Mock<IWidget>();
+        mock.Setup(w => w.WidgetType).Returns(widgetType);
+        mock.Setup(w => w.GetDescriptor()).Returns(new WidgetDescriptor { WidgetType = widgetType, CanFeature = canFeature });
+        mock.Setup(w => w.GetItemsAsync(It.IsAny<WidgetPayload>(), It.IsAny<CancellationToken>()))
+            .Callback<WidgetPayload, CancellationToken>((payload, _) => capturedPayload = payload)
+            .ReturnsAsync(new WidgetResult([], 0));
+        var service = BuildService(
+            registeredWidgets: [mock.Object],
+            globalWidgets: [new WidgetConfig { WidgetType = widgetType, Enabled = true, Featured = true, FeaturedMinRating = 8 }]);
+
+        await service.GetWidgetItems(
+            Guid.NewGuid(), widgetType, additionalData: null, sectionKey: null,
+            startIndex: 0, limit: 20, CancellationToken.None);
+
+        Assert.Equal((expectedFeatured, expectedMinRating), (capturedPayload?.Featured, capturedPayload?.FeaturedMinRating));
+    }
+
     // -------------------------------------------------------------------------
     // Layout expiry (PERF-01): an expired layout is served while one rebuild runs in the background
     // -------------------------------------------------------------------------

@@ -560,6 +560,37 @@ public sealed class PluginValidationTests
     }
 
     [Fact]
+    public void ValidateConfiguration_KeepsAKnownFeaturedMinRatingAndDropsAnyOther()
+    {
+        int[] stored = [0, 6, 7, 8, 5, 9, -1];
+        var config = new PluginConfiguration
+        {
+            Widgets = [.. stored.Select(r => new WidgetConfig { WidgetType = "jux.admin.genre", Featured = true, FeaturedMinRating = r })]
+        };
+
+        Plugin.ValidateConfiguration(config);
+
+        Assert.Equal([0, 6, 7, 8, 0, 0, 0], config.Widgets.Select(w => w.FeaturedMinRating));
+        Assert.All(config.Widgets, w => Assert.True(w.Featured));
+    }
+
+    // DEC-P11-1: no schema tier, a row saved before the fields existed reads as not featured.
+    [Fact]
+    public void Deserialize_RowWithoutFeaturedOrFeaturedMinRating_ReadsNotFeaturedWithNoMinimum()
+    {
+        const string Xml = "<?xml version=\"1.0\"?><PluginConfiguration><SchemaVersion>11</SchemaVersion><Widgets>"
+            + "<WidgetConfig><WidgetType>jux.local.top-rated</WidgetType><Enabled>true</Enabled><ViewMode>Portrait</ViewMode></WidgetConfig>"
+            + "</Widgets></PluginConfiguration>";
+
+        var config = (PluginConfiguration)new XmlSerializer(typeof(PluginConfiguration)).Deserialize(new StringReader(Xml))!;
+        Plugin.MigrateConfiguration(config);
+        Plugin.ValidateConfiguration(config);
+
+        var row = Assert.Single(config.Widgets, w => w.WidgetType == "jux.local.top-rated");
+        Assert.Equal((false, 0), (row.Featured, row.FeaturedMinRating));
+    }
+
+    [Fact]
     public void ValidateConfiguration_NormalizesTheViewModeOfEveryRow()
     {
         var config = new PluginConfiguration

@@ -34,4 +34,27 @@ public sealed class WidgetPayload
     /// keeps, whatever page of it this request reads.
     /// </summary>
     public int MaxItems { get; set; } = WidgetConfig.MaxItemsCeiling;
+
+    /// <summary>Gets or sets a value indicating whether the section shows as a banner (KTW-01).</summary>
+    public bool Featured { get; set; }
+
+    /// <summary>
+    /// Gets or sets the lowest community rating the banner shows, 0 for none (KTW-02); 0 whenever
+    /// <see cref="Featured"/> is false.
+    /// </summary>
+    public int FeaturedMinRating { get; set; }
+
+    /// <summary>
+    /// Sets <see cref="Featured"/> and <see cref="FeaturedMinRating"/> from <paramref name="row"/>, unless
+    /// <paramref name="descriptor"/> says the widget cannot feature (DEC-P11-4).
+    /// </summary>
+    /// <param name="row">The section's configuration row, or null when none matches.</param>
+    /// <param name="descriptor">The widget's descriptor; null states nothing, like a null <see cref="WidgetDescriptor.CanFeature"/>.</param>
+    /// <returns>This payload.</returns>
+    public WidgetPayload WithFeatured(WidgetConfig? row, WidgetDescriptor? descriptor)
+    {
+        Featured = row is { Featured: true } && descriptor?.CanFeature != false;
+        FeaturedMinRating = Featured ? row!.FeaturedMinRating : 0;
+        return this;
+    }
 }

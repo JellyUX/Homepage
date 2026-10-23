@@ -301,7 +301,7 @@ public sealed class WidgetLayoutResolver
             MaxItems = config.MaxItems,
             StartIndex = 0,
             Limit = instanceDescriptor.ReadNatively ? minItems : Math.Max(minItems, maxItems)
-        };
+        }.WithFeatured(config, instanceDescriptor);
 
         WidgetResult result;
         try
@@ -346,6 +346,7 @@ public sealed class WidgetLayoutResolver
             DisplayName = displayName,
             Category = instanceDescriptor.Category,
             ViewMode = config.ViewMode,
+            Featured = payload.Featured,
             Route = instanceDescriptor.Route,
             AdditionalData = additionalData,
             Order = config.Order,
@@ -401,7 +402,7 @@ public sealed class WidgetLayoutResolver
             MaxItems = config.MaxItems,
             StartIndex = 0,
             Limit = config.MaxItems
-        };
+        }.WithFeatured(config, instanceDescriptor);
 
         var result = await instance.GetItemsAsync(payload, cancellationToken).ConfigureAwait(false);
         var found = Math.Max(result.TotalRecordCount, result.Items.Count);

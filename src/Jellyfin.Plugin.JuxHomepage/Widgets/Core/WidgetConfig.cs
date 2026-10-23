@@ -58,6 +58,22 @@ public sealed class WidgetConfig
     public string SortOrder { get; set; } = WidgetSort.Ascending;
 
     /// <summary>
+    /// Gets or sets a value indicating whether the section shows as a banner instead of a row of cards
+    /// (KTW-01). Ignored for a widget whose descriptor sets <see cref="WidgetDescriptor.CanFeature"/> to
+    /// false. A file written before the field existed reads false (DEC-P11-1: no schema tier).
+    /// </summary>
+    public bool Featured { get; set; }
+
+    /// <summary>
+    /// Gets or sets the lowest community rating a featured section shows: 0 for none, otherwise one of
+    /// <see cref="FeaturedMinRatings"/> (KTW-02, DEC-P11-2). Read only when <see cref="Featured"/> is set.
+    /// </summary>
+    public int FeaturedMinRating { get; set; }
+
+    /// <summary>The minimum ratings a featured section may require, besides 0 (none).</summary>
+    public static readonly IReadOnlyList<int> FeaturedMinRatings = [6, 7, 8];
+
+    /// <summary>
     /// Gets or sets the minimum number of instances to create for this widget type.
     /// Frozen (QUAL-02): kept on the model for schema stability, read by nothing since TODO_V2.md
     /// Phase 8 (every row is assigned a rank by <see cref="WidgetLayoutResolver"/> instead, see

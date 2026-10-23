@@ -278,7 +278,7 @@ public sealed class WidgetService
             SortBy = configRow?.SortBy ?? WidgetSort.SortName,
             SortOrder = configRow?.SortOrder ?? WidgetSort.Ascending,
             MaxItems = maxItems
-        };
+        }.WithFeatured(configRow, widget.GetDescriptor());
 
         // The page the layout probe or an earlier request kept is served without reading the widget
         // (Section_AfterLayoutBuild_IsServedFromTheProbe, Section_ReadTwice_ReadsItsWidgetOnce).
