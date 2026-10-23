@@ -34,6 +34,13 @@ public class JuxHomepageController : ControllerBase
 
     private static readonly string WebResourcePrefix = $"{typeof(Plugin).Namespace}.Web.";
 
+    /// <summary>
+    /// How long an admin lookup (TMDb and Wikidata search, TMDb countries and genres) waits for the external
+    /// service before answering empty, instead of the 30 s x 2 (TMDb) or 90 s (Wikidata) of the HTTP clients
+    /// (FIAB-10.a; SearchTMDbPerson_TMDbNeverAnswers_AnswersEmptyAtTheInteractiveDeadline).
+    /// </summary>
+    internal static readonly TimeSpan InteractiveDeadline = TimeSpan.FromSeconds(8);
+
     private readonly IWidgetRegistry _registry;
     private readonly WidgetService _widgetService;
     private readonly IUserManager _userManager;
@@ -50,6 +57,7 @@ public class JuxHomepageController : ControllerBase
     private readonly IAuthorizationContext _authContext;
     private readonly HomeLanguageMemory _homeLanguages;
     private readonly ILogger<JuxHomepageController> _logger;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="JuxHomepageController"/> class.
@@ -70,6 +78,7 @@ public class JuxHomepageController : ControllerBase
     /// <param name="authContext">Jellyfin request authorization context.</param>
     /// <param name="homeLanguages">Remembers the language of each user's last home screen (DEC-P07-10).</param>
     /// <param name="logger">Logger.</param>
+    /// <param name="timeProvider">Clock of the admin lookups' deadline; defaults to <see cref="TimeProvider.System"/>.</param>
     public JuxHomepageController(
         IWidgetRegistry registry,
         WidgetService widgetService,
@@ -86,7 +95,8 @@ public class JuxHomepageController : ControllerBase
         ICollectionsIndexCacheService collectionsIndexCacheService,
         IAuthorizationContext authContext,
         HomeLanguageMemory homeLanguages,
-        ILogger<JuxHomepageController> logger)
+        ILogger<JuxHomepageController> logger,
+        TimeProvider? timeProvider = null)
     {
         _registry = registry;
         _widgetService = widgetService;
@@ -104,6 +114,7 @@ public class JuxHomepageController : ControllerBase
         _authContext = authContext;
         _homeLanguages = homeLanguages;
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     // -------------------------------------------------------------------------
@@ -781,7 +792,7 @@ public class JuxHomepageController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<AdminWidgetValue>>> GetTMDbCountries(CancellationToken cancellationToken)
     {
-        var countries = await _tmdbApiClient.GetCountriesAsync(cancellationToken).ConfigureAwait(false);
+        var countries = await WithInteractiveDeadlineAsync("TMDb countries", _tmdbApiClient.GetCountriesAsync, cancellationToken).ConfigureAwait(false);
         var values = countries
             .Select(country => new AdminWidgetValue(country.Code, country.Name))
             .OrderBy(value => value.Label, StringComparer.OrdinalIgnoreCase)
@@ -801,7 +812,7 @@ public class JuxHomepageController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<AdminWidgetValue>>> GetTMDbGenres(CancellationToken cancellationToken)
     {
-        var genres = await _tmdbApiClient.GetMovieGenresAsync(cancellationToken).ConfigureAwait(false);
+        var genres = await WithInteractiveDeadlineAsync("TMDb genres", _tmdbApiClient.GetMovieGenresAsync, cancellationToken).ConfigureAwait(false);
         var values = genres
             .Select(genre => new AdminWidgetValue(genre.Id.ToString(CultureInfo.InvariantCulture), genre.Name))
             .OrderBy(value => value.Label, StringComparer.OrdinalIgnoreCase)
@@ -929,7 +940,30 @@ public class JuxHomepageController : ControllerBase
         response.Headers.CacheControl = ClientAssetVersion.CacheControlFor(request.Query["v"], ClientAssetVersion.Current);
     }
 
-    private static async Task<IReadOnlyList<AdminWidgetValue>> SearchTMDbAsync(
+    /// <summary>
+    /// Runs an admin lookup against an external service under <see cref="InteractiveDeadline"/> (FIAB-10.a):
+    /// past it, the lookup answers empty, as it does when the service fails. A request the browser aborts is
+    /// still cancelled (GetTMDbCountries_RequestAborted_IsNotAnsweredAsADeadline).
+    /// </summary>
+    private async Task<IReadOnlyList<T>> WithInteractiveDeadlineAsync<T>(
+        string lookup,
+        Func<CancellationToken, Task<IReadOnlyList<T>>> call,
+        CancellationToken requestAborted)
+    {
+        using var deadline = new CancellationTokenSource(InteractiveDeadline, _timeProvider);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(requestAborted, deadline.Token);
+        try
+        {
+            return await call(linked.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (deadline.IsCancellationRequested && !requestAborted.IsCancellationRequested)
+        {
+            _logger.LogWarning("The admin lookup '{Lookup}' had no answer within {Seconds} s; answering empty.", lookup, InteractiveDeadline.TotalSeconds);
+            return [];
+        }
+    }
+
+    private async Task<IReadOnlyList<AdminWidgetValue>> SearchTMDbAsync(
         Func<string, CancellationToken, Task<IReadOnlyList<TMDbSearchResult>>> search,
         string query,
         CancellationToken cancellationToken)
@@ -939,7 +973,7 @@ public class JuxHomepageController : ControllerBase
             return [];
         }
 
-        var results = await search(query, cancellationToken).ConfigureAwait(false);
+        var results = await WithInteractiveDeadlineAsync("TMDb search", token => search(query, token), cancellationToken).ConfigureAwait(false);
         return results
             .Select(r => new AdminWidgetValue(r.Id.ToString(CultureInfo.InvariantCulture), r.Name))
             .ToList()
@@ -955,7 +989,7 @@ public class JuxHomepageController : ControllerBase
             return Ok(Array.Empty<AdminWidgetValue>());
         }
 
-        var results = await _wikidataApiClient.SearchEntitiesAsync(query, cancellationToken).ConfigureAwait(false);
+        var results = await WithInteractiveDeadlineAsync("Wikidata search", token => _wikidataApiClient.SearchEntitiesAsync(query, token), cancellationToken).ConfigureAwait(false);
         var values = results
             .Select(r => new AdminWidgetValue(r.Id, string.IsNullOrEmpty(r.Description) ? r.Label : $"{r.Label} ({r.Description})"))
             .ToList()

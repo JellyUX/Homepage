@@ -105,6 +105,69 @@ public sealed class JuxHomepageControllerTests
     }
 
     [Fact]
+    public async Task SearchTMDbPerson_TMDbNeverAnswers_AnswersEmptyAtTheInteractiveDeadline()
+    {
+        var time = new ManualTimeProvider();
+        var handler = new SilentHttpMessageHandler();
+        var tmdbApiClient = new TMDbApiClient(
+            SilentHttpClientFactory(handler, "TMDb"),
+            () => new PluginConfiguration { ApiKeys = new ApiKeysConfig { TMDb = "abcdef0123456789abcdef0123456789" } },
+            NullLogger<TMDbApiClient>.Instance,
+            time);
+        var controller = BuildController(tmdbApiClient: tmdbApiClient, timeProvider: time);
+
+        var search = controller.SearchTMDbPerson("Nolan", CancellationToken.None);
+        await handler.FirstRequest.WaitAsync(TimeSpan.FromSeconds(5));
+        time.Advance(JuxHomepageController.InteractiveDeadline - TimeSpan.FromMilliseconds(1));
+        Assert.False(search.IsCompleted);
+        time.Advance(TimeSpan.FromMilliseconds(1));
+
+        var result = await search.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Empty(Assert.IsAssignableFrom<IReadOnlyList<AdminWidgetValue>>(ok.Value));
+        Assert.Equal(1, handler.CallCount);
+    }
+
+    [Fact]
+    public async Task SearchRewardsCeremony_WikidataNeverAnswers_AnswersEmptyAtTheInteractiveDeadline()
+    {
+        var time = new ManualTimeProvider();
+        var handler = new SilentHttpMessageHandler();
+        var wikidataApiClient = new WikidataApiClient(SilentHttpClientFactory(handler, "Wikidata"), NullLogger<WikidataApiClient>.Instance);
+        var controller = BuildController(wikidataApiClient: wikidataApiClient, timeProvider: time);
+
+        var search = controller.SearchRewardsCeremony("Academy", CancellationToken.None);
+        await handler.FirstRequest.WaitAsync(TimeSpan.FromSeconds(5));
+        time.Advance(JuxHomepageController.InteractiveDeadline);
+
+        var result = await search.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var ok = Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Empty(Assert.IsAssignableFrom<IReadOnlyList<AdminWidgetValue>>(ok.Value));
+    }
+
+    [Fact]
+    public async Task GetTMDbCountries_RequestAborted_IsNotAnsweredAsADeadline()
+    {
+        var tmdbApiClientMock = new Mock<ITMDbApiClient>();
+        tmdbApiClientMock
+            .Setup(c => c.GetCountriesAsync(It.IsAny<CancellationToken>()))
+            .Returns<CancellationToken>(async token =>
+            {
+                await Task.Delay(Timeout.Infinite, token);
+                return [];
+            });
+        var controller = BuildController(tmdbApiClientMock: tmdbApiClientMock, timeProvider: new ManualTimeProvider());
+        using var aborted = new CancellationTokenSource();
+
+        var countries = controller.GetTMDbCountries(aborted.Token);
+        aborted.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => countries.WaitAsync(TimeSpan.FromSeconds(5)));
+    }
+
+    [Fact]
     public void GetTMDbStatus_ReturnsOneEntryPerCacheType_WithConfiguredCounts()
     {
         var tmdbCacheServiceMock = new Mock<ITMDbCacheService>();
@@ -697,7 +760,10 @@ public sealed class JuxHomepageControllerTests
         Mock<IAuthorizationContext>? authContextMock = null,
         ILogger<JuxHomepageController>? logger = null,
         SessionCache? sessionCache = null,
-        IUserConfigurationStore? userConfigStore = null)
+        IUserConfigurationStore? userConfigStore = null,
+        ITMDbApiClient? tmdbApiClient = null,
+        IWikidataApiClient? wikidataApiClient = null,
+        TimeProvider? timeProvider = null)
     {
         var registry = new WidgetRegistry();
         var widgetService = new WidgetService(
@@ -717,9 +783,9 @@ public sealed class JuxHomepageControllerTests
             widgetService,
             (userManagerMock ?? new Mock<IUserManager>()).Object,
             (tmdbCacheServiceMock ?? new Mock<ITMDbCacheService>()).Object,
-            (tmdbApiClientMock ?? new Mock<ITMDbApiClient>()).Object,
+            tmdbApiClient ?? (tmdbApiClientMock ?? new Mock<ITMDbApiClient>()).Object,
             Mock.Of<IRewardsCacheService>(),
-            Mock.Of<IWikidataApiClient>(),
+            wikidataApiClient ?? Mock.Of<IWikidataApiClient>(),
             new LocalizationService(new Dictionary<string, IReadOnlyDictionary<string, string>>()),
             (watchlistServiceMock ?? new Mock<IWatchlistService>()).Object,
             (seriesProgressViewServiceMock ?? new Mock<ISeriesProgressViewService>()).Object,
@@ -728,6 +794,36 @@ public sealed class JuxHomepageControllerTests
             (collectionsIndexCacheServiceMock ?? new Mock<ICollectionsIndexCacheService>()).Object,
             (authContextMock ?? new Mock<IAuthorizationContext>()).Object,
             new HomeLanguageMemory(userConfigStore ?? Mock.Of<IUserConfigurationStore>()),
-            logger ?? NullLogger<JuxHomepageController>.Instance);
+            logger ?? NullLogger<JuxHomepageController>.Instance,
+            timeProvider);
+    }
+
+    private static IHttpClientFactory SilentHttpClientFactory(HttpMessageHandler handler, string name)
+    {
+        var factoryMock = new Mock<IHttpClientFactory>();
+        factoryMock
+            .Setup(f => f.CreateClient(name))
+            .Returns(() => new HttpClient(handler, disposeHandler: false) { BaseAddress = new Uri("https://api.example.invalid/") });
+        return factoryMock.Object;
+    }
+
+    // An external service that accepts the request and never answers (the audit's black hole, FIAB-10.a): only
+    // the request's own token ends it.
+    private sealed class SilentHttpMessageHandler : HttpMessageHandler
+    {
+        private readonly TaskCompletionSource _firstRequest = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _callCount;
+
+        public Task FirstRequest => _firstRequest.Task;
+
+        public int CallCount => Volatile.Read(ref _callCount);
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _callCount);
+            _firstRequest.TrySetResult();
+            await Task.Delay(Timeout.Infinite, cancellationToken).ConfigureAwait(false);
+            throw new InvalidOperationException("Unreachable: the delay only ends by cancellation.");
+        }
     }
 }
