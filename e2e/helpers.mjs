@@ -72,6 +72,31 @@ export async function loadedSections(page) {
         sections.map((s) => [...s.classList].find((c) => c.startsWith('jux-widget-jux-')).replace('jux-widget-', '')));
 }
 
+const PLUGIN_ID = '3adf1f1f-1541-4e47-b9e3-34d2d2968af6';
+const ADMIN_AUTH = 'MediaBrowser Client="jux-e2e", Device="ci", DeviceId="jux-e2e-admin", Version="1.0.0"';
+
+/** Signs the admin in through the API and returns the access token. */
+export async function adminToken() {
+    const res = await fetch(`${env.serverUrl}/Users/AuthenticateByName`, {
+        method: 'POST',
+        headers: { Authorization: ADMIN_AUTH, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ Username: env.admin.name, Pw: env.admin.password })
+    });
+    expect(res.ok).toBe(true);
+    return (await res.json()).AccessToken;
+}
+
+/** Reads the plugin configuration, or saves body when given. */
+export async function pluginConfiguration(token, body) {
+    const res = await fetch(`${env.serverUrl}/Plugins/${PLUGIN_ID}/Configuration`, {
+        method: body ? 'POST' : 'GET',
+        headers: { Authorization: `${ADMIN_AUTH}, Token="${token}"`, 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined
+    });
+    expect(res.ok).toBe(true);
+    return body ? null : res.json();
+}
+
 /** Calls the server API as the given user. */
 export async function apiGet(user, route) {
     const auth = await fetch(`${env.serverUrl}/Users/AuthenticateByName`, {

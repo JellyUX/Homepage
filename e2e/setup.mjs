@@ -143,11 +143,17 @@ function writeLibrary(image) {
         '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=duration=2:size=320x180:rate=10',
         '-f', 'lavfi', '-i', 'sine=duration=2', '-c:v', 'libx264', '-c:a', 'aac', '-shortest', '/out/seed.mkv');
     const seed = path.join(media, 'seed.mkv');
+    // One local backdrop per movie (read by Jellyfin's local image provider, no fetcher needed): a
+    // featured section shows only items with a backdrop (KTW-01, KTW-02); the shows keep none.
+    docker('run', '--rm', '--entrypoint', '/usr/lib/jellyfin-ffmpeg/ffmpeg', '-v', `${media}:/out`, image,
+        '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=size=1280x720', '-frames:v', '1', '/out/backdrop.jpg');
+    const backdrop = path.join(media, 'backdrop.jpg');
 
     for (const [title, year] of MOVIES) {
         const dir = path.join(media, 'movies', `${title} (${year})`);
         mkdirSync(dir, { recursive: true });
         copyFileSync(seed, path.join(dir, `${title} (${year}).mkv`));
+        copyFileSync(backdrop, path.join(dir, 'backdrop.jpg'));
         writeFileSync(path.join(dir, 'movie.nfo'),
             `<movie><title>${title}</title><year>${year}</year><genre>Drama</genre><rating>7</rating></movie>`);
     }

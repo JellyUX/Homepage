@@ -1,28 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { env, login, loadedSections, watchJuxErrors } from '../helpers.mjs';
-
-const PLUGIN_ID = '3adf1f1f-1541-4e47-b9e3-34d2d2968af6';
-const AUTH = 'MediaBrowser Client="jux-e2e", Device="ci", DeviceId="jux-e2e-admin", Version="1.0.0"';
-
-async function adminToken() {
-    const res = await fetch(`${env.serverUrl}/Users/AuthenticateByName`, {
-        method: 'POST',
-        headers: { Authorization: AUTH, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ Username: env.admin.name, Pw: env.admin.password })
-    });
-    expect(res.ok).toBe(true);
-    return (await res.json()).AccessToken;
-}
-
-async function pluginConfiguration(token, body) {
-    const res = await fetch(`${env.serverUrl}/Plugins/${PLUGIN_ID}/Configuration`, {
-        method: body ? 'POST' : 'GET',
-        headers: { Authorization: `${AUTH}, Token="${token}"`, 'Content-Type': 'application/json' },
-        body: body ? JSON.stringify(body) : undefined
-    });
-    expect(res.ok).toBe(true);
-    return body ? null : res.json();
-}
+import { env, login, loadedSections, watchJuxErrors, adminToken, pluginConfiguration } from '../helpers.mjs';
 
 function cardNames(page) {
     return page.locator('#juxHomepageConfigPage:visible .jux-admin-widget-card .checkboxLabel').allInnerTexts();

@@ -25,8 +25,8 @@ export default defineConfig({
         // navigation do not depend on the viewport and run in root only.
         {
             name: 'mobile',
-            testMatch: /(home|errors)\.spec/,
-            grep: /F-25|one pane at a time|F-40|KTW-04/,
+            testMatch: /(home|errors|featured)\.spec/,
+            grep: /F-25|one pane at a time|F-40|KTW-04|KTW-01\.a banner/,
             use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }
         },
         { name: 'baseurl', testMatch: /baseurl\.spec/ },
