@@ -1,5 +1,5 @@
 {
-  "description": "Native Jellyfin web tokens the JellyUX client scripts read or write. Each must appear literally in the target web bundle (JellyfinWebDriftTests); test/native-selectors.test.js keeps the list in step with the scripts. carriers: the element a document-level class is set on (layout-tv on <html>, FIAB-05), with the bundle fragment that sets it there.",
+  "description": "Native Jellyfin web tokens the JellyUX client scripts read or write. Each must appear literally in the target web bundle (JellyfinWebDriftTests); test/native-selectors.test.js keeps the list in step with the scripts. attributeValues: an attribute value a selector matches on (action sheet entries take data-id from the item id), with the bundle fragment that sets it. carriers: the element a document-level class is set on (layout-tv on <html>, FIAB-05), with the bundle fragment that sets it there.",
   "classes": [
     "actionSheetItemText",
     "actionsheetListItemBody",
@@ -148,6 +148,28 @@
     "data-src",
     "id",
     "name"
+  ],
+  "attributeValues": [
+    {
+      "attribute": "data-action",
+      "value": "menu",
+      "evidence": "data-action=\"menu\""
+    },
+    {
+      "attribute": "data-id",
+      "value": "play",
+      "evidence": "id:\"play\""
+    },
+    {
+      "attribute": "data-id",
+      "value": "playallfromhere",
+      "evidence": "id:\"playallfromhere\""
+    },
+    {
+      "attribute": "data-id",
+      "value": "resume",
+      "evidence": "id:\"resume\""
+    }
   ],
   "elements": [
     "emby-button",

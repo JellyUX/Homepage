@@ -45,6 +45,18 @@ export function extractNativeTokens(source) {
     return tokens;
 }
 
+/** Attribute values the selectors match on, as "attribute=value" strings ([data-id="resume"]). */
+export function extractAttributeValues(source) {
+    const src = stripComments(source);
+    const values = new Set();
+    for (const m of src.matchAll(/\.(?:querySelector(?:All)?|closest|matches)\(\s*(['"])(.*?)\1/g)) {
+        for (const v of m[2].matchAll(/\[([\w-]+)=["']?([\w-]+)["']?\]/g)) {
+            if (!/jux/i.test(v[2])) values.add(`${v[1]}=${v[2]}`);
+        }
+    }
+    return values;
+}
+
 /** Document-level class reads and writes, as "element:class" strings (document.body / documentElement). */
 export function extractCarrierUses(source) {
     const src = stripComments(source);
@@ -150,6 +162,17 @@ describe('Web/jux-native-selectors.json', () => {
         expect([...inventoryTokens()].filter((t) => !used.has(t)).sort()).toEqual([]);
     });
 
+    it('lists every native attribute value the client scripts match on, with the bundle fragment that sets it (Clôture.b)', () => {
+        const inventory = JSON.parse(readFileSync(INVENTORY, 'utf8'));
+        const listed = new Set((inventory.attributeValues ?? []).map((v) => `${v.attribute}=${v.value}`));
+        const used = new Set();
+        for (const file of readdirSync(WEB_DIR).filter((f) => /^jux-.*\.js$/.test(f))) {
+            extractAttributeValues(readFileSync(path.join(WEB_DIR, file), 'utf8')).forEach((v) => used.add(v));
+        }
+        expect([...used].sort()).toEqual([...listed].sort());
+        (inventory.attributeValues ?? []).forEach((v) => expect(v.evidence).toContain(`"${v.value}"`));
+    });
+
     it('names the element of every document-level class the scripts read, the splice fragment included (FIAB-05)', () => {
         const inventory = JSON.parse(readFileSync(INVENTORY, 'utf8'));
         const listed = new Set(inventory.carriers.map((c) => `${c.element}:${c.class}`));
@@ -159,6 +182,16 @@ describe('Web/jux-native-selectors.json', () => {
         }
         expect([...used].sort()).toEqual([...listed].sort());
         inventory.carriers.forEach((c) => expect(c.evidence).toContain(`${c.element}.classList`));
+    });
+});
+
+describe('extractAttributeValues', () => {
+    it('reads the attribute values of the selectors, skipping JellyUX values', () => {
+        expect([...extractAttributeValues(`
+            scroller.querySelector('[data-id="playallfromhere"]');
+            el.closest('.card[data-action=play]');
+            el.querySelector('[data-jux-kind="jux-row"]');
+        `)].sort()).toEqual(['data-action=play', 'data-id=playallfromhere']);
     });
 });
 

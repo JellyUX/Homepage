@@ -89,6 +89,24 @@ public sealed class JellyfinWebDriftTests
         Assert.Empty(missing);
     }
 
+    // An attribute value a selector matches on ([data-id="resume"]) is set by the bundle: each one names
+    // the bundle fragment that sets it (action sheet entries take data-id from their id).
+    [Fact]
+    public void EveryInventoriedAttributeValue_IsSetInTheTargetBundle()
+    {
+        var bundle = Bundle();
+        using var inventory = Inventory();
+
+        var missing = inventory.RootElement.GetProperty("attributeValues").EnumerateArray()
+            .Select(v => (Attribute: v.GetProperty("attribute").GetString()!, Value: v.GetProperty("value").GetString()!, Evidence: v.GetProperty("evidence").GetString()!))
+            .Where(v => !v.Evidence.Contains('"' + v.Value + '"', StringComparison.Ordinal)
+                || !bundle.Contains(v.Evidence, StringComparison.Ordinal))
+            .Select(v => $"{v.Attribute}={v.Value}: {v.Evidence}")
+            .ToList();
+
+        Assert.Empty(missing);
+    }
+
     // FIAB-05: a document-level class is read on the element Jellyfin sets it on ("layout-tv" on <html>,
     // not <body>). Each carrier names that element and the bundle fragment that sets the class there.
     [Fact]
