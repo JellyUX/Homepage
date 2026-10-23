@@ -1,3 +1,14 @@
+## [2.15.3](https://github.com/JellyUX/Homepage/compare/v2.15.2...v2.15.3) (2026-10-23)
+
+### Bug Fixes
+
+* build the client labels and the jux-i18n.js script once ([550d063](https://github.com/JellyUX/Homepage/commit/550d06357679afeab03c5a28ff4b058760a5af08))
+* fetch a home row only when it comes within one screen of the viewport ([9784a4f](https://github.com/JellyUX/Homepage/commit/9784a4f8673a013433f86a44e77b847bbf282e08))
+* keep a long home section title clear of the scroll buttons ([3dfb8c2](https://github.com/JellyUX/Homepage/commit/3dfb8c23864a19c5d9fee158037143db7e4b508c))
+* keep the grey cards of a waiting home row still ([5d3eed2](https://github.com/JellyUX/Homepage/commit/5d3eed2738147178370839e5aeec21b30fe59077))
+* read the statistics once for the History tiles and the Statistics tab ([fa6c23a](https://github.com/JellyUX/Homepage/commit/fa6c23aca508afb2777e4fd548e6ccebf9354201))
+* stop sending the section order no client reads ([ee170ec](https://github.com/JellyUX/Homepage/commit/ee170ec46f0851500a9b3c9408438f882d3a47d6))
+
 ## [2.15.2](https://github.com/JellyUX/Homepage/compare/v2.15.1...v2.15.2) (2026-10-22)
 
 ### Bug Fixes
