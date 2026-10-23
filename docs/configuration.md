@@ -94,3 +94,6 @@ When a list comes back empty because a TMDb request failed, its row says why (AP
 rate-limited by TMDb, no answer in time, TMDb unreachable) and a warning at the top of the page
 says the same. The reason is cleared by the next refresh that returns items, or as soon as the API
 key is changed; it is kept in memory only, so a server restart clears it until the next refresh.
+
+TMDb and Wikidata searches in the section editors, and the TMDb country and genre lists, answer
+within 8 seconds: past that, they show no result instead of waiting for the external service.
