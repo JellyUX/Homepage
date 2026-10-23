@@ -163,6 +163,48 @@ public sealed class ConnectedWidgetBaseTests
         Assert.Equal(2, capturedItems!.Count);
     }
 
+    // KTW-01.a, KTW-02.a, R11 constat 7: a featured TMDb list keeps its titles rated at least the row's
+    // minimum, those with a backdrop first, in the TMDb order inside each group.
+    [Fact]
+    public async Task GetItemsAsync_FeaturedWithFeaturedMinRating_KeepsRatedTitlesBackdropsFirst()
+    {
+        var user = TestMocks.DefaultUser();
+        TestMovie Owned(string name, float rating, bool backdrop) => new()
+        {
+            Id = Guid.NewGuid(),
+            Name = name,
+            CommunityRating = rating,
+            ImageInfos = backdrop ? [new ItemImageInfo { Type = MediaBrowser.Model.Entities.ImageType.Backdrop, Path = "/b.jpg" }] : []
+        };
+        TestMovie[] owned = [Owned("Bare 8", 8, false), Owned("Low 6", 6, true), Owned("Lit 7.5", 7.5f, true), Owned("Lit 9", 9, true)];
+        var byId = owned.ToDictionary(m => m.Id, m => (BaseItem)m);
+        var userManagerMock = new Mock<IUserManager>();
+        userManagerMock.Setup(m => m.GetUserById(It.IsAny<Guid>())).Returns(user);
+        var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock
+            .Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
+            .Returns<InternalItemsQuery>(q => q.ItemIds.Where(byId.ContainsKey).Select(id => byId[id]).ToList());
+        IReadOnlyList<BaseItem>? capturedItems = null;
+        DtoOptions? capturedOptions = null;
+        var dtoServiceMock = new Mock<IDtoService>();
+        dtoServiceMock
+            .Setup(m => m.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
+            .Callback<IReadOnlyList<BaseItem>, DtoOptions, User, BaseItem>((items, options, _, _) => (capturedItems, capturedOptions) = (items, options))
+            .Returns([]);
+        var widget = BuildWidget(
+            [.. owned.Select((m, i) => new TMDbMovie { Id = i + 1, Title = m.Name, LibraryItemId = m.Id })],
+            userManagerMock, libraryManagerMock, dtoServiceMock);
+
+        var result = await widget.GetItemsAsync(
+            new WidgetPayload { UserId = user.Id, Limit = 20, Featured = true, FeaturedMinRating = 7 },
+            CancellationToken.None);
+        _ = result.Items;
+
+        Assert.Equal(["Lit 7.5", "Lit 9", "Bare 8"], capturedItems!.Select(i => i.Name));
+        Assert.Equal(3, result.TotalRecordCount);
+        Assert.Contains(MediaBrowser.Model.Querying.ItemFields.Overview, capturedOptions!.Fields);
+    }
+
     [Fact]
     public async Task GetItemsAsync_DeletedLibraryItem_IsSkippedNotAnError()
     {

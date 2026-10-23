@@ -517,6 +517,47 @@ public sealed class PersonalizedWidgetTests
         Assert.Equal([reference.Id], capturedQuery.ExcludeItemIds);
     }
 
+    // KTW-01.a, KTW-02.a, R11 constat 7: Because You Watched reads outside the shared fetcher; featured, it
+    // applies the minimum rating, reads the slide fields and puts the backdrops first all the same.
+    [Fact]
+    public async Task BecauseYouWatched_FeaturedWithFeaturedMinRating_IsRestrictedAndOrderedLikeAnyFeaturedSection()
+    {
+        var user = new User("test", "Default", "Default");
+        var reference = new Movie { Id = Guid.NewGuid(), Name = "Inception", Genres = ["Sci-Fi"] };
+        Movie Candidate(string name, bool backdrop) => new()
+        {
+            Id = Guid.NewGuid(),
+            Name = name,
+            ImageInfos = backdrop ? [new ItemImageInfo { Type = MediaBrowser.Model.Entities.ImageType.Backdrop, Path = "/b.jpg" }] : []
+        };
+        var userManagerMock = new Mock<IUserManager>();
+        userManagerMock.Setup(m => m.GetUserById(user.Id)).Returns(user);
+        InternalItemsQuery? capturedQuery = null;
+        var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
+        libraryManagerMock.Setup(m => m.GetItemById(reference.Id)).Returns(reference);
+        libraryManagerMock
+            .Setup(m => m.GetItemsResult(It.IsAny<InternalItemsQuery>()))
+            .Callback<InternalItemsQuery>(q => capturedQuery = q)
+            .Returns(new QueryResult<BaseItem>([Candidate("Bare", false), Candidate("Lit", true)]));
+        IReadOnlyList<BaseItem>? projected = null;
+        var dtoServiceMock = new Mock<IDtoService>();
+        dtoServiceMock
+            .Setup(m => m.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
+            .Callback<IReadOnlyList<BaseItem>, DtoOptions, User, BaseItem>((items, _, _, _) => projected = items)
+            .Returns([]);
+        var widget = new BecauseYouWatchedWidget(userManagerMock.Object, libraryManagerMock.Object, dtoServiceMock.Object, BuildScoringService(user, []), TestLocalization);
+
+        var result = await widget.GetItemsAsync(
+            new WidgetPayload { UserId = user.Id, AdditionalData = reference.Id.ToString(), Featured = true, FeaturedMinRating = 8 },
+            CancellationToken.None);
+        _ = result.Items;
+
+        Assert.Equal(8, capturedQuery!.MinCommunityRating);
+        Assert.Contains(MediaBrowser.Model.Querying.ItemFields.Overview, capturedQuery.DtoOptions.Fields);
+        Assert.Equal(["Lit", "Bare"], projected!.Select(i => i.Name));
+    }
+
     [Fact]
     public async Task BecauseYouWatched_ReferenceFilmNotFound_DoesNotThrow()
     {
