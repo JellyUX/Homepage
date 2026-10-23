@@ -20,6 +20,28 @@ public sealed class ExtraParamsContractTests
 
     public static TheoryData<string> AllWidgetTypes() => new(WidgetTypes.All.Keys.Order(StringComparer.Ordinal));
 
+    // DEC-P09-1, KTW-01.a: a typed row field of the contract exists on WidgetConfig, and a new row (the
+    // Admin/Catalog DefaultRow, DEC-P09-3) carries the default the admin page saves for an untouched row.
+    [Fact]
+    public void RowFields_ExistOnWidgetConfigWithTheContractDefaults()
+    {
+        var path = Path.Combine(RepoPaths.Root(), "test", "fixtures", "extraparams-contract.json");
+        using var json = JsonDocument.Parse(File.ReadAllText(path));
+        var row = new Widgets.WidgetConfig();
+
+        foreach (var field in json.RootElement.GetProperty("rowFields").EnumerateObject())
+        {
+            var property = typeof(Widgets.WidgetConfig).GetProperty(field.Name);
+            Assert.NotNull(property);
+            var expected = field.Value.ValueKind switch
+            {
+                JsonValueKind.True or JsonValueKind.False => (object)field.Value.GetBoolean(),
+                _ => field.Value.GetInt32()
+            };
+            Assert.Equal(expected, property.GetValue(row));
+        }
+    }
+
     [Fact]
     public void Contract_ListsEveryRegisteredWidgetType()
     {

@@ -164,6 +164,9 @@ export function sortOption(widget) {
     return SORT_OPTIONS.filter(function (o) { return o[0] === by && o[1] === order; })[0] || SORT_OPTIONS[0];
 }
 
+// The minimum ratings a featured row may require besides 0, none (WidgetConfig.FeaturedMinRatings, KTW-02).
+export var FEATURED_MIN_RATINGS = [6, 7, 8];
+
 // The configuration row stored for a widget row at index i of the page: what Save writes and
 // what Preview sends, so a preview always shows what saving would store. A field the page does not
 // edit, such as the frozen per-user override settings (QUAL-02), is saved as it was loaded.
@@ -176,6 +179,8 @@ export function toConfigRow(widget, i) {
         MinItems: Math.max(0, widget.MinItems),
         MaxItems: Math.max(1, widget.MaxItems),
         ViewMode: widget.ViewMode,
+        Featured: !!widget.Featured,
+        FeaturedMinRating: FEATURED_MIN_RATINGS.indexOf(Number(widget.FeaturedMinRating)) === -1 ? 0 : Number(widget.FeaturedMinRating),
         SortBy: sortOption(widget)[0],
         SortOrder: sortOption(widget)[1],
         ExtraParams: widget.ExtraParams || []
@@ -220,7 +225,7 @@ export function widgetSummary(widget, valueLabel, t) {
     var start = getExtraParam(widget, 'startDate');
     var end = getExtraParam(widget, 'endDate');
     if (start && end) { parts.push(t('admin.summary.window', { start: start, end: end })); }
-    parts.push(t('admin.viewmode.' + String(widget.ViewMode || 'Portrait').toLowerCase()));
+    parts.push(widget.Featured ? t('admin.featured.label') : t('admin.viewmode.' + String(widget.ViewMode || 'Portrait').toLowerCase()));
     parts.push(t('admin.summary.items', { min: widget.MinItems, max: widget.MaxItems }));
     if (widget.Enabled === false) { parts.push(t('admin.summary.disabled')); }
     return parts.join(' \u00b7 ');
@@ -731,6 +736,13 @@ function createConfigPage() {
 
         // Library sections whose card order is configurable; Because You Watched keeps its random
         // recommendations, native and TMDb rows their own ranking.
+        // A row of this type may show as a banner (KTW-01): Admin/Catalog says false for the native-route
+        // sections and My Media (DEC-P11-4), nothing for the others.
+        canFeature: function (widgetType) {
+            var desc = this.getDescriptor(widgetType);
+            return !!desc && desc.CanFeature !== false;
+        },
+
         isSortable: function (widgetType) {
             return this.isAdmin(widgetType) || this.isSeasonal(widgetType)
                 || (this.isPersonalized(widgetType) && !this.isBecauseYouWatched(widgetType));
@@ -998,6 +1010,25 @@ function createConfigPage() {
                     html += '</select>';
                     html += '</div>';
 
+                    if (self.canFeature(w.WidgetType)) {
+                        html += '<div class="jux-admin-featured">';
+                        html += '<div class="checkboxContainer">';
+                        html += '<label class="emby-checkbox-label">';
+                        html += '<input type="checkbox" id="widgetFeatured_' + i + '" class="emby-checkbox jux-admin-featured-toggle"' + (w.Featured ? ' checked' : '') + ' />';
+                        html += '<span class="checkboxLabel">' + self.escHtml(self.t('admin.featured.label')) + '</span>';
+                        html += CHECKBOX_OUTLINE_HTML;
+                        html += '</label>';
+                        html += '</div>';
+                        html += '<div class="inputContainer jux-admin-featured-rating-field">';
+                        html += '<label class="inputLabel inputLabelUnfocused" for="widgetFeaturedRating_' + i + '">' + self.escHtml(self.t('admin.featured.minrating.label')) + '</label>';
+                        html += selectHtml(self, 'widgetFeaturedRating_' + i, 'jux-admin-featured-rating',
+                            [['0', self.t('admin.featured.minrating.none')]].concat(FEATURED_MIN_RATINGS.map(function (r) {
+                                return [String(r), self.t('admin.featured.minrating.value', { value: r })];
+                            })), String(w.FeaturedMinRating || 0));
+                        html += '</div>';
+                        html += '</div>';
+                    }
+
                     if (self.isSortable(w.WidgetType)) {
                         var currentSort = sortOption(w);
                         html += '<div class="inputContainer">';
@@ -1249,7 +1280,11 @@ function createConfigPage() {
                 var minEl = card.querySelector('.jux-admin-min-items');
                 var maxEl = card.querySelector('.jux-admin-max-items');
                 var viewEl = card.querySelector('.jux-admin-view-mode');
+                var featuredEl = card.querySelector('.jux-admin-featured-toggle');
+                var ratingEl = card.querySelector('.jux-admin-featured-rating');
                 var sortEl = card.querySelector('.jux-admin-sort');
+                if (featuredEl) { w.Featured = featuredEl.checked; }
+                if (ratingEl) { w.FeaturedMinRating = parseInt(ratingEl.value, 10) || 0; }
                 if (sortEl) {
                     w.SortBy = sortEl.value.split(':')[0];
                     w.SortOrder = sortEl.value.split(':')[1];

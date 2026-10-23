@@ -5,7 +5,10 @@ import createController from '../src/Jellyfin.Plugin.JuxHomepage/Web/config.js';
 
 // The ExtraParams keys each widget type is saved with, shared with ExtraParamsContractTests on the C#
 // side (QUAL-06.a): a key renamed on one side only turns one of the two tests red.
-const CONTRACT = JSON.parse(readFileSync(resolve(__dirname, 'fixtures/extraparams-contract.json'), 'utf8')).widgets;
+const CONTRACT_FILE = JSON.parse(readFileSync(resolve(__dirname, 'fixtures/extraparams-contract.json'), 'utf8'));
+const CONTRACT = CONTRACT_FILE.widgets;
+// The typed row fields the page writes on every row, with the default a new row carries (DEC-P09-1, KTW-01.a).
+const ROW_FIELDS = CONTRACT_FILE.rowFields;
 const CONFIG_HTML = readFileSync(resolve(__dirname, '../src/Jellyfin.Plugin.JuxHomepage/Web/config.html'), 'utf8');
 
 // A value for every key, each one an option or a form the editor of its row accepts as loaded.
@@ -102,5 +105,19 @@ describe('ExtraParams contract (QUAL-06.a)', () => {
         const keys = Object.fromEntries(saved.map((w) => [w.WidgetType, w.ExtraParams.map((p) => p.Key).sort()]));
         const expected = Object.fromEntries(types.map((type) => [type, [...CONTRACT[type]].sort()]));
         expect(keys).toEqual(expected);
+    });
+
+    it('saves every row with the row fields of the contract, at their defaults when untouched', async () => {
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+
+        view.querySelector('.juxConfigForm').dispatchEvent(new Event('submit', { cancelable: true }));
+        await settle();
+
+        const saved = window.ApiClient.updatePluginConfiguration.mock.calls[0][1].Widgets;
+        saved.forEach((w) => {
+            expect(Object.fromEntries(Object.keys(ROW_FIELDS).map((k) => [k, w[k]]))).toEqual(ROW_FIELDS);
+        });
     });
 });

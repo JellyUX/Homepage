@@ -98,6 +98,14 @@ describe('toConfigRow', () => {
         expect(toConfigRow(loaded, 0)).toMatchObject({ AllowUserOverride: true, MinInstances: 1, MaxInstances: 5 });
         expect(toConfigRow({ WidgetType: 'jux.admin.genre' }, 0)).not.toHaveProperty('AllowUserOverride');
     });
+
+    it('stores Featured as a boolean and keeps only a known FeaturedMinRating (KTW-02)', () => {
+        const row = (extra) => toConfigRow({ WidgetType: 'jux.admin.genre', MinItems: 4, MaxItems: 20, ViewMode: 'Portrait', ...extra }, 0);
+
+        expect([row({}).Featured, row({}).FeaturedMinRating]).toEqual([false, 0]);
+        expect([row({ Featured: true, FeaturedMinRating: '8' }).Featured, row({ Featured: true, FeaturedMinRating: '8' }).FeaturedMinRating]).toEqual([true, 8]);
+        expect(row({ Featured: true, FeaturedMinRating: 5 }).FeaturedMinRating).toBe(0);
+    });
 });
 
 describe('sortOption (F-53)', () => {
@@ -132,6 +140,11 @@ describe('widgetSummary (F-50)', () => {
     it('shows a value equal to the name once, and flags a disabled row', () => {
         const genre = { CustomDisplayName: 'Drame', Enabled: false, ViewMode: 'Portrait', MinItems: 4, MaxItems: 20, ExtraParams: [] };
         expect(widgetSummary(genre, 'Drame', t)).toBe('Drame · admin.viewmode.portrait · admin.summary.items{"min":4,"max":20} · admin.summary.disabled');
+    });
+
+    it('names a featured row instead of its card shape', () => {
+        const t = (key) => key;
+        expect(widgetSummary({ ViewMode: 'Portrait', MinItems: 4, MaxItems: 20, Featured: true }, '', t)).toBe('admin.featured.label · admin.summary.items');
     });
 });
 
@@ -565,6 +578,32 @@ describe('configuration page controller (F-33)', () => {
 
         const saved = window.ApiClient.updatePluginConfiguration.mock.calls[0][1].Widgets;
         expect(saved.map((w) => w.SortBy)).toEqual(['Random', 'SortName', 'SortName']);
+    });
+
+    // KTW-01.a admin: the Featured box and its minimum rating, absent where Admin/Catalog says CanFeature false.
+    it('saves the Featured box and the FeaturedMinRating of a row, and offers neither where the widget cannot feature', async () => {
+        window.ApiClient.getJSON = vi.fn((url) => (url === 'JuxHomepage/Admin/Catalog'
+            ? Promise.resolve({ WidgetCategories: ['Native', 'Admin', 'Personalized', 'Connected'], Widgets: descriptors.map((d) => (d.WidgetType === 'jux.admin.collection' ? { ...d, CanFeature: false } : d)) })
+            : getJSON(url)));
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+
+        const toggle = card(0).querySelector('.jux-admin-featured-toggle');
+        const rating = card(0).querySelector('.jux-admin-featured-rating');
+        expect(toggle.checked).toBe(false);
+        expect([...rating.options].map((o) => o.value)).toEqual(['0', '6', '7', '8']);
+        expect(card(1).querySelector('.jux-admin-featured-toggle')).toBeNull();
+        toggle.checked = true;
+        rating.value = '7';
+
+        window.ApiClient.updatePluginConfiguration = vi.fn(() => Promise.resolve({}));
+        window.Dashboard.processPluginConfigurationUpdateResult = vi.fn();
+        view.querySelector('.juxConfigForm').dispatchEvent(new Event('submit', { cancelable: true }));
+        await settle();
+
+        const saved = window.ApiClient.updatePluginConfiguration.mock.calls[0][1].Widgets;
+        expect(saved.map((w) => [w.Featured, w.FeaturedMinRating])).toEqual([[true, 7], [false, 0], [false, 0]]);
     });
 
     it('gives a local library row its item types instead of a value or a sort, and saves them (F-61)', async () => {

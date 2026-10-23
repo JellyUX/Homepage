@@ -364,3 +364,8 @@ ul.jux-admin-warning {
         column-gap: 2.5em;
     }
 }
+
+/* The minimum rating of a featured row (KTW-02) only applies to a featured row. */
+.jux-admin-featured:not(:has(.jux-admin-featured-toggle:checked)) .jux-admin-featured-rating-field {
+    display: none;
+}

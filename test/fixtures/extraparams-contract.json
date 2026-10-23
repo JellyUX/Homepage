@@ -29,5 +29,9 @@
     "jux.personalized.favorite-actor": ["excludeWatched"],
     "jux.personalized.favorite-director": ["excludeWatched"],
     "jux.personalized.favorite-genre": ["excludeWatched"]
+  },
+  "rowFields": {
+    "Featured": false,
+    "FeaturedMinRating": 0
   }
 }
