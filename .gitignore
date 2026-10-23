@@ -115,3 +115,6 @@ src/**/obj/
 !test/
 test/*
 !test/*.js
+!test/fixtures/
+test/fixtures/*
+!test/fixtures/*.json

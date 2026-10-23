@@ -1,0 +1,33 @@
+{
+  "widgets": {
+    "jux.admin.actor": ["value"],
+    "jux.admin.collection": ["value"],
+    "jux.admin.director": ["value"],
+    "jux.admin.genre": ["value"],
+    "jux.admin.studio": ["value"],
+    "jux.admin.tag": ["value"],
+    "jux.admin.year": ["value"],
+    "jux.connected.airing-today": [],
+    "jux.connected.discover-movies": ["value", "genreIds", "personIds", "keywordIds", "companyIds", "sortBy", "year", "minRating", "minVotes", "pages"],
+    "jux.connected.now-playing-movies": [],
+    "jux.connected.rewards": ["value", "ceremonyQid", "categoryQid", "year"],
+    "jux.connected.seasonal": ["value", "nameKey", "startDate", "endDate", "theme", "genre", "tag"],
+    "jux.connected.top-rated-movies": [],
+    "jux.connected.top-rated-shows": [],
+    "jux.connected.trending-movies": [],
+    "jux.connected.trending-shows": [],
+    "jux.local.recently-released": ["itemTypes"],
+    "jux.local.top-rated": ["itemTypes"],
+    "jux.native.continue-watching": [],
+    "jux.native.my-media": [],
+    "jux.native.next-up": [],
+    "jux.native.recently-added-episodes": [],
+    "jux.native.recently-added-movies": [],
+    "jux.native.recently-added-shows": [],
+    "jux.native.watchlist": [],
+    "jux.personalized.because-you-watched": ["excludeWatched", "scope"],
+    "jux.personalized.favorite-actor": ["excludeWatched"],
+    "jux.personalized.favorite-director": ["excludeWatched"],
+    "jux.personalized.favorite-genre": ["excludeWatched"]
+  }
+}
