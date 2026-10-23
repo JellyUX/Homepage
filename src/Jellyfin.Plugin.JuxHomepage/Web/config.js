@@ -251,6 +251,13 @@ var TMDB_PAGES_CONFIG_KEY = {
     NowPlayingMovies: 'NowPlayingMoviesPages'
 };
 
+// TopRatedVoteCountMin as the page shows and saves it: 0 is a valid minimum, the server default (200)
+// only stands in for an empty or unreadable field (A-14).
+function voteCountMin(value) {
+    var count = parseInt(value, 10);
+    return isNaN(count) ? 200 : Math.max(0, count);
+}
+
 // What each tab saves in a configuration, as comparable strings (ADM-01.c): the configurations compared
 // both come from formConfig, so a field the page normalizes on save (Order, a trimmed name) compares equal.
 // The TMDb list fields are only on the page once External sources has opened (Annexe.a): they are
@@ -268,7 +275,7 @@ export function tabSnapshot(config) {
                 return Math.min(5, Math.max(1, parseInt(lists[TMDB_PAGES_CONFIG_KEY[type]], 10) || 1));
             }),
             lists.NowPlayingRegion || null,
-            Math.max(0, parseInt(lists.TopRatedVoteCountMin, 10) || 200)
+            voteCountMin(lists.TopRatedVoteCountMin)
         ])
     };
 }
@@ -1353,7 +1360,7 @@ function createConfigPage() {
             var labels = self._tmdbStatusLabels;
             var tmdbLists = (self.state.config && self.state.config.TMDbLists) || {};
             var currentRegion = tmdbLists.NowPlayingRegion || '';
-            var currentVoteCountMin = tmdbLists.TopRatedVoteCountMin || 200;
+            var currentVoteCountMin = voteCountMin(tmdbLists.TopRatedVoteCountMin);
             var html = '';
             (statuses || []).forEach(function (s) {
                 var labelKey = labels[s.Type];
@@ -1566,9 +1573,7 @@ function createConfigPage() {
                 });
             });
             listField('selNowPlayingRegion', 'NowPlayingRegion', function (value) { return value || null; });
-            listField('numTopRatedVoteCountMin', 'TopRatedVoteCountMin', function (value) {
-                return Math.max(0, parseInt(value, 10) || 200);
-            });
+            listField('numTopRatedVoteCountMin', 'TopRatedVoteCountMin', voteCountMin);
 
             if (readRows) { self.readDomIntoState(); }
             config.Widgets = self.state.sortedWidgets.map(function (w, i) {

@@ -1327,6 +1327,33 @@ describe('configuration page controller (F-33)', () => {
         expect(view.querySelector('#tmdbError_TrendingShows').hidden).toBe(true);
     });
 
+    it('keeps a Min votes of 0, shown, saved and compared as 0, and 200 for an empty field (A-14.a)', async () => {
+        const zero = { ...JSON.parse(JSON.stringify(config)), TMDbLists: { TopRatedVoteCountMin: 0 } };
+        window.ApiClient.getPluginConfiguration = vi.fn(() => Promise.resolve(JSON.parse(JSON.stringify(zero))));
+        window.ApiClient.getJSON = vi.fn((url) => (url === 'JuxHomepage/TMDb/Status'
+            ? Promise.resolve([{ Type: 'TopRatedMovies', LastRefreshedUtc: null, ItemCount: 0, MatchedCount: 0, LastError: null }])
+            : getJSON(url)));
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+        view.querySelector('#juxTab_sources').click();
+        await settle();
+
+        expect(view.querySelector('#numTopRatedVoteCountMin').value).toBe('0');
+        expect(tabSnapshot(zero).sources).not.toBe(tabSnapshot({ ...zero, TMDbLists: { TopRatedVoteCountMin: 200 } }).sources);
+
+        window.ApiClient.updatePluginConfiguration = vi.fn(() => Promise.resolve({}));
+        window.Dashboard.processPluginConfigurationUpdateResult = vi.fn();
+        view.querySelector('.juxConfigForm').dispatchEvent(new Event('submit', { cancelable: true }));
+        await settle();
+        expect(window.ApiClient.updatePluginConfiguration.mock.calls[0][1].TMDbLists.TopRatedVoteCountMin).toBe(0);
+
+        view.querySelector('#numTopRatedVoteCountMin').value = '';
+        view.querySelector('.juxConfigForm').dispatchEvent(new Event('submit', { cancelable: true }));
+        await settle();
+        expect(window.ApiClient.updatePluginConfiguration.mock.calls[1][1].TMDbLists.TopRatedVoteCountMin).toBe(200);
+    });
+
     it('names a preset row by its translated key and keeps the key on save (F-64)', async () => {
         const named = JSON.parse(JSON.stringify(config));
         named.Widgets[2].ExtraParams.push({ Key: 'nameKey', Value: 'jux.seasonal.halloween-horror' });
