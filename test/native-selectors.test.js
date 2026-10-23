@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
+import { stripComments as stripCodeComments } from '../ci/static-checks.mjs';
 
 // Keeps Web/jux-native-selectors.json in step with the scripts: every native class, id, attribute or
 // custom element the client scripts read or write must be listed, so the drift test
@@ -8,9 +9,8 @@ import path from 'node:path';
 const WEB_DIR = 'src/Jellyfin.Plugin.JuxHomepage/Web';
 const INVENTORY = path.join(WEB_DIR, 'jux-native-selectors.json');
 
-function stripComments(src) {
-    return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"\\])\/\/[^\n]*/g, '$1');
-}
+// Comments blanked by the static checks' reader, which skips strings and regex literals (A-03.e).
+const stripComments = (src) => stripCodeComments(src, '.js');
 
 /** Native tokens used by one script, as "kind:name" strings (JellyUX's own jux-* names excluded). */
 export function extractNativeTokens(source) {

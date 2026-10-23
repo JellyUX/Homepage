@@ -25,7 +25,8 @@ const COLOR_FUNCTION = /\b(?:rgba?|hsla?)\(\s*[\d.]/g;
 const VAR_FALLBACK = /var\(\s*--[\w-]+\s*,\s*(?:#[0-9a-fA-F]{3,8}|(?:rgba?|hsla?)\([^()]*\))\s*\)/g;
 // A comment that defers work must name the registry id that tracks it (TODO_V5 rule R8, PROC-04.b).
 const DEFERRED_MARKER = /\bTODO\b|\bFIXME\b|future phase|worth revisiting/gi;
-const REGISTRY_ID = /\b[A-Z]{1,5}-\d{2}\b/;
+// Only the registry prefixes: V5 findings, hypotheses, anomalies and decisions, V4 findings (A-03.e).
+const REGISTRY_ID = /\b(?:PERF|FIAB|QUAL|PROC|KTW|ADM|H|A|D|F)-\d{2}\b/;
 const MARKER_EXTENSIONS = new Set(['.cs', '.js', '.mjs', '.css', '.html']);
 
 /**
@@ -36,14 +37,76 @@ const MARKER_EXTENSIONS = new Set(['.cs', '.js', '.mjs', '.css', '.html']);
  */
 export function stripComments(text, ext) {
     const blank = (m) => m.replace(/[^\n]/g, ' ');
+    if (ext === '.js' || ext === '.mjs' || ext === '.cs') {
+        return stripCodeComments(text, ext === '.cs');
+    }
     let out = text.replace(/\/\*[\s\S]*?\*\//g, blank);
     if (ext === '.html') {
         out = out.replace(/<!--[\s\S]*?-->/g, blank);
     }
-    if (ext === '.js' || ext === '.mjs' || ext === '.html' || ext === '.cs') {
+    if (ext === '.html') {
         out = out.replace(/(^|[^:\\'"`])\/\/[^\n]*/g, (m, lead) => lead + blank(m.slice(lead.length)));
     }
     return out;
+}
+
+// A slash after one of these (or at the start) opens a JS regex literal, not a division.
+const REGEX_LEAD = /[(,=:[!&|?{};+\-*%<>~^]|^$|\b(?:return|typeof|case|in|of|delete|void|throw)$/;
+
+/**
+ * Blanks the comments of JS or C# source, skipping strings, template literals, JS regex literals and
+ * C# verbatim strings (A-03.e: a "//" in a string is not a comment).
+ * @param {string} text
+ * @param {boolean} csharp
+ * @returns {string}
+ */
+function stripCodeComments(text, csharp) {
+    const out = text.split('');
+    const blank = (from, to) => {
+        for (let k = from; k < to; k++) {
+            if (out[k] !== '\n') out[k] = ' ';
+        }
+    };
+    let i = 0;
+    while (i < text.length) {
+        const c = text[i];
+        const next = text[i + 1];
+        if (c === '/' && next === '/') {
+            const end = text.indexOf('\n', i);
+            const stop = end < 0 ? text.length : end;
+            blank(i, stop);
+            i = stop;
+        } else if (c === '/' && next === '*') {
+            const end = text.indexOf('*/', i + 2);
+            const stop = end < 0 ? text.length : end + 2;
+            blank(i, stop);
+            i = stop;
+        } else if (csharp && c === '@' && next === '"') {
+            i += 2;
+            while (i < text.length && !(text[i] === '"' && text[i + 1] !== '"')) {
+                i += text[i] === '"' ? 2 : 1;
+            }
+            i++;
+        } else if (c === '"' || c === "'" || c === '`') {
+            i++;
+            while (i < text.length && text[i] !== c && (c === '`' || text[i] !== '\n')) {
+                i += text[i] === '\\' ? 2 : 1;
+            }
+            i++;
+        } else if (!csharp && c === '/' && REGEX_LEAD.test(text.slice(Math.max(0, i - 40), i).trimEnd().match(/(\w+|\S)$/)?.[1] ?? '')) {
+            i++;
+            let inClass = false;
+            while (i < text.length && text[i] !== '\n' && (inClass || text[i] !== '/')) {
+                if (text[i] === '[') inClass = true;
+                else if (text[i] === ']') inClass = false;
+                i += text[i] === '\\' ? 2 : 1;
+            }
+            i++;
+        } else {
+            i++;
+        }
+    }
+    return out.join('');
 }
 
 /**

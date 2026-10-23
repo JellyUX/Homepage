@@ -76,6 +76,20 @@ describe('findUntrackedMarkers', () => {
             .toEqual(['todo', 'Worth Revisiting', 'Future Phase']);
     });
 
+    it('takes only the registry prefixes as an id (A-03.e)', () => {
+        expect(findUntrackedMarkers('// TODO: decode as UTF-16 first', '.js')).toEqual([{ line: 1, match: 'TODO' }]);
+        expect(findUntrackedMarkers('// TODO (A-15): measure the client keys only', '.js')).toEqual([]);
+    });
+
+    it('reads a comment after a string holding a double slash, and no comment inside one (A-03.e)', () => {
+        expect(findUntrackedMarkers("const u = 'see // TODO later';", '.js')).toEqual([]);
+        expect(findUntrackedMarkers('const u = "a:b//c"; // TODO cache', '.js')).toEqual([{ line: 1, match: 'TODO' }]);
+        expect(findUntrackedMarkers('const t = `x // TODO ${y}`;', '.mjs')).toEqual([]);
+        expect(findUntrackedMarkers("if (/['\"]/.test(s)) { } // FIXME quotes", '.js')).toEqual([{ line: 1, match: 'FIXME' }]);
+        expect(findUntrackedMarkers('var p = @"C:\\dir\\"; // TODO path', '.cs')).toEqual([{ line: 1, match: 'TODO' }]);
+        expect(findUntrackedMarkers('var s = "/* not a comment */ TODO";', '.cs')).toEqual([]);
+    });
+
     it('reads future phase in a multi-line block comment', () => {
         // Split so that this file's own block-comment-looking string does not trip the check.
         expect(findUntrackedMarkers('/*\n * in a future' + ' phase\n */', '.css')).toEqual([{ line: 2, match: 'future phase' }]);
