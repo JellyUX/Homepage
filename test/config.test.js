@@ -784,6 +784,8 @@ describe('configuration page controller (F-33)', () => {
         createController(view);
         view.dispatchEvent(new Event('viewshow'));
         await settle();
+        view.querySelector('#juxTab_sources').click();
+        await settle();
 
         expect(view.querySelector('#tmdbLabel_TrendingMovies').textContent).toBe('Trending Movies (80 cached, 2 in your library)');
         const help = [...view.querySelectorAll('#juxTmdbStatusList .fieldDescription')].map((d) => d.textContent);
@@ -1061,6 +1063,27 @@ describe('configuration page controller (F-33)', () => {
         expect(button.disabled).toBe(false);
     });
 
+    it('asks the TMDb status and countries once, when External sources first opens (Annexe.a)', async () => {
+        window.ApiClient.getJSON = vi.fn((url) => (url === 'JuxHomepage/TMDb/Status'
+            ? Promise.resolve([{ Type: 'TopRatedMovies', LastRefreshedUtc: null, ItemCount: 0, MatchedCount: 0, LastError: null }])
+            : getJSON(url)));
+        const asked = (url) => window.ApiClient.getJSON.mock.calls.filter((c) => c[0] === url).length;
+        await open();
+
+        expect([asked('JuxHomepage/TMDb/Status'), asked('JuxHomepage/TMDb/Countries')]).toEqual([0, 0]);
+
+        tab('sources').click();
+        await settle();
+        tab('settings').click();
+        tab('sources').click();
+        await settle();
+
+        expect([asked('JuxHomepage/TMDb/Status'), asked('JuxHomepage/TMDb/Countries')]).toEqual([1, 1]);
+        expect(view.querySelector('#numTmdbPages_TopRatedMovies').value).toBe('1');
+        expect(view.querySelector('#numTopRatedVoteCountMin').value).toBe('200');
+        expect(dirtyTabs()).toEqual([]);
+    });
+
     it('shows the page without waiting for the TMDb countries and genres (FIAB-10.b)', async () => {
         window.ApiClient.getJSON = vi.fn((url) => (url === 'JuxHomepage/TMDb/Countries' || url === 'JuxHomepage/TMDb/Genres'
             ? new Promise(() => {})
@@ -1088,6 +1111,8 @@ describe('configuration page controller (F-33)', () => {
         createController(view);
         view.dispatchEvent(new Event('viewshow'));
         await settle();
+        view.querySelector('#juxTab_sources').click();
+        await settle();
 
         const region = () => view.querySelector('#selNowPlayingRegion');
         expect(region().value).toBe('FR');
@@ -1112,6 +1137,8 @@ describe('configuration page controller (F-33)', () => {
         });
         createController(view);
         view.dispatchEvent(new Event('viewshow'));
+        await settle();
+        view.querySelector('#juxTab_sources').click();
         await settle();
 
         const failed = view.querySelector('#tmdbError_TrendingMovies');

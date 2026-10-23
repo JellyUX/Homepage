@@ -236,14 +236,35 @@ export function initialTab(remembered, warnings) {
     return (warnings || []).some(function (code) { return code.indexOf('TMDb') === 0; }) ? 'sources' : 'settings';
 }
 
+// Maps a TMDbCacheType status entry's "Type" to its TMDbLists page-count property.
+var TMDB_PAGES_CONFIG_KEY = {
+    TrendingMovies: 'TrendingMoviesPages',
+    TrendingShows: 'TrendingShowsPages',
+    AiringToday: 'AiringTodayPages',
+    TopRatedMovies: 'TopRatedMoviesPages',
+    TopRatedShows: 'TopRatedShowsPages',
+    NowPlayingMovies: 'NowPlayingMoviesPages'
+};
+
 // What each tab saves in a configuration, as comparable strings (ADM-01.c): the configurations compared
 // both come from formConfig, so a field the page normalizes on save (Order, a trimmed name) compares equal.
+// The TMDb list fields are only on the page once External sources has opened (Annexe.a): they are
+// normalized here as Save writes them, so their appearance is no change.
 export function tabSnapshot(config) {
     var cache = config.Cache || {};
+    var lists = config.TMDbLists || {};
     return {
         settings: JSON.stringify([config.Enabled, config.WatchlistAutoRemove, config.Modules || {}, cache.SessionTtlMinutes]),
         sections: JSON.stringify(config.Widgets || []),
-        sources: JSON.stringify([(config.ApiKeys || {}).TMDb || null, cache.TMDbRefreshIntervalHours, config.TMDbLists || {}])
+        sources: JSON.stringify([
+            (config.ApiKeys || {}).TMDb || null,
+            cache.TMDbRefreshIntervalHours,
+            Object.keys(TMDB_PAGES_CONFIG_KEY).map(function (type) {
+                return Math.min(5, Math.max(1, parseInt(lists[TMDB_PAGES_CONFIG_KEY[type]], 10) || 1));
+            }),
+            lists.NowPlayingRegion || null,
+            Math.max(0, parseInt(lists.TopRatedVoteCountMin, 10) || 200)
+        ])
     };
 }
 
@@ -1254,15 +1275,7 @@ function createConfigPage() {
             sel.innerHTML = html;
         },
 
-        // Maps a TMDbCacheType status entry's "Type" to its TMDbLists page-count property.
-        _tmdbPagesConfigKey: {
-            TrendingMovies: 'TrendingMoviesPages',
-            TrendingShows: 'TrendingShowsPages',
-            AiringToday: 'AiringTodayPages',
-            TopRatedMovies: 'TopRatedMoviesPages',
-            TopRatedShows: 'TopRatedShowsPages',
-            NowPlayingMovies: 'NowPlayingMoviesPages'
-        },
+        _tmdbPagesConfigKey: TMDB_PAGES_CONFIG_KEY,
 
         // Populated once via GET TMDb/Countries; used to render the Now Playing region select.
         _tmdbCountries: [],
@@ -1457,7 +1470,7 @@ function createConfigPage() {
             document.getElementById('txtTMDb').value = (config.ApiKeys && config.ApiKeys.TMDb) || '';
             document.getElementById('numSessionTtl').value = (config.Cache && config.Cache.SessionTtlMinutes) || 15;
             document.getElementById('numTMDbRefresh').value = (config.Cache && config.Cache.TMDbRefreshIntervalHours) || 24;
-            self.renderTmdbStatus(self._tmdbStatuses || []);
+            if (self._tmdbStatuses) { self.renderTmdbStatus(self._tmdbStatuses); }
 
             self.state.sortedWidgets = JSON.parse(JSON.stringify(config.Widgets || [])).sort(function (a, b) {
                 return a.Order - b.Order;
@@ -1628,6 +1641,28 @@ function createConfigPage() {
             });
             if (focus) { document.getElementById('juxTab_' + name).focus(); }
             writeSession(TAB_KEY, name);
+            if (name === 'sources') { this.loadSources(); }
+        },
+
+        // External sources reads the TMDb status and the country list the first time it opens in a page view
+        // (Annexe.a, DEC-P10-1); the TMDb alert comes from Admin/Warnings, read at load.
+        loadSources: function () {
+            var self = this;
+            if (!self._sourcesLoad) {
+                var status = ApiClient.getJSON(ApiClient.getUrl('JuxHomepage/TMDb/Status')).catch(function () {
+                    return [];
+                }).then(function (statuses) {
+                    self._tmdbStatuses = statuses || [];
+                    self.renderTmdbStatus(self._tmdbStatuses);
+                    self.updateDirty(false);
+                });
+                // The countries complete the region select when they come, without holding the status back.
+                var countries = self.loadTmdbCountries();
+                self._sourcesLoad = Promise.all([status, countries]).then(function () {
+                    self.refillListSelects();
+                });
+            }
+            return self._sourcesLoad;
         },
 
         // Opens the tab of a field before it is focused: focus() does nothing under a hidden panel (ADM-01.b).
@@ -1675,12 +1710,15 @@ function createConfigPage() {
         loadConfig: function () {
             var self = this;
             Dashboard.showLoadingMsg();
-            // Asked at once but not awaited: TMDb can take up to the lookup deadline to answer (FIAB-10.b).
-            var lists = Promise.all([self.loadTmdbCountries(), self.loadTmdbGenres()]);
+            // Asked at once but not awaited: TMDb can take up to the lookup deadline to answer (FIAB-10.b). The
+            // TMDb status and countries wait for External sources to open (loadSources).
+            var genres = self.loadTmdbGenres();
+            self._sourcesLoad = null;
+            self._tmdbStatuses = null;
+            document.getElementById('juxTmdbStatusList').innerHTML = '';
             Promise.all([
                 ApiClient.getPluginConfiguration(self.PLUGIN_ID),
                 ApiClient.getJSON(ApiClient.getUrl('JuxHomepage/Admin/Catalog')),
-                ApiClient.getJSON(ApiClient.getUrl('JuxHomepage/TMDb/Status')).catch(function () { return []; }),
                 self.loadLocalizations(),
                 ApiClient.getJSON(ApiClient.getUrl('JuxHomepage/Admin/Warnings')).catch(function () { return []; })
             ]).then(function (results) {
@@ -1696,9 +1734,8 @@ function createConfigPage() {
 
                 self.translateStaticText();
                 if (self._syncShowTmdb) { self._syncShowTmdb(); }
-                self._tmdbStatuses = results[2] || [];
 
-                var warnings = results[4] || [];
+                var warnings = results[3] || [];
                 self.renderWarnings(warnings);
 
                 self.populate(results[0]);
@@ -1707,7 +1744,7 @@ function createConfigPage() {
                 self.selectTab(initialTab(readSession(TAB_KEY), warnings));
 
                 Dashboard.hideLoadingMsg();
-                lists.then(function () { self.refillListSelects(); });
+                genres.then(function () { self.refillListSelects(); });
             }).catch(function (err) {
                 console.error('[JellyUX Config] Load failed:', err);
                 Dashboard.hideLoadingMsg();
