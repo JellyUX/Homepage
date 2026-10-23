@@ -319,6 +319,10 @@ ul.jux-admin-warning {
 #juxHomepageConfigPage [hidden] {
     display: none;
 }
+/* The warnings sit apart from the tab bar under them, as the restored-changes notice does. */
+#juxWarningBanner {
+    margin-bottom: 1.25em;
+}
 /* Unsaved changes in a tab (ADM-01.c), in the dashboard's warning color. */
 .jux-admin-tab-dirty {
     width: 0.45em;
