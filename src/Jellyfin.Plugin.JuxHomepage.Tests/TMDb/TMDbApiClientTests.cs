@@ -131,6 +131,37 @@ public sealed class TMDbApiClientTests
         Assert.Equal(2, handler.CallCount);
     }
 
+    [Fact]
+    public async Task GetTrendingMoviesAsync_CallerCancels_ThrowsWithoutRetryOrCountingAFailure()
+    {
+        using var cts = new CancellationTokenSource();
+        var handler = new StubHttpMessageHandler(
+            () =>
+            {
+                cts.Cancel();
+                throw new TaskCanceledException();
+            },
+            () => throw new HttpRequestException("down"),
+            () => throw new HttpRequestException("down"),
+            () => throw new HttpRequestException("down"),
+            () => throw new HttpRequestException("down"),
+            () => JsonResponse(new TMDbTrending<TMDbMovie> { Results = [new TMDbMovie { Id = 1, Title = "Served" }] }));
+
+        var client = BuildClient(handler, V3Key);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.GetTrendingMoviesAsync(1, cts.Token));
+        Assert.Equal(1, handler.CallCount);
+
+        // A cancelled call is not a TMDb failure: two failed calls after it leave the circuit closed
+        // (it opens on the third), so the next call still reaches TMDb.
+        await client.GetTrendingMoviesAsync(1, CancellationToken.None);
+        await client.GetTrendingMoviesAsync(1, CancellationToken.None);
+        var result = await client.GetTrendingMoviesAsync(1, CancellationToken.None);
+
+        Assert.Single(result);
+        Assert.Equal(6, handler.CallCount);
+    }
+
     // -------------------------------------------------------------------------
     // Circuit breaker (Phase 3.2 of TODO_V2.md)
     // -------------------------------------------------------------------------

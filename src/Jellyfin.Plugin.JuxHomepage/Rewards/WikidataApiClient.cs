@@ -204,7 +204,8 @@ public sealed class WikidataApiClient : IWikidataApiClient
         // HttpRequestException/TaskCanceledException (as TMDbApiClient does) would let any other
         // failure (header parsing, an unexpected JSON shape, etc.) escape uncaught, surface as a bare
         // 500 from the controller, and be silently swallowed by config.html's own error handling --
-        // exactly the "nothing happens, no visible error" failure mode this must never produce.
+        // exactly the "nothing happens, no visible error" failure mode this must never produce. The one
+        // exception it lets through is the caller cancelling its own token (SearchEntitiesAsync_CallerCancels_Throws).
         try
         {
             var client = _httpClientFactory.CreateClient(HttpClientName);
@@ -235,7 +236,7 @@ public sealed class WikidataApiClient : IWikidataApiClient
 
             return await response.Content.ReadFromJsonAsync<T>(cancellationToken).ConfigureAwait(false);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
         {
             _logger.LogWarning(ex, "Wikidata request to '{Uri}' failed; not retrying (see WikidataApiClient resilience policy).", uri);
             return null;

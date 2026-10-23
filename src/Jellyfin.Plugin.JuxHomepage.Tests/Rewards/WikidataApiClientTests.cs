@@ -70,6 +70,33 @@ public sealed class WikidataApiClientTests
         Assert.Equal(1, handler.CallCount);
     }
 
+    [Fact]
+    public async Task SearchEntitiesAsync_CallerCancels_Throws()
+    {
+        using var cts = new CancellationTokenSource();
+        var handler = new StubHttpMessageHandler(() =>
+        {
+            cts.Cancel();
+            throw new TaskCanceledException();
+        });
+        var client = BuildClient(handler);
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.SearchEntitiesAsync("Best Picture", cts.Token));
+        Assert.Equal(1, handler.CallCount);
+    }
+
+    [Fact]
+    public async Task SearchEntitiesAsync_HttpClientTimeout_ReturnsEmpty()
+    {
+        // HttpClient.Timeout surfaces as a TaskCanceledException the caller never asked for: still a failure.
+        var handler = new StubHttpMessageHandler(() => throw new TaskCanceledException());
+        var client = BuildClient(handler);
+
+        var result = await client.SearchEntitiesAsync("Best Picture", CancellationToken.None);
+
+        Assert.Empty(result);
+    }
+
     // -------------------------------------------------------------------------
     // 429 rate limit -- logged and skipped, never retried (see Wikidata 2026 access policy research)
     // -------------------------------------------------------------------------

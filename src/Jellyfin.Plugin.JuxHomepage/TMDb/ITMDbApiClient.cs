@@ -5,7 +5,8 @@ namespace Jellyfin.Plugin.JuxHomepage.TMDb;
 /// <summary>
 /// Client for TMDb (The Movie Database) API v3 list and external-ids endpoints.
 /// All methods degrade gracefully: a missing API key, an invalid key (HTTP 401), or a network
-/// failure (after one retry) results in an empty list or null, never an exception.
+/// failure (after one retry) results in an empty list or null, never an exception, except
+/// <see cref="OperationCanceledException"/> when the caller cancels its own token.
 /// </summary>
 public interface ITMDbApiClient
 {

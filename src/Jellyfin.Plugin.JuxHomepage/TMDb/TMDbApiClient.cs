@@ -23,7 +23,7 @@ namespace Jellyfin.Plugin.JuxHomepage.TMDb;
 /// only), an invalid key (HTTP 401) is logged as an explicit error, a network failure is
 /// retried once before being logged as an error, and a response that fails to parse as the
 /// expected JSON shape is logged as an explicit error without a retry (a schema mismatch is not
-/// transient). No public method throws.
+/// transient). No public method throws, except when the caller cancels its own token.
 /// </para>
 /// </summary>
 public sealed partial class TMDbApiClient : ITMDbApiClient
@@ -290,7 +290,10 @@ public sealed partial class TMDbApiClient : ITMDbApiClient
 
                 return result;
             }
-            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+            // A cancelled caller is not a TMDb failure: rethrown, never retried or counted toward the circuit
+            // (GetTrendingMoviesAsync_CallerCancels_ThrowsWithoutRetryOrCountingAFailure). HttpClient.Timeout
+            // also throws TaskCanceledException, but with the caller's token untouched.
+            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
             {
                 if (attempt == 0)
                 {

@@ -6,7 +6,8 @@ namespace Jellyfin.Plugin.JuxHomepage.Rewards;
 /// Client for Wikidata's public SPARQL query service and entity search endpoint.
 /// Every method degrades gracefully: a network failure, a non-success HTTP status (including 429,
 /// see <see cref="WikidataApiClient"/>'s resilience policy), or an empty result set all yield an
-/// empty list. No public method throws.
+/// empty list. No public method throws, except <see cref="OperationCanceledException"/> when the
+/// caller cancels its own token.
 /// </summary>
 public interface IWikidataApiClient
 {
