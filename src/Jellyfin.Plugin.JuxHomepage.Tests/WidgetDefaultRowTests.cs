@@ -45,3 +45,15 @@ public sealed class WidgetDefaultRowTests
         Assert.Empty(strays);
     }
 }
+
+// R11 review of phase 09: a missing or unreadable en.json leaves the widget types as their names
+// (as LocalizationService degrades), instead of a Lazy that throws on every later call.
+public sealed class WidgetNamesTests
+{
+    [Fact]
+    public void Parse_NoStream_GivesNoNames() => Assert.Empty(WidgetNames.Parse(null));
+
+    [Fact]
+    public void Parse_UnreadableJson_GivesNoNames() =>
+        Assert.Empty(WidgetNames.Parse(new MemoryStream(System.Text.Encoding.UTF8.GetBytes("{ not json"))));
+}
