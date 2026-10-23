@@ -262,11 +262,13 @@ public sealed class TMDbCacheServiceTests : IDisposable
         await service.RefreshAllAsync(null, CancellationToken.None);
 
         Assert.Equal(TMDbFailureKind.InvalidKey, service.GetLastError(TMDbCacheType.TrendingMovies));
+        Assert.NotNull(service.GetLastErrorUtc(TMDbCacheType.TrendingMovies));
         Assert.Null(service.GetLastError(TMDbCacheType.TrendingShows));
 
         await service.RefreshAllAsync(null, CancellationToken.None);
 
         Assert.Null(service.GetLastError(TMDbCacheType.TrendingMovies));
+        Assert.Null(service.GetLastErrorUtc(TMDbCacheType.TrendingMovies));
     }
 
     [Fact]

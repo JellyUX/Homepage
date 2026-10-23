@@ -252,6 +252,19 @@ export function changedTabs(baseline, current) {
     return ADMIN_TABS.filter(function (tab) { return baseline[tab] !== current[tab]; });
 }
 
+// A Refresh now is over once every TMDb list has a newer refresh time or a newer failure than before it
+// (ADM-02.a): an old failure does not count. A list TMDb answered empty without an error keeps both
+// times, so polling is bounded.
+export function refreshSettled(before, now) {
+    var previous = {};
+    (before || []).forEach(function (status) { previous[status.Type] = status; });
+    var changed = function (value, was) { return !!value && value !== was; };
+    return (now || []).length > 0 && now.every(function (status) {
+        var was = previous[status.Type] || {};
+        return changed(status.LastRefreshedUtc, was.LastRefreshedUtc) || changed(status.LastErrorUtc, was.LastErrorUtc);
+    });
+}
+
 // sessionStorage can be unavailable (private window, blocked site data): the page then works without it.
 function readSession(key) {
     try {
@@ -1402,18 +1415,6 @@ function createConfigPage() {
             });
         },
 
-        // Fetches the TMDb cache status after a manual "Refresh now" and updates only the
-        // read-only timestamp/count text (see updateTmdbStatusText) -- it must NOT rebuild the
-        // Pages/Region inputs, since the admin may be mid-edit on them and hasn't saved yet.
-        loadTmdbStatus: function () {
-            var self = this;
-            return ApiClient.getJSON(ApiClient.getUrl('JuxHomepage/TMDb/Status')).then(function (statuses) {
-                self.updateTmdbStatusText(statuses);
-            }).catch(function (err) {
-                console.error('[JellyUX Config] TMDb status load failed:', err);
-            });
-        },
-
         // The configuration came back blank while a saved copy exists (FIAB-07): restoring it is the
         // admin's choice, never automatic. Once restored, the page is loaded again from the server.
         appendRestoreAction: function (warning) {
@@ -1526,7 +1527,95 @@ function createConfigPage() {
             });
             document.getElementById('juxUnsaved').hidden = !changed.length;
             self._changedTabs = changed;
+            self.syncRefreshButton();
             return changed;
+        },
+
+        // Refresh now refreshes from the saved settings: with unsaved External sources changes it would not
+        // use what the admin sees, so it waits for a Save (ADM-02.a).
+        syncRefreshButton: function () {
+            var button = document.getElementById('juxBtnRefreshTmdb');
+            var message = document.getElementById('juxTmdbRefreshMsg');
+            var unsaved = (this._changedTabs || []).indexOf('sources') !== -1;
+            button.disabled = unsaved || !!this._refreshing;
+            if (this._refreshing) { return; }
+            message.textContent = unsaved ? this.t('admin.tmdbrefresh.unsaved') : '';
+            message.style.display = unsaved ? '' : 'none';
+        },
+
+        // POST TMDb/Refresh, then TMDb/Status every refreshPollMs until refreshSettled or refreshPolls tries.
+        refreshTmdb: function () {
+            var self = this;
+            var message = document.getElementById('juxTmdbRefreshMsg');
+            var before = self._tmdbStatuses || [];
+            var show = function (key) {
+                message.textContent = self.t(key);
+                message.style.display = '';
+            };
+            var finish = function (key) {
+                self._refreshing = false;
+                self.syncRefreshButton();
+                show(key);
+            };
+            self._refreshing = true;
+            self.syncRefreshButton();
+            show('admin.tmdbrefresh.inprogress');
+            ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('JuxHomepage/TMDb/Refresh') }).then(function () {
+                var tries = 0;
+                var poll = function () {
+                    tries++;
+                    ApiClient.getJSON(ApiClient.getUrl('JuxHomepage/TMDb/Status')).then(function (statuses) {
+                        self._tmdbStatuses = statuses || [];
+                        self.updateTmdbStatusText(self._tmdbStatuses);
+                        if (refreshSettled(before, self._tmdbStatuses)) {
+                            self.loadWarnings();
+                            finish('admin.tmdbrefresh.done');
+                        } else if (tries >= self.refreshPolls) {
+                            finish('admin.tmdbrefresh.slow');
+                        } else {
+                            setTimeout(poll, self.refreshPollMs);
+                        }
+                    }).catch(function (err) {
+                        console.error('[JellyUX Config] TMDb status load failed:', err);
+                        finish('admin.tmdbrefresh.slow');
+                    });
+                };
+                setTimeout(poll, self.refreshPollMs);
+            }).catch(function (err) {
+                if (err && err.status === 409) {
+                    finish('admin.tmdbrefresh.busy');
+                    return;
+                }
+                console.error('[JellyUX Config] TMDb refresh trigger failed:', err);
+                finish('admin.tmdbrefresh.failed');
+            });
+        },
+
+        refreshPollMs: 2000,
+        refreshPolls: 30,
+
+        renderWarnings: function (warnings) {
+            var self = this;
+            var banner = document.getElementById('juxWarningBanner');
+            banner.innerHTML = '';
+            warnings.forEach(function (code) {
+                var p = document.createElement('p');
+                p.className = 'fieldDescription jux-admin-warning';
+                p.textContent = self.t('admin.warning.' + code);
+                if (code === 'ConfigurationReset') { self.appendRestoreAction(p); }
+                banner.appendChild(p);
+            });
+            banner.style.display = warnings.length ? '' : 'none';
+        },
+
+        // After a refresh the TMDb warnings may be gone: the banner is read again.
+        loadWarnings: function () {
+            var self = this;
+            return ApiClient.getJSON(ApiClient.getUrl('JuxHomepage/Admin/Warnings')).then(function (warnings) {
+                self.renderWarnings(warnings || []);
+            }).catch(function (err) {
+                console.error('[JellyUX Config] Warnings load failed:', err);
+            });
         },
 
         selectTab: function (name, focus) {
@@ -1610,16 +1699,7 @@ function createConfigPage() {
                 self._tmdbStatuses = results[2] || [];
 
                 var warnings = results[4] || [];
-                var banner = document.getElementById('juxWarningBanner');
-                banner.innerHTML = '';
-                warnings.forEach(function (code) {
-                    var p = document.createElement('p');
-                    p.className = 'fieldDescription jux-admin-warning';
-                    p.textContent = self.t('admin.warning.' + code);
-                    if (code === 'ConfigurationReset') { self.appendRestoreAction(p); }
-                    banner.appendChild(p);
-                });
-                banner.style.display = warnings.length ? '' : 'none';
+                self.renderWarnings(warnings);
 
                 self.populate(results[0]);
                 self.takeBaseline(results[0]);
@@ -1816,34 +1896,9 @@ function createConfigPage() {
                     self._syncShowTmdb = syncShowTmdb;
                 }
 
-                var refreshBtn = document.getElementById('juxBtnRefreshTmdb');
-                var refreshMsg = document.getElementById('juxTmdbRefreshMsg');
-                if (refreshBtn) {
-                    refreshBtn.addEventListener('click', function () {
-                        refreshBtn.disabled = true;
-                        if (refreshMsg) {
-                            refreshMsg.textContent = self.t('admin.tmdbrefresh.inprogress');
-                            refreshMsg.style.display = '';
-                        }
-                        ApiClient.ajax({
-                            type: 'POST',
-                            url: ApiClient.getUrl('JuxHomepage/TMDb/Refresh')
-                        }).then(function () {
-                            setTimeout(function () {
-                                self.loadTmdbStatus().then(function () {
-                                    refreshBtn.disabled = false;
-                                    if (refreshMsg) { refreshMsg.style.display = 'none'; }
-                                });
-                            }, 5000);
-                        }).catch(function (err) {
-                            console.error('[JellyUX Config] TMDb refresh trigger failed:', err);
-                            refreshBtn.disabled = false;
-                            if (refreshMsg) {
-                                refreshMsg.textContent = self.t('admin.tmdbrefresh.failed');
-                            }
-                        });
-                    });
-                }
+                document.getElementById('juxBtnRefreshTmdb').addEventListener('click', function () {
+                    self.refreshTmdb();
+                });
 
                 this._submitBound = true;
             }

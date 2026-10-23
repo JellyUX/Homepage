@@ -745,7 +745,8 @@ public class JuxHomepageController : ControllerBase
                     _tmdbCacheService.GetLastRefreshedUtc(type),
                     items.Count,
                     items.Count(i => i.LibraryItemId.HasValue),
-                    _tmdbCacheService.GetLastError(type)?.ToString());
+                    _tmdbCacheService.GetLastError(type)?.ToString(),
+                    _tmdbCacheService.GetLastErrorUtc(type));
             })
             .ToList()
             .AsReadOnly();
@@ -1050,5 +1051,6 @@ public class JuxHomepageController : ControllerBase
     /// <param name="ItemCount">The number of items currently cached for this type.</param>
     /// <param name="MatchedCount">How many of those items were found in the local library (the only ones a section can show).</param>
     /// <param name="LastError">The <see cref="TMDbFailureKind"/> name of why the last refresh came back empty, or null (FIAB-10.c).</param>
-    public record TMDbCacheStatusDto(string Type, DateTime? LastRefreshedUtc, int ItemCount, int MatchedCount, string? LastError);
+    /// <param name="LastErrorUtc">When that failure was recorded, or null (ADM-02.a).</param>
+    public record TMDbCacheStatusDto(string Type, DateTime? LastRefreshedUtc, int ItemCount, int MatchedCount, string? LastError, DateTime? LastErrorUtc);
 }

@@ -205,11 +205,14 @@ public sealed class JuxHomepageControllerTests
         tmdbCacheServiceMock.Setup(s => s.GetTopRatedShows()).Returns([]);
         tmdbCacheServiceMock.Setup(s => s.GetNowPlayingMovies()).Returns([]);
         tmdbCacheServiceMock.Setup(s => s.GetLastError(TMDbCacheType.AiringToday)).Returns(TMDbFailureKind.InvalidKey);
+        var failedAt = new DateTime(2026, 10, 23, 10, 0, 0, DateTimeKind.Utc);
+        tmdbCacheServiceMock.Setup(s => s.GetLastErrorUtc(TMDbCacheType.AiringToday)).Returns(failedAt);
 
         var result = BuildController(tmdbCacheServiceMock: tmdbCacheServiceMock).GetTMDbStatus();
 
         var statuses = Assert.IsAssignableFrom<IReadOnlyList<JuxHomepageController.TMDbCacheStatusDto>>(Assert.IsType<OkObjectResult>(result.Result).Value);
         Assert.Equal("InvalidKey", statuses.Single(s => s.Type == nameof(TMDbCacheType.AiringToday)).LastError);
+        Assert.Equal(failedAt, statuses.Single(s => s.Type == nameof(TMDbCacheType.AiringToday)).LastErrorUtc);
         Assert.All(statuses.Where(s => s.Type != nameof(TMDbCacheType.AiringToday)), s => Assert.Null(s.LastError));
     }
 

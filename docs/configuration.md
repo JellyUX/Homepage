@@ -96,7 +96,9 @@ Note: [Discover Movies](widgets/connected/discover-movies.md) has its own `Pages
 configured section, independent of the global TMDb Lists pages above.
 
 **Refresh now** also refreshes every configured [Rewards](widgets/connected/rewards.md) section --
-Rewards has no separate refresh button of its own, even though it is not TMDb data.
+Rewards has no separate refresh button of its own, even though it is not TMDb data. It refreshes from
+the saved settings, so it is turned off while the tab has unsaved changes. Once started, the page
+follows the refresh and says when every list is done; if a refresh is already running, it says so.
 
 When a list comes back empty because a TMDb request failed, its row says why (API key refused,
 rate-limited by TMDb, no answer in time, TMDb unreachable) and a warning at the top of the page

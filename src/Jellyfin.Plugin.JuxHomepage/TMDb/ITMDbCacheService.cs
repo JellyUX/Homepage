@@ -95,6 +95,14 @@ public interface ITMDbCacheService
     TMDbFailureKind? GetLastError(TMDbCacheType type);
 
     /// <summary>
+    /// Returns when the failure of <see cref="GetLastError"/> was recorded, so that the admin UI tells a
+    /// new failure from an old one after Refresh now (ADM-02.a).
+    /// </summary>
+    /// <param name="type">The cache type to check.</param>
+    /// <returns>The UTC time of the failure, or null when <see cref="GetLastError"/> is null.</returns>
+    DateTime? GetLastErrorUtc(TMDbCacheType type);
+
+    /// <summary>
     /// Refreshes all six fixed TMDb lists in sequence, then every configured Discover widget
     /// instance, whatever their age, like the admin "Refresh now" action. Each individual refresh is
     /// already fault-tolerant (a failure is logged and does not abort the others).

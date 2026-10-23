@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import createController, { changedTabs, dropIndex, editorKind, escHtml, getExtraParam, initialTab, moveRow, previewHtml, sortOption, tabSnapshot, toConfigRow, validateTmdb, widgetSummary } from '../src/Jellyfin.Plugin.JuxHomepage/Web/config.js';
+import createController, { changedTabs, dropIndex, editorKind, escHtml, getExtraParam, initialTab, moveRow, previewHtml, refreshSettled, sortOption, tabSnapshot, toConfigRow, validateTmdb, widgetSummary } from '../src/Jellyfin.Plugin.JuxHomepage/Web/config.js';
 
 const CONFIG_HTML = readFileSync(resolve(__dirname, '../src/Jellyfin.Plugin.JuxHomepage/Web/config.html'), 'utf8');
 
@@ -182,6 +182,21 @@ describe('tabSnapshot and changedTabs (ADM-01.c)', () => {
         expect(changedTabs(tabSnapshot(base), edit((c) => { c.Cache.TMDbRefreshIntervalHours = 6; }))).toEqual(['sources']);
         expect(changedTabs(tabSnapshot(base), edit((c) => { c.Widgets[0].Order = 10; }))).toEqual(['sections']);
         expect(changedTabs(tabSnapshot(base), edit((c) => { c.ApiKeys.TMDb = 'k'; c.Modules.Tabs = false; }))).toEqual(['settings', 'sources']);
+    });
+});
+
+describe('refreshSettled (ADM-02.a)', () => {
+    const before = [{ Type: 'A', LastRefreshedUtc: '2026-10-23T10:00:00Z' }, { Type: 'B', LastRefreshedUtc: null }];
+
+    it('is over once each list has a newer refresh or a newer failure, not an old one', () => {
+        const failedBefore = [{ Type: 'A', LastRefreshedUtc: null, LastError: 'Unreachable', LastErrorUtc: '2026-10-23T09:00:00Z' }];
+        expect(refreshSettled(before, before)).toBe(false);
+        expect(refreshSettled(failedBefore, failedBefore)).toBe(false);
+        expect(refreshSettled(failedBefore, [{ Type: 'A', LastRefreshedUtc: null, LastError: 'Unreachable', LastErrorUtc: '2026-10-23T11:00:00Z' }])).toBe(true);
+        expect(refreshSettled(before, [{ Type: 'A', LastRefreshedUtc: '2026-10-23T11:00:00Z' }, { Type: 'B', LastRefreshedUtc: null }])).toBe(false);
+        expect(refreshSettled(before, [{ Type: 'A', LastRefreshedUtc: '2026-10-23T11:00:00Z' }, { Type: 'B', LastRefreshedUtc: null, LastError: 'InvalidKey', LastErrorUtc: '2026-10-23T11:00:01Z' }])).toBe(true);
+        expect(refreshSettled(before, [{ Type: 'A', LastRefreshedUtc: '2026-10-23T11:00:00Z' }, { Type: 'B', LastRefreshedUtc: '2026-10-23T11:00:01Z' }])).toBe(true);
+        expect(refreshSettled(before, [])).toBe(false);
     });
 });
 
@@ -947,6 +962,103 @@ describe('configuration page controller (F-33)', () => {
         expect(view.querySelector('#numSessionTtl').value).toBe('30');
         expect(view.querySelector('#juxDraftNotice').hidden).toBe(true);
         expect(dirtyTabs()).toEqual([]);
+    });
+
+    function statusesAnswering(...answers) {
+        const calls = { status: 0, warnings: 0 };
+        window.ApiClient.getJSON = vi.fn((url) => {
+            if (url === 'JuxHomepage/TMDb/Status') {
+                const answer = answers[Math.min(calls.status, answers.length - 1)];
+                calls.status++;
+                return Promise.resolve(answer);
+            }
+            if (url === 'JuxHomepage/Admin/Warnings') {
+                calls.warnings++;
+                return Promise.resolve(calls.warnings === 1 ? ['TMDbUnreachable'] : []);
+            }
+            return getJSON(url);
+        });
+        return calls;
+    }
+
+    it('polls the status until every list has refreshed, then reads the warnings again (ADM-02.a)', async () => {
+        const old = [{ Type: 'TrendingMovies', LastRefreshedUtc: '2026-10-23T10:00:00Z', ItemCount: 0, MatchedCount: 0, LastError: 'Unreachable', LastErrorUtc: '2026-10-23T10:30:00Z' }];
+        const fresh = [{ Type: 'TrendingMovies', LastRefreshedUtc: '2026-10-23T11:00:00Z', ItemCount: 80, MatchedCount: 2, LastError: null }];
+        const calls = statusesAnswering(old, old, fresh);
+        window.ApiClient.ajax = vi.fn(() => Promise.resolve());
+        await open();
+        tab('sources').click();
+        const button = view.querySelector('#juxBtnRefreshTmdb');
+        const message = view.querySelector('#juxTmdbRefreshMsg');
+
+        vi.useFakeTimers();
+        try {
+            button.click();
+            await vi.advanceTimersByTimeAsync(0);
+            expect(button.disabled).toBe(true);
+            expect(message.textContent).toBe('admin.tmdbrefresh.inprogress');
+
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(calls.status).toBe(2);
+            expect(button.disabled).toBe(true);
+
+            await vi.advanceTimersByTimeAsync(2000);
+            expect(calls.status).toBe(3);
+        } finally {
+            vi.useRealTimers();
+        }
+        await settle();
+
+        expect(button.disabled).toBe(false);
+        expect(message.textContent).toBe('admin.tmdbrefresh.done');
+        expect(view.querySelector('#tmdbError_TrendingMovies').hidden).toBe(true);
+        expect(calls.warnings).toBe(2);
+        expect(view.querySelector('#juxWarningBanner').textContent).toBe('');
+    });
+
+    it('stops polling after its bound and says the status may not be final (ADM-02.a)', async () => {
+        const old = [{ Type: 'TrendingMovies', LastRefreshedUtc: '2026-10-23T10:00:00Z', ItemCount: 0, MatchedCount: 0, LastError: null }];
+        const calls = statusesAnswering(old);
+        window.ApiClient.ajax = vi.fn(() => Promise.resolve());
+        await open();
+
+        vi.useFakeTimers();
+        try {
+            view.querySelector('#juxBtnRefreshTmdb').click();
+            await vi.advanceTimersByTimeAsync(2000 * 40);
+        } finally {
+            vi.useRealTimers();
+        }
+        await settle();
+
+        expect(calls.status).toBe(1 + 30);
+        expect(view.querySelector('#juxTmdbRefreshMsg').textContent).toBe('admin.tmdbrefresh.slow');
+        expect(view.querySelector('#juxBtnRefreshTmdb').disabled).toBe(false);
+    });
+
+    it('says a refresh is already running on a 409, not that it failed (ADM-02.a)', async () => {
+        window.ApiClient.ajax = vi.fn(() => Promise.reject({ status: 409 }));
+        await open();
+
+        view.querySelector('#juxBtnRefreshTmdb').click();
+        await settle();
+
+        expect(view.querySelector('#juxTmdbRefreshMsg').textContent).toBe('admin.tmdbrefresh.busy');
+        expect(view.querySelector('#juxBtnRefreshTmdb').disabled).toBe(false);
+    });
+
+    it('turns Refresh now off while External sources has unsaved changes (ADM-02.a)', async () => {
+        await open();
+        const button = view.querySelector('#juxBtnRefreshTmdb');
+        const interval = view.querySelector('#numTMDbRefresh');
+
+        type(interval, '6');
+        expect(button.disabled).toBe(true);
+        expect(view.querySelector('#juxTmdbRefreshMsg').textContent).toBe('admin.tmdbrefresh.unsaved');
+
+        type(view.querySelector('#numSessionTtl'), '5');
+        type(interval, '24');
+        expect(button.disabled).toBe(false);
     });
 
     it('shows the page without waiting for the TMDb countries and genres (FIAB-10.b)', async () => {

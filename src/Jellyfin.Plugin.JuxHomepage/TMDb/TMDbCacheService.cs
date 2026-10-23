@@ -47,8 +47,10 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
     private readonly SectionResultCache? _sectionResults;
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
 
-    // Why each fixed list last came back empty, with the API key it was asked with (FIAB-10.c, DEC-P10-3).
-    private readonly ConcurrentDictionary<TMDbCacheType, (TMDbFailureKind Kind, string? ApiKey)> _lastErrors = new();
+    // Why each fixed list last came back empty, with the API key it was asked with and when (FIAB-10.c,
+    // DEC-P10-3; the time tells a new failure from an old one after Refresh now, ADM-02.a).
+    private readonly ConcurrentDictionary<TMDbCacheType, (TMDbFailureKind Kind, string? ApiKey, DateTime AtUtc)> _lastErrors = new();
+    private readonly TimeProvider _timeProvider;
     private bool _disposed;
 
     /// <summary>
@@ -76,6 +78,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
         SectionResultCache? sectionResults = null)
     {
         _apiClient = apiClient;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _sectionResults = sectionResults;
         _getConfiguration = getConfiguration;
         _logger = logger;
@@ -254,9 +257,14 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
     public DateTime? GetLastRefreshedUtc(TMDbCacheType type) => _movieCache.GetLastWriteUtc(GetFileName(type));
 
     /// <inheritdoc/>
-    public TMDbFailureKind? GetLastError(TMDbCacheType type) =>
+    public TMDbFailureKind? GetLastError(TMDbCacheType type) => CurrentError(type)?.Kind;
+
+    /// <inheritdoc/>
+    public DateTime? GetLastErrorUtc(TMDbCacheType type) => CurrentError(type)?.AtUtc;
+
+    private (TMDbFailureKind Kind, string? ApiKey, DateTime AtUtc)? CurrentError(TMDbCacheType type) =>
         _lastErrors.TryGetValue(type, out var error) && error.ApiKey == _getConfiguration()?.ApiKeys?.TMDb
-            ? error.Kind
+            ? error
             : null;
 
     /// <inheritdoc/>
@@ -370,7 +378,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
 
         if (items.Count == 0 && failure is { } kind)
         {
-            _lastErrors[type] = (kind, apiKey);
+            _lastErrors[type] = (kind, apiKey, _timeProvider.GetUtcNow().UtcDateTime);
         }
         else
         {
