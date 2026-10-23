@@ -320,5 +320,17 @@
   "client.chunk.close": "Close",
   "client.chunk.drift": "Jellyfin Web has changed: JellyUX went back to the native home screen.",
   "client.chunk.reloading": "JellyUX: updating cached files, reloading the page.",
-  "client.chunk.stale": "JellyUX cannot show its home page: a cache between this browser and the server (CDN or proxy) still serves an old copy of the page. The server administrator should purge it."
+  "client.chunk.stale": "JellyUX cannot show its home page: a cache between this browser and the server (CDN or proxy) still serves an old copy of the page. The server administrator should purge it.",
+
+  "client.featured.slide": "{index} of {count}",
+  "client.featured.play": "Play",
+  "client.featured.info": "More info",
+  "client.featured.previous": "Previous slide",
+  "client.featured.next": "Next slide",
+  "client.featured.pause": "Pause the slides",
+  "client.featured.resume": "Play the slides",
+  "client.featured.goTo": "Show {name}",
+  "client.featured.rating": "Rated {value}",
+  "client.featured.runtimeHours": "{h}h {m}m",
+  "client.featured.runtimeMinutes": "{m}m"
 }

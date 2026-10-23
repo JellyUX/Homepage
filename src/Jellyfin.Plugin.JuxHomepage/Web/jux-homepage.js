@@ -258,13 +258,28 @@
             ? userSettings.useEpisodeImagesInNextUpAndResume()
             : false;
 
+        var cardsHtml = _makeGetItemsHtml(descriptor, shapeFn, useEpisodeImages);
         itemsContainer.fetchData = _guardFetchData(_makeFetchData(apiClient, userId, descriptor), descriptor);
-        itemsContainer.getItemsHtml = _guardGetItemsHtml(_makeGetItemsHtml(descriptor, shapeFn, useEpisodeImages));
+        itemsContainer.getItemsHtml = _guardGetItemsHtml(cardsHtml);
         itemsContainer.parentContainer = sectionEl;
         itemsContainer.addEventListener('click', _onSectionRetry);
 
-        scroller.appendChild(itemsContainer);
-        sectionEl.appendChild(scroller);
+        if (descriptor.Featured && window.JuxFeatured) {
+            // A featured section (KTW-01) keeps the same container without the scroller: the banner,
+            // or a row of cards under 3 slides with a backdrop; the TV layout never gets here (FIAB-05).
+            itemsContainer.className = 'itemsContainer jux-items-container jux-featured-host padded-left padded-right';
+            itemsContainer.getItemsHtml = _guardGetItemsHtml(function (items) {
+                return window.JuxFeatured.html(items, descriptor) ||
+                    '<div class="jux-featured-cards">' + cardsHtml(items) + '</div>';
+            });
+            itemsContainer.afterRefresh = function () {
+                window.JuxFeatured.attach(itemsContainer, apiClient);
+            };
+            sectionEl.appendChild(itemsContainer);
+        } else {
+            scroller.appendChild(itemsContainer);
+            sectionEl.appendChild(scroller);
+        }
         elem.appendChild(sectionEl);
 
         return Promise.resolve();
@@ -423,7 +438,9 @@
             }, { rootMargin: '0px 0px 100% 0px' });
             _rowObservers.set(elem, observer);
         }
-        container.innerHTML = _skeletonCardsHtml();
+        container.innerHTML = container.classList.contains('jux-featured-host')
+            ? '<div class="jux-featured-skeleton jux-skeleton-block"></div>'
+            : _skeletonCardsHtml();
         observer.observe(container);
     }
 

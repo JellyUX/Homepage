@@ -105,6 +105,7 @@ public static class TransformationPatches
         new(ClientI18nAsset, IsStylesheet: false, Module: null),
         new("jux-core.js", IsStylesheet: false, Module: null),
         new("jux-homepage.js", IsStylesheet: false, Module: null),
+        new("jux-featured.js", IsStylesheet: false, Module: null),
         new("jux-user-settings.js", IsStylesheet: false, Module: null),
         new("jux-ui.js", IsStylesheet: false, Module: null, IsJuxUi: true),
         new("jux-tab-injector.js", IsStylesheet: false, Module: m => m.Tabs),

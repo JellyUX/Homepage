@@ -218,6 +218,36 @@ describe('_buildSection (F-11)', () => {
         expect(sections.map((s) => s.classList.contains('jux-widget-jux-native-next-up'))).toEqual([true, false]);
         expect(sections.map((s) => s.style.order)).toEqual(['', '']);
     });
+    // KTW-01.a: the same container without the scroller, a banner from 3 slides, cards below.
+    it('renders a featured section as a banner in its own container, and as cards under 3 slides', async () => {
+        await import('../src/Jellyfin.Plugin.JuxHomepage/Web/jux-featured.js');
+        window.JellyfinAPI = { layoutManager: { tv: false }, getPortraitShape: () => 'overflowPortrait', cardBuilder: { getCardsHtml: (o) => o.items.map(() => '<div class="card"></div>').join('') } };
+        const attach = vi.spyOn(window.JuxFeatured, 'attach').mockReturnValue(null);
+        const elem = document.createElement('div');
+        const slide = (n) => ({ Id: 'i' + n, Name: 'N' + n, BackdropImageTags: ['b'] });
+
+        await juxHomepage._buildSection(elem, {}, 'u', null, { WidgetType: 'jux.local.top-rated', DisplayName: 'Top', ViewMode: 'Portrait', Featured: true });
+        const container = elem.querySelector('.jux-items-container');
+
+        expect(container.closest('[is="emby-scroller"]')).toBeNull();
+        expect(container.getAttribute('is')).toBe('emby-itemscontainer');
+        expect(container.getAttribute('data-monitor')).toBe('videoplayback,markplayed');
+        expect(container.getItemsHtml([slide(1), slide(2), slide(3)])).toContain('class="jux-featured"');
+        expect(container.getItemsHtml([slide(1), slide(2)])).toBe('<div class="jux-featured-cards"><div class="card"></div><div class="card"></div></div>');
+        container.afterRefresh();
+        expect(attach).toHaveBeenCalledWith(container, {});
+        attach.mockRestore();
+    });
+
+    it('keeps a row of cards in its scroller when the section is not featured', async () => {
+        const elem = document.createElement('div');
+
+        await juxHomepage._buildSection(elem, {}, 'u', null, { WidgetType: 'jux.local.top-rated', DisplayName: 'Top', ViewMode: 'Portrait' });
+
+        expect(elem.querySelector('[is="emby-scroller"] .jux-items-container')).not.toBeNull();
+        expect(elem.querySelector('.jux-items-container').afterRefresh).toBeUndefined();
+    });
+
     it('opens the native list of a genre by its id when its title is clicked (F-56)', async () => {
         window.JellyfinAPI = { layoutManager: { tv: false } };
         const client = {

@@ -320,5 +320,17 @@
   "client.chunk.close": "Fermer",
   "client.chunk.drift": "Jellyfin Web a changé, JellyUX est revenu à l'accueil natif.",
   "client.chunk.reloading": "JellyUX : mise à jour des fichiers en cache, rechargement de la page.",
-  "client.chunk.stale": "JellyUX ne peut pas afficher son accueil : un cache entre ce navigateur et le serveur (CDN ou proxy) sert encore une ancienne copie de la page. L'administrateur du serveur doit le purger."
+  "client.chunk.stale": "JellyUX ne peut pas afficher son accueil : un cache entre ce navigateur et le serveur (CDN ou proxy) sert encore une ancienne copie de la page. L'administrateur du serveur doit le purger.",
+
+  "client.featured.slide": "{index} sur {count}",
+  "client.featured.play": "Lire",
+  "client.featured.info": "Plus d'infos",
+  "client.featured.previous": "Diapositive précédente",
+  "client.featured.next": "Diapositive suivante",
+  "client.featured.pause": "Mettre le défilement en pause",
+  "client.featured.resume": "Reprendre le défilement",
+  "client.featured.goTo": "Afficher {name}",
+  "client.featured.rating": "Noté {value}",
+  "client.featured.runtimeHours": "{h} h {m} min",
+  "client.featured.runtimeMinutes": "{m} min"
 }

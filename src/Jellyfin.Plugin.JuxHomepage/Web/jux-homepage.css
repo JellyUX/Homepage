@@ -166,6 +166,386 @@
     }
 }
 
+/* Featured section (KTW-01, jux-featured.js): a 21/9 banner in the rows' gutter, a neutral black scrim,
+   white the only accent (the native primary is a cyan blue: banned on a dark ground). Every slide sits
+   in the same grid cell, so the banner keeps the height of its tallest slide and never jumps. */
+
+/* The native .itemsContainer is a flex row, where the banner would shrink to its content (8096: 0 px). */
+.jux-featured-host.itemsContainer {
+    display: block;
+}
+
+.jux-featured-host {
+    padding-top: 0.4em;
+    padding-bottom: 1.2em;
+}
+
+/* Under 3 slides with a backdrop the section shows its cards, and a waiting one holds the banner's size. */
+.jux-featured-cards {
+    display: flex;
+}
+
+.jux-featured-skeleton {
+    aspect-ratio: 21 / 9;
+    max-height: clamp(17rem, 64vh, 38rem);
+    border-radius: 0.4em;
+}
+
+.jux-featured {
+    position: relative;
+    color: var(--jf-palette-text-primary);
+}
+
+.jux-featured-stage {
+    display: grid;
+    aspect-ratio: 21 / 9;
+    max-height: clamp(17rem, 64vh, 38rem);
+    width: 100%;
+    overflow: hidden;
+    border-radius: 0.4em;
+    background: var(--jf-palette-background-paper);
+    touch-action: pan-y;
+}
+
+.jux-featured-slide {
+    grid-area: 1 / 1;
+    position: relative;
+    min-height: 0;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), visibility 0s linear 0.7s;
+}
+
+.jux-featured-slide.jux-featured-active {
+    opacity: 1;
+    visibility: visible;
+    transition-delay: 0s;
+}
+
+.jux-featured-media {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    background: var(--jf-palette-background-paper);
+}
+
+.jux-featured-blur,
+.jux-featured-backdrop {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 22%;
+}
+
+.jux-featured-backdrop {
+    opacity: 0;
+    transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.jux-featured-backdrop.jux-featured-loaded {
+    opacity: 1;
+}
+
+.jux-featured-scrim {
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(90deg, color-mix(in srgb, var(--jf-palette-common-black, #000) 88%, transparent) 0%, color-mix(in srgb, var(--jf-palette-common-black, #000) 70%, transparent) 34%, color-mix(in srgb, var(--jf-palette-common-black, #000) 18%, transparent) 64%, color-mix(in srgb, var(--jf-palette-common-black, #000) 0%, transparent) 80%),
+        linear-gradient(0deg, color-mix(in srgb, var(--jf-palette-common-black, #000) 82%, transparent) 0%, color-mix(in srgb, var(--jf-palette-common-black, #000) 35%, transparent) 30%, color-mix(in srgb, var(--jf-palette-common-black, #000) 0%, transparent) 55%);
+}
+
+.jux-featured-copy {
+    position: absolute;
+    left: clamp(1.25rem, 4%, 3.5rem);
+    bottom: clamp(1.25rem, 9%, 3.25rem);
+    width: min(34rem, 44%);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+}
+
+.jux-featured-heading {
+    margin: 0 0 0.25rem;
+}
+
+.jux-featured-title {
+    font-size: clamp(1.6rem, 2.4vw, 2.6rem);
+    font-weight: 700;
+    line-height: 1.08;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+}
+
+.jux-featured-logo {
+    display: block;
+    max-width: min(22rem, 100%);
+    max-height: clamp(3rem, 8vw, 6.5rem);
+    object-fit: contain;
+    object-position: left bottom;
+    filter: drop-shadow(0 2px 14px color-mix(in srgb, var(--jf-palette-common-black, #000) 55%, transparent));
+}
+
+.jux-featured-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem 1.1rem;
+    margin: 0;
+    font-size: 0.95rem;
+    color: var(--jf-palette-text-secondary);
+    font-variant-numeric: tabular-nums;
+}
+
+.jux-featured-certificate {
+    padding: 0 0.4em;
+    border: 1px solid currentColor;
+    border-radius: 0.2em;
+    font-size: 0.85em;
+    line-height: 1.5;
+}
+
+.jux-featured-rating {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25em;
+    color: var(--jf-palette-text-primary);
+}
+
+.jux-featured-rating .material-icons {
+    font-size: 1.1em;
+}
+
+.jux-featured-text {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    max-width: 62ch;
+    margin: 0;
+    font-size: 1rem;
+    line-height: 1.5;
+}
+
+.jux-featured-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-top: 0.35rem;
+}
+
+.jux-featured-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45em;
+    min-height: 2.75rem;
+    padding: 0 1.15em 0 0.9em;
+    border: 0;
+    border-radius: 0.3em;
+    background: color-mix(in srgb, var(--jf-palette-common-white, #fff) 16%, transparent);
+    color: var(--jf-palette-text-primary);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s ease-out;
+}
+
+.jux-featured-button:hover {
+    background: color-mix(in srgb, var(--jf-palette-common-white, #fff) 26%, transparent);
+}
+
+.jux-featured-button-play {
+    background: var(--jf-palette-text-primary);
+    color: var(--jf-palette-common-black, #000);
+}
+
+.jux-featured-button-play:hover {
+    background: color-mix(in srgb, var(--jf-palette-common-white, #fff) 82%, transparent);
+}
+
+.jux-featured-button:focus-visible,
+.jux-featured-control:focus-visible,
+.jux-featured-thumb:focus-visible {
+    outline: 2px solid var(--jf-palette-text-primary);
+    outline-offset: 3px;
+}
+
+/* The rail: previous, pause, next above the strip of the active slide and the next ones. */
+.jux-featured-rail {
+    position: absolute;
+    right: clamp(1rem, 3%, 2.5rem);
+    bottom: clamp(1.25rem, 9%, 3.25rem);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.75rem;
+}
+
+.jux-featured-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.jux-featured-control {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--jf-palette-common-black, #000) 45%, transparent);
+    color: var(--jf-palette-text-primary);
+    cursor: pointer;
+    transition: background-color 0.2s ease-out;
+}
+
+.jux-featured-control:hover {
+    background: color-mix(in srgb, var(--jf-palette-common-black, #000) 70%, transparent);
+}
+
+.jux-featured-counter {
+    display: none;
+    min-width: 3.5em;
+    color: var(--jf-palette-text-secondary);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+}
+
+.jux-featured-strip {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.jux-featured-thumb {
+    position: relative;
+    width: clamp(5.5rem, 7.5vw, 8.5rem);
+    aspect-ratio: 16 / 9;
+    padding: 0;
+    overflow: hidden;
+    border: 0;
+    border-radius: 0.3em;
+    background: var(--jf-palette-background-paper);
+    opacity: 0.55;
+    cursor: pointer;
+    transition: opacity 0.2s ease-out;
+}
+
+.jux-featured-thumb:hover {
+    opacity: 0.85;
+}
+
+.jux-featured-thumb img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.jux-featured-thumb.jux-featured-active {
+    opacity: 1;
+    box-shadow: 0 0 0 2px var(--jf-palette-text-primary), 0 4px 14px color-mix(in srgb, var(--jf-palette-common-black, #000) 45%, transparent);
+}
+
+/* The time left on the active slide while the banner rotates. */
+.jux-featured-thumb.jux-featured-active::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    background: var(--jf-palette-text-primary);
+    transform: scaleX(0);
+    transform-origin: left;
+}
+
+.jux-featured.jux-featured-running .jux-featured-thumb.jux-featured-active::after {
+    animation: jux-featured-progress 8s linear forwards;
+}
+
+@keyframes jux-featured-progress {
+    to {
+        transform: scaleX(1);
+    }
+}
+
+/* Phones and narrow windows: the image on top at 16/9, the text below it, a counter for the strip. */
+@media (max-width: 50em) {
+    .jux-featured-stage {
+        aspect-ratio: auto;
+        max-height: none;
+        background: transparent;
+        border-radius: 0;
+    }
+
+    .jux-featured-media {
+        position: relative;
+        inset: auto;
+        aspect-ratio: 16 / 9;
+        border-radius: 0.4em;
+    }
+
+    .jux-featured-scrim {
+        display: none;
+    }
+
+    .jux-featured-copy {
+        position: static;
+        width: auto;
+        padding-top: 0.9rem;
+        gap: 0.6rem;
+    }
+
+    .jux-featured-logo {
+        max-height: 3.5rem;
+        filter: none;
+    }
+
+    .jux-featured-title {
+        font-size: 1.45rem;
+    }
+
+    .jux-featured-rail {
+        position: static;
+        align-items: stretch;
+        margin-top: 0.75rem;
+    }
+
+    .jux-featured-controls {
+        justify-content: flex-start;
+    }
+
+    .jux-featured-control {
+        width: 44px;
+        height: 44px;
+        background: var(--jf-palette-action-hover);
+    }
+
+    .jux-featured-counter {
+        display: inline-block;
+    }
+
+    .jux-featured-strip {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .jux-featured-slide,
+    .jux-featured-backdrop {
+        transition: none;
+    }
+
+    .jux-featured.jux-featured-running .jux-featured-thumb.jux-featured-active::after {
+        animation: none;
+    }
+}
+
 /* JellyUX block of Preferences > Home (TODO_V4.md 8.3, F-36): native page classes, plus the reset a
    fieldset needs to sit flush with the page's other checkboxes. */
 
