@@ -1,3 +1,21 @@
+## [2.16.0](https://github.com/JellyUX/Homepage/compare/v2.15.3...v2.16.0) (2026-10-23)
+
+### Features
+
+* split the admin page into three tabs that track unsaved changes ([408ed2b](https://github.com/JellyUX/Homepage/commit/408ed2bffdc570e32f35eb6a870918a43d9506f9))
+
+### Bug Fixes
+
+* answer the admin's TMDb and Wikidata lookups within 8 seconds ([4dbdc94](https://github.com/JellyUX/Homepage/commit/4dbdc94a5eb153dd2dec2fb7f50457cca1faeae7))
+* end a Refresh now at once when no TMDb key is saved ([bc30ee9](https://github.com/JellyUX/Homepage/commit/bc30ee9a7578b9061f820c06176c0d8862751042))
+* follow a Refresh now from the statuses before it, and keep its outcome ([11905ba](https://github.com/JellyUX/Homepage/commit/11905bac9b0d1bad3b7f9726b8bf4419aed079a6))
+* follow a Refresh now until every TMDb list is done ([4006973](https://github.com/JellyUX/Homepage/commit/4006973a358b29950d6f81a4ea06b342a36884e1))
+* keep every unsaved admin change across a return, a reload or a Save ([2aabc0d](https://github.com/JellyUX/Homepage/commit/2aabc0d792e2584364023430028426876b686e78))
+* let a cancelled caller stop TMDb and Wikidata requests ([c847c31](https://github.com/JellyUX/Homepage/commit/c847c3133b218861893e32cfe884ca3fca53faeb))
+* name the admin tabs with unsaved changes to screen readers ([95aef38](https://github.com/JellyUX/Homepage/commit/95aef387642f809c8d4956f4d9a610533d2bcfc2))
+* show the admin page without waiting for the TMDb countries and genres ([60ad9c9](https://github.com/JellyUX/Homepage/commit/60ad9c9823fe7dc0e540216ea45c48df4cd5c67f))
+* tell the admin why a TMDb list stayed empty ([cefcb2d](https://github.com/JellyUX/Homepage/commit/cefcb2d329f2c0347407fb1540848ee4903e6825))
+
 ## [2.15.3](https://github.com/JellyUX/Homepage/compare/v2.15.2...v2.15.3) (2026-10-23)
 
 ### Bug Fixes
