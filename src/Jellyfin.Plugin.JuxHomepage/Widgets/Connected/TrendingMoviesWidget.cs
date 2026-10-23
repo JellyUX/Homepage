@@ -36,9 +36,6 @@ public sealed class TrendingMoviesWidget : ConnectedWidgetBase<TMDbMovie>
     public override string WidgetType => "jux.connected.trending-movies";
 
     /// <inheritdoc/>
-    public override string DefaultDisplayName => "Trending Movies";
-
-    /// <inheritdoc/>
     public override string DefaultViewMode => WidgetViewMode.Portrait;
 
     /// <inheritdoc/>

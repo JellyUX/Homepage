@@ -37,9 +37,6 @@ public sealed class TagWidget : AdminWidgetBase
     public override string WidgetType => "jux.admin.tag";
 
     /// <inheritdoc/>
-    public override string DefaultDisplayName => "Tag";
-
-    /// <inheritdoc/>
     public override string DefaultViewMode => WidgetViewMode.Portrait;
 
     /// <inheritdoc/>

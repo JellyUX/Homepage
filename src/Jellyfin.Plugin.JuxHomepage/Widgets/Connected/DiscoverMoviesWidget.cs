@@ -70,9 +70,6 @@ public sealed class DiscoverMoviesWidget : ConnectedWidgetBase<TMDbMovie>
     public override string WidgetType => TMDbWidgetTypes.DiscoverMovies;
 
     /// <inheritdoc/>
-    public override string DefaultDisplayName => "Discover Movies";
-
-    /// <inheritdoc/>
     public override string DefaultViewMode => WidgetViewMode.Portrait;
 
     /// <inheritdoc/>

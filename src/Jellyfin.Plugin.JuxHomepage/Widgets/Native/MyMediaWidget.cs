@@ -37,9 +37,6 @@ public sealed class MyMediaWidget : NativeWidgetBase
     public override string WidgetType => "jux.native.my-media";
 
     /// <inheritdoc/>
-    public override string DefaultDisplayName => "My Media";
-
-    /// <inheritdoc/>
     public override int DefaultMinItems => 1;
 
     /// <inheritdoc/>

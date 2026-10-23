@@ -29,8 +29,5 @@ public sealed class ActorWidget : PersonWidgetBase
     public override string WidgetType => "jux.admin.actor";
 
     /// <inheritdoc/>
-    public override string DefaultDisplayName => "Actor";
-
-    /// <inheritdoc/>
     protected override string PersonType => "Actor";
 }

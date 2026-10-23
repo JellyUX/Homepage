@@ -37,9 +37,6 @@ public sealed class WatchlistWidget : NativeWidgetBase
     public override string WidgetType => "jux.native.watchlist";
 
     /// <inheritdoc/>
-    public override string DefaultDisplayName => "Watchlist";
-
-    /// <inheritdoc/>
     public override int DefaultMinItems => 1;
 
     /// <inheritdoc/>

@@ -62,7 +62,7 @@ public abstract class AdminWidgetBase : IWidget
     public abstract string WidgetType { get; }
 
     /// <inheritdoc/>
-    public abstract string DefaultDisplayName { get; }
+    public string DefaultDisplayName => WidgetNames.English(WidgetType);
 
     /// <summary>Gets the default view mode identifier for this widget's cards.</summary>
     public abstract string DefaultViewMode { get; }

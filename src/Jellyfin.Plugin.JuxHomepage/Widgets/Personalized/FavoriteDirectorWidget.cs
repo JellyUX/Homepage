@@ -35,9 +35,6 @@ public sealed class FavoriteDirectorWidget : PersonalizedPersonWidgetBase
     public override string WidgetType => "jux.personalized.favorite-director";
 
     /// <inheritdoc/>
-    public override string DefaultDisplayName => "Favorite Director";
-
-    /// <inheritdoc/>
     protected override string PersonType => "Director";
 
     /// <inheritdoc/>

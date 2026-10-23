@@ -32,9 +32,6 @@ public sealed class StudioWidget : AdminWidgetBase
     public override string WidgetType => "jux.admin.studio";
 
     /// <inheritdoc/>
-    public override string DefaultDisplayName => "Studio";
-
-    /// <inheritdoc/>
     public override string DefaultViewMode => WidgetViewMode.Landscape;
 
     /// <inheritdoc/>

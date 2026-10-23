@@ -32,9 +32,6 @@ public sealed class ContinueWatchingWidget : NativeWidgetBase
     public override string WidgetType => "jux.native.continue-watching";
 
     /// <inheritdoc/>
-    public override string DefaultDisplayName => "Continue Watching";
-
-    /// <inheritdoc/>
     public override int DefaultMinItems => 1;
 
     /// <inheritdoc/>

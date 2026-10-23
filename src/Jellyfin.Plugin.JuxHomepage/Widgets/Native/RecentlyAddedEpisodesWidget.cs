@@ -29,9 +29,6 @@ public sealed class RecentlyAddedEpisodesWidget : RecentlyAddedWidgetBase
     public override string WidgetType => "jux.native.recently-added-episodes";
 
     /// <inheritdoc/>
-    public override string DefaultDisplayName => "Recently Added Episodes";
-
-    /// <inheritdoc/>
     public override int DefaultMinItems => 4;
 
     /// <inheritdoc/>

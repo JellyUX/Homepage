@@ -46,9 +46,6 @@ public sealed class BecauseYouWatchedWidget : PersonalizedWidgetBase
     protected override bool UsesConfiguredSort => false;
 
     /// <inheritdoc/>
-    public override string DefaultDisplayName => "Because You Watched";
-
-    /// <inheritdoc/>
     public override string DefaultViewMode => WidgetViewMode.Portrait;
 
     /// <inheritdoc/>

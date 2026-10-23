@@ -78,7 +78,7 @@ public sealed class SeasonalWidget : IWidget
     public string WidgetType => "jux.connected.seasonal";
 
     /// <inheritdoc/>
-    public string DefaultDisplayName => "Seasonal";
+    public string DefaultDisplayName => WidgetNames.English(WidgetType);
 
     /// <inheritdoc/>
     public WidgetCategory Category => WidgetCategory.Admin;

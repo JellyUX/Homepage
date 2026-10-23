@@ -52,9 +52,6 @@ public sealed class RewardsWidget : ConnectedWidgetBase<RewardsWinner>
     public override string WidgetType => RewardsWidgetTypes.Rewards;
 
     /// <inheritdoc/>
-    public override string DefaultDisplayName => "Rewards";
-
-    /// <inheritdoc/>
     public override string DefaultViewMode => WidgetViewMode.Portrait;
 
     /// <inheritdoc/>

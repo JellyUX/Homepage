@@ -40,9 +40,6 @@ public sealed class FavoriteGenreWidget : PersonalizedWidgetBase
     protected override string? Route => WidgetRoutes.Genre;
 
     /// <inheritdoc/>
-    public override string DefaultDisplayName => "Favorite Genre";
-
-    /// <inheritdoc/>
     public override string DefaultViewMode => WidgetViewMode.Portrait;
 
     /// <inheritdoc/>

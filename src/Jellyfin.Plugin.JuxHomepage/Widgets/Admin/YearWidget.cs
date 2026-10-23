@@ -35,9 +35,6 @@ public sealed class YearWidget : AdminWidgetBase
     public override string WidgetType => "jux.admin.year";
 
     /// <inheritdoc/>
-    public override string DefaultDisplayName => "Year";
-
-    /// <inheritdoc/>
     public override string DefaultViewMode => WidgetViewMode.Portrait;
 
     /// <inheritdoc/>

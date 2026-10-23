@@ -37,9 +37,6 @@ public sealed class NowPlayingMoviesWidget : ConnectedWidgetBase<TMDbMovie>
     public override string WidgetType => "jux.connected.now-playing-movies";
 
     /// <inheritdoc/>
-    public override string DefaultDisplayName => "Now Playing";
-
-    /// <inheritdoc/>
     public override string DefaultViewMode => WidgetViewMode.Portrait;
 
     /// <inheritdoc/>

@@ -41,7 +41,7 @@ public abstract class NativeWidgetBase : IWidget
     public abstract string WidgetType { get; }
 
     /// <inheritdoc/>
-    public abstract string DefaultDisplayName { get; }
+    public string DefaultDisplayName => WidgetNames.English(WidgetType);
 
     /// <inheritdoc/>
     public abstract int DefaultMinItems { get; }

@@ -37,9 +37,6 @@ public sealed class TopRatedMoviesWidget : ConnectedWidgetBase<TMDbMovie>
     public override string WidgetType => "jux.connected.top-rated-movies";
 
     /// <inheritdoc/>
-    public override string DefaultDisplayName => "Top Rated Movies";
-
-    /// <inheritdoc/>
     public override string DefaultViewMode => WidgetViewMode.Portrait;
 
     /// <inheritdoc/>

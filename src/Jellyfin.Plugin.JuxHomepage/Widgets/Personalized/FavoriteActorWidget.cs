@@ -35,9 +35,6 @@ public sealed class FavoriteActorWidget : PersonalizedPersonWidgetBase
     public override string WidgetType => "jux.personalized.favorite-actor";
 
     /// <inheritdoc/>
-    public override string DefaultDisplayName => "Favorite Actor";
-
-    /// <inheritdoc/>
     protected override string PersonType => "Actor";
 
     /// <inheritdoc/>

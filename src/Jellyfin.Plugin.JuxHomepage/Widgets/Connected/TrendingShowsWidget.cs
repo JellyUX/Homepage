@@ -36,9 +36,6 @@ public sealed class TrendingShowsWidget : ConnectedWidgetBase<TMDbShow>
     public override string WidgetType => "jux.connected.trending-shows";
 
     /// <inheritdoc/>
-    public override string DefaultDisplayName => "Trending Shows";
-
-    /// <inheritdoc/>
     public override string DefaultViewMode => WidgetViewMode.Portrait;
 
     /// <inheritdoc/>

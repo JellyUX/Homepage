@@ -35,9 +35,6 @@ public sealed class NextUpWidget : NativeWidgetBase
     public override string WidgetType => "jux.native.next-up";
 
     /// <inheritdoc/>
-    public override string DefaultDisplayName => "Next Up";
-
-    /// <inheritdoc/>
     public override int DefaultMinItems => 1;
 
     /// <inheritdoc/>

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Jellyfin.Plugin.JuxHomepage.Localization;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -6,61 +7,48 @@ namespace Jellyfin.Plugin.JuxHomepage.Tests.Localization;
 
 public sealed class LocalizationServiceTests
 {
-    // Every WidgetType currently registered in the plugin (kept in sync manually -- deliberately not
-    // generated from WidgetRegistry.GetAll(), since populating a real registry requires a full DI
-    // container with mocks for every widget's constructor dependencies; see TODO_V3.md Phase 3.6 for
-    // the trade-off). A new widget must add its translation key to fr.json/en.json AND to this list,
-    // so a forgotten key fails this test rather than silently showing a raw key in production --
-    // exactly the gap that let "jux.connected.rewards" go missing from both this list and the
-    // language files until this phase caught it.
-    private static readonly string[] KnownWidgetTypes =
+    // The section title keys that are not a widget type: the formats of the personalized sections.
+    private static readonly string[] FormatKeys =
     [
-        "jux.native.continue-watching",
-        "jux.native.next-up",
-        "jux.native.recently-added-movies",
-        "jux.native.recently-added-shows",
-        "jux.native.my-media",
-        "jux.connected.trending-movies",
-        "jux.connected.trending-shows",
-        "jux.connected.top-rated-movies",
-        "jux.connected.top-rated-shows",
-        "jux.connected.airing-today",
-        "jux.connected.now-playing-movies",
-        "jux.connected.discover-movies",
-        "jux.connected.rewards",
-        "jux.admin.genre",
-        "jux.admin.actor",
-        "jux.admin.director",
-        "jux.admin.studio",
-        "jux.admin.collection",
-        "jux.admin.tag",
-        "jux.admin.year",
-        "jux.personalized.favorite-genre",
         "jux.personalized.favorite-genre.format",
-        "jux.personalized.favorite-actor",
         "jux.personalized.favorite-actor.format",
-        "jux.personalized.favorite-director",
         "jux.personalized.favorite-director.format",
-        "jux.personalized.because-you-watched",
         "jux.personalized.because-you-watched.format"
     ];
 
-    [Theory]
-    [InlineData("fr")]
-    [InlineData("en")]
-    public void RealEmbeddedLanguageFiles_ContainEveryKnownWidgetTypeKey(string lang)
-    {
-        var service = new LocalizationService(NullLogger<LocalizationService>.Instance);
-        var dictionary = service.GetDictionary(lang);
+    public static TheoryData<string> LanguageFiles() =>
+        new(Directory.GetFiles(Path.Combine(RepoPaths.Root(), "src", "Jellyfin.Plugin.JuxHomepage", "Localization"), "*.json")
+            .Select(Path.GetFileName)
+            .Order(StringComparer.Ordinal)!);
 
-        foreach (var widgetType in KnownWidgetTypes)
-        {
-            Assert.True(
-                dictionary.ContainsKey(widgetType),
-                $"Missing '{lang}' translation for widget type '{widgetType}'.");
-        }
+    // Each language file as written, not merged over English: a key missing from fr.json would
+    // otherwise pass through its English fallback. The widget types come from the widget classes, so
+    // a new widget needs its name in every language file and in no list of this test (QUAL-06.c).
+    [Theory]
+    [MemberData(nameof(LanguageFiles))]
+    public void RealLanguageFiles_NameEveryWidgetType(string file)
+    {
+        var path = Path.Combine(RepoPaths.Root(), "src", "Jellyfin.Plugin.JuxHomepage", "Localization", file);
+        var dictionary = JsonSerializer.Deserialize<Dictionary<string, string>>(File.ReadAllText(path))!;
+
+        var missing = WidgetTypes.All.Keys.Concat(FormatKeys)
+            .Where(key => string.IsNullOrWhiteSpace(dictionary.GetValueOrDefault(key)))
+            .Order(StringComparer.Ordinal);
+
+        Assert.Empty(missing);
     }
 
+    // DefaultDisplayName is the en.json name, the one source of the English names (QUAL-06.c).
+    [Fact]
+    public void DefaultDisplayName_IsTheEnglishNameOfEveryWidgetType()
+    {
+        var english = new LocalizationService(NullLogger<LocalizationService>.Instance).GetDictionary("en");
+
+        var names = WidgetTypes.All.Values.Select(WidgetTypes.Instance)
+            .ToDictionary(w => w.WidgetType, w => w.DefaultDisplayName);
+
+        Assert.Equal(WidgetTypes.All.Keys.ToDictionary(type => type, type => english[type]), names);
+    }
 
     private static LocalizationService BuildService() => new(
         new Dictionary<string, IReadOnlyDictionary<string, string>>

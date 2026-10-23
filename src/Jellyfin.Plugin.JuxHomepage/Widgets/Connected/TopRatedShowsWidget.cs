@@ -37,9 +37,6 @@ public sealed class TopRatedShowsWidget : ConnectedWidgetBase<TMDbShow>
     public override string WidgetType => "jux.connected.top-rated-shows";
 
     /// <inheritdoc/>
-    public override string DefaultDisplayName => "Top Rated Shows";
-
-    /// <inheritdoc/>
     public override string DefaultViewMode => WidgetViewMode.Portrait;
 
     /// <inheritdoc/>

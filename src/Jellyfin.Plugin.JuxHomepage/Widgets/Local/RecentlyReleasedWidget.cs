@@ -33,9 +33,6 @@ public sealed class RecentlyReleasedWidget : LocalLibraryWidgetBase
     public override string WidgetType => "jux.local.recently-released";
 
     /// <inheritdoc/>
-    public override string DefaultDisplayName => "Recently Released";
-
-    /// <inheritdoc/>
     protected override string SortBy => WidgetSort.PremiereDate;
 
     /// <inheritdoc/>

@@ -29,8 +29,5 @@ public sealed class DirectorWidget : PersonWidgetBase
     public override string WidgetType => "jux.admin.director";
 
     /// <inheritdoc/>
-    public override string DefaultDisplayName => "Director";
-
-    /// <inheritdoc/>
     protected override string PersonType => "Director";
 }

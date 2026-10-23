@@ -37,9 +37,6 @@ public sealed class AiringTodayShowsWidget : ConnectedWidgetBase<TMDbShow>
     public override string WidgetType => "jux.connected.airing-today";
 
     /// <inheritdoc/>
-    public override string DefaultDisplayName => "On TV";
-
-    /// <inheritdoc/>
     public override string DefaultViewMode => WidgetViewMode.Portrait;
 
     /// <inheritdoc/>

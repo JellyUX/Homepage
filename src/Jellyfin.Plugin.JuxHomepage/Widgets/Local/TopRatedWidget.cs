@@ -36,9 +36,6 @@ public sealed class TopRatedWidget : LocalLibraryWidgetBase
     public override string WidgetType => "jux.local.top-rated";
 
     /// <inheritdoc/>
-    public override string DefaultDisplayName => "Top Rated in Library";
-
-    /// <inheritdoc/>
     protected override string SortBy => WidgetSort.CommunityRating;
 
     /// <inheritdoc/>

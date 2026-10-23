@@ -32,9 +32,6 @@ public sealed class GenreWidget : AdminWidgetBase
     public override string WidgetType => "jux.admin.genre";
 
     /// <inheritdoc/>
-    public override string DefaultDisplayName => "Genre";
-
-    /// <inheritdoc/>
     public override string DefaultViewMode => WidgetViewMode.Portrait;
 
     /// <inheritdoc/>

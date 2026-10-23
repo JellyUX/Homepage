@@ -33,9 +33,6 @@ public sealed class CollectionWidget : AdminWidgetBase
     public override string WidgetType => "jux.admin.collection";
 
     /// <inheritdoc/>
-    public override string DefaultDisplayName => "Collection";
-
-    /// <inheritdoc/>
     public override string DefaultViewMode => WidgetViewMode.Portrait;
 
     /// <inheritdoc/>

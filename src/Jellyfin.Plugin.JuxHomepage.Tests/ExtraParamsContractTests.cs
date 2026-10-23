@@ -1,8 +1,6 @@
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using Jellyfin.Plugin.JuxHomepage.Widgets;
 using Xunit;
 
 namespace Jellyfin.Plugin.JuxHomepage.Tests;
@@ -20,25 +18,19 @@ public sealed class ExtraParamsContractTests
             .ToDictionary(p => p.Name, p => p.Value.EnumerateArray().Select(k => k.GetString()!).Order(StringComparer.Ordinal).ToArray());
     });
 
-    // Every widget class with its type, read without running a constructor: WidgetType returns a constant.
-    private static readonly Lazy<Dictionary<string, Type>> Widgets = new(() =>
-        typeof(IWidget).Assembly.GetTypes()
-            .Where(t => typeof(IWidget).IsAssignableFrom(t) && t is { IsClass: true, IsAbstract: false })
-            .ToDictionary(t => ((IWidget)RuntimeHelpers.GetUninitializedObject(t)).WidgetType, t => t));
-
-    public static TheoryData<string> WidgetTypes() => new(Widgets.Value.Keys.Order(StringComparer.Ordinal));
+    public static TheoryData<string> AllWidgetTypes() => new(WidgetTypes.All.Keys.Order(StringComparer.Ordinal));
 
     [Fact]
     public void Contract_ListsEveryRegisteredWidgetType()
     {
-        Assert.Equal(Widgets.Value.Keys.Order(StringComparer.Ordinal), Contract.Value.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(WidgetTypes.All.Keys.Order(StringComparer.Ordinal), Contract.Value.Keys.Order(StringComparer.Ordinal));
     }
 
     [Theory]
-    [MemberData(nameof(WidgetTypes))]
+    [MemberData(nameof(AllWidgetTypes))]
     public void WidgetParamConstants_MatchTheContract(string widgetType)
     {
-        var keys = Widgets.Value[widgetType]
+        var keys = WidgetTypes.All[widgetType]
             .GetFields(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy)
             .Where(f => f.IsLiteral && f.Name.EndsWith("Param", StringComparison.Ordinal))
             .Select(f => (string)f.GetRawConstantValue()!)
