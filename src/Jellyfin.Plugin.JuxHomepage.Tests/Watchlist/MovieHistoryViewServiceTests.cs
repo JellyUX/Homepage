@@ -110,7 +110,7 @@ public sealed class MovieHistoryViewServiceTests
             dtoServiceMock.Object,
             NullLogger<MovieHistoryViewService>.Instance);
 
-        var result = service.GetItems(user.Id, "SortName", "Ascending", null, 0, 50, CancellationToken.None);
+        var result = service.GetItems(user.Id, "sortname", "ascending", null, 0, 50, CancellationToken.None);
 
         Assert.Equal(movieA.Id, result.Items[0].Id);
         Assert.Equal(movieZ.Id, result.Items[1].Id);

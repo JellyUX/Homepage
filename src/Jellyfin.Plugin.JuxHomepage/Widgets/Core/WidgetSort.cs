@@ -59,6 +59,16 @@ public static class WidgetSort
         sortOrder == Descending ? Descending : Ascending;
 
     /// <summary>
+    /// Returns whether a query parameter names <paramref name="sort"/>, ignoring case as the tab
+    /// endpoints always have.
+    /// </summary>
+    /// <param name="value">The query parameter.</param>
+    /// <param name="sort">A <see cref="WidgetSort"/> constant.</param>
+    /// <returns>True when they match.</returns>
+    internal static bool Matches(string? value, string sort) =>
+        string.Equals(value, sort, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
     /// Builds the query order of a non-random sort, ties broken by name so equal dates or ratings
     /// keep a stable order from one load to the next.
     /// </summary>

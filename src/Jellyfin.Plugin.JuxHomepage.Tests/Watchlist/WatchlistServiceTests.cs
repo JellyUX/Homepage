@@ -106,6 +106,7 @@ public sealed class WatchlistServiceTests
     [InlineData("DateCreated", ItemSortBy.DateCreated)]
     [InlineData("PremiereDate", ItemSortBy.PremiereDate)]
     [InlineData("CommunityRating", ItemSortBy.CommunityRating)]
+    [InlineData("premieredate", ItemSortBy.PremiereDate)]
     [InlineData("Name", ItemSortBy.DateCreated)]
     [InlineData(null, ItemSortBy.DateCreated)]
     public void GetItems_SortBy_MapsTheWidgetSortVocabulary(string? sortBy, ItemSortBy expected)
@@ -149,7 +150,7 @@ public sealed class WatchlistServiceTests
 
         var service = new WatchlistService(userManagerMock.Object, libraryManagerMock.Object, dtoServiceMock.Object);
 
-        service.GetItems(user.Id, "SortName", "Ascending", null, null, 0, 50, true, CancellationToken.None);
+        service.GetItems(user.Id, "sortname", "ascending", null, null, 0, 50, true, CancellationToken.None);
 
         Assert.NotNull(capturedQuery);
         Assert.Equal(ItemSortBy.SortName, capturedQuery!.OrderBy[0].Item1);

@@ -88,9 +88,9 @@ public sealed class MovieHistoryViewService : IMovieHistoryViewService
         string? sortBy,
         string? sortOrder)
     {
-        var descending = sortOrder != WidgetSort.Ascending;
+        var descending = !WidgetSort.Matches(sortOrder, WidgetSort.Ascending);
 
-        IOrderedEnumerable<Models.MovieHistoryEntry> ordered = sortBy == WidgetSort.SortName
+        IOrderedEnumerable<Models.MovieHistoryEntry> ordered = WidgetSort.Matches(sortBy, WidgetSort.SortName)
             ? (descending
                 ? entries.OrderByDescending(e => e.Name, StringComparer.OrdinalIgnoreCase)
                 : entries.OrderBy(e => e.Name, StringComparer.OrdinalIgnoreCase))

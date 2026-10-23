@@ -121,14 +121,14 @@ public sealed class WatchlistService : IWatchlistService
     /// </summary>
     private static ItemSortBy ResolveSortBy(string? sortBy) => sortBy switch
     {
-        WidgetSort.SortName => ItemSortBy.SortName,
-        WidgetSort.PremiereDate => ItemSortBy.PremiereDate,
-        WidgetSort.CommunityRating => ItemSortBy.CommunityRating,
-        WidgetSort.DateCreated => ItemSortBy.DateCreated,
+        _ when WidgetSort.Matches(sortBy, WidgetSort.SortName) => ItemSortBy.SortName,
+        _ when WidgetSort.Matches(sortBy, WidgetSort.PremiereDate) => ItemSortBy.PremiereDate,
+        _ when WidgetSort.Matches(sortBy, WidgetSort.CommunityRating) => ItemSortBy.CommunityRating,
+        _ when WidgetSort.Matches(sortBy, WidgetSort.DateCreated) => ItemSortBy.DateCreated,
         _ => ItemSortBy.DateCreated
     };
 
     /// <summary>Maps the "sortOrder" query parameter to a <see cref="SortOrder"/>. Defaults to descending.</summary>
     private static SortOrder ResolveSortOrder(string? sortOrder) =>
-        sortOrder == WidgetSort.Ascending ? SortOrder.Ascending : SortOrder.Descending;
+        WidgetSort.Matches(sortOrder, WidgetSort.Ascending) ? SortOrder.Ascending : SortOrder.Descending;
 }
