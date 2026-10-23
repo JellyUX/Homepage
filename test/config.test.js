@@ -896,6 +896,10 @@ describe('configuration page controller (F-33)', () => {
 
         type(ttl, '5');
         expect(dirtyTabs()).toEqual(['settings']);
+        // The dot also names the change to a screen reader, as part of the tab's name (R11).
+        const dot = tab('settings').querySelector('.jux-admin-tab-dirty');
+        expect(dot.getAttribute('aria-hidden')).toBeNull();
+        expect(dot.textContent).toBe('admin.unsaved');
         expect(view.querySelector('#juxUnsaved').hidden).toBe(false);
 
         type(ttl, '15');

@@ -323,6 +323,15 @@ ul.jux-admin-warning {
 #juxWarningBanner {
     margin-bottom: 1.25em;
 }
+/* Read by screen readers only: the tab's dot names its unsaved changes (R11). */
+.jux-admin-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
 /* Unsaved changes in a tab (ADM-01.c), in the dashboard's warning color. */
 .jux-admin-tab-dirty {
     width: 0.45em;
