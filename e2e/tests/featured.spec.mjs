@@ -74,14 +74,19 @@ test('KTW-01.a banner: a featured section shows its movies, loads two backdrops,
         await expect(page).toHaveURL(/#\/details\?id=/);
 
         if (testInfo.project.name === 'mobile') {
-            // Back on the home page the banner is rebuilt: measure it once its backdrop is in.
+            // Back on the home page the banner is rebuilt, while Jellyfin may keep the previous home page
+            // hidden with its own banner: measure the visible one, once its backdrop is in.
+            // Going back while the details page is still opening leaves every page hidden.
+            await expect(page.locator('.itemDetailPage:not(.hide)')).toHaveCount(1);
             await page.goBack();
-            await expect(page.locator('.jux-featured-slide.jux-featured-active .jux-featured-backdrop.jux-featured-loaded')).toHaveCount(1);
-            const media = await page.locator('.jux-featured-slide.jux-featured-active .jux-featured-media').boundingBox();
-            const copy = await page.locator('.jux-featured-slide.jux-featured-active .jux-featured-copy').boundingBox();
+            const shown = page.locator('.jux-featured-slide.jux-featured-active:visible');
+            await expect(shown.locator('.jux-featured-backdrop.jux-featured-loaded')).toBeVisible();
+            await shown.scrollIntoViewIfNeeded();
+            const media = await shown.locator('.jux-featured-media').boundingBox();
+            const copy = await shown.locator('.jux-featured-copy').boundingBox();
             expect(Math.abs(media.width / media.height - 16 / 9)).toBeLessThan(0.02);
             expect(copy.y).toBeGreaterThanOrEqual(media.y + media.height - 1);
-            await testInfo.attach('featured-390', { body: await page.locator('.jux-featured').screenshot(), contentType: 'image/png' });
+            await testInfo.attach('featured-390', { body: await page.locator('.jux-featured:visible').screenshot(), contentType: 'image/png' });
         }
         expect(errors).toEqual([]);
     });
