@@ -128,6 +128,35 @@ function newInstanceId() {
     });
 }
 
+// Search-as-you-type on a field with a datalist: 300 ms after the last keystroke, asks
+// options.url(query) for {Value, Label} pairs, lists their labels and adds them to options.cache(),
+// read back on save to turn a label into its value. Only the latest request may fill the list: an
+// older one answering late is dropped (QUAL-03.b, test "lists the answer of the latest search").
+// An empty field asks nothing unless options.allowEmpty.
+function bindSearch(inputEl, options) {
+    var timer = null;
+    var latest = 0;
+    inputEl.addEventListener('input', function () {
+        clearTimeout(timer);
+        var query = inputEl.value.trim();
+        if (!query && !options.allowEmpty) { return; }
+        timer = setTimeout(function () {
+            var request = ++latest;
+            ApiClient.getJSON(options.url(query)).then(function (vals) {
+                var dl = document.getElementById(inputEl.getAttribute('list'));
+                if (request !== latest || !dl) { return; }
+                dl.innerHTML = (vals || []).map(function (v) {
+                    return '<option value="' + escHtml(v.Label) + '"></option>';
+                }).join('');
+                var cache = options.cache();
+                (vals || []).forEach(function (v) {
+                    if (!cache.some(function (c) { return c.Value === v.Value; })) { cache.push(v); }
+                });
+            }).catch(function () {});
+        }, 300);
+    });
+}
+
 // The SORT_OPTIONS entry of a row, alphabetical when it has none or an unknown one.
 export function sortOption(widget) {
     var by = widget.SortBy;
@@ -992,108 +1021,34 @@ function createConfigPage() {
                 });
             });
 
-            // Search-as-you-type: each keystroke fetches matching values from the server.
+            // Search-as-you-type on the value fields: the admin value picker, then the Discover and
+            // Rewards fields, proxied server-side (config.js/browsers cannot set the User-Agent header
+            // Wikidata's 2026 access policy requires -- see JuxHomepageController.SearchRewardsCeremony).
             list.querySelectorAll('[data-is-admin="1"]').forEach(function (card) {
-                var idx = parseInt(card.getAttribute('data-index'), 10);
-                var w = self.state.sortedWidgets[idx];
-                if (!w) { return; }
-                var widgetType = w.WidgetType;
-                var datalistId = 'juxVals_' + idx;
+                var w = self.state.sortedWidgets[parseInt(card.getAttribute('data-index'), 10)];
                 var inputEl = card.querySelector('.jux-admin-widget-value');
-                if (!inputEl) { return; }
-                var timer = null;
-                inputEl.addEventListener('input', function () {
-                    clearTimeout(timer);
-                    var search = inputEl.value.trim();
-                    timer = setTimeout(function () {
-                        var url = ApiClient.getUrl(
-                            'JuxHomepage/Widget/' + encodeURIComponent(widgetType) + '/values',
-                            { userId: userId, search: search }
-                        );
-                        ApiClient.getJSON(url).then(function (vals) {
-                            var dl = document.getElementById(datalistId);
-                            if (!dl) { return; }
-                            var dlHtml = '';
-                            (vals || []).forEach(function (v) {
-                                dlHtml += '<option value="' + self.escHtml(v.Label) + '"></option>';
-                            });
-                            dl.innerHTML = dlHtml;
-                            if (!self._valuesCache[widgetType]) { self._valuesCache[widgetType] = []; }
-                            (vals || []).forEach(function (v) {
-                                var cache = self._valuesCache[widgetType];
-                                for (var k = 0; k < cache.length; k++) {
-                                    if (cache[k].Value === v.Value) { return; }
-                                }
-                                cache.push(v);
-                            });
-                        }).catch(function () {});
-                    }, 300);
+                if (!w || !inputEl) { return; }
+                var widgetType = w.WidgetType;
+                bindSearch(inputEl, {
+                    allowEmpty: true,
+                    url: function (search) {
+                        return ApiClient.getUrl('JuxHomepage/Widget/' + encodeURIComponent(widgetType) + '/values', { userId: userId, search: search });
+                    },
+                    cache: function () { return self._valuesCache[widgetType] || (self._valuesCache[widgetType] = []); }
                 });
             });
-
-            // Discover widget: search-as-you-type for person/keyword/company autocomplete.
-            var searchEndpoints = { person: 'TMDb/Search/Person', keyword: 'TMDb/Search/Keyword', company: 'TMDb/Search/Company' };
-            list.querySelectorAll('.jux-discover-person, .jux-discover-keyword, .jux-discover-company').forEach(function (inputEl) {
-                var fieldName = inputEl.getAttribute('data-field');
-                var datalistId = inputEl.getAttribute('list');
-                var timer = null;
-                inputEl.addEventListener('input', function () {
-                    clearTimeout(timer);
-                    var query = inputEl.value.trim();
-                    if (!query) { return; }
-                    timer = setTimeout(function () {
-                        var url = ApiClient.getUrl('JuxHomepage/' + searchEndpoints[fieldName], { query: query });
-                        ApiClient.getJSON(url).then(function (vals) {
-                            var dl = document.getElementById(datalistId);
-                            if (!dl) { return; }
-                            var dlHtml = '';
-                            (vals || []).forEach(function (v) {
-                                dlHtml += '<option value="' + self.escHtml(v.Label) + '"></option>';
-                            });
-                            dl.innerHTML = dlHtml;
-                            var cache = self._discoverSearchCache[fieldName];
-                            (vals || []).forEach(function (v) {
-                                for (var k = 0; k < cache.length; k++) {
-                                    if (cache[k].Value === v.Value) { return; }
-                                }
-                                cache.push(v);
-                            });
-                        }).catch(function () {});
-                    }, 300);
-                });
-            });
-
-            // Rewards widget: search-as-you-type for Ceremony/Category autocomplete, proxied
-            // server-side (config.js/browsers cannot set the User-Agent header Wikidata's 2026
-            // access policy requires -- see JuxHomepageController.SearchRewardsCeremony/Category).
-            var rewardsSearchEndpoints = { ceremony: 'Rewards/Search/Ceremony', category: 'Rewards/Search/Category' };
-            list.querySelectorAll('.jux-rewards-ceremony, .jux-rewards-category').forEach(function (inputEl) {
-                var fieldName = inputEl.getAttribute('data-field');
-                var datalistId = inputEl.getAttribute('list');
-                var timer = null;
-                inputEl.addEventListener('input', function () {
-                    clearTimeout(timer);
-                    var query = inputEl.value.trim();
-                    if (!query) { return; }
-                    timer = setTimeout(function () {
-                        var url = ApiClient.getUrl('JuxHomepage/' + rewardsSearchEndpoints[fieldName], { query: query });
-                        ApiClient.getJSON(url).then(function (vals) {
-                            var dl = document.getElementById(datalistId);
-                            if (!dl) { return; }
-                            var dlHtml = '';
-                            (vals || []).forEach(function (v) {
-                                dlHtml += '<option value="' + self.escHtml(v.Label) + '"></option>';
-                            });
-                            dl.innerHTML = dlHtml;
-                            var cache = self._rewardsSearchCache[fieldName];
-                            (vals || []).forEach(function (v) {
-                                for (var k = 0; k < cache.length; k++) {
-                                    if (cache[k].Value === v.Value) { return; }
-                                }
-                                cache.push(v);
-                            });
-                        }).catch(function () {});
-                    }, 300);
+            [
+                ['.jux-discover-person, .jux-discover-keyword, .jux-discover-company', self._discoverSearchCache,
+                    { person: 'TMDb/Search/Person', keyword: 'TMDb/Search/Keyword', company: 'TMDb/Search/Company' }],
+                ['.jux-rewards-ceremony, .jux-rewards-category', self._rewardsSearchCache,
+                    { ceremony: 'Rewards/Search/Ceremony', category: 'Rewards/Search/Category' }]
+            ].forEach(function (family) {
+                list.querySelectorAll(family[0]).forEach(function (inputEl) {
+                    var fieldName = inputEl.getAttribute('data-field');
+                    bindSearch(inputEl, {
+                        url: function (query) { return ApiClient.getUrl('JuxHomepage/' + family[2][fieldName], { query: query }); },
+                        cache: function () { return family[1][fieldName]; }
+                    });
                 });
             });
         },

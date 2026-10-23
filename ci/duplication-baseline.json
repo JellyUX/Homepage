@@ -8,12 +8,6 @@
     },
     {
       "files": [
-        "Jellyfin.Plugin.JuxHomepage/Web/config.js"
-      ],
-      "copies": 3
-    },
-    {
-      "files": [
         "Jellyfin.Plugin.JuxHomepage/Widgets/Connected/AiringTodayShowsWidget.cs",
         "Jellyfin.Plugin.JuxHomepage/Widgets/Connected/DiscoverMoviesWidget.cs",
         "Jellyfin.Plugin.JuxHomepage/Widgets/Connected/NowPlayingMoviesWidget.cs",
@@ -53,6 +47,6 @@
   "totals": {
     "csharp": 243,
     "css": 6,
-    "javascript": 74
+    "javascript": 21
   }
 }

@@ -313,6 +313,39 @@ describe('configuration page controller (F-33)', () => {
         expect(defaultRow.ExtraParams[0].Value).toBe('');
     });
 
+    it('lists the answer of the latest search, even when an older one answers last (QUAL-03.b)', async () => {
+        const row = { WidgetType: 'jux.connected.discover-movies', Enabled: true, Order: 3, MinItems: 1, MaxItems: 20, ViewMode: 'Portrait', ExtraParams: [{ Key: 'value', Value: 'd1' }] };
+        const catalog = [...descriptors, { WidgetType: 'jux.connected.discover-movies', DisplayName: 'Discover', Category: 3, MinItems: 1, ViewMode: 'Portrait' }];
+        const pending = {};
+        window.ApiClient.getPluginConfiguration = vi.fn(() => Promise.resolve({ ...JSON.parse(JSON.stringify(config)), Widgets: [...JSON.parse(JSON.stringify(config.Widgets)), row] }));
+        window.ApiClient.getUrl = (route, params) => (params && params.query ? route + '?query=' + params.query : route);
+        window.ApiClient.getJSON = vi.fn((url) => {
+            if (url === 'JuxHomepage/Admin/Catalog') { return Promise.resolve({ WidgetCategories: ['Native', 'Admin', 'Personalized', 'Connected'], Widgets: catalog }); }
+            if (url.startsWith('JuxHomepage/TMDb/Search/Person')) { return new Promise((r) => { pending[url] = r; }); }
+            return getJSON(url);
+        });
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+        card(3).querySelector('.jux-admin-btn-toggle').click();
+        await settle();
+
+        const search = card(3).querySelector('.jux-discover-person');
+        search.value = 'Jo';
+        search.dispatchEvent(new Event('input'));
+        await new Promise((r) => setTimeout(r, 350));
+        search.value = 'John';
+        search.dispatchEvent(new Event('input'));
+        await new Promise((r) => setTimeout(r, 350));
+        pending['JuxHomepage/TMDb/Search/Person?query=John']([{ Value: '2', Label: 'John Smith' }]);
+        await settle();
+        pending['JuxHomepage/TMDb/Search/Person?query=Jo']([{ Value: '1', Label: 'Jo Ann' }]);
+        await settle();
+
+        const listed = [...view.querySelector('#' + search.getAttribute('list')).options].map((o) => o.value);
+        expect(listed).toEqual(['John Smith']);
+    });
+
     it('keeps each row its own id when two people found by a search share a name (FIAB-02, R11)', async () => {
         const row = (id, person, order) => ({ WidgetType: 'jux.connected.discover-movies', Enabled: true, Order: order, MinItems: 1, MaxItems: 20, ViewMode: 'Portrait', ExtraParams: [{ Key: 'value', Value: id }, { Key: 'personIds', Value: person }] });
         const catalog = [...descriptors, { WidgetType: 'jux.connected.discover-movies', DisplayName: 'Discover', Category: 3, MinItems: 1, ViewMode: 'Portrait' }];
