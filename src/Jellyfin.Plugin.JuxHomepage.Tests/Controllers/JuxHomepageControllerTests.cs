@@ -168,6 +168,32 @@ public sealed class JuxHomepageControllerTests
     }
 
     [Fact]
+    public async Task GetTMDbCountries_RequestAbortedAfterTheDeadline_IsStillCancelled()
+    {
+        // Both tokens fire before the lookup gives up: the abort wins, as the deadline filter excludes it (R11).
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var tmdbApiClientMock = new Mock<ITMDbApiClient>();
+        tmdbApiClientMock
+            .Setup(c => c.GetCountriesAsync(It.IsAny<CancellationToken>()))
+            .Returns<CancellationToken>(async token =>
+            {
+                await gate.Task;
+                token.ThrowIfCancellationRequested();
+                return [];
+            });
+        var time = new ManualTimeProvider();
+        var controller = BuildController(tmdbApiClientMock: tmdbApiClientMock, timeProvider: time);
+        using var aborted = new CancellationTokenSource();
+
+        var countries = controller.GetTMDbCountries(aborted.Token);
+        aborted.Cancel();
+        time.Advance(JuxHomepageController.InteractiveDeadline);
+        gate.SetResult();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => countries.WaitAsync(TimeSpan.FromSeconds(5)));
+    }
+
+    [Fact]
     public void GetTMDbStatus_ReturnsOneEntryPerCacheType_WithConfiguredCounts()
     {
         var tmdbCacheServiceMock = new Mock<ITMDbCacheService>();
