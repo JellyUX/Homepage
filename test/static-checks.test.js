@@ -7,6 +7,7 @@ import {
     checkTargetAbi,
     checkCommit,
     checkBudget,
+    checkPushBudgets,
     groupCloneFamilies,
     compareWithBaseline,
     isImportOnly,
@@ -182,6 +183,42 @@ describe('checkBudget', () => {
     it('accepts the commit that creates or deletes the budget', () => {
         expect(checkBudget(change({ before: null }))).toEqual([]);
         expect(checkBudget(change({ after: null }))).toEqual([]);
+    });
+});
+
+describe('checkPushBudgets', () => {
+    const file = 'ci/perf-budget.json';
+    const budget = (sections) => JSON.stringify({ description: 'x', endpoints: { Sections: sections } });
+    // Each commit names the budget text it leaves (null: deleted); "base" is the text before the push.
+    const run = (base, commits) => {
+        const texts = { 'base': base };
+        commits.forEach((c) => { texts[c.sha] = c.text; });
+        const parent = (sha) => (sha === commits[0].sha ? 'base' : commits[commits.findIndex((c) => c.sha === sha) - 1].sha);
+        const show = (spec) => {
+            const [rev] = spec.split(':');
+            const key = rev.endsWith('^') ? parent(rev.slice(0, -1)) : rev;
+            return texts[key] ?? null;
+        };
+        return checkPushBudgets({
+            base: 'base',
+            head: commits.at(-1).sha,
+            commits: commits.map((c) => ({ sha: c.sha, body: c.body ?? '', files: [file] })),
+            show
+        });
+    };
+
+    it('rejects a budget deleted then put back higher in two commits (A-03.a)', () => {
+        const errors = run(budget(17), [{ sha: 'aaaaaaa1', text: null }, { sha: 'bbbbbbb2', text: budget(20) }]);
+        expect(errors).toEqual([expect.stringContaining('"endpoints/Sections" 17 -> 20')]);
+    });
+
+    it('accepts the push when one of its commits says why the budget rose', () => {
+        expect(run(budget(17), [{ sha: 'aaaaaaa1', text: null }, { sha: 'bbbbbbb2', text: budget(20), body: 'Budget: a new type' }])).toEqual([]);
+    });
+
+    it('reports a single raise once, from the commit that makes it', () => {
+        const errors = run(budget(17), [{ sha: 'aaaaaaa1', text: budget(18) }]);
+        expect(errors).toEqual([expect.stringContaining('aaaaaaa: ci/perf-budget.json raises')]);
     });
 });
 

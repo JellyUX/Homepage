@@ -292,7 +292,7 @@ function ratchetMeasures(text) {
  *   The budget file's text before and after the commit (null when absent).
  * @returns {string[]} Errors.
  */
-export function checkBudget({ sha, file, before, after, body }) {
+export function checkBudget({ sha, file, before, after, body, label = sha.slice(0, 7) }) {
     if (before === null || after === null || /^budget:\s*\S/im.test(body)) {
         return [];
     }
@@ -307,7 +307,39 @@ export function checkBudget({ sha, file, before, after, body }) {
         .map(([key, value]) => `"${key}" ${previous.values[key] ?? 0} -> ${value}`);
     return raised.length === 0
         ? []
-        : [`${sha.slice(0, 7)}: ${file} raises ${raised.join(', ')} without a "Budget: <reason>" trailer.`];
+        : [`${label}: ${file} raises ${raised.join(', ')} without a "Budget: <reason>" trailer.`];
+}
+
+/**
+ * Checks the budget files of a push, commit by commit and over the whole push: a budget deleted then put
+ * back higher in two commits passes each commit but not the push (A-03.a). The push needs a "Budget:"
+ * trailer in one of the commits that touch the file.
+ * @param {{base: string, head: string, commits: {sha: string, body: string, files: string[]}[],
+ *   show: (spec: string) => string | null}} push show reads "<rev>:<file>", null when absent.
+ * @returns {string[]} Errors.
+ */
+export function checkPushBudgets({ base, head, commits, show }) {
+    const errors = [];
+    for (const file of BUDGET_FILES) {
+        const touching = commits.filter((c) => c.files.includes(file));
+        if (touching.length === 0) {
+            continue;
+        }
+        const perCommit = touching.flatMap((c) =>
+            checkBudget({ sha: c.sha, file, before: show(`${c.sha}^:${file}`), after: show(`${c.sha}:${file}`), body: c.body }));
+        errors.push(...perCommit);
+        if (perCommit.length === 0) {
+            errors.push(...checkBudget({
+                sha: head,
+                file,
+                before: show(`${base}:${file}`),
+                after: show(`${head}:${file}`),
+                body: touching.map((c) => c.body).join('\n'),
+                label: `${base.slice(0, 7)}..${head.slice(0, 7)}`
+            }));
+        }
+    }
+    return errors;
 }
 
 /**
@@ -526,6 +558,7 @@ function main() {
     const rangeArg = process.argv.indexOf('--commits');
     const range = rangeArg > 0 ? process.argv[rangeArg + 1] : '';
     if (range) {
+        const pushCommits = [];
         for (const sha of git(['rev-list', '--no-merges', range]).split('\n').filter(Boolean)) {
             const author = git(['log', '-1', '--format=%an', sha]).trim();
             if (author.endsWith('[bot]')) {
@@ -541,12 +574,15 @@ function main() {
             const result = checkCommit({ sha, subject: git(['log', '-1', '--format=%s', sha]).trim(), body, files, added });
             result.errors.forEach((message) => errors.push({ message }));
             result.warnings.forEach((message) => warnings.push({ message }));
-            for (const file of BUDGET_FILES.filter((f) => files.includes(f))) {
-                const before = gitShowOrNull(`${sha}^:${file}`);
-                const after = gitShowOrNull(`${sha}:${file}`);
-                checkBudget({ sha, file, before, after, body }).forEach((message) => errors.push({ file, message }));
-            }
+            pushCommits.unshift({ sha, body, files });
         }
+        const [base, head] = range.split('..');
+        checkPushBudgets({
+            base: git(['rev-parse', base]).trim(),
+            head: git(['rev-parse', head || 'HEAD']).trim(),
+            commits: pushCommits,
+            show: gitShowOrNull
+        }).forEach((message) => errors.push({ message }));
     }
 
     const baseline = existsSync(BASELINE_PATH) ? JSON.parse(readFileSync(BASELINE_PATH, 'utf8')) : {};
