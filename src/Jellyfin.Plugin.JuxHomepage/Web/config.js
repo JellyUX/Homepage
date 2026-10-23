@@ -226,6 +226,19 @@ export function widgetSummary(widget, valueLabel, t) {
     return parts.join(' \u00b7 ');
 }
 
+// The options of a select filled from a TMDb list (genres, countries), which may still be loading or have
+// failed (FIAB-10.b): the current value stays selected under its raw id until the list names it (DEC-P05-1).
+function listOptionsHtml(self, emptyLabel, list, current) {
+    var html = '<option value="">' + self.escHtml(emptyLabel) + '</option>';
+    list.forEach(function (item) {
+        html += '<option value="' + self.escHtml(item.Value) + '"' + (item.Value === current ? ' selected' : '') + '>' + self.escHtml(item.Label) + '</option>';
+    });
+    if (current && !list.some(function (item) { return item.Value === current; })) {
+        html += '<option value="' + self.escHtml(current) + '" selected>' + self.escHtml(current) + '</option>';
+    }
+    return html;
+}
+
 // The name field of a row, shown by every editor except the personalized one.
 function nameFieldHtml(self, w, i, defaultName) {
     var html = '<div class="inputContainer">';
@@ -361,13 +374,7 @@ var EDITORS = {
             html += '<div class="inputContainer">';
             html += '<label class="inputLabel inputLabelUnfocused" for="discGenre_' + i + '">' + self.escHtml(self.t('admin.discover.genre.label')) + '</label>';
             html += '<select id="discGenre_' + i + '" class="emby-select-withcolor emby-select jux-discover-genre">';
-            html += '<option value="">' + self.escHtml(self.t('admin.discover.genre.any')) + '</option>';
-            self._tmdbGenres.forEach(function (g) {
-                html += '<option value="' + self.escHtml(g.Value) + '"' + (g.Value === genreValue ? ' selected' : '') + '>' + self.escHtml(g.Label) + '</option>';
-            });
-            if (genreValue && !self._tmdbGenres.some(function (g) { return g.Value === genreValue; })) {
-                html += '<option value="' + self.escHtml(genreValue) + '" selected>' + self.escHtml(genreValue) + '</option>';
-            }
+            html += listOptionsHtml(self, self.t('admin.discover.genre.any'), self._tmdbGenres, genreValue);
             html += '</select>';
             html += '</div>';
             html += searchFieldsHtml(self, w, i, 'disc', [
@@ -1250,11 +1257,7 @@ function createConfigPage() {
                     html += '<span class="jux-admin-tmdb-pages">';
                     html += '<label for="selNowPlayingRegion">' + self.escHtml(self.t('admin.tmdbregion.label')) + '</label>';
                     html += '<select id="selNowPlayingRegion" class="emby-select jux-admin-tmdb-region">';
-                    html += '<option value="">' + self.escHtml(self.t('admin.tmdbregion.default')) + '</option>';
-                    self._tmdbCountries.forEach(function (c) {
-                        var selected = c.Value === currentRegion ? ' selected' : '';
-                        html += '<option value="' + self.escHtml(c.Value) + '"' + selected + '>' + self.escHtml(c.Label) + '</option>';
-                    });
+                    html += listOptionsHtml(self, self.t('admin.tmdbregion.default'), self._tmdbCountries, currentRegion);
                     html += '</select>';
                     html += '</span>';
                 }
@@ -1308,6 +1311,19 @@ function createConfigPage() {
         // Why a TMDb list came back empty at its last refresh (FIAB-10.c), or '' when it did not fail.
         tmdbErrorText: function (status) {
             return status.LastError ? this.t('admin.tmdbstatus.error.' + status.LastError) : '';
+        },
+
+        // Completes the genre and region selects once their TMDb list has arrived, keeping each one's value
+        // (FIAB-10.b: the page no longer waits for these lists).
+        refillListSelects: function () {
+            var self = this;
+            document.querySelectorAll('.jux-discover-genre').forEach(function (sel) {
+                sel.innerHTML = listOptionsHtml(self, self.t('admin.discover.genre.any'), self._tmdbGenres, sel.value);
+            });
+            var region = document.getElementById('selNowPlayingRegion');
+            if (region) {
+                region.innerHTML = listOptionsHtml(self, self.t('admin.tmdbregion.default'), self._tmdbCountries, region.value);
+            }
         },
 
         // Fetches the ISO country list once for the Now Playing region select.
@@ -1375,12 +1391,12 @@ function createConfigPage() {
         loadConfig: function () {
             var self = this;
             Dashboard.showLoadingMsg();
+            // Asked at once but not awaited: TMDb can take up to the lookup deadline to answer (FIAB-10.b).
+            var lists = Promise.all([self.loadTmdbCountries(), self.loadTmdbGenres()]);
             Promise.all([
                 ApiClient.getPluginConfiguration(self.PLUGIN_ID),
                 ApiClient.getJSON(ApiClient.getUrl('JuxHomepage/Admin/Catalog')),
                 ApiClient.getJSON(ApiClient.getUrl('JuxHomepage/TMDb/Status')).catch(function () { return []; }),
-                self.loadTmdbCountries(),
-                self.loadTmdbGenres(),
                 self.loadLocalizations(),
                 ApiClient.getJSON(ApiClient.getUrl('JuxHomepage/Admin/Warnings')).catch(function () { return []; })
             ]).then(function (results) {
@@ -1398,7 +1414,7 @@ function createConfigPage() {
                 if (self._syncShowTmdb) { self._syncShowTmdb(); }
                 self.renderTmdbStatus(results[2] || []);
 
-                var warnings = results[6] || [];
+                var warnings = results[4] || [];
                 var banner = document.getElementById('juxWarningBanner');
                 banner.innerHTML = '';
                 warnings.forEach(function (code) {
@@ -1427,6 +1443,7 @@ function createConfigPage() {
                 self.renderWidgets();
 
                 Dashboard.hideLoadingMsg();
+                lists.then(function () { self.refillListSelects(); });
             }).catch(function (err) {
                 console.error('[JellyUX Config] Load failed:', err);
                 Dashboard.hideLoadingMsg();

@@ -751,6 +751,45 @@ describe('configuration page controller (F-33)', () => {
         expect(help).toEqual(['admin.tmdbstatus.nowplaying.help']);
     });
 
+    it('shows the page without waiting for the TMDb countries and genres (FIAB-10.b)', async () => {
+        window.ApiClient.getJSON = vi.fn((url) => (url === 'JuxHomepage/TMDb/Countries' || url === 'JuxHomepage/TMDb/Genres'
+            ? new Promise(() => {})
+            : getJSON(url)));
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+
+        expect(card(0)).not.toBeNull();
+        expect(window.Dashboard.hideLoadingMsg).toHaveBeenCalled();
+    });
+
+    it('keeps the saved region while the countries load, then names it (FIAB-10.b)', async () => {
+        let answerCountries;
+        const countries = new Promise((resolve) => { answerCountries = resolve; });
+        const withRegion = { ...JSON.parse(JSON.stringify(config)), TMDbLists: { NowPlayingRegion: 'FR' } };
+        window.ApiClient.getPluginConfiguration = vi.fn(() => Promise.resolve(JSON.parse(JSON.stringify(withRegion))));
+        window.ApiClient.getJSON = vi.fn((url) => {
+            if (url === 'JuxHomepage/TMDb/Countries') { return countries; }
+            if (url === 'JuxHomepage/TMDb/Status') {
+                return Promise.resolve([{ Type: 'NowPlayingMovies', LastRefreshedUtc: null, ItemCount: 0, MatchedCount: 0, LastError: null }]);
+            }
+            return getJSON(url);
+        });
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+
+        const region = () => view.querySelector('#selNowPlayingRegion');
+        expect(region().value).toBe('FR');
+
+        answerCountries([{ Value: 'DE', Label: 'Germany' }, { Value: 'FR', Label: 'France' }]);
+        await settle();
+
+        expect(region().value).toBe('FR');
+        expect(region().selectedOptions[0].textContent).toBe('France');
+        expect(region().options).toHaveLength(3);
+    });
+
     it('says why a TMDb list came back empty, and nothing for a list that did not fail (FIAB-10.c)', async () => {
         window.ApiClient.getJSON = vi.fn((url) => {
             if (url === 'JuxHomepage/TMDb/Status') {
