@@ -99,7 +99,11 @@ public abstract class PersonalizedWidgetBase : IWidget
     public virtual int DefaultMinItems => 4;
 
     /// <inheritdoc/>
-    public IReadOnlyList<WidgetExtraParam> DefaultExtraParams => [new WidgetExtraParam { Key = ExcludeWatchedParam, Value = "true" }];
+    public IReadOnlyList<WidgetExtraParam> DefaultExtraParams =>
+        [new WidgetExtraParam { Key = ExcludeWatchedParam, Value = "true" }, .. OwnDefaultExtraParams];
+
+    /// <summary>Gets the parameters of a new row that only this personalized widget has.</summary>
+    protected virtual IReadOnlyList<WidgetExtraParam> OwnDefaultExtraParams => [];
 
     /// <inheritdoc/>
     public virtual WidgetCategory Category => WidgetCategory.Personalized;

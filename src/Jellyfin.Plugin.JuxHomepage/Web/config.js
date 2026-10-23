@@ -341,7 +341,7 @@ var EDITORS = {
                     ['movies', self.t('admin.byw.scope.movies')],
                     ['series', self.t('admin.byw.scope.series')],
                     ['both', self.t('admin.byw.scope.both')]
-                ], self.getExtraParam(w, 'scope') || 'both');
+                ], self.paramOrDefault(w, 'scope'));
                 html += '<div class="fieldDescription">' + self.escHtml(self.t('admin.byw.scope.help')) + '</div>';
                 html += '</div>';
             }
@@ -384,15 +384,15 @@ var EDITORS = {
                 ['primary_release_date.desc', self.t('admin.discover.sortby.releasedate')],
                 ['revenue.desc', self.t('admin.discover.sortby.revenue')],
                 ['title.asc', self.t('admin.discover.sortby.title')]
-            ], self.getExtraParam(w, 'sortBy') || 'popularity.desc');
+            ], self.paramOrDefault(w, 'sortBy'));
             html += '</div>';
             html += halfInputsHtml(self, i, [
                 ['discYear', 'jux-discover-year', 'admin.discover.year', 'type="number"', self.getExtraParam(w, 'year'), ''],
                 ['discMinRating', 'jux-discover-minrating', 'admin.discover.minrating', 'type="number" min="0" max="10" step="0.1"', self.getExtraParam(w, 'minRating'), '']
             ]);
             html += halfInputsHtml(self, i, [
-                ['discMinVotes', 'jux-discover-minvotes', 'admin.discover.minvotes', 'type="number" min="0"', self.getExtraParam(w, 'minVotes') || '50', ''],
-                ['discPages', 'jux-discover-pages', 'admin.discover.pages', 'type="number" min="1" max="5"', self.getExtraParam(w, 'pages') || '1', '']
+                ['discMinVotes', 'jux-discover-minvotes', 'admin.discover.minvotes', 'type="number" min="0"', self.paramOrDefault(w, 'minVotes'), ''],
+                ['discPages', 'jux-discover-pages', 'admin.discover.pages', 'type="number" min="1" max="5"', self.paramOrDefault(w, 'pages'), '']
             ]);
             return html;
         },
@@ -495,7 +495,7 @@ var EDITORS = {
             html += '<label class="inputLabel inputLabelUnfocused" for="localItemTypes_' + i + '">' + self.escHtml(self.t('admin.local.itemtypes.label')) + '</label>';
             html += selectHtml(self, 'localItemTypes_' + i, 'jux-local-itemtypes', LOCAL_ITEM_TYPES.map(function (opt) {
                 return [opt[0], self.t(opt[1])];
-            }), self.getExtraParam(w, 'itemTypes') || LOCAL_ITEM_TYPES[0][0]);
+            }), self.paramOrDefault(w, 'itemTypes'));
             html += '</div>';
             return html;
         },
@@ -730,6 +730,12 @@ function createConfigPage() {
         // such as "excludeWatched".
         getExtraParam: function (w, key) {
             return getExtraParam(w, key);
+        },
+
+        // A parameter of the row, or its default from Admin/Catalog when the row has none (QUAL-03.c).
+        paramOrDefault: function (w, key) {
+            var desc = this.getDescriptor(w.WidgetType);
+            return getExtraParam(w, key) || (desc && desc.DefaultRow ? getExtraParam(desc.DefaultRow, key) : '');
         },
 
         // Look up the Label for a Value from the loaded values cache.

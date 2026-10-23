@@ -17,7 +17,7 @@ public sealed class WidgetDefaultRowTests
         { "jux.connected.seasonal", "value=" },
         { "jux.local.top-rated", "itemTypes=Movie,Series" },
         { "jux.personalized.favorite-genre", "excludeWatched=true" },
-        { "jux.personalized.because-you-watched", "excludeWatched=true" },
+        { "jux.personalized.because-you-watched", "excludeWatched=true;scope=both" },
     };
 
     [Theory]

@@ -41,6 +41,10 @@ public sealed class BecauseYouWatchedWidget : PersonalizedWidgetBase
     /// <inheritdoc/>
     public override string WidgetType => "jux.personalized.because-you-watched";
 
+    /// <summary>Gets both kinds of reference item, as when the scope is unset.</summary>
+    protected override IReadOnlyList<WidgetExtraParam> OwnDefaultExtraParams =>
+        [new WidgetExtraParam { Key = ScopeParam, Value = "both" }];
+
     /// <inheritdoc/>
     /// <remarks>The recommendations keep their random order (<see cref="ApplyFilter"/>).</remarks>
     protected override bool UsesConfiguredSort => false;

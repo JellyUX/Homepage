@@ -313,6 +313,22 @@ describe('configuration page controller (F-33)', () => {
         expect(defaultRow.ExtraParams[0].Value).toBe('');
     });
 
+    it('shows the catalog default of a parameter a loaded row does not have (QUAL-03.c, R11)', async () => {
+        const row = { WidgetType: 'jux.connected.discover-movies', Enabled: true, Order: 3, MinItems: 1, MaxItems: 20, ViewMode: 'Portrait', ExtraParams: [{ Key: 'value', Value: 'd1' }] };
+        const defaultRow = { WidgetType: 'jux.connected.discover-movies', ExtraParams: [{ Key: 'value', Value: '' }, { Key: 'sortBy', Value: 'vote_count.desc' }, { Key: 'minVotes', Value: '30' }, { Key: 'pages', Value: '2' }] };
+        const catalog = [...descriptors, { WidgetType: 'jux.connected.discover-movies', DisplayName: 'Discover', Category: 3, MinItems: 1, ViewMode: 'Portrait', DefaultRow: defaultRow }];
+        window.ApiClient.getPluginConfiguration = vi.fn(() => Promise.resolve({ ...JSON.parse(JSON.stringify(config)), Widgets: [...JSON.parse(JSON.stringify(config.Widgets)), row] }));
+        window.ApiClient.getJSON = vi.fn((url) => (url === 'JuxHomepage/Admin/Catalog'
+            ? Promise.resolve({ WidgetCategories: ['Native', 'Admin', 'Personalized', 'Connected'], Widgets: catalog })
+            : getJSON(url)));
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+
+        expect([card(3).querySelector('.jux-discover-sortby').value, card(3).querySelector('.jux-discover-minvotes').value, card(3).querySelector('.jux-discover-pages').value])
+            .toEqual(['vote_count.desc', '30', '2']);
+    });
+
     it('lists the answer of the latest search, even when an older one answers last (QUAL-03.b)', async () => {
         const row = { WidgetType: 'jux.connected.discover-movies', Enabled: true, Order: 3, MinItems: 1, MaxItems: 20, ViewMode: 'Portrait', ExtraParams: [{ Key: 'value', Value: 'd1' }] };
         const catalog = [...descriptors, { WidgetType: 'jux.connected.discover-movies', DisplayName: 'Discover', Category: 3, MinItems: 1, ViewMode: 'Portrait' }];
