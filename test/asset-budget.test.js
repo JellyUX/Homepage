@@ -1,5 +1,20 @@
 import { describe, it, expect } from 'vitest';
-import { injectedAssets, compareAssets } from '../ci/asset-budget.mjs';
+import { injectedAssets, compareAssets, clientI18nScript } from '../ci/asset-budget.mjs';
+
+describe('clientI18nScript', () => {
+    const en = JSON.stringify({ 'client.a': 'Don’t "go" <b>', 'admin.x': 'Admin only' });
+    const fr = JSON.stringify({ 'client.a': 'Été' });
+
+    it('builds jux-i18n.js as the server does: client keys only, escaped like System.Text.Json (A-15.a)', () => {
+        expect(clientI18nScript([['en.json', en], ['fr.json', fr]])).toBe(
+            'window.JuxI18n = {"en":{"client.a":"Don\\u2019t \\u0022go\\u0022 \\u003Cb\\u003E"},"fr":{"client.a":"\\u00C9t\\u00E9"}};\n');
+    });
+
+    it('does not grow with an admin key', () => {
+        const withAdmin = JSON.stringify({ ...JSON.parse(en), 'admin.y': 'Another admin string' });
+        expect(clientI18nScript([['en.json', withAdmin], ['fr.json', fr]])).toBe(clientI18nScript([['en.json', en], ['fr.json', fr]]));
+    });
+});
 
 describe('injectedAssets', () => {
     it('reads the client asset list in declaration order, the generated labels script included', () => {

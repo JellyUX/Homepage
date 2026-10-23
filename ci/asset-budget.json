@@ -1,9 +1,9 @@
 {
-    "description": "Gzip bytes of each client asset index.html can reference (ci/asset-budget.mjs, line endings as committed); jux-i18n.js is the gzip of Localization/*.json concatenated. Measured on HEAD; fails above +2 %, raise only with a Budget: trailer, lower when a change shrinks an asset.",
+    "description": "Gzip bytes of each client asset index.html can reference (ci/asset-budget.mjs, line endings as committed); jux-i18n.js is rebuilt from the client.* keys as the server serves it (A-15.a). Measured on HEAD; fails above +2 %, raise only with a Budget: trailer, lower when a change shrinks an asset.",
     "assets": {
         "jux-homepage.css": 3906,
         "jux-ui.css": 4323,
-        "jux-i18n.js": 11431,
+        "jux-i18n.js": 2759,
         "jux-core.js": 5954,
         "jux-homepage.js": 9112,
         "jux-featured.js": 6341,
