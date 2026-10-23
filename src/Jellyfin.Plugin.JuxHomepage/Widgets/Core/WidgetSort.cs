@@ -5,7 +5,8 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets;
 
 /// <summary>
 /// The card orders an administrator can pick for a library section (TODO_V4.md 8.1, F-53), stored
-/// as <see cref="WidgetConfig.SortBy"/> and <see cref="WidgetConfig.SortOrder"/>.
+/// as <see cref="WidgetConfig.SortBy"/> and <see cref="WidgetConfig.SortOrder"/>, and the orders the
+/// Watchlist, History and Progress tabs ask for: one vocabulary for both (QUAL-06.b).
 /// </summary>
 public static class WidgetSort
 {
@@ -20,6 +21,9 @@ public static class WidgetSort
 
     /// <summary>Community rating.</summary>
     public const string CommunityRating = "CommunityRating";
+
+    /// <summary>Date the user last played the item, the default order of the History and Progress tabs.</summary>
+    public const string LastPlayed = "LastPlayed";
 
     /// <summary>A shuffle drawn once a day per user and section, the same on every load of that day.</summary>
     public const string Random = "Random";

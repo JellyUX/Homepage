@@ -12,7 +12,7 @@ describe('_sortOptions', () => {
 
 describe('_buildShellHtml', () => {
     it('renders the section title and the sort button with the current label', () => {
-        const html = _buildShellHtml('en', { sortBy: 'Name', sortOrder: 'Ascending' });
+        const html = _buildShellHtml('en', { sortBy: 'SortName', sortOrder: 'Ascending' });
 
         expect(html).toContain('History');
         expect(html).toContain('id="jux-history-sort-btn"');

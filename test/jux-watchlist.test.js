@@ -13,7 +13,7 @@ describe('_sortOptions / _typeOptions', () => {
 
 describe('_buildShellHtml', () => {
     it('renders the section title and both sort/filter buttons with the current labels', () => {
-        const html = _buildShellHtml('en', { sortBy: 'Name', sortOrder: 'Ascending', includeItemTypes: 'Movie' });
+        const html = _buildShellHtml('en', { sortBy: 'SortName', sortOrder: 'Ascending', includeItemTypes: 'Movie' });
 
         expect(html).toContain('Watchlist');
         expect(html).toContain('id="jux-watchlist-sort-btn"');
@@ -23,7 +23,7 @@ describe('_buildShellHtml', () => {
     });
 
     it('renders localized labels for French', () => {
-        const html = _buildShellHtml('fr', { sortBy: 'DateAdded', sortOrder: 'Descending', includeItemTypes: 'All' });
+        const html = _buildShellHtml('fr', { sortBy: 'DateCreated', sortOrder: 'Descending', includeItemTypes: 'All' });
 
         expect(html).toContain('Date d’ajout');
         expect(html).toContain('Tous');

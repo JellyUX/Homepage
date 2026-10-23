@@ -114,20 +114,21 @@ public sealed class WatchlistService : IWatchlistService
     };
 
     /// <summary>
-    /// Maps the "sortBy" query parameter to an <see cref="ItemSortBy"/> constant. Unrecognized or
-    /// null values fall back to "DateAdded" -- <c>Likes</c> has no timestamp of its own, so
-    /// <see cref="ItemSortBy.DateCreated"/> (when the item was added to the library) is the closest
-    /// available proxy for "recently added to the Watchlist".
+    /// Maps the "sortBy" query parameter, a <see cref="WidgetSort"/> value, to an <see cref="ItemSortBy"/>
+    /// constant. Unrecognized or null values fall back to <see cref="WidgetSort.DateCreated"/> --
+    /// <c>Likes</c> has no timestamp of its own, so the date the item was added to the library is the
+    /// closest available proxy for "recently added to the Watchlist".
     /// </summary>
-    private static ItemSortBy ResolveSortBy(string? sortBy) => sortBy?.ToLowerInvariant() switch
+    private static ItemSortBy ResolveSortBy(string? sortBy) => sortBy switch
     {
-        "name" => ItemSortBy.SortName,
-        "releasedate" => ItemSortBy.PremiereDate,
-        "communityrating" => ItemSortBy.CommunityRating,
+        WidgetSort.SortName => ItemSortBy.SortName,
+        WidgetSort.PremiereDate => ItemSortBy.PremiereDate,
+        WidgetSort.CommunityRating => ItemSortBy.CommunityRating,
+        WidgetSort.DateCreated => ItemSortBy.DateCreated,
         _ => ItemSortBy.DateCreated
     };
 
     /// <summary>Maps the "sortOrder" query parameter to a <see cref="SortOrder"/>. Defaults to descending.</summary>
     private static SortOrder ResolveSortOrder(string? sortOrder) =>
-        string.Equals(sortOrder, "Ascending", StringComparison.OrdinalIgnoreCase) ? SortOrder.Ascending : SortOrder.Descending;
+        sortOrder == WidgetSort.Ascending ? SortOrder.Ascending : SortOrder.Descending;
 }

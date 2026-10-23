@@ -55,7 +55,7 @@ const ENDPOINTS = [
     section('favorite-actor', 'jux.personalized.favorite-actor#1'),
     section('because-you-watched', 'jux.personalized.because-you-watched#1'),
     section('admin.genre', 'jux.admin.genre#1', true),
-    ['Watchlist/Items', user, `/JuxHomepage/Watchlist/Items?userId=${U}&sortBy=DateAdded&sortOrder=Descending&includeItemTypes=All&startIndex=0&limit=50`],
+    ['Watchlist/Items', user, `/JuxHomepage/Watchlist/Items?userId=${U}&sortBy=DateCreated&sortOrder=Descending&includeItemTypes=All&startIndex=0&limit=50`],
     ['SeriesProgress/Items', user, `/JuxHomepage/SeriesProgress/Items?userId=${U}&sortBy=LastPlayed&sortOrder=Descending&startIndex=0&limit=50`],
     ['MovieHistory/Items', user, `/JuxHomepage/MovieHistory/Items?userId=${U}&sortBy=LastPlayed&sortOrder=Descending&startIndex=0&limit=50`],
     ['Statistics', user, `/JuxHomepage/Statistics?userId=${U}`],
@@ -64,7 +64,7 @@ const ENDPOINTS = [
     ['UserSettings', user, `/JuxHomepage/UserSettings?userId=${U}&lang=en`],
     ['admin Admin/Warnings', admin, '/JuxHomepage/Admin/Warnings'],
     ['admin Admin/Catalog', admin, '/JuxHomepage/Admin/Catalog'],
-    ['admin Watchlist/Items (4 items)', admin, `/JuxHomepage/Watchlist/Items?userId=${A}&sortBy=DateAdded&sortOrder=Descending&includeItemTypes=All&startIndex=0&limit=50`],
+    ['admin Watchlist/Items (4 items)', admin, `/JuxHomepage/Watchlist/Items?userId=${A}&sortBy=DateCreated&sortOrder=Descending&includeItemTypes=All&startIndex=0&limit=50`],
     ['admin SeriesProgress/Items (2)', admin, `/JuxHomepage/SeriesProgress/Items?userId=${A}&sortBy=LastPlayed&sortOrder=Descending&startIndex=0&limit=50`],
     ['admin MovieHistory/Items (12)', admin, `/JuxHomepage/MovieHistory/Items?userId=${A}&sortBy=LastPlayed&sortOrder=Descending&startIndex=0&limit=50`],
     ['admin Statistics', admin, `/JuxHomepage/Statistics?userId=${A}`]

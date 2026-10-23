@@ -99,6 +99,35 @@ public sealed class WatchlistServiceTests
         Assert.Equal([expected], capturedQuery!.IncludeItemTypes);
     }
 
+    // The tab speaks the WidgetSort vocabulary of the sections (QUAL-06.b); anything else, the old tab
+    // names included, is the default, the date the item was added.
+    [Theory]
+    [InlineData("SortName", ItemSortBy.SortName)]
+    [InlineData("DateCreated", ItemSortBy.DateCreated)]
+    [InlineData("PremiereDate", ItemSortBy.PremiereDate)]
+    [InlineData("CommunityRating", ItemSortBy.CommunityRating)]
+    [InlineData("Name", ItemSortBy.DateCreated)]
+    [InlineData(null, ItemSortBy.DateCreated)]
+    public void GetItems_SortBy_MapsTheWidgetSortVocabulary(string? sortBy, ItemSortBy expected)
+    {
+        var user = new User("test", "Default", "Default");
+        var userManagerMock = new Mock<IUserManager>();
+        userManagerMock.Setup(m => m.GetUserById(user.Id)).Returns(user);
+
+        InternalItemsQuery? capturedQuery = null;
+        var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock
+            .Setup(m => m.GetItemsResult(It.IsAny<InternalItemsQuery>()))
+            .Callback<InternalItemsQuery>(q => capturedQuery = q)
+            .Returns(new QueryResult<BaseItem>([]));
+
+        var service = new WatchlistService(userManagerMock.Object, libraryManagerMock.Object, Mock.Of<IDtoService>());
+
+        service.GetItems(user.Id, sortBy, "Descending", null, null, 0, 50, true, CancellationToken.None);
+
+        Assert.Equal(expected, capturedQuery!.OrderBy[0].Item1);
+    }
+
     [Fact]
     public void GetItems_SortByNameAscending_MapsToSortNameAndAscendingOrder()
     {
@@ -120,7 +149,7 @@ public sealed class WatchlistServiceTests
 
         var service = new WatchlistService(userManagerMock.Object, libraryManagerMock.Object, dtoServiceMock.Object);
 
-        service.GetItems(user.Id, "Name", "Ascending", null, null, 0, 50, true, CancellationToken.None);
+        service.GetItems(user.Id, "SortName", "Ascending", null, null, 0, 50, true, CancellationToken.None);
 
         Assert.NotNull(capturedQuery);
         Assert.Equal(ItemSortBy.SortName, capturedQuery!.OrderBy[0].Item1);

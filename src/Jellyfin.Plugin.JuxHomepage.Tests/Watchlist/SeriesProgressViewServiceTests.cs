@@ -151,7 +151,7 @@ public sealed class SeriesProgressViewServiceTests
             dtoServiceMock.Object,
             NullLogger<SeriesProgressViewService>.Instance);
 
-        var result = service.GetItems(user.Id, "Name", "Ascending", null, 0, 50, CancellationToken.None);
+        var result = service.GetItems(user.Id, "SortName", "Ascending", null, 0, 50, CancellationToken.None);
 
         Assert.Equal(seriesA.Id, result.Items[0].Item.Id);
         Assert.Equal(seriesZ.Id, result.Items[1].Item.Id);

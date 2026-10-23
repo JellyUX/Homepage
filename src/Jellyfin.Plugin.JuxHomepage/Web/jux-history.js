@@ -21,7 +21,7 @@
     function _sortOptions(t) {
         return [
             { value: 'LastPlayed', label: t.sortLastPlayed },
-            { value: 'Name', label: t.sortName }
+            { value: 'SortName', label: t.sortName }
         ];
     }
 

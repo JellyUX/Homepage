@@ -261,7 +261,6 @@ public sealed class DiskJsonCacheTests : IDisposable
         Id = id,
         Title = "Title",
         Overview = "An overview of the film.",
-        ReleaseDate = "2024-06-01",
         PosterPath = "/poster.jpg",
         BackdropPath = "/backdrop.jpg",
         VoteAverage = 7.5,

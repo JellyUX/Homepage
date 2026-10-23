@@ -16,7 +16,7 @@ public interface ISeriesProgressViewService
     /// <see cref="MediaBrowser.Model.Dto.BaseItemDto"/> for card rendering.
     /// </summary>
     /// <param name="userId">The requesting user's identifier.</param>
-    /// <param name="sortBy">"Name" or "LastPlayed" (default); unrecognized values fall back to "LastPlayed".</param>
+    /// <param name="sortBy"><see cref="Widgets.WidgetSort.SortName"/> or <see cref="Widgets.WidgetSort.LastPlayed"/> (default); unrecognized values fall back to "LastPlayed".</param>
     /// <param name="sortOrder">"Ascending" or "Descending" (default).</param>
     /// <param name="searchTerm">Name filter (case and accents ignored); null or blank keeps every row.</param>
     /// <param name="startIndex">Zero-based start index for pagination.</param>

@@ -13,9 +13,9 @@
 
     function _sortOptions(t) {
         return [
-            { value: 'DateAdded', label: t.sortDateAdded },
-            { value: 'Name', label: t.sortName },
-            { value: 'ReleaseDate', label: t.sortReleaseDate },
+            { value: 'DateCreated', label: t.sortDateAdded },
+            { value: 'SortName', label: t.sortName },
+            { value: 'PremiereDate', label: t.sortReleaseDate },
             { value: 'CommunityRating', label: t.sortCommunityRating }
         ];
     }
@@ -33,7 +33,7 @@
         endpoint: 'JuxHomepage/Watchlist/Items',
         logName: 'Watchlist',
         labels: 'watchlist',
-        state: { sortBy: 'DateAdded', sortOrder: 'Descending', includeItemTypes: 'All' },
+        state: { sortBy: 'DateCreated', sortOrder: 'Descending', includeItemTypes: 'All' },
         sortOptions: _sortOptions,
         filters: [{ name: 'type', key: 'includeItemTypes', icon: 'filter_list', titleKey: 'typeDialogTitle', options: _typeOptions }],
         emptyIcon: 'bookmark_border',

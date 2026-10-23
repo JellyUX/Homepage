@@ -360,7 +360,7 @@ public class JuxHomepageController : ControllerBase
     /// <c>UserData.Likes == true</c>). TODO_V3.md Phase 5.1.
     /// </summary>
     /// <param name="userId">The requesting user's Jellyfin identifier.</param>
-    /// <param name="sortBy">One of "Name", "DateAdded", "ReleaseDate", "CommunityRating". Defaults to "DateAdded".</param>
+    /// <param name="sortBy">One of "SortName", "DateCreated", "PremiereDate", "CommunityRating" (<see cref="WidgetSort"/>). Defaults to "DateCreated".</param>
     /// <param name="sortOrder">"Ascending" or "Descending". Defaults to "Descending".</param>
     /// <param name="includeItemTypes">One of "Movie", "Series", "All". Defaults to "All".</param>
     /// <param name="searchTerm">Name filter (case and accents ignored, TODO_V4.md 8.5); blank keeps every row.</param>
@@ -438,7 +438,7 @@ public class JuxHomepageController : ControllerBase
     /// each hydrated with a poster/name and the watched/total episode counts and last-watched episode.
     /// </summary>
     /// <param name="userId">The requesting user's Jellyfin identifier.</param>
-    /// <param name="sortBy">"Name" or "LastPlayed". Defaults to "LastPlayed".</param>
+    /// <param name="sortBy">"SortName" or "LastPlayed" (<see cref="WidgetSort"/>). Defaults to "LastPlayed".</param>
     /// <param name="sortOrder">"Ascending" or "Descending". Defaults to "Descending".</param>
     /// <param name="searchTerm">Name filter (case and accents ignored, TODO_V4.md 8.5); blank keeps every row.</param>
     /// <param name="startIndex">Zero-based start index for pagination.</param>
@@ -475,7 +475,7 @@ public class JuxHomepageController : ControllerBase
     /// hydrated with a poster/name and last-played date.
     /// </summary>
     /// <param name="userId">The requesting user's Jellyfin identifier.</param>
-    /// <param name="sortBy">"Name" or "LastPlayed". Defaults to "LastPlayed".</param>
+    /// <param name="sortBy">"SortName" or "LastPlayed" (<see cref="WidgetSort"/>). Defaults to "LastPlayed".</param>
     /// <param name="sortOrder">"Ascending" or "Descending". Defaults to "Descending".</param>
     /// <param name="searchTerm">Name filter (case and accents ignored, TODO_V4.md 8.5); blank keeps every row.</param>
     /// <param name="startIndex">Zero-based start index for pagination.</param>

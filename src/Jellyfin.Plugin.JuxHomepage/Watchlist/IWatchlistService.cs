@@ -16,8 +16,8 @@ public interface IWatchlistService
     /// </summary>
     /// <param name="userId">The user whose Watchlist to read.</param>
     /// <param name="sortBy">
-    /// One of "Name", "DateAdded", "ReleaseDate", "CommunityRating" (case-insensitive). Unrecognized
-    /// or null values fall back to "DateAdded".
+    /// One of "SortName", "DateCreated", "PremiereDate", "CommunityRating" (<see cref="Widgets.WidgetSort"/>).
+    /// Unrecognized or null values fall back to "DateCreated".
     /// </param>
     /// <param name="sortOrder">"Ascending" or "Descending" (case-insensitive). Defaults to "Descending".</param>
     /// <param name="includeItemTypes">

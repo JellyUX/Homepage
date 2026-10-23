@@ -117,9 +117,9 @@ public sealed class SeriesProgressViewService : ISeriesProgressViewService
         string? sortBy,
         string? sortOrder)
     {
-        var descending = !string.Equals(sortOrder, "Ascending", StringComparison.OrdinalIgnoreCase);
+        var descending = sortOrder != WidgetSort.Ascending;
 
-        IOrderedEnumerable<SeriesProgressEntry> ordered = string.Equals(sortBy, "Name", StringComparison.OrdinalIgnoreCase)
+        IOrderedEnumerable<SeriesProgressEntry> ordered = sortBy == WidgetSort.SortName
             ? (descending
                 ? entries.OrderByDescending(e => e.SeriesName, StringComparer.OrdinalIgnoreCase)
                 : entries.OrderBy(e => e.SeriesName, StringComparer.OrdinalIgnoreCase))

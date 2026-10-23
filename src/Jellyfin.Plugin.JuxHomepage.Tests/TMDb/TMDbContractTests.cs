@@ -63,7 +63,6 @@ public sealed class TMDbContractTests
         Assert.Equal(
             "The story of J. Robert Oppenheimer's role in the development of the atomic bomb during World War II.",
             movie.Overview);
-        Assert.Equal("2023-07-19", movie.ReleaseDate);
         Assert.Equal("/8Gxv8gSFCU0XGDykEGv7zR1n2ua.jpg", movie.PosterPath);
         Assert.Equal("/nAxGnGHOsfzufThz20zgmYrjNfk.jpg", movie.BackdropPath);
         Assert.Equal(8.1, movie.VoteAverage);

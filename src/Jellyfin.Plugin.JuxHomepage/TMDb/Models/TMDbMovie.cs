@@ -19,10 +19,6 @@ public sealed class TMDbMovie : IExternalCacheItem
     [JsonPropertyName("overview")]
     public string? Overview { get; set; }
 
-    /// <summary>Gets or sets the release date (ISO 8601 date string, e.g. "2024-06-01").</summary>
-    [JsonPropertyName("release_date")]
-    public string? ReleaseDate { get; set; }
-
     /// <summary>Gets or sets the poster image path (relative to TMDb's image CDN).</summary>
     [JsonPropertyName("poster_path")]
     public string? PosterPath { get; set; }
