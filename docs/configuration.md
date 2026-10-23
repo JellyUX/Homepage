@@ -69,6 +69,25 @@ same on every visit of that day; it changes at midnight (server time). Editing t
 filters or Max items) draws again at once. Native sections (Continue Watching, Next Up, Recently Added),
 TMDb sections and Because You Watched keep their own order.
 
+### Featured
+
+Every section except My Media and the sections read from Jellyfin itself (Continue Watching, Next Up,
+Recently Added) has a **Featured** box. A featured section shows as a wide banner instead of a row of
+cards: one title at a time with its backdrop, logo, year, runtime, rating and tagline, **Play** and
+**More info** buttons, and the next titles beside it. It moves on every 8 seconds while it is on screen,
+and stops while the pointer or the keyboard focus is on it, in a hidden tab, or when the system asks for
+reduced motion. The pause button, the arrows, the left and right arrow keys and a swipe move it by hand.
+
+![A featured Genre section, sorted by rating](screenshots/featured.png)
+
+A featured section only shows titles that have a backdrop, at most 8 of them. **Minimum rating** (None,
+6, 7 or 8) keeps only the titles rated at least that much; it applies to a featured section only, a row
+of cards is never filtered. With fewer than 3 titles left, the section shows its cards instead. On a
+phone the image sits above the text; Android TV and other TV layouts keep the native home screen.
+
+A "Top Rated" banner for one genre needs no special widget: add a **Genre** section, set its **Sort
+order** to rating (highest first), and check **Featured**.
+
 ## External sources
 
 ### API Keys

@@ -46,6 +46,7 @@ After installation, the plugin configuration page lets you:
 - Enable or disable individual widgets
 - Reorder widgets via drag and drop
 - Configure per-widget parameters (minimum items, source library, etc.)
+- Show any library or TMDb section as a featured banner, with an optional minimum rating
 
 See the **[documentation site](https://jellyux.github.io/Homepage/)** for a detailed
 breakdown of every widget's parameters and all global settings.

@@ -57,6 +57,7 @@ docs/*
 docs/screenshots/*
 !docs/screenshots/home.png
 !docs/screenshots/admin.png
+!docs/screenshots/featured.png
 
 # MkDocs site source (Phase 13 of TODO_V2.md)
 !docs/index.md
