@@ -521,6 +521,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
 
         widget.SortBy = WidgetSort.NormalizeSortBy(widget.SortBy);
         widget.SortOrder = WidgetSort.NormalizeSortOrder(widget.SortOrder);
+        widget.ViewMode = WidgetViewMode.Normalize(widget.ViewMode);
 
         widget.MinInstances = Math.Max(1, widget.MinInstances);
         widget.MaxInstances = Math.Max(1, widget.MaxInstances);

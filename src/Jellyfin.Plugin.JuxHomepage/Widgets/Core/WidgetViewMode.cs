@@ -15,4 +15,15 @@ public static class WidgetViewMode
 
     /// <summary>Square cards (e.g. music albums, people).</summary>
     public const string Square = "Square";
+
+    /// <summary>
+    /// Returns the known view mode <paramref name="viewMode"/> names, ignoring case, otherwise
+    /// <see cref="Landscape"/>, the <see cref="WidgetConfig.ViewMode"/> default.
+    /// </summary>
+    /// <param name="viewMode">The stored value.</param>
+    /// <returns>A known view mode.</returns>
+    public static string Normalize(string? viewMode) =>
+        string.Equals(viewMode, Portrait, StringComparison.OrdinalIgnoreCase) ? Portrait
+        : string.Equals(viewMode, Square, StringComparison.OrdinalIgnoreCase) ? Square
+        : Landscape;
 }

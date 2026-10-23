@@ -560,6 +560,27 @@ public sealed class PluginValidationTests
     }
 
     [Fact]
+    public void ValidateConfiguration_NormalizesTheViewModeOfEveryRow()
+    {
+        var config = new PluginConfiguration
+        {
+            Widgets =
+            [
+                new WidgetConfig { WidgetType = "jux.admin.genre", ViewMode = "Spotlight" },
+                new WidgetConfig { WidgetType = "jux.admin.genre", ViewMode = null! },
+                new WidgetConfig { WidgetType = "jux.admin.genre", ViewMode = "portrait" },
+                new WidgetConfig { WidgetType = "jux.admin.genre", ViewMode = WidgetViewMode.Square }
+            ]
+        };
+
+        Plugin.ValidateConfiguration(config);
+
+        Assert.Equal(
+            [WidgetViewMode.Landscape, WidgetViewMode.Landscape, WidgetViewMode.Portrait, WidgetViewMode.Square],
+            config.Widgets.Select(w => w.ViewMode));
+    }
+
+    [Fact]
     public void ValidateConfiguration_DropsUnparseableSeasonalDatesOnly()
     {
         var config = new PluginConfiguration
