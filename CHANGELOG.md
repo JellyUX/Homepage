@@ -1,3 +1,19 @@
+## [2.17.0](https://github.com/JellyUX/Homepage/compare/v2.16.0...v2.17.0) (2026-10-23)
+
+### Features
+
+* carry a featured flag and a minimum rating on each row ([bf5dc22](https://github.com/JellyUX/Homepage/commit/bf5dc22f2e9ae461b4752b9313b02e58a9b311aa))
+* let the admin feature a section and set its minimum rating ([baa4f0c](https://github.com/JellyUX/Homepage/commit/baa4f0c696144f05d1895619dbfb06983c883902))
+* serve featured sections with overview, logo and backdrop ([547e006](https://github.com/JellyUX/Homepage/commit/547e006f17535f9e69bf4529bb103532fd9a8315))
+* show a featured section as a banner on the home page ([31fb23c](https://github.com/JellyUX/Homepage/commit/31fb23c59eb9151130ef0832f2ac925863933a8c)), closes [#00a4dc](https://github.com/JellyUX/Homepage/issues/00a4dc)
+
+### Bug Fixes
+
+* keep the featured banner readable on a light theme ([d119d74](https://github.com/JellyUX/Homepage/commit/d119d743445cb9d7d29ef40cf4084073a9f1e430))
+* keep the titles without a backdrop of a featured section for its cards ([ab4769c](https://github.com/JellyUX/Homepage/commit/ab4769ce8c02ca1859d4ed80172594481001da88))
+* normalize an unknown row view mode on load and save ([ccb66ef](https://github.com/JellyUX/Homepage/commit/ccb66ef2a09a447d7633212a4c8b7ce2db0e2741))
+* release a left banner, keep its focus and load a deferred logo ([79d5f95](https://github.com/JellyUX/Homepage/commit/79d5f95ca14499938ccbf77472c10bc2d4433053))
+
 ## [2.16.0](https://github.com/JellyUX/Homepage/compare/v2.15.3...v2.16.0) (2026-10-23)
 
 ### Features
