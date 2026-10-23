@@ -43,10 +43,12 @@ jobs:
       - name: Run Vitest
         run: npx vitest run --coverage
 
+      # Same base as the static checks: a manual run or a new branch diffs against origin/main (A-03.d).
       - name: Summarize coverage
         env:
-          DIFF_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
-        run: node ci/coverage-summary.mjs "$(find coverage/cs -name coverage.cobertura.xml | head -1)" coverage/js/coverage-summary.json --diff-base "$DIFF_BASE"
+          BEFORE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: node ci/coverage-summary.mjs "$(find coverage/cs -name coverage.cobertura.xml | head -1)" coverage/js/coverage-summary.json --diff-base "$(node ci/push-base.mjs)"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

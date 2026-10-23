@@ -101,18 +101,20 @@ export function addedLines(diff) {
  * Coverage of the added lines that a report instruments: a line no report knows (blank, comment,
  * declaration) counts in neither total. A report path matches a diff path when it ends with it at a path
  * segment boundary (reports hold absolute paths; a shorter report path never matches, so two files
- * sharing a name cannot swap hits).
+ * sharing a name cannot swap hits). A changed file no report knows is listed in unreported (A-03.d).
  * @param {Map<string, Set<number>>} added
  * @param {Map<string, Map<number, number>>[]} reports
- * @returns {{covered: number, total: number, files: {file: string, covered: number, total: number}[]}}
+ * @returns {{covered: number, total: number, files: {file: string, covered: number, total: number}[], unreported: string[]}}
  */
 export function changedLinesCoverage(added, reports) {
     const files = [];
+    const unreported = [];
     for (const [file, lines] of added) {
         const hits = reports
             .flatMap((report) => [...report])
             .find(([path]) => `/${path}`.endsWith(`/${file}`))?.[1];
         if (!hits) {
+            unreported.push(file);
             continue;
         }
         const instrumented = [...lines].filter((n) => hits.has(n));
@@ -123,7 +125,8 @@ export function changedLinesCoverage(added, reports) {
     return {
         covered: files.reduce((sum, f) => sum + f.covered, 0),
         total: files.reduce((sum, f) => sum + f.total, 0),
-        files
+        files,
+        unreported
     };
 }
 
@@ -169,7 +172,10 @@ function changedLinesRows(base, csHits, jsHits) {
         '| File | Covered | Lines | Coverage |',
         '|---|---|---|---|',
         `| **All changed plugin lines** | ${result.covered} | ${result.total} | **${pct(result.covered, result.total)}** |`,
-        ...result.files.map((f) => `| ${f.file} | ${f.covered} | ${f.total} | ${pct(f.covered, f.total)} |`)
+        ...result.files.map((f) => `| ${f.file} | ${f.covered} | ${f.total} | ${pct(f.covered, f.total)} |`),
+        ...(result.unreported.length > 0
+            ? ['', `_Changed files in no coverage report: ${result.unreported.map((f) => `\`${f}\``).join(', ')}._`]
+            : [])
     ];
     // On the shown, rounded value, so 79.96 % reads 80.0 % and does not warn.
     const below = result.total > 0 && Number(((100 * result.covered) / result.total).toFixed(1)) < CHANGED_LINES_WARNING;

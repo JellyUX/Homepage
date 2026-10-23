@@ -63,7 +63,8 @@ describe('changedLinesCoverage', () => {
             files: [
                 { file: 'src/Jellyfin.Plugin.JuxHomepage/A.cs', covered: 2, total: 3 },
                 { file: 'src/Jellyfin.Plugin.JuxHomepage/Web/jux-ui.js', covered: 1, total: 2 }
-            ]
+            ],
+            unreported: ['src/Jellyfin.Plugin.JuxHomepage/Unmeasured.cs']
         });
     });
 
@@ -71,6 +72,6 @@ describe('changedLinesCoverage', () => {
         const added = new Map([['src/Jellyfin.Plugin.JuxHomepage/A.cs', new Set([1])]]);
         const other = new Map([['/repo/src/Jellyfin.Plugin.JuxHomepage/BA.cs', new Map([[1, 0]])]]);
 
-        expect(changedLinesCoverage(added, [other]).total).toBe(0);
+        expect(changedLinesCoverage(added, [other])).toMatchObject({ total: 0, unreported: ['src/Jellyfin.Plugin.JuxHomepage/A.cs'] });
     });
 });
