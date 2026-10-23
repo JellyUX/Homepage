@@ -20,10 +20,12 @@ namespace Jellyfin.Plugin.JuxHomepage.TMDb;
 /// </para>
 /// <para>
 /// Every public method degrades gracefully: a missing key results in a silent skip (debug log
-/// only), an invalid key (HTTP 401) is logged as an explicit error, a network failure is
+/// only), an invalid key (HTTP 401) is logged as an explicit error, a rate limit (HTTP 429) as a
+/// warning without a retry, a network failure is
 /// retried once before being logged as an error, and a response that fails to parse as the
 /// expected JSON shape is logged as an explicit error without a retry (a schema mismatch is not
 /// transient). No public method throws, except when the caller cancels its own token.
+/// Each failure is also recorded in the open <see cref="TMDbFailureRecorder"/>, if any.
 /// </para>
 /// </summary>
 public sealed partial class TMDbApiClient : ITMDbApiClient
@@ -244,6 +246,7 @@ public sealed partial class TMDbApiClient : ITMDbApiClient
     {
         if (IsCircuitOpen(path))
         {
+            TMDbFailureRecorder.Record(TMDbFailureKind.Unreachable);
             return null;
         }
 
@@ -278,6 +281,16 @@ public sealed partial class TMDbApiClient : ITMDbApiClient
                     _logger.LogError(
                         "TMDb rejected the configured API key (HTTP 401) for request to '{Path}'.",
                         path);
+                    TMDbFailureRecorder.Record(TMDbFailureKind.InvalidKey);
+                    return null;
+                }
+
+                // Asking again at once would only prolong the rate limit; like a 401, waiting is the fix, so it
+                // does not count toward the circuit either (GetTrendingMoviesAsync_RateLimited_RecordsItWithoutRetry).
+                if (response.StatusCode == HttpStatusCode.TooManyRequests)
+                {
+                    _logger.LogWarning("TMDb rate-limited the request to '{Path}' (HTTP 429); not retrying.", path);
+                    TMDbFailureRecorder.Record(TMDbFailureKind.RateLimited);
                     return null;
                 }
 
@@ -303,6 +316,7 @@ public sealed partial class TMDbApiClient : ITMDbApiClient
 
                 _logger.LogError(ex, "TMDb request to '{Path}' failed after retry.", path);
                 RecordSustainedFailure();
+                TMDbFailureRecorder.Record(ex is TaskCanceledException ? TMDbFailureKind.Timeout : TMDbFailureKind.Unreachable);
                 return null;
             }
             catch (JsonException ex)
@@ -311,6 +325,7 @@ public sealed partial class TMDbApiClient : ITMDbApiClient
                 // retrying won't help, and it must not count toward the circuit breaker (same
                 // reasoning already applied to HTTP 401 above: waiting doesn't fix it).
                 _logger.LogError(ex, "TMDb response for '{Path}' could not be parsed as JSON.", path);
+                TMDbFailureRecorder.Record(TMDbFailureKind.Unreachable);
                 return null;
             }
         }

@@ -89,3 +89,8 @@ configured section, independent of the global TMDb Lists pages above.
 
 **Refresh now** also refreshes every configured [Rewards](widgets/connected/rewards.md) section --
 Rewards has no separate refresh button of its own, even though it is not TMDb data.
+
+When a list comes back empty because a TMDb request failed, its row says why (API key refused,
+rate-limited by TMDb, no answer in time, TMDb unreachable) and a warning at the top of the page
+says the same. The reason is cleared by the next refresh that returns items, or as soon as the API
+key is changed; it is kept in memory only, so a server restart clears it until the next refresh.

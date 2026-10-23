@@ -173,7 +173,8 @@ public class JuxHomepageController : ControllerBase
 
     /// <summary>
     /// Returns the integration warning codes the admin page shows in its banner (missing
-    /// FileTransformation, Custom Tabs installed), computed on each call.
+    /// FileTransformation, Custom Tabs installed), then one <c>TMDb{kind}</c> code per kind of failure that
+    /// left a TMDb list empty (FIAB-10.c, DEC-P10-1), computed on each call.
     /// </summary>
     /// <param name="coexistenceWarnings">The warning source.</param>
     /// <returns>The warning codes, empty when JellyUX can run normally.</returns>
@@ -182,8 +183,22 @@ public class JuxHomepageController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public ActionResult<IReadOnlyList<string>> GetAdminWarnings([FromServices] CoexistenceWarnings coexistenceWarnings)
     {
-        return Ok(coexistenceWarnings.Get());
+        return Ok(coexistenceWarnings.Get().Concat(TMDbWarningCodes(_tmdbCacheService)).ToList().AsReadOnly());
     }
+
+    /// <summary>
+    /// One <c>TMDb{kind}</c> warning code per kind of failure that left a fixed TMDb list empty, in
+    /// <see cref="TMDbFailureKind"/> order (<c>TMDbWarningCodes_OneCodePerKindOfFailure</c>).
+    /// </summary>
+    /// <param name="tmdbCacheService">The source of each list's last failure.</param>
+    /// <returns>The warning codes, empty when no list failed.</returns>
+    internal static IEnumerable<string> TMDbWarningCodes(ITMDbCacheService tmdbCacheService) =>
+        Enum.GetValues<TMDbCacheType>()
+            .Select(tmdbCacheService.GetLastError)
+            .OfType<TMDbFailureKind>()
+            .Distinct()
+            .Order()
+            .Select(kind => "TMDb" + kind);
 
     /// <summary>
     /// Restores the saved copy of the configuration the admin page offers after a reset (FIAB-07): it goes
@@ -712,8 +727,8 @@ public class JuxHomepageController : ControllerBase
     }
 
     /// <summary>
-    /// Returns the last-refreshed timestamp, cached item count and library match count for each
-    /// TMDb cache type, for display in the admin UI.
+    /// Returns the last-refreshed timestamp, cached item count, library match count and last failure for
+    /// each TMDb cache type, for display in the admin UI.
     /// </summary>
     /// <returns>An array of <see cref="TMDbCacheStatusDto"/> objects, one per <see cref="TMDbCacheType"/>.</returns>
     [HttpGet("TMDb/Status")]
@@ -729,7 +744,8 @@ public class JuxHomepageController : ControllerBase
                     type.ToString(),
                     _tmdbCacheService.GetLastRefreshedUtc(type),
                     items.Count,
-                    items.Count(i => i.LibraryItemId.HasValue));
+                    items.Count(i => i.LibraryItemId.HasValue),
+                    _tmdbCacheService.GetLastError(type)?.ToString());
             })
             .ToList()
             .AsReadOnly();
@@ -1033,5 +1049,6 @@ public class JuxHomepageController : ControllerBase
     /// <param name="LastRefreshedUtc">UTC timestamp of the last successful refresh, or null if never refreshed.</param>
     /// <param name="ItemCount">The number of items currently cached for this type.</param>
     /// <param name="MatchedCount">How many of those items were found in the local library (the only ones a section can show).</param>
-    public record TMDbCacheStatusDto(string Type, DateTime? LastRefreshedUtc, int ItemCount, int MatchedCount);
+    /// <param name="LastError">The <see cref="TMDbFailureKind"/> name of why the last refresh came back empty, or null (FIAB-10.c).</param>
+    public record TMDbCacheStatusDto(string Type, DateTime? LastRefreshedUtc, int ItemCount, int MatchedCount, string? LastError);
 }

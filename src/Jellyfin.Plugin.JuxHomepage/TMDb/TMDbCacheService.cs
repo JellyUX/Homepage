@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Jellyfin.Data.Enums;
 using Jellyfin.Plugin.JuxHomepage.Caching;
 using Jellyfin.Plugin.JuxHomepage.Configuration;
@@ -45,6 +46,9 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
     private readonly ILogger<TMDbCacheService> _logger;
     private readonly SectionResultCache? _sectionResults;
     private readonly SemaphoreSlim _refreshGate = new(1, 1);
+
+    // Why each fixed list last came back empty, with the API key it was asked with (FIAB-10.c, DEC-P10-3).
+    private readonly ConcurrentDictionary<TMDbCacheType, (TMDbFailureKind Kind, string? ApiKey)> _lastErrors = new();
     private bool _disposed;
 
     /// <summary>
@@ -250,6 +254,12 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
     public DateTime? GetLastRefreshedUtc(TMDbCacheType type) => _movieCache.GetLastWriteUtc(GetFileName(type));
 
     /// <inheritdoc/>
+    public TMDbFailureKind? GetLastError(TMDbCacheType type) =>
+        _lastErrors.TryGetValue(type, out var error) && error.ApiKey == _getConfiguration()?.ApiKeys?.TMDb
+            ? error.Kind
+            : null;
+
+    /// <inheritdoc/>
     public bool TryAcquireRefreshLock() => _refreshGate.Wait(0);
 
     /// <inheritdoc/>
@@ -304,7 +314,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
     {
         try
         {
-            var items = DeduplicateById(await fetch(cancellationToken).ConfigureAwait(false));
+            var items = await FetchRecordingErrorAsync(type, fetch, cancellationToken).ConfigureAwait(false);
             var matched = await MatchAsync(items, _movieExternalIds.GetImdbIdAsync, () => indexes.Movies, cancellationToken).ConfigureAwait(false);
             _movieExternalIds.Save();
             _movieCache.WriteUnlessEmpty(GetFileName(type), items);
@@ -325,7 +335,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
     {
         try
         {
-            var items = DeduplicateById(await fetch(cancellationToken).ConfigureAwait(false));
+            var items = await FetchRecordingErrorAsync(type, fetch, cancellationToken).ConfigureAwait(false);
             var matched = await MatchAsync(items, _showExternalIds.GetImdbIdAsync, () => indexes.Shows, cancellationToken).ConfigureAwait(false);
             _showExternalIds.Save();
             _showCache.WriteUnlessEmpty(GetFileName(type), items);
@@ -336,6 +346,38 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
         {
             _logger.LogError(ex, "Failed to refresh TMDb cache '{Type}'.", type);
         }
+    }
+
+    /// <summary>
+    /// Fetches a fixed list and keeps why it came back empty, if a request failed, or clears it
+    /// (<c>RefreshAllAsync_InvalidKey_KeepsWhyEachListIsEmptyUntilALaterSuccess</c>). Only the list requests are
+    /// recorded, not the external-id lookups that follow.
+    /// </summary>
+    private async Task<IReadOnlyList<T>> FetchRecordingErrorAsync<T>(
+        TMDbCacheType type,
+        Func<CancellationToken, Task<IReadOnlyList<T>>> fetch,
+        CancellationToken cancellationToken)
+        where T : IExternalCacheItem
+    {
+        var apiKey = _getConfiguration()?.ApiKeys?.TMDb;
+        IReadOnlyList<T> items;
+        TMDbFailureKind? failure;
+        using (var recorder = TMDbFailureRecorder.Begin())
+        {
+            items = DeduplicateById(await fetch(cancellationToken).ConfigureAwait(false));
+            failure = recorder.LastFailure;
+        }
+
+        if (items.Count == 0 && failure is { } kind)
+        {
+            _lastErrors[type] = (kind, apiKey);
+        }
+        else
+        {
+            _lastErrors.TryRemove(type, out _);
+        }
+
+        return items;
     }
 
     /// <summary>

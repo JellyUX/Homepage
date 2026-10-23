@@ -191,6 +191,38 @@ public sealed class JuxHomepageControllerTests
         var trendingShows = statuses.Single(s => s.Type == nameof(TMDbCacheType.TrendingShows));
         Assert.Equal(2, trendingShows.ItemCount);
         Assert.Equal(0, trendingShows.MatchedCount);
+        Assert.Null(trendingShows.LastError);
+    }
+
+    [Fact]
+    public void GetTMDbStatus_ListThatFailed_SaysWhy()
+    {
+        var tmdbCacheServiceMock = new Mock<ITMDbCacheService>();
+        tmdbCacheServiceMock.Setup(s => s.GetTrendingMovies()).Returns([]);
+        tmdbCacheServiceMock.Setup(s => s.GetTrendingShows()).Returns([]);
+        tmdbCacheServiceMock.Setup(s => s.GetAiringToday()).Returns([]);
+        tmdbCacheServiceMock.Setup(s => s.GetTopRatedMovies()).Returns([]);
+        tmdbCacheServiceMock.Setup(s => s.GetTopRatedShows()).Returns([]);
+        tmdbCacheServiceMock.Setup(s => s.GetNowPlayingMovies()).Returns([]);
+        tmdbCacheServiceMock.Setup(s => s.GetLastError(TMDbCacheType.AiringToday)).Returns(TMDbFailureKind.InvalidKey);
+
+        var result = BuildController(tmdbCacheServiceMock: tmdbCacheServiceMock).GetTMDbStatus();
+
+        var statuses = Assert.IsAssignableFrom<IReadOnlyList<JuxHomepageController.TMDbCacheStatusDto>>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Equal("InvalidKey", statuses.Single(s => s.Type == nameof(TMDbCacheType.AiringToday)).LastError);
+        Assert.All(statuses.Where(s => s.Type != nameof(TMDbCacheType.AiringToday)), s => Assert.Null(s.LastError));
+    }
+
+    [Fact]
+    public void TMDbWarningCodes_OneCodePerKindOfFailure()
+    {
+        var tmdbCacheServiceMock = new Mock<ITMDbCacheService>();
+        tmdbCacheServiceMock.Setup(s => s.GetLastError(TMDbCacheType.TrendingMovies)).Returns(TMDbFailureKind.Unreachable);
+        tmdbCacheServiceMock.Setup(s => s.GetLastError(TMDbCacheType.TrendingShows)).Returns(TMDbFailureKind.InvalidKey);
+        tmdbCacheServiceMock.Setup(s => s.GetLastError(TMDbCacheType.AiringToday)).Returns(TMDbFailureKind.InvalidKey);
+
+        Assert.Equal(["TMDbInvalidKey", "TMDbUnreachable"], JuxHomepageController.TMDbWarningCodes(tmdbCacheServiceMock.Object));
+        Assert.Empty(JuxHomepageController.TMDbWarningCodes(new Mock<ITMDbCacheService>().Object));
     }
 
     [Fact]

@@ -246,6 +246,59 @@ public sealed class TMDbCacheServiceTests : IDisposable
     // -------------------------------------------------------------------------
 
     [Fact]
+    public async Task RefreshAllAsync_InvalidKey_KeepsWhyEachListIsEmptyUntilALaterSuccess()
+    {
+        // FIAB-10.c: a refused key used to read as "0 cached" in the admin, with no reason.
+        var apiClientMock = new Mock<ITMDbApiClient>();
+        apiClientMock.SetupSequence(c => c.GetTrendingMoviesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                TMDbFailureRecorder.Record(TMDbFailureKind.InvalidKey);
+                return Task.FromResult<IReadOnlyList<TMDbMovie>>([]);
+            })
+            .ReturnsAsync((IReadOnlyList<TMDbMovie>)[new TMDbMovie { Id = 1, Title = "Trending" }]);
+        var service = BuildService(apiClientMock.Object, NoMatchLibraryManager(), apiKey: "key");
+
+        await service.RefreshAllAsync(null, CancellationToken.None);
+
+        Assert.Equal(TMDbFailureKind.InvalidKey, service.GetLastError(TMDbCacheType.TrendingMovies));
+        Assert.Null(service.GetLastError(TMDbCacheType.TrendingShows));
+
+        await service.RefreshAllAsync(null, CancellationToken.None);
+
+        Assert.Null(service.GetLastError(TMDbCacheType.TrendingMovies));
+    }
+
+    [Fact]
+    public async Task GetLastError_AfterTheKeyChanged_IsNull()
+    {
+        var apiKey = "refused";
+        var apiClientMock = new Mock<ITMDbApiClient>();
+        apiClientMock.Setup(c => c.GetTrendingMoviesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .Returns(() =>
+            {
+                TMDbFailureRecorder.Record(TMDbFailureKind.InvalidKey);
+                return Task.FromResult<IReadOnlyList<TMDbMovie>>([]);
+            });
+        var applicationPathsMock = new Mock<IApplicationPaths>();
+        applicationPathsMock.Setup(p => p.DataPath).Returns(_tempDir);
+        var service = new TMDbCacheService(
+            applicationPathsMock.Object,
+            new FileSystem(),
+            apiClientMock.Object,
+            NoMatchLibraryManager(),
+            () => new PluginConfiguration { ApiKeys = new ApiKeysConfig { TMDb = apiKey } },
+            NullLogger<TMDbCacheService>.Instance);
+
+        await service.RefreshAllAsync(null, CancellationToken.None);
+        Assert.Equal(TMDbFailureKind.InvalidKey, service.GetLastError(TMDbCacheType.TrendingMovies));
+
+        apiKey = "replaced";
+
+        Assert.Null(service.GetLastError(TMDbCacheType.TrendingMovies));
+    }
+
+    [Fact]
     public async Task RefreshDueAsync_NoApiKey_AsksTMDbAndTheLibraryNothing()
     {
         // R11: the hourly task does nothing at all on a server without a TMDb key.

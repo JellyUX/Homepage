@@ -87,6 +87,14 @@ public interface ITMDbCacheService
     DateTime? GetLastRefreshedUtc(TMDbCacheType type);
 
     /// <summary>
+    /// Returns why the last refresh of the given list came back empty (FIAB-10.c), for the admin UI. Kept in
+    /// memory, cleared by the next refresh that returns items, and ignored once the API key has changed.
+    /// </summary>
+    /// <param name="type">The cache type to check.</param>
+    /// <returns>The failure of the last refresh, or null if it succeeded, found nothing, or never ran.</returns>
+    TMDbFailureKind? GetLastError(TMDbCacheType type);
+
+    /// <summary>
     /// Refreshes all six fixed TMDb lists in sequence, then every configured Discover widget
     /// instance, whatever their age, like the admin "Refresh now" action. Each individual refresh is
     /// already fault-tolerant (a failure is logged and does not abort the others).

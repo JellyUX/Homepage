@@ -751,6 +751,26 @@ describe('configuration page controller (F-33)', () => {
         expect(help).toEqual(['admin.tmdbstatus.nowplaying.help']);
     });
 
+    it('says why a TMDb list came back empty, and nothing for a list that did not fail (FIAB-10.c)', async () => {
+        window.ApiClient.getJSON = vi.fn((url) => {
+            if (url === 'JuxHomepage/TMDb/Status') {
+                return Promise.resolve([
+                    { Type: 'TrendingMovies', LastRefreshedUtc: null, ItemCount: 0, MatchedCount: 0, LastError: 'InvalidKey' },
+                    { Type: 'TrendingShows', LastRefreshedUtc: null, ItemCount: 20, MatchedCount: 1, LastError: null }
+                ]);
+            }
+            return getJSON(url);
+        });
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+
+        const failed = view.querySelector('#tmdbError_TrendingMovies');
+        expect(failed.hidden).toBe(false);
+        expect(failed.textContent).toBe('admin.tmdbstatus.error.InvalidKey');
+        expect(view.querySelector('#tmdbError_TrendingShows').hidden).toBe(true);
+    });
+
     it('names a preset row by its translated key and keeps the key on save (F-64)', async () => {
         const named = JSON.parse(JSON.stringify(config));
         named.Widgets[2].ExtraParams.push({ Key: 'nameKey', Value: 'jux.seasonal.halloween-horror' });

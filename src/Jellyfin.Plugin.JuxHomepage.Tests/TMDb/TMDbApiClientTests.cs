@@ -163,6 +163,77 @@ public sealed class TMDbApiClientTests
     }
 
     // -------------------------------------------------------------------------
+    // Failure recorder (FIAB-10.c)
+    // -------------------------------------------------------------------------
+
+    [Fact]
+    public async Task GetTrendingMoviesAsync_RateLimited_RecordsItWithoutRetry()
+    {
+        var handler = new StubHttpMessageHandler(
+            () => new HttpResponseMessage(HttpStatusCode.TooManyRequests),
+            () => throw new HttpRequestException("down"),
+            () => throw new HttpRequestException("down"),
+            () => throw new HttpRequestException("down"),
+            () => throw new HttpRequestException("down"),
+            () => JsonResponse(new TMDbTrending<TMDbMovie> { Results = [new TMDbMovie { Id = 1 }] }));
+        var client = BuildClient(handler, V3Key);
+
+        using (var recorder = TMDbFailureRecorder.Begin())
+        {
+            Assert.Empty(await client.GetTrendingMoviesAsync(1, CancellationToken.None));
+            Assert.Equal(TMDbFailureKind.RateLimited, recorder.LastFailure);
+        }
+
+        Assert.Equal(1, handler.CallCount);
+
+        // Not counted toward the circuit: two failed calls after it leave it closed.
+        await client.GetTrendingMoviesAsync(1, CancellationToken.None);
+        await client.GetTrendingMoviesAsync(1, CancellationToken.None);
+        Assert.Single(await client.GetTrendingMoviesAsync(1, CancellationToken.None));
+    }
+
+    public static TheoryData<Func<HttpResponseMessage>, TMDbFailureKind> FailureKinds => new()
+    {
+        { () => new HttpResponseMessage(HttpStatusCode.Unauthorized), TMDbFailureKind.InvalidKey },
+        { () => throw new TaskCanceledException("HttpClient.Timeout"), TMDbFailureKind.Timeout },
+        { () => throw new HttpRequestException("network down"), TMDbFailureKind.Unreachable },
+        { () => new HttpResponseMessage(HttpStatusCode.InternalServerError), TMDbFailureKind.Unreachable },
+    };
+
+    [Theory]
+    [MemberData(nameof(FailureKinds))]
+    public async Task Recorder_KeepsWhyTheRequestGaveNoData(Func<HttpResponseMessage> respond, TMDbFailureKind expected)
+    {
+        var client = BuildClient(new StubHttpMessageHandler(respond, respond), V3Key);
+
+        using var recorder = TMDbFailureRecorder.Begin();
+        await client.GetTrendingMoviesAsync(1, CancellationToken.None);
+
+        Assert.Equal(expected, recorder.LastFailure);
+    }
+
+    [Fact]
+    public async Task Recorder_SeesOnlyTheRequestsMadeWhileItIsOpen()
+    {
+        var unauthorized = () => new HttpResponseMessage(HttpStatusCode.Unauthorized);
+        var client = BuildClient(new StubHttpMessageHandler(unauthorized, unauthorized), V3Key);
+
+        await client.GetTrendingMoviesAsync(1, CancellationToken.None);
+        TMDbFailureKind? outer;
+        using (var recorder = TMDbFailureRecorder.Begin())
+        {
+            using (TMDbFailureRecorder.Begin())
+            {
+                await client.GetTrendingMoviesAsync(1, CancellationToken.None);
+            }
+
+            outer = recorder.LastFailure;
+        }
+
+        Assert.Null(outer);
+    }
+
+    // -------------------------------------------------------------------------
     // Circuit breaker (Phase 3.2 of TODO_V2.md)
     // -------------------------------------------------------------------------
 

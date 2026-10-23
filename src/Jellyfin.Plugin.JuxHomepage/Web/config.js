@@ -1237,6 +1237,8 @@ function createConfigPage() {
                 html += '<div class="jux-admin-tmdb-status-row">';
                 html += '<span id="tmdbLabel_' + s.Type + '">' + self.escHtml(self.t('admin.tmdbstatus.cached', { label: label, count: s.ItemCount, matched: s.MatchedCount || 0 })) + '</span>';
                 html += '<span id="tmdbRefreshed_' + s.Type + '">' + self.escHtml(lastRefreshed) + '</span>';
+                html += '<span id="tmdbError_' + s.Type + '" class="jux-admin-field-error"' + (s.LastError ? '' : ' hidden') + '>';
+                html += self.escHtml(self.tmdbErrorText(s)) + '</span>';
                 if (pagesKey) {
                     html += '<span class="jux-admin-tmdb-pages">';
                     html += '<label for="numTmdbPages_' + s.Type + '">' + self.escHtml(self.t('admin.tmdbstatus.pages')) + '</label>';
@@ -1285,7 +1287,8 @@ function createConfigPage() {
             (statuses || []).forEach(function (s) {
                 var labelEl = document.getElementById('tmdbLabel_' + s.Type);
                 var refreshedEl = document.getElementById('tmdbRefreshed_' + s.Type);
-                if (!labelEl || !refreshedEl) {
+                var errorEl = document.getElementById('tmdbError_' + s.Type);
+                if (!labelEl || !refreshedEl || !errorEl) {
                     anyMissing = true;
                     return;
                 }
@@ -1294,10 +1297,17 @@ function createConfigPage() {
                 var lastRefreshed = s.LastRefreshedUtc ? new Date(s.LastRefreshedUtc).toLocaleString() : self.t('admin.tmdbstatus.never');
                 labelEl.textContent = self.t('admin.tmdbstatus.cached', { label: label, count: s.ItemCount, matched: s.MatchedCount || 0 });
                 refreshedEl.textContent = lastRefreshed;
+                errorEl.textContent = self.tmdbErrorText(s);
+                errorEl.hidden = !s.LastError;
             });
             if (anyMissing) {
                 self.renderTmdbStatus(statuses);
             }
+        },
+
+        // Why a TMDb list came back empty at its last refresh (FIAB-10.c), or '' when it did not fail.
+        tmdbErrorText: function (status) {
+            return status.LastError ? this.t('admin.tmdbstatus.error.' + status.LastError) : '';
         },
 
         // Fetches the ISO country list once for the Now Playing region select.
