@@ -1566,21 +1566,29 @@ function createConfigPage() {
             var unsaved = (this._changedTabs || []).indexOf('sources') !== -1;
             button.disabled = unsaved || !!this._refreshing;
             if (this._refreshing) { return; }
-            message.textContent = unsaved ? this.t('admin.tmdbrefresh.unsaved') : '';
-            message.hidden = !unsaved;
+            // Only its own message is cleared: the outcome of the last refresh stays until the next one (R11).
+            if (unsaved) {
+                message.textContent = this.t('admin.tmdbrefresh.unsaved');
+                message.hidden = false;
+                this._unsavedShown = true;
+            } else if (this._unsavedShown) {
+                message.textContent = '';
+                message.hidden = true;
+                this._unsavedShown = false;
+            }
         },
 
         // POST TMDb/Refresh, then TMDb/Status every refreshPollMs until refreshSettled or refreshPolls tries.
         refreshTmdb: function () {
             var self = this;
             var message = document.getElementById('juxTmdbRefreshMsg');
-            var before = self._tmdbStatuses || [];
             // Without a saved TMDb key no TMDb list can change: the refresh only redoes Rewards, which has no
             // status to follow (bench 8098: 30 polls, then "taking longer").
             var tmdbKey = !!((self._loaded || {}).ApiKeys || {}).TMDb;
             var show = function (key) {
                 message.textContent = self.t(key);
                 message.hidden = false;
+                self._unsavedShown = false;
             };
             var finish = function (key) {
                 self._refreshing = false;
@@ -1590,7 +1598,16 @@ function createConfigPage() {
             self._refreshing = true;
             self.syncRefreshButton();
             show('admin.tmdbrefresh.inprogress');
-            ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('JuxHomepage/TMDb/Refresh') }).then(function () {
+            // The statuses from before the refresh are what each list must move past: read them first when
+            // External sources has not loaded them yet, or the first poll would count every list as done (R11).
+            var statusBefore = self._tmdbStatuses
+                ? Promise.resolve(self._tmdbStatuses)
+                : ApiClient.getJSON(ApiClient.getUrl('JuxHomepage/TMDb/Status')).catch(function () { return []; });
+            var before = [];
+            statusBefore.then(function (statuses) {
+                before = statuses || [];
+                return ApiClient.ajax({ type: 'POST', url: ApiClient.getUrl('JuxHomepage/TMDb/Refresh') });
+            }).then(function () {
                 var tries = 0;
                 var poll = function () {
                     tries++;

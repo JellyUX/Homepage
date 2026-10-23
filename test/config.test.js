@@ -1126,7 +1126,7 @@ describe('configuration page controller (F-33)', () => {
         expect(view.querySelector('#juxTmdbRefreshMsg').textContent).toBe('admin.tmdbrefresh.done');
     });
 
-    it('says a refresh is already running on a 409, not that it failed (ADM-02.a)', async () => {
+    it('says a refresh is already running on a 409, not that it failed, and keeps saying it while the admin types (ADM-02.a, R11)', async () => {
         window.ApiClient.ajax = vi.fn(() => Promise.reject({ status: 409 }));
         await open();
 
@@ -1135,6 +1135,33 @@ describe('configuration page controller (F-33)', () => {
 
         expect(view.querySelector('#juxTmdbRefreshMsg').textContent).toBe('admin.tmdbrefresh.busy');
         expect(view.querySelector('#juxBtnRefreshTmdb').disabled).toBe(false);
+        type(view.querySelector('#numSessionTtl'), '5');
+        expect(view.querySelector('#juxTmdbRefreshMsg').textContent).toBe('admin.tmdbrefresh.busy');
+        expect(view.querySelector('#juxTmdbRefreshMsg').hidden).toBe(false);
+    });
+
+    it('reads the statuses from before the refresh when External sources has not loaded them (R11)', async () => {
+        const old = [{ Type: 'TrendingMovies', LastRefreshedUtc: '2026-10-23T10:00:00Z', ItemCount: 80, MatchedCount: 2, LastError: null }];
+        const calls = { status: 0 };
+        window.ApiClient.getJSON = vi.fn((url) => {
+            if (url === 'JuxHomepage/TMDb/Status') { calls.status++; return Promise.resolve(old); }
+            return getJSON(url);
+        });
+        withTmdbKey();
+        window.ApiClient.ajax = vi.fn(() => Promise.resolve());
+        await open();
+        expect(calls.status).toBe(0);
+
+        vi.useFakeTimers();
+        try {
+            view.querySelector('#juxBtnRefreshTmdb').click();
+            await vi.advanceTimersByTimeAsync(2000 * 2);
+        } finally {
+            vi.useRealTimers();
+        }
+
+        expect(calls.status).toBe(3);
+        expect(view.querySelector('#juxTmdbRefreshMsg').textContent).toBe('admin.tmdbrefresh.inprogress');
     });
 
     it('turns Refresh now off while External sources has unsaved changes (ADM-02.a)', async () => {
