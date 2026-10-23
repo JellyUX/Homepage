@@ -171,9 +171,12 @@ Each change goes through these steps, in order:
    lowered by the fix is lowered in the same commit.
 4. **Targeted checks**: the tests of the touched area, `node ci/static-checks.mjs`.
 5. **Bench**: deploy the DLL, replay the relevant `bench/` scripts and the E2E suite, desktop and 390 px
-   width for any UI change, then restore the bench state.
+   width for any UI change (a real 390 px viewport: a resized window or a Playwright viewport, never an
+   iframe, whose media queries and header layout differ), then restore the bench state.
 6. **Review**: a fresh-context review of the diff against the criteria.
-7. **Push**: only once the bench run passed (every green `feat:`/`fix:` push publishes a release).
+7. **Push**: only once the bench run passed (every green `feat:`/`fix:` push publishes a release). Each
+   commit of a push must build and pass Vitest on its own (the `commits` CI job, which gates the release);
+   HEAD alone runs the xUnit, E2E and drift suites.
 
 ## Definition of Done
 

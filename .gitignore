@@ -33,6 +33,7 @@
 !ci/asset-budget.mjs
 !ci/asset-budget.json
 !ci/dead-code.mjs
+!ci/push-base.mjs
 !ci/dead-code-allowlist.json
 !e2e/
 !e2e/setup.mjs

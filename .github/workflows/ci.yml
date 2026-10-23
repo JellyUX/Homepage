@@ -69,6 +69,50 @@ jobs:
       - name: Build against Jellyfin 10.11.10
         run: dotnet build src/Jellyfin.Plugin.JuxHomepage/Jellyfin.Plugin.JuxHomepage.csproj --configuration Release -p:JellyfinVersion=10.11.10
 
+  commits:
+    name: Build every commit of the push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 9.0.x
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+
+      # HEAD gets the full suites in the other jobs; each earlier commit of the push is built and runs
+      # Vitest, so no intermediate commit ships broken (TODO_V5 Clôture.c, CONTRIBUTING.md "Change Checklist").
+      - name: Build and unit-test each commit before HEAD
+        env:
+          BEFORE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+        run: |
+          BASE=$(node ci/push-base.mjs)
+          FAILED=""
+          LOCK=""
+          for SHA in $(git rev-list --reverse "$BASE..$HEAD_SHA~1"); do
+            echo "::group::$(git log -1 --format='%h %s' "$SHA")"
+            git checkout -q --detach "$SHA"
+            if [ "$(git rev-parse "$SHA:package-lock.json")" != "$LOCK" ]; then
+              npm ci --no-audit --no-fund >/dev/null
+              LOCK=$(git rev-parse "$SHA:package-lock.json")
+            fi
+            if dotnet build --configuration Release && npx vitest run; then
+              echo "::endgroup::"
+            else
+              echo "::endgroup::"
+              echo "::error::$(git log -1 --format='%h %s' "$SHA") does not build or fails Vitest"
+              FAILED="$FAILED $SHA"
+            fi
+          done
+          git checkout -q --detach "$HEAD_SHA"
+          [ -z "$FAILED" ]
+
   static:
     name: Static checks
     runs-on: ubuntu-latest
@@ -84,17 +128,13 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
-      # Commits checked: those of the pull request, or those of the push (the last one alone when
-      # the push has no usable "before", e.g. a new branch).
+      # Commits checked: those of the pull request or of the push; without a usable "before" (manual run,
+      # new branch), those since the merge base with origin/main (ci/push-base.mjs).
       - name: Run static checks
         env:
           BEFORE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-        run: |
-          if [ -z "$BEFORE" ] || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
-            BEFORE="$HEAD_SHA~1"
-          fi
-          node ci/static-checks.mjs --commits "$BEFORE..$HEAD_SHA"
+        run: node ci/static-checks.mjs --commits "$(node ci/push-base.mjs)..$HEAD_SHA"
 
       # Each check runs even when an earlier one failed, so one run reports every broken gate.
       - name: Check the client asset budget
@@ -194,7 +234,7 @@ jobs:
 
   release:
     name: Release
-    needs: [build-test, build-newest-abi, static, e2e, drift]
+    needs: [build-test, build-newest-abi, commits, static, e2e, drift]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
