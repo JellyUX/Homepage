@@ -1487,11 +1487,12 @@ function createConfigPage() {
             self.renderWidgets();
         },
 
-        // Records what the page shows for a configuration it just loaded or saved: the reference the
-        // unsaved-changes check compares the form with (ADM-01.c).
-        takeBaseline: function (config) {
+        // Records what the page shows for a configuration it just loaded, or the one it just saved: the
+        // reference the unsaved-changes check compares the form with (ADM-01.c). A saved one is the posted
+        // configuration itself, not the form, which the admin may have changed during the Save (R11).
+        takeBaseline: function (config, saved) {
             this._loaded = JSON.parse(JSON.stringify(config));
-            this._baseline = tabSnapshot(this.formConfig(this._loaded, true));
+            this._baseline = tabSnapshot(saved ? this._loaded : this.formConfig(this._loaded, true));
             this.updateDirty(false);
         },
 
@@ -1513,20 +1514,26 @@ function createConfigPage() {
             config.Cache.TMDbRefreshIntervalHours = Math.max(1, parseInt(document.getElementById('numTMDbRefresh').value, 10) || 24);
 
             if (!config.TMDbLists) { config.TMDbLists = {}; }
-            Object.keys(self._tmdbPagesConfigKey).forEach(function (type) {
-                var el = document.getElementById('numTmdbPages_' + type);
+            // A TMDb list field not on the page yet (External sources unopened, Annexe.a) keeps the value the
+            // form shows, a restored draft's included (R11), not the one of base.
+            var shown = (self.state.config && self.state.config.TMDbLists) || {};
+            var listField = function (id, key, read) {
+                var el = document.getElementById(id);
                 if (el) {
-                    config.TMDbLists[self._tmdbPagesConfigKey[type]] = Math.min(5, Math.max(1, parseInt(el.value, 10) || 1));
+                    config.TMDbLists[key] = read(el.value);
+                } else if (Object.prototype.hasOwnProperty.call(shown, key)) {
+                    config.TMDbLists[key] = shown[key];
                 }
+            };
+            Object.keys(self._tmdbPagesConfigKey).forEach(function (type) {
+                listField('numTmdbPages_' + type, self._tmdbPagesConfigKey[type], function (value) {
+                    return Math.min(5, Math.max(1, parseInt(value, 10) || 1));
+                });
             });
-            var regionEl = document.getElementById('selNowPlayingRegion');
-            if (regionEl) {
-                config.TMDbLists.NowPlayingRegion = regionEl.value || null;
-            }
-            var voteCountMinEl = document.getElementById('numTopRatedVoteCountMin');
-            if (voteCountMinEl) {
-                config.TMDbLists.TopRatedVoteCountMin = Math.max(0, parseInt(voteCountMinEl.value, 10) || 200);
-            }
+            listField('selNowPlayingRegion', 'NowPlayingRegion', function (value) { return value || null; });
+            listField('numTopRatedVoteCountMin', 'TopRatedVoteCountMin', function (value) {
+                return Math.max(0, parseInt(value, 10) || 200);
+            });
 
             if (readRows) { self.readDomIntoState(); }
             config.Widgets = self.state.sortedWidgets.map(function (w, i) {
@@ -1686,9 +1693,12 @@ function createConfigPage() {
         leave: function () {
             this._shown = false;
             if (!this._baseline) { return; }
-            var changed = this.updateDirty(true);
-            writeSession(DRAFT_KEY, changed.length
-                ? JSON.stringify({ base: JSON.stringify(this._baseline), config: this.formConfig(this._loaded, false) })
+            this.updateDirty(true);
+            // The TMDb key, masked on the page, is not written to sessionStorage: a changed key is not kept (R11).
+            var draft = this.formConfig(this._loaded, false);
+            draft.ApiKeys = JSON.parse(JSON.stringify(this._loaded.ApiKeys || {}));
+            writeSession(DRAFT_KEY, changedTabs(this._baseline, tabSnapshot(draft)).length
+                ? JSON.stringify({ base: JSON.stringify(this._baseline), config: draft })
                 : null);
         },
 
@@ -1842,7 +1852,7 @@ function createConfigPage() {
                     // full re-render because a row is missing) reflects real saved values
                     // instead of what was loaded at the start of this page view.
                     self.state.config = config;
-                    self.takeBaseline(config);
+                    self.takeBaseline(config, true);
                     document.getElementById('juxDraftNotice').hidden = true;
                     return result;
                 });
@@ -1873,7 +1883,8 @@ function createConfigPage() {
                 });
                 // Closing or reloading the browser tab can still be stopped (DEC-P10-5).
                 window.addEventListener('beforeunload', function (e) {
-                    if (self._shown && self._changedTabs && self._changedTabs.length) {
+                    // A section field typed into has no change event until it loses focus: read the rows now (R11).
+                    if (self._shown && self.updateDirty(true).length) {
                         e.preventDefault();
                         e.returnValue = '';
                     }

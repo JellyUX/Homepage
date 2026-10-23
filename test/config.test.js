@@ -951,6 +951,67 @@ describe('configuration page controller (F-33)', () => {
         expect(dirtyTabs()).toEqual([]);
     });
 
+    it('keeps a restored TMDb list change until External sources opens, and saves it (R11)', async () => {
+        window.ApiClient.getJSON = vi.fn((url) => (url === 'JuxHomepage/TMDb/Status'
+            ? Promise.resolve([{ Type: 'TrendingMovies', LastRefreshedUtc: null, ItemCount: 0, MatchedCount: 0, LastError: null }])
+            : getJSON(url)));
+        await open();
+        tab('sources').click();
+        await settle();
+        type(view.querySelector('#numTmdbPages_TrendingMovies'), '3');
+        tab('sections').click();
+        view.dispatchEvent(new Event('viewbeforehide'));
+
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+
+        expect(panel('sources').hidden).toBe(true);
+        expect(dirtyTabs()).toEqual(['sources']);
+        window.ApiClient.updatePluginConfiguration = vi.fn(() => Promise.resolve({}));
+        window.Dashboard.processPluginConfigurationUpdateResult = vi.fn();
+        view.querySelector('.juxConfigForm').dispatchEvent(new Event('submit', { cancelable: true }));
+        await settle();
+        expect(window.ApiClient.updatePluginConfiguration.mock.calls[0][1].TMDbLists.TrendingMoviesPages).toBe(3);
+    });
+
+    it('keeps no TMDb key in the kept changes (R11)', async () => {
+        await open();
+        type(view.querySelector('#txtTMDb'), '0123456789abcdef0123456789abcdef');
+        type(view.querySelector('#numSessionTtl'), '5');
+        view.dispatchEvent(new Event('viewbeforehide'));
+
+        const kept = window.sessionStorage.getItem('jux-admin-draft');
+        expect(kept).not.toContain('0123456789abcdef');
+        expect(JSON.parse(kept).config.Cache.SessionTtlMinutes).toBe(5);
+    });
+
+    it('asks before closing the tab over a section field still being typed in (R11)', async () => {
+        await open();
+        const name = card(0).querySelector('.jux-admin-widget-name');
+        name.value = 'Typed';
+        name.dispatchEvent(new Event('input', { bubbles: true }));
+
+        const event = new Event('beforeunload', { cancelable: true });
+        window.dispatchEvent(event);
+        expect(event.defaultPrevented).toBe(true);
+    });
+
+    it('keeps a change typed during a Save as unsaved (R11)', async () => {
+        await open();
+        let answer;
+        window.ApiClient.updatePluginConfiguration = vi.fn(() => new Promise((resolve) => { answer = resolve; }));
+        window.Dashboard.processPluginConfigurationUpdateResult = vi.fn();
+        view.querySelector('.juxConfigForm').dispatchEvent(new Event('submit', { cancelable: true }));
+        await settle();
+
+        type(view.querySelector('#numSessionTtl'), '5');
+        answer({});
+        await settle();
+
+        expect(window.ApiClient.updatePluginConfiguration.mock.calls[0][1].Cache.SessionTtlMinutes).toBe(15);
+        expect(dirtyTabs()).toEqual(['settings']);
+    });
+
     it('drops the kept changes when the saved configuration changed meanwhile (DEC-P10-5)', async () => {
         await open();
         type(view.querySelector('#numSessionTtl'), '5');
