@@ -74,7 +74,7 @@ public sealed class WidgetItemFetcher
             items = _libraryManager.GetItemsResult(query).Items;
         }
 
-        return WidgetResult.Project(_dtoService, items, dtoOptions, user);
+        return WidgetResult.Project(_dtoService, FeaturedItems.BackdropsFirst(items, payload), dtoOptions, user);
     }
 
     /// <summary>

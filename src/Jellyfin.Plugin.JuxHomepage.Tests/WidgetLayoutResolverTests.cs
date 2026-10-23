@@ -3,12 +3,14 @@ using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.Localization;
 using Jellyfin.Plugin.JuxHomepage.Widgets;
+using Jellyfin.Plugin.JuxHomepage.Widgets.Local;
 using Jellyfin.Plugin.JuxHomepage.Widgets.Personalized;
 using MediaBrowser.Controller.Dto;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Dto;
+using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Querying;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -458,6 +460,39 @@ public sealed class WidgetLayoutResolverTests
 
         Assert.Equal(expectedFeatured, descriptor.Featured);
         Assert.Equal((expectedFeatured, expectedMinRating), (probed?.Featured, probed?.FeaturedMinRating));
+    }
+
+    // KTW-01.a, R11 constat 3: a featured section with fewer than 3 backdrops keeps every title for its
+    // cards, counted against MinItems like a row of cards, its titles with a backdrop first.
+    [Fact]
+    public async Task BuildDescriptors_FeaturedSectionWithFewBackdrops_KeepsItsTitlesForTheCards()
+    {
+        var user = TestMocks.DefaultUser();
+        var users = new Mock<IUserManager>();
+        users.Setup(m => m.GetUserById(It.IsAny<Guid>())).Returns(user);
+        Movie Movie(string name, bool backdrop) => new()
+        {
+            Id = Guid.NewGuid(),
+            Name = name,
+            ImageInfos = backdrop ? [new ItemImageInfo { Type = ImageType.Backdrop, Path = "/b.jpg" }] : []
+        };
+        var library = new Mock<ILibraryManager>();
+        library.Setup(m => m.GetItemsResult(It.IsAny<InternalItemsQuery>()))
+            .Returns(new QueryResult<BaseItem>([Movie("A", false), Movie("B", true), Movie("C", false), Movie("D", true)]));
+        var dtos = new Mock<IDtoService>();
+        dtos.Setup(s => s.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
+            .Returns<IReadOnlyList<BaseItem>, DtoOptions, User, BaseItem>((items, _, _, _) => items.Select(i => new BaseItemDto { Name = i.Name }).ToList());
+        var registry = new WidgetRegistry();
+        registry.Register(new TopRatedWidget(users.Object, library.Object, dtos.Object, new ManualTimeProvider()));
+        var resolver = BuildResolver(registry,
+            [new WidgetConfig { WidgetType = "jux.local.top-rated", Enabled = true, MinItems = 4, Featured = true }]);
+
+        var descriptor = Assert.Single(await resolver.BuildDescriptors(user.Id, lang: null, CancellationToken.None));
+        var items = await registry.GetByType("jux.local.top-rated")!.GetItemsAsync(
+            new WidgetPayload { UserId = user.Id, Limit = 20 }.WithFeatured(new WidgetConfig { Featured = true }, descriptor), CancellationToken.None);
+
+        Assert.True(descriptor.Featured);
+        Assert.Equal(["B", "D", "A", "C"], items.Items.Select(i => i.Name));
     }
 
     [Fact]

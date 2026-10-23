@@ -22,16 +22,24 @@ public sealed class FeaturedItemsTests
     private static readonly WidgetPayload FeaturedAtSeven = new() { Featured = true, FeaturedMinRating = 7 };
 
     [Fact]
-    public void Keeps_FeaturedWithFeaturedMinRating_KeepsOnlyRatedItemsWithABackdrop()
+    public void Keeps_FeaturedWithFeaturedMinRating_KeepsTheItemsRatedAtLeastThat()
     {
         var rated = MovieWith(8.1f, backdrop: true);
         var low = MovieWith(6.5f, backdrop: true);
         var bare = MovieWith(9f, backdrop: false);
         var unrated = MovieWith(null, backdrop: true);
 
-        Assert.Equal([true, false, false, false], new[] { rated, low, bare, unrated }.Select(m => FeaturedItems.Keeps(m, FeaturedAtSeven)));
+        Assert.Equal([true, false, true, false], new[] { rated, low, bare, unrated }.Select(m => FeaturedItems.Keeps(m, FeaturedAtSeven)));
         Assert.True(FeaturedItems.Keeps(unrated, new WidgetPayload { Featured = true }));
-        Assert.False(FeaturedItems.Keeps(bare, new WidgetPayload { Featured = true }));
+    }
+
+    [Fact]
+    public void BackdropsFirst_FeaturedPutsTheBackdropsFirstInOrder_RowOfCardsKeepsItsOrder()
+    {
+        BaseItem[] items = [MovieWith(1, backdrop: false), MovieWith(2, backdrop: true), MovieWith(3, backdrop: false), MovieWith(4, backdrop: true)];
+
+        Assert.Equal([2f, 4f, 1f, 3f], FeaturedItems.BackdropsFirst(items, FeaturedAtSeven).Select(i => i.CommunityRating!.Value));
+        Assert.Same(items, FeaturedItems.BackdropsFirst(items, RowOfCards));
     }
 
     [Fact]
@@ -67,7 +75,7 @@ public sealed class FeaturedItemsTests
         service.GetSectionItems(new WidgetPayload { UserId = user.Id, Limit = 20, Featured = true, FeaturedMinRating = 7 }, CancellationToken.None);
         service.GetSectionItems(new WidgetPayload { UserId = user.Id, Limit = 20 }, CancellationToken.None);
 
-        Assert.Equal([[ImageType.Backdrop], []], queries.Select(q => q.ImageTypes));
+        Assert.All(queries, q => Assert.Empty(q.ImageTypes));
         Assert.Equal([7.0, null], queries.Select(q => (double?)q.MinCommunityRating));
         Assert.All(queries, q => Assert.True(q.IsLiked));
     }

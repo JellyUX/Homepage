@@ -153,8 +153,9 @@ public sealed class WidgetItemFetcherTests
     }
 
     // A featured row and a row of cards of the same section draw separately: their sets of items differ.
+    // Every title stays in the draw; only the minimum rating filters it.
     [Fact]
-    public void Random_FeaturedAndRowOfCards_DrawSeparatelyAndOnlyTheFeaturedDrawNeedsABackdrop()
+    public void Random_FeaturedAndRowOfCards_DrawSeparatelyAndOnlyTheFeaturedDrawHasTheMinimumRating()
     {
         var fetcher = BuildFetcher();
         var user = TestMocks.DefaultUser();
@@ -166,7 +167,7 @@ public sealed class WidgetItemFetcherTests
         fetcher.Fetch("jux.admin.genre", user, new InternalItemsQuery(user), new DtoOptions(), featured);
 
         Assert.Equal(2, fetcher.DrawCountForTesting());
-        Assert.Equal([[], [ImageType.Backdrop]], _idQueries.Select(q => q.ImageTypes));
+        Assert.All(_idQueries, q => Assert.Empty(q.ImageTypes));
         Assert.Equal([null, 7.0], _idQueries.Select(q => (double?)q.MinCommunityRating));
     }
 

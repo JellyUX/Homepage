@@ -126,7 +126,7 @@ public abstract class ConnectedWidgetBase<T> : IWidget
         var visibleItems = UserVisibleItems.Resolve(LibraryManager, user, libraryIds, out var unresolvedCount);
         if (payload.Featured)
         {
-            visibleItems = visibleItems.Where(item => FeaturedItems.Keeps(item, payload)).ToList();
+            visibleItems = FeaturedItems.BackdropsFirst(visibleItems.Where(item => FeaturedItems.Keeps(item, payload)).ToList(), payload);
         }
 
         if (unresolvedCount > 0)

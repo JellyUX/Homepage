@@ -89,12 +89,12 @@ public sealed class LocalLibraryWidgetTests
         Assert.Equal((ItemSortBy.CommunityRating, SortOrder.Descending), query.OrderBy[0]);
     }
 
-    // KTW-01.a, KTW-02.a: a featured Top Rated reads rich items that all have a backdrop, at or above the
-    // row's minimum rating; Top Rated keeps its own floor when the row sets none.
+    // KTW-01.a, KTW-02.a: a featured Top Rated reads rich items at or above the row's minimum rating, every
+    // title kept (the backdrops go first); Top Rated keeps its own floor when the row sets none.
     [Theory]
     [InlineData(0, TopRatedWidget.MinCommunityRating)]
     [InlineData(7, 7.0)]
-    public async Task TopRated_FeaturedWithFeaturedMinRating_ReadsRichItemsWithABackdropAboveTheMinimum(int minRating, double expectedFloor)
+    public async Task TopRated_FeaturedWithFeaturedMinRating_ReadsRichItemsAboveTheMinimum(int minRating, double expectedFloor)
     {
         var payload = Payload("Movie,Series");
         payload.Featured = true;
@@ -103,7 +103,7 @@ public sealed class LocalLibraryWidgetTests
         await BuildTopRated().GetItemsAsync(payload, CancellationToken.None);
 
         var query = Assert.Single(_queries);
-        Assert.Equal([ImageType.Backdrop], query.ImageTypes);
+        Assert.Empty(query.ImageTypes);
         Assert.Equal(expectedFloor, query.MinCommunityRating!.Value, 3);
         Assert.Contains(ItemFields.Overview, query.DtoOptions.Fields);
         Assert.Contains(ImageType.Logo, query.DtoOptions.ImageTypes);

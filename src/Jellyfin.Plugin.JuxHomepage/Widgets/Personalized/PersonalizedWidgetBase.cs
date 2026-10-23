@@ -208,7 +208,7 @@ public abstract class PersonalizedWidgetBase : IWidget
 
         FeaturedItems.Restrict(query, payload);
         QueryResult<BaseItem> result = LibraryManager.GetItemsResult(query);
-        return Task.FromResult(WidgetResult.Project(DtoService, result.Items, dtoOptions, user));
+        return Task.FromResult(WidgetResult.Project(DtoService, FeaturedItems.BackdropsFirst(result.Items, payload), dtoOptions, user));
     }
 
     /// <inheritdoc/>

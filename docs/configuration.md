@@ -80,10 +80,11 @@ reduced motion. The pause button, the arrows, the left and right arrow keys and 
 
 ![A featured Genre section, sorted by rating](screenshots/featured.png)
 
-A featured section only shows titles that have a backdrop, at most 8 of them. **Minimum rating** (None,
-6, 7 or 8) keeps only the titles rated at least that much; it applies to a featured section only, a row
-of cards is never filtered. With fewer than 3 titles left, the section shows its cards instead. On a
-phone the image sits above the text; Android TV and other TV layouts keep the native home screen.
+The banner shows the section's titles that have a backdrop, at most 8 of them; with fewer than 3, the
+section shows all its cards instead (Min items counts every title, as for a row of cards). **Minimum
+rating** (None, 6, 7 or 8) keeps only the titles rated at least that much; it applies to a featured
+section only, a row of cards is never filtered. On a phone the image sits above the text; Android TV and
+other TV layouts keep the native home screen.
 
 A "Top Rated" banner for one genre needs no special widget: add a **Genre** section, set its **Sort
 order** to rating (highest first), and check **Featured**.
