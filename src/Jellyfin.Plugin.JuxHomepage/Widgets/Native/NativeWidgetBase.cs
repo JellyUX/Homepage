@@ -46,6 +46,9 @@ public abstract class NativeWidgetBase : IWidget
     /// <inheritdoc/>
     public abstract int DefaultMinItems { get; }
 
+    /// <inheritdoc/>
+    public IReadOnlyList<WidgetExtraParam> DefaultExtraParams => [];
+
     /// <summary>Gets the default view mode identifier for this widget's cards.</summary>
     public abstract string DefaultViewMode { get; }
 

@@ -87,6 +87,9 @@ public sealed class SeasonalWidget : IWidget
     public int DefaultMinItems => 4;
 
     /// <inheritdoc/>
+    public IReadOnlyList<WidgetExtraParam> DefaultExtraParams => [new WidgetExtraParam { Key = ValueParam, Value = string.Empty }];
+
+    /// <inheritdoc/>
     public IWidget? Resolve(Guid userId, WidgetInstanceConfig config, int rank) => this;
 
     /// <inheritdoc/>

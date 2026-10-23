@@ -71,6 +71,9 @@ public abstract class AdminWidgetBase : IWidget
     public abstract int DefaultMinItems { get; }
 
     /// <inheritdoc/>
+    public IReadOnlyList<WidgetExtraParam> DefaultExtraParams => [];
+
+    /// <inheritdoc/>
     public virtual WidgetCategory Category => WidgetCategory.Admin;
 
     /// <summary>

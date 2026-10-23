@@ -78,6 +78,9 @@ public abstract class ConnectedWidgetBase<T> : IWidget
     /// <inheritdoc/>
     public virtual int DefaultMinItems => 4;
 
+    /// <inheritdoc/>
+    public virtual IReadOnlyList<WidgetExtraParam> DefaultExtraParams => [];
+
     /// <summary>Gets the optional front-end route for browsing all items of this type.</summary>
     public virtual string? Route => null;
 

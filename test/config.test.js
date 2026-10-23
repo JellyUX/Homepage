@@ -281,6 +281,38 @@ describe('configuration page controller (F-33)', () => {
         expect(byKey(saved[4])).toEqual(byKey(rewards));
     });
 
+    it('adds a row as the catalog describes it, with a new instance id in place of the empty value (QUAL-03.c)', async () => {
+        const defaultRow = { WidgetType: 'jux.connected.discover-movies', Enabled: true, MinItems: 1, MaxItems: 20, ViewMode: 'Portrait', ExtraParams: [{ Key: 'value', Value: '' }, { Key: 'sortBy', Value: 'popularity.desc' }, { Key: 'minVotes', Value: '30' }, { Key: 'pages', Value: '1' }] };
+        const catalog = [...descriptors, { WidgetType: 'jux.connected.discover-movies', DisplayName: 'Discover', Category: 3, MinItems: 1, ViewMode: 'Portrait', DefaultRow: defaultRow }];
+        window.ApiClient.getJSON = vi.fn((url) => (url === 'JuxHomepage/Admin/Catalog'
+            ? Promise.resolve({ WidgetCategories: ['Native', 'Admin', 'Personalized', 'Connected'], Widgets: catalog })
+            : getJSON(url)));
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+
+        view.querySelector('#juxAddWidgetType').value = 'jux.connected.discover-movies';
+        view.querySelector('#juxBtnAddWidget').click();
+        view.querySelector('#juxAddWidgetType').value = 'jux.connected.discover-movies';
+        view.querySelector('#juxBtnAddWidget').click();
+        await settle();
+
+        window.ApiClient.updatePluginConfiguration = vi.fn(() => Promise.resolve({}));
+        window.Dashboard.processPluginConfigurationUpdateResult = vi.fn();
+        view.querySelector('.juxConfigForm').dispatchEvent(new Event('submit', { cancelable: true }));
+        await settle();
+
+        const added = window.ApiClient.updatePluginConfiguration.mock.calls[0][1].Widgets.slice(3);
+        const byKey = (w) => Object.fromEntries(w.ExtraParams.map((p) => [p.Key, p.Value]));
+        expect(added.map((w) => [w.WidgetType, w.MinItems, w.MaxItems, byKey(w).minVotes])).toEqual([
+            ['jux.connected.discover-movies', 1, 20, '30'],
+            ['jux.connected.discover-movies', 1, 20, '30']
+        ]);
+        expect(byKey(added[0]).value).toMatch(/^[0-9a-f-]{36}$/);
+        expect(byKey(added[0]).value).not.toBe(byKey(added[1]).value);
+        expect(defaultRow.ExtraParams[0].Value).toBe('');
+    });
+
     it('keeps each row its own id when two people found by a search share a name (FIAB-02, R11)', async () => {
         const row = (id, person, order) => ({ WidgetType: 'jux.connected.discover-movies', Enabled: true, Order: order, MinItems: 1, MaxItems: 20, ViewMode: 'Portrait', ExtraParams: [{ Key: 'value', Value: id }, { Key: 'personIds', Value: person }] });
         const catalog = [...descriptors, { WidgetType: 'jux.connected.discover-movies', DisplayName: 'Discover', Category: 3, MinItems: 1, ViewMode: 'Portrait' }];

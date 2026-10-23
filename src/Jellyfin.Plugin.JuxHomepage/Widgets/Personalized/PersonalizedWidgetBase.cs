@@ -99,6 +99,9 @@ public abstract class PersonalizedWidgetBase : IWidget
     public virtual int DefaultMinItems => 4;
 
     /// <inheritdoc/>
+    public IReadOnlyList<WidgetExtraParam> DefaultExtraParams => [new WidgetExtraParam { Key = ExcludeWatchedParam, Value = "true" }];
+
+    /// <inheritdoc/>
     public virtual WidgetCategory Category => WidgetCategory.Personalized;
 
     /// <summary>

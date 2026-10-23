@@ -54,6 +54,9 @@ public abstract class LocalLibraryWidgetBase : IWidget
     /// <inheritdoc/>
     public int DefaultMinItems => 4;
 
+    /// <inheritdoc/>
+    public IReadOnlyList<WidgetExtraParam> DefaultExtraParams => [new WidgetExtraParam { Key = ItemTypesParam, Value = "Movie,Series" }];
+
     /// <summary>Gets the time source of the current day.</summary>
     protected TimeProvider TimeProvider { get; }
 

@@ -595,11 +595,25 @@ public class JuxHomepageController : ControllerBase
     public ActionResult<WidgetCatalog> GetAdminCatalog()
     {
         var descriptors = _registry.GetAll()
-            .Select(w => w.GetDescriptor())
+            .Select(WithDefaultRow)
             .ToList()
             .AsReadOnly();
 
         return Ok(new WidgetCatalog(Enum.GetNames<WidgetCategory>(), descriptors));
+    }
+
+    // The descriptor of a widget with the row the admin page adds for it (QUAL-03.c).
+    private static WidgetDescriptor WithDefaultRow(IWidget widget)
+    {
+        var descriptor = widget.GetDescriptor();
+        descriptor.DefaultRow = new WidgetConfig
+        {
+            WidgetType = widget.WidgetType,
+            MinItems = descriptor.MinItems,
+            ViewMode = descriptor.ViewMode,
+            ExtraParams = [.. widget.DefaultExtraParams.Select(p => new WidgetExtraParam { Key = p.Key, Value = p.Value })]
+        };
+        return descriptor;
     }
 
     /// <summary>

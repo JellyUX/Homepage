@@ -47,6 +47,13 @@ public sealed class WidgetDescriptor
     [JsonIgnore]
     public int Order { get; set; }
 
+    /// <summary>
+    /// Gets or sets the row the admin page adds for this widget type (QUAL-03.c): set on the
+    /// Admin/Catalog descriptors only, not sent elsewhere.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public WidgetConfig? DefaultRow { get; set; }
+
     /// <summary>Gets or sets the minimum number of items required to display this widget.</summary>
     public int MinItems { get; set; }
 

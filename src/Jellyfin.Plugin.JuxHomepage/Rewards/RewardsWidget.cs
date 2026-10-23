@@ -51,6 +51,10 @@ public sealed class RewardsWidget : ConnectedWidgetBase<RewardsWinner>
     /// <inheritdoc/>
     public override string WidgetType => RewardsWidgetTypes.Rewards;
 
+    /// <summary>Gets a new instance id; the admin picks the ceremony or category.</summary>
+    public override IReadOnlyList<WidgetExtraParam> DefaultExtraParams =>
+        [new WidgetExtraParam { Key = ValueParam, Value = string.Empty }];
+
     /// <inheritdoc/>
     public override string DefaultViewMode => WidgetViewMode.Portrait;
 

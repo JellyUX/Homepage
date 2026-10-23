@@ -117,6 +117,17 @@ export var SORT_OPTIONS = [
     ['Random', 'Ascending', 'admin.sort.random']
 ];
 
+// A new instance id for a Discover, Rewards or Seasonal row.
+function newInstanceId() {
+    if (window.crypto && window.crypto.randomUUID) {
+        return window.crypto.randomUUID();
+    }
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        var r = Math.random() * 16 | 0;
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+}
+
 // The SORT_OPTIONS entry of a row, alphabetical when it has none or an unknown one.
 export function sortOption(widget) {
     var by = widget.SortBy;
@@ -1648,59 +1659,14 @@ function createConfigPage() {
                         }
                         if (errEl) { errEl.style.display = 'none'; }
 
-                        var desc = self.getDescriptor(widgetType);
-                        var isPers = self.isPersonalized(widgetType);
-                        var isDisc = self.isDiscover(widgetType);
-                        var isRew = self.isRewards(widgetType);
-                        var isSeas = self.isSeasonal(widgetType);
+                        // The row the server describes for this type (Admin/Catalog DefaultRow, QUAL-03.c); an
+                        // empty instance id asks for a new one.
                         self.readDomIntoState();
-                        var extraParams = [];
-                        if (isPers) {
-                            extraParams = [{ Key: 'excludeWatched', Value: 'true' }];
-                        } else if (isDisc) {
-                            var newInstanceId = (window.crypto && window.crypto.randomUUID)
-                                ? window.crypto.randomUUID()
-                                : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-                                    var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
-                                    return v.toString(16);
-                                });
-                            extraParams = [
-                                { Key: 'value', Value: newInstanceId },
-                                { Key: 'sortBy', Value: 'popularity.desc' },
-                                { Key: 'minVotes', Value: '50' },
-                                { Key: 'pages', Value: '1' }
-                            ];
-                        } else if (isRew) {
-                            var newRewardsInstanceId = (window.crypto && window.crypto.randomUUID)
-                                ? window.crypto.randomUUID()
-                                : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-                                    var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
-                                    return v.toString(16);
-                                });
-                            extraParams = [{ Key: 'value', Value: newRewardsInstanceId }];
-                        } else if (isSeas) {
-                            var newSeasonalInstanceId = (window.crypto && window.crypto.randomUUID)
-                                ? window.crypto.randomUUID()
-                                : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-                                    var r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
-                                    return v.toString(16);
-                                });
-                            // Dates start empty on purpose: the section simply stays hidden
-                            // (no items ever match an unparseable date) until the admin fills
-                            // them in and saves, rather than blocking the "Add" action itself.
-                            extraParams = [{ Key: 'value', Value: newSeasonalInstanceId }];
-                        } else if (self.isLocal(widgetType)) {
-                            extraParams = [{ Key: 'itemTypes', Value: LOCAL_ITEM_TYPES[0][0] }];
-                        }
-                        self.state.sortedWidgets.push({
-                            WidgetType: widgetType,
-                            Enabled: true,
-                            CustomDisplayName: null,
-                            MinItems: desc ? desc.MinItems : 4,
-                            MaxItems: 20,
-                            ViewMode: desc ? (desc.ViewMode || 'Portrait') : 'Portrait',
-                            ExtraParams: extraParams
+                        var row = JSON.parse(JSON.stringify(self.getDescriptor(widgetType).DefaultRow));
+                        row.ExtraParams.forEach(function (p) {
+                            if (p.Key === 'value' && !p.Value) { p.Value = newInstanceId(); }
                         });
+                        self.state.sortedWidgets.push(row);
                         self._expandedRows.add(self.state.sortedWidgets[self.state.sortedWidgets.length - 1]);
                         self.populateAddSelect();
                         self.renderWidgets();

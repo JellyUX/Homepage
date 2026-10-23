@@ -23,6 +23,13 @@ public interface IWidget
     int DefaultMinItems { get; }
 
     /// <summary>
+    /// Gets the <see cref="WidgetConfig.ExtraParams"/> of a row the admin page adds for this widget
+    /// (Admin/Catalog <see cref="WidgetDescriptor.DefaultRow"/>, QUAL-03.c). A
+    /// <see cref="WidgetConfig.ValueParam"/> with an empty value asks the page for a new instance id.
+    /// </summary>
+    IReadOnlyList<WidgetExtraParam> DefaultExtraParams { get; }
+
+    /// <summary>
     /// Resolves this widget's single instance for a given user and configuration row.
     /// Single-instance widgets (Native/Admin/Connected) return <c>this</c> unconditionally.
     /// Personalized widgets return null when <paramref name="rank"/> has no scored value for this

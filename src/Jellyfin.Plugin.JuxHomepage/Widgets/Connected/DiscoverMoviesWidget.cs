@@ -1,3 +1,4 @@
+using System.Globalization;
 using Jellyfin.Plugin.JuxHomepage.TMDb;
 using Jellyfin.Plugin.JuxHomepage.TMDb.Models;
 using MediaBrowser.Controller.Dto;
@@ -68,6 +69,22 @@ public sealed class DiscoverMoviesWidget : ConnectedWidgetBase<TMDbMovie>
 
     /// <inheritdoc/>
     public override string WidgetType => TMDbWidgetTypes.DiscoverMovies;
+
+    /// <summary>Gets a new instance id and the filter defaults of <see cref="TMDbDiscoverFilter"/>.</summary>
+    public override IReadOnlyList<WidgetExtraParam> DefaultExtraParams
+    {
+        get
+        {
+            var filter = new TMDbDiscoverFilter();
+            return
+            [
+                new WidgetExtraParam { Key = ValueParam, Value = string.Empty },
+                new WidgetExtraParam { Key = SortByParam, Value = filter.SortBy },
+                new WidgetExtraParam { Key = MinVotesParam, Value = filter.VoteCountGte.ToString(CultureInfo.InvariantCulture) },
+                new WidgetExtraParam { Key = PagesParam, Value = filter.Pages.ToString(CultureInfo.InvariantCulture) }
+            ];
+        }
+    }
 
     /// <inheritdoc/>
     public override string DefaultViewMode => WidgetViewMode.Portrait;

@@ -160,6 +160,7 @@ public sealed class JuxHomepageControllerTests
     {
         var widget = new Mock<IWidget>();
         widget.Setup(w => w.GetDescriptor()).Returns(new WidgetDescriptor { WidgetType = "jux.admin.genre" });
+        widget.SetupGet(w => w.DefaultExtraParams).Returns([]);
         var registryMock = new Mock<IWidgetRegistry>();
         registryMock.Setup(r => r.GetAll()).Returns([widget.Object]);
         var controller = BuildController(registryMock: registryMock);
@@ -170,6 +171,33 @@ public sealed class JuxHomepageControllerTests
         var catalog = Assert.IsType<JuxHomepageController.WidgetCatalog>(ok.Value);
         Assert.Equal(Enum.GetNames<WidgetCategory>(), catalog.WidgetCategories);
         Assert.Equal("jux.admin.genre", Assert.Single(catalog.Widgets).WidgetType);
+    }
+
+    [Fact]
+    public void GetAdminCatalog_GivesEachDescriptorTheRowTheAdminPageAdds()
+    {
+        var widget = new Mock<IWidget>();
+        widget.SetupGet(w => w.WidgetType).Returns("jux.connected.discover-movies");
+        widget.SetupGet(w => w.DefaultExtraParams).Returns([new WidgetExtraParam { Key = "minVotes", Value = "50" }]);
+        widget.Setup(w => w.GetDescriptor()).Returns(new WidgetDescriptor
+        {
+            WidgetType = "jux.connected.discover-movies",
+            MinItems = 1,
+            ViewMode = WidgetViewMode.Portrait
+        });
+        var registryMock = new Mock<IWidgetRegistry>();
+        registryMock.Setup(r => r.GetAll()).Returns([widget.Object]);
+
+        var result = BuildController(registryMock: registryMock).GetAdminCatalog();
+
+        var catalog = Assert.IsType<JuxHomepageController.WidgetCatalog>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var row = Assert.Single(catalog.Widgets).DefaultRow!;
+        Assert.Equal("jux.connected.discover-movies", row.WidgetType);
+        Assert.True(row.Enabled);
+        Assert.Equal(1, row.MinItems);
+        Assert.Equal(20, row.MaxItems);
+        Assert.Equal(WidgetViewMode.Portrait, row.ViewMode);
+        Assert.Equal("minVotes=50", string.Join(';', row.ExtraParams.Select(p => $"{p.Key}={p.Value}")));
     }
 
     [Theory]
