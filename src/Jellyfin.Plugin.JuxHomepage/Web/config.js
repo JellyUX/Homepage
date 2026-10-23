@@ -226,6 +226,286 @@ export function widgetSummary(widget, valueLabel, t) {
     return parts.join(' \u00b7 ');
 }
 
+// The name field of a row, shown by every editor except the personalized one.
+function nameFieldHtml(self, w, i, defaultName) {
+    var html = '<div class="inputContainer">';
+    html += '<label class="inputLabel inputLabelUnfocused" for="widgetName_' + i + '">' + self.escHtml(self.t('admin.name.label')) + '</label>';
+    html += '<input id="widgetName_' + i + '" type="text" class="emby-input jux-admin-widget-name"';
+    html += ' placeholder="' + self.escHtml(defaultName) + '"';
+    html += ' value="' + self.escHtml(w.CustomDisplayName || '') + '" />';
+    html += '<div class="fieldDescription">' + self.escHtml(self.t('admin.name.help')) + '</div>';
+    html += '</div>';
+    return html;
+}
+
+// A <select> of [value, label] options with the current one selected.
+function selectHtml(self, id, cls, options, current) {
+    var html = '<select id="' + id + '" class="emby-select-withcolor emby-select ' + cls + '">';
+    options.forEach(function (opt) {
+        html += '<option value="' + opt[0] + '"' + (current === opt[0] ? ' selected' : '') + '>' + self.escHtml(opt[1]) + '</option>';
+    });
+    return html + '</select>';
+}
+
+// The search fields of an editor ([name, label, stored id]), each with its datalist: the label of
+// a known id is shown, the id itself kept in data-value (FIAB-02.b).
+function searchFieldsHtml(self, w, i, prefix, fields, labelFor) {
+    var html = '';
+    fields.forEach(function (field) {
+        var fieldName = field[0], fieldValue = field[2];
+        var currentLabel = fieldValue ? labelFor(fieldName, fieldValue) : '';
+        html += '<div class="inputContainer">';
+        html += '<label class="inputLabel inputLabelUnfocused" for="' + prefix + fieldName + '_' + i + '">' + self.escHtml(field[1]) + '</label>';
+        html += '<input id="' + prefix + fieldName + '_' + i + '" type="text" list="' + prefix + 'Vals_' + i + '_' + fieldName + '"';
+        html += ' class="emby-input jux-' + (prefix === 'disc' ? 'discover' : prefix) + '-' + fieldName + '" data-field="' + fieldName + '"';
+        html += ' data-value="' + self.escHtml(fieldValue) + '"';
+        html += ' placeholder="' + self.escHtml(self.t('admin.discover.search.placeholder')) + '" value="' + self.escHtml(currentLabel || fieldValue) + '" />';
+        html += '<datalist id="' + prefix + 'Vals_' + i + '_' + fieldName + '"></datalist>';
+        html += '</div>';
+    });
+    return html;
+}
+
+// Two inputs side by side: [id, class, label, attributes, value] each.
+function halfInputsHtml(self, i, inputs) {
+    var html = '<div class="jux-admin-row">';
+    inputs.forEach(function (input) {
+        html += '<div class="inputContainer jux-admin-half">';
+        html += '<label class="inputLabel inputLabelUnfocused" for="' + input[0] + '_' + i + '">' + self.escHtml(self.t(input[2])) + '</label>';
+        html += '<input id="' + input[0] + '_' + i + '" ' + input[3] + ' class="emby-input ' + input[1] + '"' + input[5] + ' value="' + self.escHtml(input[4]) + '" />';
+        html += '</div>';
+    });
+    return html + '</div>';
+}
+
+// The editor of each kind of row (QUAL-03.a), chosen by editorKind: render(self, w, i, defaultName)
+// returns the fields placed under the row's header, tail(self, w, i) those placed after the shared
+// settings, read(self, card, w) writes them back to w.ExtraParams. The defaults of a new row come
+// from Admin/Catalog (DefaultRow, QUAL-03.c). A kind without an entry shows the name field only.
+var DEFAULT_EDITOR = {
+    render: nameFieldHtml,
+    read: function () {}
+};
+
+var EDITORS = {
+    admin: {
+        // Value picker with datalist autocomplete.
+        render: function (self, w, i, defaultName) {
+            var currentValue = self.getExtraValue(w);
+            var currentLabel = currentValue ? self.getLabelForValue(w.WidgetType, currentValue) : '';
+            var datalistId = 'juxVals_' + i;
+            var html = '<div class="inputContainer">';
+            html += '<label class="inputLabel inputLabelUnfocused" for="widgetValue_' + i + '">' + self.escHtml(self.t('admin.value.label')) + '</label>';
+            html += '<input id="widgetValue_' + i + '" type="text" list="' + datalistId + '"';
+            html += ' class="emby-input jux-admin-widget-value"';
+            html += ' placeholder="' + self.escHtml(self.t('admin.value.placeholder')) + '"';
+            html += ' value="' + self.escHtml(currentLabel || currentValue) + '" />';
+            html += '<datalist id="' + datalistId + '"></datalist>';
+            html += '<div class="fieldDescription jux-admin-value-error" style="display:none;" id="juxValError_' + i + '">' + self.escHtml(self.t('admin.value.error')) + '</div>';
+            html += '</div>';
+            return html + nameFieldHtml(self, w, i, defaultName);
+        },
+        read: function (self, card, w) {
+            // Resolve the label back to a Value (handles collection-type widgets where Value != Label).
+            var nameEl = card.querySelector('.jux-admin-widget-name');
+            var label = card.querySelector('.jux-admin-widget-value').value.trim();
+            var resolvedValue = label ? self.getValueForLabel(w.WidgetType, label) : '';
+            // If the value changed, auto-prefill the display name with the label when empty.
+            if (resolvedValue && !w.CustomDisplayName) {
+                w.CustomDisplayName = label;
+                if (nameEl) { nameEl.value = label; }
+            }
+            w.ExtraParams = resolvedValue ? [{ Key: 'value', Value: resolvedValue }] : [];
+        }
+    },
+
+    personalized: {
+        render: function (self) {
+            return '<p class="fieldDescription">' + self.escHtml(self.t('admin.personalized.note')) + '</p>';
+        },
+        tail: function (self, w, i) {
+            var excludeWatched = self.getExtraParam(w, 'excludeWatched') !== 'false';
+            var html = '<div class="checkboxContainer checkboxContainer-withDescription">';
+            html += '<label class="emby-checkbox-label">';
+            html += '<input type="checkbox" id="widgetExcludeWatched_' + i + '" class="emby-checkbox jux-admin-exclude-watched"';
+            html += (excludeWatched ? ' checked' : '') + ' />';
+            html += '<span class="checkboxLabel">' + self.escHtml(self.t('admin.excludewatched.label')) + '</span>';
+            html += CHECKBOX_OUTLINE_HTML;
+            html += '</label>';
+            html += '<div class="fieldDescription">' + self.escHtml(self.t('admin.excludewatched.help')) + '</div>';
+            html += '</div>';
+            if (self.isBecauseYouWatched(w.WidgetType)) {
+                html += '<div class="inputContainer">';
+                html += '<label class="inputLabel inputLabelUnfocused" for="widgetScope_' + i + '">' + self.escHtml(self.t('admin.byw.scope.label')) + '</label>';
+                html += selectHtml(self, 'widgetScope_' + i, 'jux-admin-byw-scope', [
+                    ['movies', self.t('admin.byw.scope.movies')],
+                    ['series', self.t('admin.byw.scope.series')],
+                    ['both', self.t('admin.byw.scope.both')]
+                ], self.getExtraParam(w, 'scope') || 'both');
+                html += '<div class="fieldDescription">' + self.escHtml(self.t('admin.byw.scope.help')) + '</div>';
+                html += '</div>';
+            }
+            return html;
+        },
+        read: function (self, card, w) {
+            w.ExtraParams = [{ Key: 'excludeWatched', Value: card.querySelector('.jux-admin-exclude-watched').checked ? 'true' : 'false' }];
+            var scopeEl = card.querySelector('.jux-admin-byw-scope');
+            if (scopeEl) { w.ExtraParams.push({ Key: 'scope', Value: scopeEl.value }); }
+        }
+    },
+
+    discover: {
+        render: function (self, w, i, defaultName) {
+            var genreValue = self.getExtraParam(w, 'genreIds');
+            var html = nameFieldHtml(self, w, i, defaultName);
+            html += '<div class="inputContainer">';
+            html += '<label class="inputLabel inputLabelUnfocused" for="discGenre_' + i + '">' + self.escHtml(self.t('admin.discover.genre.label')) + '</label>';
+            html += '<select id="discGenre_' + i + '" class="emby-select-withcolor emby-select jux-discover-genre">';
+            html += '<option value="">' + self.escHtml(self.t('admin.discover.genre.any')) + '</option>';
+            self._tmdbGenres.forEach(function (g) {
+                html += '<option value="' + self.escHtml(g.Value) + '"' + (g.Value === genreValue ? ' selected' : '') + '>' + self.escHtml(g.Label) + '</option>';
+            });
+            if (genreValue && !self._tmdbGenres.some(function (g) { return g.Value === genreValue; })) {
+                html += '<option value="' + self.escHtml(genreValue) + '" selected>' + self.escHtml(genreValue) + '</option>';
+            }
+            html += '</select>';
+            html += '</div>';
+            html += searchFieldsHtml(self, w, i, 'disc', [
+                ['person', self.t('admin.discover.person'), self.getExtraParam(w, 'personIds')],
+                ['keyword', self.t('admin.discover.keyword'), self.getExtraParam(w, 'keywordIds')],
+                ['company', self.t('admin.discover.company'), self.getExtraParam(w, 'companyIds')]
+            ], self.getDiscoverLabelForValue.bind(self));
+            html += '<div class="inputContainer">';
+            html += '<label class="inputLabel inputLabelUnfocused" for="discSortBy_' + i + '">' + self.escHtml(self.t('admin.discover.sortby.label')) + '</label>';
+            html += selectHtml(self, 'discSortBy_' + i, 'jux-discover-sortby', [
+                ['popularity.desc', self.t('admin.discover.sortby.popularity')],
+                ['vote_average.desc', self.t('admin.discover.sortby.rating')],
+                ['vote_count.desc', self.t('admin.discover.sortby.votecount')],
+                ['primary_release_date.desc', self.t('admin.discover.sortby.releasedate')],
+                ['revenue.desc', self.t('admin.discover.sortby.revenue')],
+                ['title.asc', self.t('admin.discover.sortby.title')]
+            ], self.getExtraParam(w, 'sortBy') || 'popularity.desc');
+            html += '</div>';
+            html += halfInputsHtml(self, i, [
+                ['discYear', 'jux-discover-year', 'admin.discover.year', 'type="number"', self.getExtraParam(w, 'year'), ''],
+                ['discMinRating', 'jux-discover-minrating', 'admin.discover.minrating', 'type="number" min="0" max="10" step="0.1"', self.getExtraParam(w, 'minRating'), '']
+            ]);
+            html += halfInputsHtml(self, i, [
+                ['discMinVotes', 'jux-discover-minvotes', 'admin.discover.minvotes', 'type="number" min="0"', self.getExtraParam(w, 'minVotes') || '50', ''],
+                ['discPages', 'jux-discover-pages', 'admin.discover.pages', 'type="number" min="1" max="5"', self.getExtraParam(w, 'pages') || '1', '']
+            ]);
+            return html;
+        },
+        read: function (self, card, w) {
+            var params = [{ Key: 'value', Value: self.getExtraParam(w, 'value') }];
+            var genreEl = card.querySelector('.jux-discover-genre');
+            if (genreEl && genreEl.value) { params.push({ Key: 'genreIds', Value: genreEl.value }); }
+            ['person', 'keyword', 'company'].forEach(function (fieldName) {
+                var el = card.querySelector('.jux-discover-' + fieldName);
+                if (!el) { return; }
+                var resolved = self.readIdField(el, function (label) { return self.getDiscoverValueForLabel(fieldName, label); });
+                if (resolved) { params.push({ Key: fieldName + 'Ids', Value: resolved }); }
+            });
+            [['sortBy', 'sortby'], ['year', 'year'], ['minRating', 'minrating'], ['minVotes', 'minvotes'], ['pages', 'pages']].forEach(function (field) {
+                var el = card.querySelector('.jux-discover-' + field[1]);
+                if (el && el.value) { params.push({ Key: field[0], Value: el.value }); }
+            });
+            w.ExtraParams = params;
+        }
+    },
+
+    rewards: {
+        render: function (self, w, i, defaultName) {
+            var html = nameFieldHtml(self, w, i, defaultName);
+            html += searchFieldsHtml(self, w, i, 'rewards', [
+                ['ceremony', self.t('admin.rewards.ceremony'), self.getExtraParam(w, 'ceremonyQid')],
+                ['category', self.t('admin.rewards.category'), self.getExtraParam(w, 'categoryQid')]
+            ], self.getRewardsLabelForValue.bind(self));
+            html += '<div class="fieldDescription jux-admin-value-error" style="display:none;" id="juxRewardsError_' + i + '">' + self.escHtml(self.t('admin.rewards.error')) + '</div>';
+            html += '<div class="inputContainer">';
+            html += '<label class="inputLabel inputLabelUnfocused" for="rewardsYear_' + i + '">' + self.escHtml(self.t('admin.rewards.year')) + '</label>';
+            html += '<input id="rewardsYear_' + i + '" type="number" class="emby-input jux-rewards-year" value="' + self.escHtml(self.getExtraParam(w, 'year')) + '" />';
+            html += '<div class="fieldDescription">' + self.escHtml(self.t('admin.rewards.help')) + '</div>';
+            html += '</div>';
+            return html;
+        },
+        read: function (self, card, w) {
+            var params = [{ Key: 'value', Value: self.getExtraParam(w, 'value') }];
+            [['ceremony', 'ceremonyQid'], ['category', 'categoryQid']].forEach(function (field) {
+                var el = card.querySelector('.jux-rewards-' + field[0]);
+                if (!el) { return; }
+                var resolved = self.readIdField(el, function (label) { return self.getRewardsValueForLabel(field[0], label); });
+                if (resolved) { params.push({ Key: field[1], Value: resolved }); }
+            });
+            var yearEl = card.querySelector('.jux-rewards-year');
+            if (yearEl && yearEl.value) { params.push({ Key: 'year', Value: yearEl.value }); }
+            w.ExtraParams = params;
+        }
+    },
+
+    seasonal: {
+        render: function (self, w, i, defaultName) {
+            var html = nameFieldHtml(self, w, i, defaultName);
+            html += '<div class="inputContainer">';
+            html += '<label class="inputLabel inputLabelUnfocused" for="seasonalTheme_' + i + '">' + self.escHtml(self.t('admin.seasonal.theme.label')) + '</label>';
+            html += selectHtml(self, 'seasonalTheme_' + i, 'jux-seasonal-theme', [
+                ['', self.t('admin.seasonal.theme.none')],
+                ['halloween', self.t('admin.seasonal.theme.halloween')],
+                ['christmas', self.t('admin.seasonal.theme.christmas')],
+                ['valentines', self.t('admin.seasonal.theme.valentines')],
+                ['newyear', self.t('admin.seasonal.theme.newyear')]
+            ], self.getExtraParam(w, 'theme'));
+            html += '</div>';
+            var date = ' placeholder="MM-JJ" pattern="\\d{2}-\\d{2}"';
+            html += halfInputsHtml(self, i, [
+                ['seasonalStart', 'jux-seasonal-startdate', 'admin.seasonal.startdate.label', 'type="text"', self.getExtraParam(w, 'startDate'), date],
+                ['seasonalEnd', 'jux-seasonal-enddate', 'admin.seasonal.enddate.label', 'type="text"', self.getExtraParam(w, 'endDate'), date]
+            ]);
+            html += '<div class="fieldDescription jux-seasonal-date-error" style="display:none;" id="seasonalDateError_' + i + '">' + self.escHtml(self.t('admin.seasonal.date.error')) + '</div>';
+            html += '<div class="fieldDescription">' + self.escHtml(self.t('admin.seasonal.date.help')) + '</div>';
+            html += halfInputsHtml(self, i, [
+                ['seasonalGenre', 'jux-seasonal-genre', 'admin.seasonal.genre.label', 'type="text"', self.getExtraParam(w, 'genre'), ''],
+                ['seasonalTag', 'jux-seasonal-tag', 'admin.seasonal.tag.label', 'type="text"', self.getExtraParam(w, 'tag'), '']
+            ]);
+            html += '<div class="fieldDescription">' + self.escHtml(self.t('admin.seasonal.filter.help')) + '</div>';
+            return html;
+        },
+        read: function (self, card, w) {
+            var params = [{ Key: 'value', Value: self.getExtraParam(w, 'value') }];
+            var nameKey = self.getExtraParam(w, 'nameKey');
+            if (nameKey) { params.push({ Key: 'nameKey', Value: nameKey }); }
+            var startEl = card.querySelector('.jux-seasonal-startdate');
+            var endEl = card.querySelector('.jux-seasonal-enddate');
+            var themeEl = card.querySelector('.jux-seasonal-theme');
+            if (startEl) { params.push({ Key: 'startDate', Value: startEl.value.trim() }); }
+            if (endEl) { params.push({ Key: 'endDate', Value: endEl.value.trim() }); }
+            if (themeEl && themeEl.value) { params.push({ Key: 'theme', Value: themeEl.value }); }
+            ['genre', 'tag'].forEach(function (key) {
+                var el = card.querySelector('.jux-seasonal-' + key);
+                if (el && el.value.trim()) { params.push({ Key: key, Value: el.value.trim() }); }
+            });
+            w.ExtraParams = params;
+        }
+    },
+
+    local: {
+        render: function (self, w, i, defaultName) {
+            var html = nameFieldHtml(self, w, i, defaultName);
+            html += '<div class="inputContainer">';
+            html += '<label class="inputLabel inputLabelUnfocused" for="localItemTypes_' + i + '">' + self.escHtml(self.t('admin.local.itemtypes.label')) + '</label>';
+            html += selectHtml(self, 'localItemTypes_' + i, 'jux-local-itemtypes', LOCAL_ITEM_TYPES.map(function (opt) {
+                return [opt[0], self.t(opt[1])];
+            }), self.getExtraParam(w, 'itemTypes') || LOCAL_ITEM_TYPES[0][0]);
+            html += '</div>';
+            return html;
+        },
+        read: function (self, card, w) {
+            var el = card.querySelector('.jux-local-itemtypes');
+            if (el) { w.ExtraParams = [{ Key: 'itemTypes', Value: el.value }]; }
+        }
+    }
+};
+
 function createConfigPage() {
     return {
         PLUGIN_ID: '3adf1f1f-1541-4e47-b9e3-34d2d2968af6',
@@ -310,6 +590,11 @@ function createConfigPage() {
         // called. Never hardcode the numeric values here -- read them from _categoryIndex instead.
         _categoryIndex: {},
 
+        // The EDITORS entry of a row, by widget type.
+        editorOf: function (widgetType) {
+            return EDITORS[DEDICATED_EDITORS[widgetType] || this.editorKindOf(widgetType)] || DEFAULT_EDITOR;
+        },
+
         editorKindOf: function (widgetType) {
             var desc = this.getDescriptor(widgetType);
             return desc ? editorKind(widgetType, desc.Category, this._categoryIndex) : '';
@@ -332,12 +617,6 @@ function createConfigPage() {
             return this.editorKindOf(widgetType) === 'native';
         },
 
-        DISCOVER_MOVIES_TYPE: 'jux.connected.discover-movies',
-
-        isDiscover: function (widgetType) {
-            return widgetType === this.DISCOVER_MOVIES_TYPE;
-        },
-
         REWARDS_TYPE: 'jux.connected.rewards',
 
         isRewards: function (widgetType) {
@@ -348,10 +627,6 @@ function createConfigPage() {
 
         isSeasonal: function (widgetType) {
             return widgetType === this.SEASONAL_TYPE;
-        },
-
-        isLocal: function (widgetType) {
-            return this.editorKindOf(widgetType) === 'local';
         },
 
         BECAUSE_YOU_WATCHED_TYPE: 'jux.personalized.because-you-watched',
@@ -524,7 +799,7 @@ function createConfigPage() {
                     var category = desc ? desc.Category : '';
                     var isFirst = i === 0;
                     var isLast = i === widgets.length - 1;
-                    var customName = w.CustomDisplayName || '';
+                    var editor = self.editorOf(w.WidgetType);
                     var isAdm = self.isAdmin(w.WidgetType);
                     var isPers = self.isPersonalized(w.WidgetType);
                     var isConn = self.isConnected(w.WidgetType);
@@ -585,203 +860,7 @@ function createConfigPage() {
                     html += '<div class="fieldDescription jux-admin-widget-summary">' + self.escHtml(widgetSummary(w, isAdm ? currentLabel : '', self.t.bind(self))) + '</div>';
                     html += '<div class="jux-admin-widget-body" id="' + bodyId + '">';
 
-                    // Admin-only: value picker with datalist autocomplete.
-                    if (isAdm) {
-                        var datalistId = 'juxVals_' + i;
-                        html += '<div class="inputContainer">';
-                        html += '<label class="inputLabel inputLabelUnfocused" for="widgetValue_' + i + '">' + self.escHtml(self.t('admin.value.label')) + '</label>';
-                        html += '<input id="widgetValue_' + i + '" type="text" list="' + datalistId + '"';
-                        html += ' class="emby-input jux-admin-widget-value"';
-                        html += ' placeholder="' + self.escHtml(self.t('admin.value.placeholder')) + '"';
-                        html += ' value="' + self.escHtml(currentLabel || currentValue) + '" />';
-                        html += '<datalist id="' + datalistId + '"></datalist>';
-                        html += '<div class="fieldDescription jux-admin-value-error" style="display:none;" id="juxValError_' + i + '">' + self.escHtml(self.t('admin.value.error')) + '</div>';
-                        html += '</div>';
-                    }
-
-                    if (isPers) {
-                        html += '<p class="fieldDescription">' + self.escHtml(self.t('admin.personalized.note')) + '</p>';
-                    } else {
-                        html += '<div class="inputContainer">';
-                        html += '<label class="inputLabel inputLabelUnfocused" for="widgetName_' + i + '">' + self.escHtml(self.t('admin.name.label')) + '</label>';
-                        html += '<input id="widgetName_' + i + '" type="text" class="emby-input jux-admin-widget-name"';
-                        html += ' placeholder="' + self.escHtml(defaultName) + '"';
-                        html += ' value="' + self.escHtml(customName) + '" />';
-                        html += '<div class="fieldDescription">' + self.escHtml(self.t('admin.name.help')) + '</div>';
-                        html += '</div>';
-                    }
-
-                    if (self.isDiscover(w.WidgetType)) {
-                        var genreValue = self.getExtraParam(w, 'genreIds');
-                        var personValue = self.getExtraParam(w, 'personIds');
-                        var keywordValue = self.getExtraParam(w, 'keywordIds');
-                        var companyValue = self.getExtraParam(w, 'companyIds');
-                        var sortByValue = self.getExtraParam(w, 'sortBy') || 'popularity.desc';
-                        var yearValue = self.getExtraParam(w, 'year');
-                        var minRatingValue = self.getExtraParam(w, 'minRating');
-                        var minVotesValue = self.getExtraParam(w, 'minVotes') || '50';
-                        var discoverPagesValue = self.getExtraParam(w, 'pages') || '1';
-
-                        html += '<div class="inputContainer">';
-                        html += '<label class="inputLabel inputLabelUnfocused" for="discGenre_' + i + '">' + self.escHtml(self.t('admin.discover.genre.label')) + '</label>';
-                        html += '<select id="discGenre_' + i + '" class="emby-select-withcolor emby-select jux-discover-genre">';
-                        html += '<option value="">' + self.escHtml(self.t('admin.discover.genre.any')) + '</option>';
-                        self._tmdbGenres.forEach(function (g) {
-                            html += '<option value="' + self.escHtml(g.Value) + '"' + (g.Value === genreValue ? ' selected' : '') + '>' + self.escHtml(g.Label) + '</option>';
-                        });
-                        if (genreValue && !self._tmdbGenres.some(function (g) { return g.Value === genreValue; })) {
-                            html += '<option value="' + self.escHtml(genreValue) + '" selected>' + self.escHtml(genreValue) + '</option>';
-                        }
-                        html += '</select>';
-                        html += '</div>';
-
-                        var discDatalistId = 'discVals_' + i;
-                        [
-                            ['person', self.t('admin.discover.person'), personValue],
-                            ['keyword', self.t('admin.discover.keyword'), keywordValue],
-                            ['company', self.t('admin.discover.company'), companyValue]
-                        ].forEach(function (field) {
-                            var fieldName = field[0], fieldLabel = field[1], fieldValue = field[2];
-                            var currentLabel = fieldValue ? self.getDiscoverLabelForValue(fieldName, fieldValue) : '';
-                            html += '<div class="inputContainer">';
-                            html += '<label class="inputLabel inputLabelUnfocused" for="disc' + fieldName + '_' + i + '">' + self.escHtml(fieldLabel) + '</label>';
-                            html += '<input id="disc' + fieldName + '_' + i + '" type="text" list="' + discDatalistId + '_' + fieldName + '"';
-                            html += ' class="emby-input jux-discover-' + fieldName + '" data-field="' + fieldName + '"';
-                            html += ' data-value="' + self.escHtml(fieldValue) + '"';
-                            html += ' placeholder="' + self.escHtml(self.t('admin.discover.search.placeholder')) + '" value="' + self.escHtml(currentLabel || fieldValue) + '" />';
-                            html += '<datalist id="' + discDatalistId + '_' + fieldName + '"></datalist>';
-                            html += '</div>';
-                        });
-
-                        html += '<div class="inputContainer">';
-                        html += '<label class="inputLabel inputLabelUnfocused" for="discSortBy_' + i + '">' + self.escHtml(self.t('admin.discover.sortby.label')) + '</label>';
-                        html += '<select id="discSortBy_' + i + '" class="emby-select-withcolor emby-select jux-discover-sortby">';
-                        [
-                            ['popularity.desc', self.t('admin.discover.sortby.popularity')],
-                            ['vote_average.desc', self.t('admin.discover.sortby.rating')],
-                            ['vote_count.desc', self.t('admin.discover.sortby.votecount')],
-                            ['primary_release_date.desc', self.t('admin.discover.sortby.releasedate')],
-                            ['revenue.desc', self.t('admin.discover.sortby.revenue')],
-                            ['title.asc', self.t('admin.discover.sortby.title')]
-                        ].forEach(function (opt) {
-                            html += '<option value="' + opt[0] + '"' + (sortByValue === opt[0] ? ' selected' : '') + '>' + self.escHtml(opt[1]) + '</option>';
-                        });
-                        html += '</select>';
-                        html += '</div>';
-
-                        html += '<div class="jux-admin-row">';
-                        html += '<div class="inputContainer jux-admin-half">';
-                        html += '<label class="inputLabel inputLabelUnfocused" for="discYear_' + i + '">' + self.escHtml(self.t('admin.discover.year')) + '</label>';
-                        html += '<input id="discYear_' + i + '" type="number" class="emby-input jux-discover-year" value="' + self.escHtml(yearValue) + '" />';
-                        html += '</div>';
-                        html += '<div class="inputContainer jux-admin-half">';
-                        html += '<label class="inputLabel inputLabelUnfocused" for="discMinRating_' + i + '">' + self.escHtml(self.t('admin.discover.minrating')) + '</label>';
-                        html += '<input id="discMinRating_' + i + '" type="number" min="0" max="10" step="0.1" class="emby-input jux-discover-minrating" value="' + self.escHtml(minRatingValue) + '" />';
-                        html += '</div>';
-                        html += '</div>';
-
-                        html += '<div class="jux-admin-row">';
-                        html += '<div class="inputContainer jux-admin-half">';
-                        html += '<label class="inputLabel inputLabelUnfocused" for="discMinVotes_' + i + '">' + self.escHtml(self.t('admin.discover.minvotes')) + '</label>';
-                        html += '<input id="discMinVotes_' + i + '" type="number" min="0" class="emby-input jux-discover-minvotes" value="' + self.escHtml(minVotesValue) + '" />';
-                        html += '</div>';
-                        html += '<div class="inputContainer jux-admin-half">';
-                        html += '<label class="inputLabel inputLabelUnfocused" for="discPages_' + i + '">' + self.escHtml(self.t('admin.discover.pages')) + '</label>';
-                        html += '<input id="discPages_' + i + '" type="number" min="1" max="5" class="emby-input jux-discover-pages" value="' + self.escHtml(discoverPagesValue) + '" />';
-                        html += '</div>';
-                        html += '</div>';
-                    }
-
-                    if (self.isRewards(w.WidgetType)) {
-                        var ceremonyValue = self.getExtraParam(w, 'ceremonyQid');
-                        var categoryValue = self.getExtraParam(w, 'categoryQid');
-                        var rewardsYearValue = self.getExtraParam(w, 'year');
-                        var rewardsDatalistId = 'rewardsVals_' + i;
-
-                        [
-                            ['ceremony', self.t('admin.rewards.ceremony'), ceremonyValue],
-                            ['category', self.t('admin.rewards.category'), categoryValue]
-                        ].forEach(function (field) {
-                            var fieldName = field[0], fieldLabel = field[1], fieldValue = field[2];
-                            var currentLabel = fieldValue ? self.getRewardsLabelForValue(fieldName, fieldValue) : '';
-                            html += '<div class="inputContainer">';
-                            html += '<label class="inputLabel inputLabelUnfocused" for="rewards' + fieldName + '_' + i + '">' + self.escHtml(fieldLabel) + '</label>';
-                            html += '<input id="rewards' + fieldName + '_' + i + '" type="text" list="' + rewardsDatalistId + '_' + fieldName + '"';
-                            html += ' class="emby-input jux-rewards-' + fieldName + '" data-field="' + fieldName + '"';
-                            html += ' data-value="' + self.escHtml(fieldValue) + '"';
-                            html += ' placeholder="' + self.escHtml(self.t('admin.discover.search.placeholder')) + '" value="' + self.escHtml(currentLabel || fieldValue) + '" />';
-                            html += '<datalist id="' + rewardsDatalistId + '_' + fieldName + '"></datalist>';
-                            html += '</div>';
-                        });
-
-                        html += '<div class="fieldDescription jux-admin-value-error" style="display:none;" id="juxRewardsError_' + i + '">' + self.escHtml(self.t('admin.rewards.error')) + '</div>';
-
-                        html += '<div class="inputContainer">';
-                        html += '<label class="inputLabel inputLabelUnfocused" for="rewardsYear_' + i + '">' + self.escHtml(self.t('admin.rewards.year')) + '</label>';
-                        html += '<input id="rewardsYear_' + i + '" type="number" class="emby-input jux-rewards-year" value="' + self.escHtml(rewardsYearValue) + '" />';
-                        html += '<div class="fieldDescription">' + self.escHtml(self.t('admin.rewards.help')) + '</div>';
-                        html += '</div>';
-                    }
-
-                    if (self.isSeasonal(w.WidgetType)) {
-                        var seasonalThemeValue = self.getExtraParam(w, 'theme');
-                        var seasonalStartValue = self.getExtraParam(w, 'startDate');
-                        var seasonalEndValue = self.getExtraParam(w, 'endDate');
-                        var seasonalGenreValue = self.getExtraParam(w, 'genre');
-                        var seasonalTagValue = self.getExtraParam(w, 'tag');
-
-                        html += '<div class="inputContainer">';
-                        html += '<label class="inputLabel inputLabelUnfocused" for="seasonalTheme_' + i + '">' + self.escHtml(self.t('admin.seasonal.theme.label')) + '</label>';
-                        html += '<select id="seasonalTheme_' + i + '" class="emby-select-withcolor emby-select jux-seasonal-theme">';
-                        [
-                            ['', self.t('admin.seasonal.theme.none')],
-                            ['halloween', self.t('admin.seasonal.theme.halloween')],
-                            ['christmas', self.t('admin.seasonal.theme.christmas')],
-                            ['valentines', self.t('admin.seasonal.theme.valentines')],
-                            ['newyear', self.t('admin.seasonal.theme.newyear')]
-                        ].forEach(function (opt) {
-                            html += '<option value="' + opt[0] + '"' + (seasonalThemeValue === opt[0] ? ' selected' : '') + '>' + self.escHtml(opt[1]) + '</option>';
-                        });
-                        html += '</select>';
-                        html += '</div>';
-
-                        html += '<div class="jux-admin-row">';
-                        html += '<div class="inputContainer jux-admin-half">';
-                        html += '<label class="inputLabel inputLabelUnfocused" for="seasonalStart_' + i + '">' + self.escHtml(self.t('admin.seasonal.startdate.label')) + '</label>';
-                        html += '<input id="seasonalStart_' + i + '" type="text" class="emby-input jux-seasonal-startdate" placeholder="MM-JJ" pattern="\\d{2}-\\d{2}" value="' + self.escHtml(seasonalStartValue) + '" />';
-                        html += '</div>';
-                        html += '<div class="inputContainer jux-admin-half">';
-                        html += '<label class="inputLabel inputLabelUnfocused" for="seasonalEnd_' + i + '">' + self.escHtml(self.t('admin.seasonal.enddate.label')) + '</label>';
-                        html += '<input id="seasonalEnd_' + i + '" type="text" class="emby-input jux-seasonal-enddate" placeholder="MM-JJ" pattern="\\d{2}-\\d{2}" value="' + self.escHtml(seasonalEndValue) + '" />';
-                        html += '</div>';
-                        html += '</div>';
-                        html += '<div class="fieldDescription jux-seasonal-date-error" style="display:none;" id="seasonalDateError_' + i + '">' + self.escHtml(self.t('admin.seasonal.date.error')) + '</div>';
-                        html += '<div class="fieldDescription">' + self.escHtml(self.t('admin.seasonal.date.help')) + '</div>';
-
-                        html += '<div class="jux-admin-row">';
-                        html += '<div class="inputContainer jux-admin-half">';
-                        html += '<label class="inputLabel inputLabelUnfocused" for="seasonalGenre_' + i + '">' + self.escHtml(self.t('admin.seasonal.genre.label')) + '</label>';
-                        html += '<input id="seasonalGenre_' + i + '" type="text" class="emby-input jux-seasonal-genre" value="' + self.escHtml(seasonalGenreValue) + '" />';
-                        html += '</div>';
-                        html += '<div class="inputContainer jux-admin-half">';
-                        html += '<label class="inputLabel inputLabelUnfocused" for="seasonalTag_' + i + '">' + self.escHtml(self.t('admin.seasonal.tag.label')) + '</label>';
-                        html += '<input id="seasonalTag_' + i + '" type="text" class="emby-input jux-seasonal-tag" value="' + self.escHtml(seasonalTagValue) + '" />';
-                        html += '</div>';
-                        html += '</div>';
-                        html += '<div class="fieldDescription">' + self.escHtml(self.t('admin.seasonal.filter.help')) + '</div>';
-                    }
-
-                    if (self.isLocal(w.WidgetType)) {
-                        var localItemTypes = self.getExtraParam(w, 'itemTypes') || LOCAL_ITEM_TYPES[0][0];
-                        html += '<div class="inputContainer">';
-                        html += '<label class="inputLabel inputLabelUnfocused" for="localItemTypes_' + i + '">' + self.escHtml(self.t('admin.local.itemtypes.label')) + '</label>';
-                        html += '<select id="localItemTypes_' + i + '" class="emby-select-withcolor emby-select jux-local-itemtypes">';
-                        LOCAL_ITEM_TYPES.forEach(function (opt) {
-                            html += '<option value="' + opt[0] + '"' + (localItemTypes === opt[0] ? ' selected' : '') + '>' + self.escHtml(self.t(opt[1])) + '</option>';
-                        });
-                        html += '</select>';
-                        html += '</div>';
-                    }
+                    html += editor.render(self, w, i, defaultName);
 
                     html += '<div class="jux-admin-row">';
 
@@ -827,37 +906,7 @@ function createConfigPage() {
                         html += '</div>';
                     }
 
-                    if (isPers) {
-                        var excludeWatched = self.getExtraParam(w, 'excludeWatched') !== 'false';
-
-                        html += '<div class="checkboxContainer checkboxContainer-withDescription">';
-                        html += '<label class="emby-checkbox-label">';
-                        html += '<input type="checkbox" id="widgetExcludeWatched_' + i + '" class="emby-checkbox jux-admin-exclude-watched"';
-                        html += (excludeWatched ? ' checked' : '') + ' />';
-                        html += '<span class="checkboxLabel">' + self.escHtml(self.t('admin.excludewatched.label')) + '</span>';
-                        html += CHECKBOX_OUTLINE_HTML;
-                        html += '</label>';
-                        html += '<div class="fieldDescription">' + self.escHtml(self.t('admin.excludewatched.help')) + '</div>';
-                        html += '</div>';
-                    }
-
-                    if (self.isBecauseYouWatched(w.WidgetType)) {
-                        var scopeValue = self.getExtraParam(w, 'scope') || 'both';
-
-                        html += '<div class="inputContainer">';
-                        html += '<label class="inputLabel inputLabelUnfocused" for="widgetScope_' + i + '">' + self.escHtml(self.t('admin.byw.scope.label')) + '</label>';
-                        html += '<select id="widgetScope_' + i + '" class="emby-select-withcolor emby-select jux-admin-byw-scope">';
-                        [
-                            ['movies', self.t('admin.byw.scope.movies')],
-                            ['series', self.t('admin.byw.scope.series')],
-                            ['both', self.t('admin.byw.scope.both')]
-                        ].forEach(function (opt) {
-                            html += '<option value="' + opt[0] + '"' + (scopeValue === opt[0] ? ' selected' : '') + '>' + self.escHtml(opt[1]) + '</option>';
-                        });
-                        html += '</select>';
-                        html += '<div class="fieldDescription">' + self.escHtml(self.t('admin.byw.scope.help')) + '</div>';
-                        html += '</div>';
-                    }
+                    if (editor.tail) { html += editor.tail(self, w, i); }
 
                     html += '<div class="jux-admin-preview-actions">';
                     html += '<button type="button" class="emby-button raised jux-admin-btn-preview" data-index="' + i + '" aria-controls="juxPreview_' + i + '">';
@@ -1094,8 +1143,6 @@ function createConfigPage() {
                 var minEl = card.querySelector('.jux-admin-min-items');
                 var maxEl = card.querySelector('.jux-admin-max-items');
                 var viewEl = card.querySelector('.jux-admin-view-mode');
-                var valueEl = card.querySelector('.jux-admin-widget-value');
-                var excludeWatchedEl = card.querySelector('.jux-admin-exclude-watched');
                 var sortEl = card.querySelector('.jux-admin-sort');
                 if (sortEl) {
                     w.SortBy = sortEl.value.split(':')[0];
@@ -1106,109 +1153,7 @@ function createConfigPage() {
                 if (minEl) { w.MinItems = Math.max(0, parseInt(minEl.value, 10) || 0); }
                 if (maxEl) { w.MaxItems = Math.max(1, parseInt(maxEl.value, 10) || 1); }
                 if (viewEl) { w.ViewMode = viewEl.value; }
-                if (valueEl) {
-                    // Resolve the label back to a Value (handles collection-type widgets where Value != Label).
-                    var label = valueEl.value.trim();
-                    var resolvedValue = label ? self.getValueForLabel(w.WidgetType, label) : '';
-                    // If the value changed, auto-prefill the display name with the label when empty.
-                    if (resolvedValue && !w.CustomDisplayName) {
-                        w.CustomDisplayName = label;
-                        if (nameEl) { nameEl.value = label; }
-                    }
-                    w.ExtraParams = resolvedValue
-                        ? [{ Key: 'value', Value: resolvedValue }]
-                        : [];
-                }
-                if (excludeWatchedEl) {
-                    w.ExtraParams = [{ Key: 'excludeWatched', Value: excludeWatchedEl.checked ? 'true' : 'false' }];
-                }
-                if (self.isBecauseYouWatched(w.WidgetType)) {
-                    var scopeEl = card.querySelector('.jux-admin-byw-scope');
-                    if (scopeEl) {
-                        w.ExtraParams = (w.ExtraParams || []).concat([{ Key: 'scope', Value: scopeEl.value }]);
-                    }
-                }
-                if (self.isDiscover(w.WidgetType)) {
-                    var genreEl = card.querySelector('.jux-discover-genre');
-                    var personEl = card.querySelector('.jux-discover-person');
-                    var keywordEl = card.querySelector('.jux-discover-keyword');
-                    var companyEl = card.querySelector('.jux-discover-company');
-                    var sortByEl = card.querySelector('.jux-discover-sortby');
-                    var yearEl = card.querySelector('.jux-discover-year');
-                    var minRatingEl = card.querySelector('.jux-discover-minrating');
-                    var minVotesEl = card.querySelector('.jux-discover-minvotes');
-                    var pagesEl = card.querySelector('.jux-discover-pages');
-
-                    var instanceId = self.getExtraParam(w, 'value');
-                    var params = [{ Key: 'value', Value: instanceId }];
-
-                    if (genreEl && genreEl.value) { params.push({ Key: 'genreIds', Value: genreEl.value }); }
-                    [
-                        ['person', personEl],
-                        ['keyword', keywordEl],
-                        ['company', companyEl]
-                    ].forEach(function (entry) {
-                        var fieldName = entry[0], el = entry[1];
-                        if (!el) { return; }
-                        var resolved = self.readIdField(el, function (label) { return self.getDiscoverValueForLabel(fieldName, label); });
-                        if (resolved) { params.push({ Key: fieldName + 'Ids', Value: resolved }); }
-                    });
-                    if (sortByEl && sortByEl.value) { params.push({ Key: 'sortBy', Value: sortByEl.value }); }
-                    if (yearEl && yearEl.value) { params.push({ Key: 'year', Value: yearEl.value }); }
-                    if (minRatingEl && minRatingEl.value) { params.push({ Key: 'minRating', Value: minRatingEl.value }); }
-                    if (minVotesEl && minVotesEl.value) { params.push({ Key: 'minVotes', Value: minVotesEl.value }); }
-                    if (pagesEl && pagesEl.value) { params.push({ Key: 'pages', Value: pagesEl.value }); }
-
-                    w.ExtraParams = params;
-                }
-
-                if (self.isRewards(w.WidgetType)) {
-                    var ceremonyEl = card.querySelector('.jux-rewards-ceremony');
-                    var categoryEl = card.querySelector('.jux-rewards-category');
-                    var rewardsYearEl = card.querySelector('.jux-rewards-year');
-
-                    var rewardsInstanceId = self.getExtraParam(w, 'value');
-                    var rewardsParams = [{ Key: 'value', Value: rewardsInstanceId }];
-
-                    [
-                        ['ceremony', ceremonyEl, 'ceremonyQid'],
-                        ['category', categoryEl, 'categoryQid']
-                    ].forEach(function (entry) {
-                        var fieldName = entry[0], el = entry[1], paramKey = entry[2];
-                        if (!el) { return; }
-                        var resolved = self.readIdField(el, function (label) { return self.getRewardsValueForLabel(fieldName, label); });
-                        if (resolved) { rewardsParams.push({ Key: paramKey, Value: resolved }); }
-                    });
-                    if (rewardsYearEl && rewardsYearEl.value) { rewardsParams.push({ Key: 'year', Value: rewardsYearEl.value }); }
-
-                    w.ExtraParams = rewardsParams;
-                }
-
-                if (self.isSeasonal(w.WidgetType)) {
-                    var seasonalThemeEl = card.querySelector('.jux-seasonal-theme');
-                    var seasonalStartEl = card.querySelector('.jux-seasonal-startdate');
-                    var seasonalEndEl = card.querySelector('.jux-seasonal-enddate');
-                    var seasonalGenreEl = card.querySelector('.jux-seasonal-genre');
-                    var seasonalTagEl = card.querySelector('.jux-seasonal-tag');
-
-                    var seasonalInstanceId = self.getExtraParam(w, 'value');
-                    var seasonalParams = [{ Key: 'value', Value: seasonalInstanceId }];
-                    var seasonalNameKey = self.getExtraParam(w, 'nameKey');
-                    if (seasonalNameKey) { seasonalParams.push({ Key: 'nameKey', Value: seasonalNameKey }); }
-
-                    if (seasonalStartEl) { seasonalParams.push({ Key: 'startDate', Value: seasonalStartEl.value.trim() }); }
-                    if (seasonalEndEl) { seasonalParams.push({ Key: 'endDate', Value: seasonalEndEl.value.trim() }); }
-                    if (seasonalThemeEl && seasonalThemeEl.value) { seasonalParams.push({ Key: 'theme', Value: seasonalThemeEl.value }); }
-                    if (seasonalGenreEl && seasonalGenreEl.value.trim()) { seasonalParams.push({ Key: 'genre', Value: seasonalGenreEl.value.trim() }); }
-                    if (seasonalTagEl && seasonalTagEl.value.trim()) { seasonalParams.push({ Key: 'tag', Value: seasonalTagEl.value.trim() }); }
-
-                    w.ExtraParams = seasonalParams;
-                }
-
-                if (self.isLocal(w.WidgetType)) {
-                    var localItemTypesEl = card.querySelector('.jux-local-itemtypes');
-                    if (localItemTypesEl) { w.ExtraParams = [{ Key: 'itemTypes', Value: localItemTypesEl.value }]; }
-                }
+                self.editorOf(w.WidgetType).read(self, card, w);
             });
         },
 
