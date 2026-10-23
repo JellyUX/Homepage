@@ -276,8 +276,13 @@
     margin: 0 0 0.25rem;
 }
 
-/* Beside a logo the title stays for screen readers only. */
-.jux-featured-has-logo .jux-featured-title {
+/* A logo not loaded yet (phone layout, then a wider window) gives way to the title. */
+.jux-featured-logo:not([src]) {
+    display: none;
+}
+
+/* Beside a loaded logo the title stays for screen readers only. */
+.jux-featured-has-logo .jux-featured-logo[src] + .jux-featured-title {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -527,7 +532,7 @@
         display: none;
     }
 
-    .jux-featured-has-logo .jux-featured-title {
+    .jux-featured-has-logo .jux-featured-logo[src] + .jux-featured-title {
         position: static;
         width: auto;
         height: auto;

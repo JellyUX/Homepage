@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import featured from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-featured.js';
 
 const { slidesOf, html, attach, destroy, backdropWidth, decodeBlurhash, INTERVAL_MS, MAX_SLIDES } = featured;
@@ -120,6 +122,19 @@ describe('KTW-01.b images', () => {
         expect(loaded()).toEqual(['0', '1', '2']);
     });
 
+    // R11 constat 4: a logo hidden by the phone layout loads once its slide comes up wider.
+    it('loads a logo only outside the phone layout, on any later render', () => {
+        let phone = true;
+        window.matchMedia = vi.fn((q) => ({ matches: q.includes('max-width') ? phone : false }));
+        render(items(3).map((i) => ({ ...i, ImageTags: { Logo: 'L' + i.Id } })));
+        const logos = () => [...container.querySelectorAll('.jux-featured-logo')].map((l) => !!l.getAttribute('src'));
+        expect(logos()).toEqual([false, false, false]);
+
+        phone = false;
+        container.querySelector('.jux-featured-next').click();
+        expect(logos()).toEqual([false, true, true]);
+    });
+
     it('decodes a blurhash into opaque pixels and refuses a malformed one', () => {
         const pixels = decodeBlurhash('LEHV6nWB2yk8pyo0adR*.7kCMdnj', 4, 3);
         expect(pixels).toHaveLength(4 * 3 * 4);
@@ -172,7 +187,7 @@ describe('KTW-01.c motion and accessibility', () => {
         expect(container.querySelector('.jux-featured-stage').getAttribute('aria-live')).toBe('polite');
 
         container.querySelector('.jux-featured-toggle').click();
-        container.querySelector('.jux-featured').dispatchEvent(new FocusEvent('focusin'));
+        container.querySelector('.jux-featured-next').focus();
         vi.advanceTimersByTime(INTERVAL_MS * 2);
         expect(active()).toBe('0');
     });
@@ -193,6 +208,52 @@ describe('KTW-01.c motion and accessibility', () => {
         expect(container.querySelector('.jux-featured-thumb.jux-featured-active').getAttribute('aria-current')).toBe('true');
     });
 
+    // R11 constat 1: a banner that never rotates (reduced motion) is released once its home is gone.
+    it('releases a stopped banner left by its home page on the next attach', () => {
+        window.matchMedia = vi.fn((q) => ({ matches: q.includes('reduced-motion') }));
+        render(items(4));
+        const first = container;
+        first.remove();
+
+        render(items(3));
+
+        expect(first._juxFeatured).toBeNull();
+        expect(observers[0].disconnected).toBe(true);
+    });
+
+    // R11 constat 2: the focus follows to the same control of the new slide or strip.
+    it('keeps the keyboard focus in the banner when the slide changes', () => {
+        render(items(4));
+        const banner = container.querySelector('.jux-featured');
+        container.querySelector('.jux-featured-slide[data-index="0"] .jux-featured-button-play').focus();
+        banner.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+        expect(document.activeElement).toBe(container.querySelector('.jux-featured-slide[data-index="1"] .jux-featured-button-play'));
+
+        container.querySelector('.jux-featured-thumb').focus();
+        banner.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+        expect(document.activeElement).toBe(container.querySelector('.jux-featured-thumb.jux-featured-active'));
+        expect(document.activeElement.dataset.index).toBe('2');
+    });
+
+    // R11 constat 6: a click leaves a focused button behind; only keyboard focus keeps the banner still.
+    it('rotates again once the pointer leaves after a click', () => {
+        render(items(4));
+        observers[0].show(1);
+        const banner = container.querySelector('.jux-featured');
+        const matches = Element.prototype.matches;
+        const spy = vi.spyOn(Element.prototype, 'matches').mockImplementation(function (selector) {
+            return selector === ':focus-visible' || selector === ':hover' ? false : matches.call(this, selector);
+        });
+        banner.dispatchEvent(new MouseEvent('mouseenter'));
+        container.querySelector('.jux-featured-next').focus();
+        container.querySelector('.jux-featured-next').click();
+        banner.dispatchEvent(new MouseEvent('mouseleave'));
+        vi.advanceTimersByTime(INTERVAL_MS);
+        spy.mockRestore();
+
+        expect(active()).toBe('2');
+    });
+
     it('stops its timer and observer once destroyed or removed from the page', () => {
         render(items(4));
         observers[0].show(1);
@@ -200,5 +261,19 @@ describe('KTW-01.c motion and accessibility', () => {
         vi.advanceTimersByTime(INTERVAL_MS * 3);
         expect(container._juxFeatured).toBeNull();
         expect(observers[0].disconnected).toBe(true);
+    });
+});
+
+// d119d74: over the image the banner writes in white whatever the theme; the theme's text colors only
+// apply in the phone layout, where the text sits on the page.
+describe('theme inks', () => {
+    it('reads no theme text color outside the phone layout', () => {
+        const css = readFileSync(resolve(__dirname, '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-homepage.css'), 'utf8');
+        const featuredCss = css.slice(css.indexOf('/* Featured section (KTW-01'));
+        const phone = featuredCss.indexOf('@media (max-width: 50em)');
+        const outside = featuredCss.slice(0, phone) + featuredCss.slice(featuredCss.indexOf('@media (prefers-reduced-motion', phone));
+
+        expect(outside).not.toMatch(/--jf-palette-text-/);
+        expect(featuredCss.slice(phone)).toMatch(/--jux-featured-ink: var\(--jf-palette-text-primary\)/);
     });
 });

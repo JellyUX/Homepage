@@ -124,9 +124,10 @@
             '</div>';
     }
 
-    function _iconButton(className, icon, label) {
+    // The icon classes are written out, so the native-token inventory sees each one (R11 constat 5).
+    function _iconButton(className, iconHtml, label) {
         return '<button type="button" class="jux-featured-control ' + className + '" aria-label="' + _esc(label) + '">' +
-            '<span class="material-icons ' + icon + '" aria-hidden="true"></span></button>';
+            iconHtml + '</button>';
     }
 
     // The banner of a featured section, or null when it has fewer than MIN_SLIDES slides.
@@ -143,9 +144,9 @@
             '</div>' +
             '<div class="jux-featured-rail">' +
             '<div class="jux-featured-controls">' +
-            _iconButton('jux-featured-previous', 'chevron_left', labels.previous) +
-            _iconButton('jux-featured-toggle', 'pause', labels.pause) +
-            _iconButton('jux-featured-next', 'chevron_right', labels.next) +
+            _iconButton('jux-featured-previous', '<span class="material-icons chevron_left" aria-hidden="true"></span>', labels.previous) +
+            _iconButton('jux-featured-toggle', '<span class="material-icons pause" aria-hidden="true"></span>', labels.pause) +
+            _iconButton('jux-featured-next', '<span class="material-icons chevron_right" aria-hidden="true"></span>', labels.next) +
             '<span class="jux-featured-counter" aria-hidden="true"></span>' +
             '</div>' +
             '<div class="jux-featured-strip"></div>' +
@@ -250,18 +251,31 @@
         return typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     }
 
+    // The phone layout of jux-homepage.css (max-width: 50em).
+    function _phoneLayout() {
+        return typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 50em)').matches;
+    }
+
     function _image(apiClient, itemId, options) {
         return apiClient.getScaledImageUrl(itemId, options);
     }
 
     // Loads the backdrop and logo of one slide, once: only the active slide and the next one are
-    // loaded (KTW-01.b), the others keep their blurhash until they come next.
+    // loaded (KTW-01.b), the others keep their blurhash until they come next. The logo waits while the
+    // phone layout hides it (its title is shown instead), and loads once a slide comes up wider.
     function _loadSlide(state, slide) {
-        if (!slide || slide.dataset.loaded) {
+        if (!slide) {
+            return;
+        }
+        var id = slide.dataset.id;
+        var logo = slide.querySelector('.jux-featured-logo');
+        if (logo && !logo.getAttribute('src') && !_phoneLayout()) {
+            logo.src = _image(state.apiClient, id, { type: 'Logo', tag: logo.dataset.tag, maxWidth: LOGO_WIDTH, quality: 90 });
+        }
+        if (slide.dataset.loaded) {
             return;
         }
         slide.dataset.loaded = 'true';
-        var id = slide.dataset.id;
         _paintBlur(slide.querySelector('.jux-featured-blur'));
         var backdrop = slide.querySelector('.jux-featured-backdrop');
         if (backdrop) {
@@ -276,11 +290,6 @@
                 maxWidth: backdropWidth((media && media.clientWidth) || state.root.clientWidth, window.devicePixelRatio),
                 quality: 80
             });
-        }
-        // A logo hidden by the phone layout is not downloaded.
-        var logo = slide.querySelector('.jux-featured-logo');
-        if (logo && logo.offsetParent !== null) {
-            logo.src = _image(state.apiClient, id, { type: 'Logo', tag: logo.dataset.tag, maxWidth: LOGO_WIDTH, quality: 90 });
         }
     }
 
@@ -345,10 +354,31 @@
         }
     }
 
+    // The control the focus was on when the slide changed: the same button of the new slide, or the active
+    // thumbnail of the rebuilt strip, so the keyboard stays in the banner (the old slide turns inert).
+    function _focusTarget(state) {
+        var focused = document.activeElement;
+        if (!focused || !state.root.contains(focused)) {
+            return null;
+        }
+        if (focused.closest('.jux-featured-strip')) {
+            return function () { return state.strip.querySelector('.jux-featured-thumb'); };
+        }
+        var action = focused.closest('.jux-featured-slide') && focused.getAttribute('data-action');
+        return action ? function () {
+            return state.slides[state.index].querySelector('.itemAction[data-action="' + action + '"]');
+        } : null;
+    }
+
     function go(state, index) {
         var count = state.slides.length;
+        var refocus = _focusTarget(state);
         state.index = ((index % count) + count) % count;
         _render(state);
+        var target = refocus && refocus();
+        if (target) {
+            target.focus();
+        }
         _schedule(state);
     }
 
@@ -362,6 +392,11 @@
         _schedule(state);
     }
 
+    // Every armed banner. Jellyfin empties the home without telling the banners it held: each one is
+    // released on the next attach or visibility change once it has left the page (R11 constat 1; test:
+    // jux-featured.test.js "releases a stopped banner").
+    var _live = [];
+
     function destroy(container) {
         var state = container && container._juxFeatured;
         if (!state) {
@@ -371,13 +406,45 @@
         if (state.observer) {
             state.observer.disconnect();
         }
-        document.removeEventListener('visibilitychange', state.onVisibility);
+        _live = _live.filter(function (other) { return other !== state; });
         container._juxFeatured = null;
+    }
+
+    function _sweep() {
+        _live.slice().forEach(function (state) {
+            if (!state.root.isConnected) {
+                destroy(state.container);
+            }
+        });
+    }
+
+    var _listening = false;
+
+    function _listenVisibility() {
+        if (_listening) {
+            return;
+        }
+        _listening = true;
+        document.addEventListener('visibilitychange', function () {
+            _sweep();
+            _live.forEach(_schedule);
+        });
+    }
+
+    // Keyboard focus pauses the banner, a click does not (R11 constat 6); a browser without
+    // :focus-visible counts every focus.
+    function _keyboardFocus(element) {
+        try {
+            return !!element && element.matches(':focus-visible');
+        } catch (e) {
+            return !!element;
+        }
     }
 
     // Arms the banner the container just rendered; a container showing cards or an error is left alone.
     function attach(container, apiClient) {
         destroy(container);
+        _sweep();
         var root = container.querySelector('.jux-featured');
         if (!root) {
             return null;
@@ -398,6 +465,8 @@
             userPaused: false
         };
         container._juxFeatured = state;
+        _live.push(state);
+        _listenVisibility();
 
         root.addEventListener('click', function (event) {
             var target = event.target.closest('.jux-featured-control, .jux-featured-thumb');
@@ -423,8 +492,14 @@
 
         // Rotation stops while the pointer or the focus is in the banner (WCAG 2.2.2).
         root.addEventListener('mouseenter', function () { state.hovered = true; _schedule(state); });
-        root.addEventListener('mouseleave', function () { state.hovered = root.contains(document.activeElement); _schedule(state); });
-        root.addEventListener('focusin', function () { state.hovered = true; _schedule(state); });
+        root.addEventListener('mouseleave', function () {
+            state.hovered = root.contains(document.activeElement) && _keyboardFocus(document.activeElement);
+            _schedule(state);
+        });
+        root.addEventListener('focusin', function (event) {
+            state.hovered = _keyboardFocus(event.target) || root.matches(':hover');
+            _schedule(state);
+        });
         root.addEventListener('focusout', function (event) {
             state.hovered = root.contains(event.relatedTarget) || root.matches(':hover');
             _schedule(state);
@@ -439,10 +514,6 @@
             swipeX = null;
         });
 
-        state.onVisibility = function () {
-            _schedule(state);
-        };
-        document.addEventListener('visibilitychange', state.onVisibility);
         if (!state.visible) {
             state.observer = new IntersectionObserver(function (entries) {
                 state.visible = entries[entries.length - 1].intersectionRatio >= 0.5;
