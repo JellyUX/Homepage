@@ -5,7 +5,7 @@
 // installed folder to --backup before disabling and copies it back (meta.json status Active) when the
 // folder is missing at the end, before the final restart.
 //   node bench/perf-bench-plugin-toggle.mjs --profile lowend --cycles 3 --backup <scratch dir>
-import { writeFileSync, cpSync, existsSync, readFileSync, rmSync } from 'node:fs';
+import { writeFileSync, cpSync, existsSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { readCredentials, authenticate, api, rawDir, repoRoot, restartAndMeasure, dockerStats, sleep } from './perf-bench-common.mjs';
 
@@ -24,16 +24,26 @@ const result = { before: await plugins(), disabled: [], after: null, folderResto
 const jux = result.before.find((p) => p.id === JUX);
 if (!jux || jux.status !== 'Active') { throw new Error('JellyUX not active at start, aborting'); }
 if (!backupRoot) { throw new Error('--backup is required'); }
-const folderName = `JellyUX Homepage_${jux.version}`;
-const pluginDir = path.join(repoRoot, 'docker', 'plugins', folderName);
+// Found by the guid of its meta.json: a local build reports its assembly version (0.1.0.0) while the
+// folder keeps the installed release's name.
+const pluginsRoot = path.join(repoRoot, 'docker', 'plugins');
+const folderName = readdirSync(pluginsRoot).find((name) => {
+    const meta = path.join(pluginsRoot, name, 'meta.json');
+    return existsSync(meta) && JSON.parse(readFileSync(meta, 'utf8')).guid?.replace(/-/g, '') === JUX
+        && JSON.parse(readFileSync(meta, 'utf8')).status === 'Active';
+});
+if (!folderName) { throw new Error(`no active JellyUX folder in ${pluginsRoot}`); }
+const pluginDir = path.join(pluginsRoot, folderName);
 const backupDir = path.join(backupRoot, 'plugin-backup', folderName);
-if (!existsSync(path.join(pluginDir, 'meta.json'))) { throw new Error(`plugin folder not found: ${pluginDir}`); }
+// The plugin API addresses the installed version (meta.json), not the assembly version /Plugins reports.
+const version = JSON.parse(readFileSync(path.join(pluginDir, 'meta.json'), 'utf8')).version;
 rmSync(backupDir, { recursive: true, force: true });
 cpSync(pluginDir, backupDir, { recursive: true });
 log('backup', backupDir);
 try {
-    const dis = await api(admin, `/Plugins/${JUX}/${jux.version}/Disable`, { method: 'POST' });
+    const dis = await api(admin, `/Plugins/${JUX}/${version}/Disable`, { method: 'POST' });
     log('disable', dis.status);
+    if (dis.status !== 204) { throw new Error(`Disable answered ${dis.status}: the plugin is still enabled, nothing measured`); }
     for (let c = 1; c <= cycles; c++) {
         const st = await restartAndMeasure();
         await sleep(settleMs);
@@ -46,7 +56,7 @@ try {
     }
 } finally {
     admin = await authenticate(creds.admin);
-    const en = await api(admin, `/Plugins/${JUX}/${jux.version}/Enable`, { method: 'POST' });
+    const en = await api(admin, `/Plugins/${JUX}/${version}/Enable`, { method: 'POST' });
     log('enable', en.status);
     if (en.status !== 204 || !existsSync(path.join(pluginDir, 'meta.json'))) {
         rmSync(pluginDir, { recursive: true, force: true });
