@@ -91,6 +91,10 @@ describe('findUntrackedMarkers', () => {
         expect(findUntrackedMarkers('var s = "/* not a comment */ TODO";', '.cs')).toEqual([]);
     });
 
+    it('takes a per-phase decision as a registry id (R11)', () => {
+        expect(findUntrackedMarkers('// TODO (DEC-P12-6): later', '.js')).toEqual([]);
+    });
+
     it('reads future phase in a multi-line block comment', () => {
         // Split so that this file's own block-comment-looking string does not trip the check.
         expect(findUntrackedMarkers('/*\n * in a future' + ' phase\n */', '.css')).toEqual([{ line: 2, match: 'future phase' }]);

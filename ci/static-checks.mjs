@@ -25,8 +25,9 @@ const COLOR_FUNCTION = /\b(?:rgba?|hsla?)\(\s*[\d.]/g;
 const VAR_FALLBACK = /var\(\s*--[\w-]+\s*,\s*(?:#[0-9a-fA-F]{3,8}|(?:rgba?|hsla?)\([^()]*\))\s*\)/g;
 // A comment that defers work must name the registry id that tracks it (TODO_V5 rule R8, PROC-04.b).
 const DEFERRED_MARKER = /\bTODO\b|\bFIXME\b|future phase|worth revisiting/gi;
-// Only the registry prefixes: V5 findings, hypotheses, anomalies and decisions, V4 findings (A-03.e).
-const REGISTRY_ID = /\b(?:PERF|FIAB|QUAL|PROC|KTW|ADM|H|A|D|F)-\d{2}\b/;
+// Only the registry prefixes: V5 findings, hypotheses, anomalies and decisions (audit D-nn, per-phase
+// DEC-Pnn-n), V4 findings (A-03.e).
+const REGISTRY_ID = /\b(?:(?:PERF|FIAB|QUAL|PROC|KTW|ADM|H|A|D|F)-\d{2}|DEC-P\d{2}-\d+)\b/;
 const TEST_FILE = /(?:^test\/.*\.test\.js|^e2e\/.*\.spec\.mjs|\.Tests\/.*Tests\.cs)$/;
 const MARKER_EXTENSIONS = new Set(['.cs', '.js', '.mjs', '.css', '.html']);
 
