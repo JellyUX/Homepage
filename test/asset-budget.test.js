@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { injectedAssets, compareAssets, clientI18nScript } from '../ci/asset-budget.mjs';
+import { injectedAssets, compareAssets, clientI18nScript, servedAssets } from '../ci/asset-budget.mjs';
 
 describe('clientI18nScript', () => {
     const en = JSON.stringify({ 'client.a': 'Don’t "go" <b>', 'admin.x': 'Admin only' });
@@ -43,7 +43,23 @@ describe('compareAssets', () => {
         expect(errors).toEqual([expect.stringContaining('new.js'), expect.stringContaining('gone.js')]);
     });
 
-    it('asks to lower a budget the asset went well under', () => {
-        expect(compareAssets({ 'a.js': 900 }, { 'a.js': 1000 }).warnings).toEqual([expect.stringContaining('lower the budget')]);
+    it('fails on a budget the asset went well under until it is lowered (A-05.a)', () => {
+        expect(compareAssets({ 'a.js': 900 }, { 'a.js': 1000 })).toEqual({ errors: [expect.stringContaining('lower the budget')], warnings: [] });
+    });
+});
+
+describe('servedAssets (A-05.a)', () => {
+    it('reads a declaration written with its type name', () => {
+        const source = `ClientAsset[] ClientAssets =
+    [
+        new ClientAsset("jux-a.js", IsStylesheet: false, Module: null),
+        new("jux-b.css", IsStylesheet: true, Module: null),
+    ];`;
+        expect(injectedAssets(source)).toEqual(['jux-a.js', 'jux-b.css']);
+    });
+
+    it('adds every embedded web file the injected list leaves out: admin page, loadSections fragment', () => {
+        const files = ['jux-a.js', 'config.html', 'config.js', 'config.css', 'jux-loadsections-inject.js', 'jux-native-selectors.json'];
+        expect(servedAssets(['jux-i18n.js', 'jux-a.js'], files)).toEqual(['jux-i18n.js', 'jux-a.js', 'config.css', 'config.html', 'config.js', 'jux-loadsections-inject.js']);
     });
 });
