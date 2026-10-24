@@ -216,6 +216,15 @@ describe('checkPushBudgets', () => {
         expect(run(budget(17), [{ sha: 'aaaaaaa1', text: null }, { sha: 'bbbbbbb2', text: budget(20), body: 'Budget: a new type' }])).toEqual([]);
     });
 
+    it('does not let a trailer of an unrelated raise cover a delete-then-restore (R11)', () => {
+        const errors = run(budget(17), [
+            { sha: 'aaaaaaa1', text: budget(18), body: 'Budget: a new type' },
+            { sha: 'bbbbbbb2', text: null },
+            { sha: 'ccccccc3', text: budget(40) }
+        ]);
+        expect(errors).toEqual([expect.stringContaining('"endpoints/Sections" 17 -> 40')]);
+    });
+
     it('reports a single raise once, from the commit that makes it', () => {
         const errors = run(budget(17), [{ sha: 'aaaaaaa1', text: budget(18) }]);
         expect(errors).toEqual([expect.stringContaining('aaaaaaa: ci/perf-budget.json raises')]);

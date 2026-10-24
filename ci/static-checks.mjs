@@ -312,8 +312,8 @@ export function checkBudget({ sha, file, before, after, body, label = sha.slice(
 
 /**
  * Checks the budget files of a push, commit by commit and over the whole push: a budget deleted then put
- * back higher in two commits passes each commit but not the push (A-03.a). The push needs a "Budget:"
- * trailer in one of the commits that touch the file.
+ * back higher in two commits passes each commit but not the push (A-03.a). The push then needs a "Budget:"
+ * trailer in one of the commits that deleted or created the file.
  * @param {{base: string, head: string, commits: {sha: string, body: string, files: string[]}[],
  *   show: (spec: string) => string | null}} push show reads "<rev>:<file>", null when absent.
  * @returns {string[]} Errors.
@@ -325,16 +325,19 @@ export function checkPushBudgets({ base, head, commits, show }) {
         if (touching.length === 0) {
             continue;
         }
-        const perCommit = touching.flatMap((c) =>
-            checkBudget({ sha: c.sha, file, before: show(`${c.sha}^:${file}`), after: show(`${c.sha}:${file}`), body: c.body }));
+        const states = touching.map((c) => ({ ...c, before: show(`${c.sha}^:${file}`), after: show(`${c.sha}:${file}`) }));
+        const perCommit = states.flatMap((c) => checkBudget({ sha: c.sha, file, before: c.before, after: c.after, body: c.body }));
         errors.push(...perCommit);
-        if (perCommit.length === 0) {
+        // Only the commits the per-commit check could not judge (the file deleted or created) may excuse a
+        // rise over the push: a trailer elsewhere covers its own commit only (R11).
+        const unjudged = states.filter((c) => c.before === null || c.after === null);
+        if (perCommit.length === 0 && unjudged.length > 0) {
             errors.push(...checkBudget({
                 sha: head,
                 file,
                 before: show(`${base}:${file}`),
                 after: show(`${head}:${file}`),
-                body: touching.map((c) => c.body).join('\n'),
+                body: unjudged.map((c) => c.body).join('\n'),
                 label: `${base.slice(0, 7)}..${head.slice(0, 7)}`
             }));
         }
