@@ -48,7 +48,7 @@ public sealed class UserConfigurationMigrationTests
     }
 
     [Fact]
-    public void FileStampedSevenByThePluginConstant_IsNotMigratedAgain()
+    public void SchemaVersionSevenStampedByThePluginConstant_IsNotMigratedAgain()
     {
         // Earlier versions stamped user files with the plugin constant (7): the V1-to-V2 tier already
         // ran for them and must not run a second time.

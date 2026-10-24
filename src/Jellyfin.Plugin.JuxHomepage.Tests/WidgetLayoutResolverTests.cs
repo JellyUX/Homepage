@@ -120,6 +120,20 @@ public sealed class WidgetLayoutResolverTests
     }
 
     [Fact]
+    public async Task BuildDescriptors_WidgetConfigEnabledFalse_LeavesTheRowOut()
+    {
+        var registry = new WidgetRegistry();
+        registry.Register(MakeWidget("jux.test.widget", totalRecordCount: 10));
+        var shown = new WidgetConfig { WidgetType = "jux.test.widget", Order = 10, Enabled = true, CustomDisplayName = "Shown" };
+        var off = new WidgetConfig { WidgetType = "jux.test.widget", Order = 20, Enabled = false, CustomDisplayName = "Off" };
+
+        var descriptors = await BuildResolverWithOverrides(registry, [shown, off], [])
+            .BuildDescriptors(Guid.NewGuid(), lang: null, CancellationToken.None);
+
+        Assert.Equal(["Shown"], descriptors.Select(d => d.DisplayName));
+    }
+
+    [Fact]
     public void ResolveConfigRow_SectionKey_ReadsTheSecondPersonalizedRowNotTheFirst()
     {
         // TODO_V4.md 9.3 (F-27): a Personalized section sends its scored value ("Drama"), never the

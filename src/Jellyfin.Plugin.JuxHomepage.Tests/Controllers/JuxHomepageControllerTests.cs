@@ -695,7 +695,7 @@ public sealed class JuxHomepageControllerTests
     }
 
     [Fact]
-    public async Task UserWhoTurnedJellyUxOff_GetsDisabledSectionsAndWatchlistIds()
+    public async Task UserConfigurationEnabledFalse_GetsDisabledSectionsAndWatchlistIds()
     {
         var caller = TestMocks.DefaultUser();
         var store = new Mock<IUserConfigurationStore>();
