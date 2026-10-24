@@ -54,10 +54,13 @@ export function stripComments(text, ext) {
 
 // A slash after one of these (or at the start) opens a JS regex literal, not a division.
 const REGEX_LEAD = /[(,=:[!&|?{};+\-*%<>~^]|^$|\b(?:return|typeof|case|in|of|delete|void|throw)$/;
+// An increment or decrement ends an operand: "i++ / 2" divides (R11).
+const opensRegex = (before) => !/(\+\+|--)$/.test(before) && REGEX_LEAD.test(before.match(/(\w+|\S)$/)?.[1] ?? '');
 
 /**
  * Blanks the comments of JS or C# source, skipping strings, template literals, JS regex literals and
- * C# verbatim strings (A-03.e: a "//" in a string is not a comment).
+ * C# verbatim (@"", @$"") and raw ("""...""") strings (A-03.e: a "//" in a string is not a comment). A JS
+ * regex after a parenthesized condition ("if (x) /re/") is read as a division: a tokenizer would be needed.
  * @param {string} text
  * @param {boolean} csharp
  * @returns {string}
@@ -83,8 +86,14 @@ function stripCodeComments(text, csharp) {
             const stop = end < 0 ? text.length : end + 2;
             blank(i, stop);
             i = stop;
-        } else if (csharp && c === '@' && next === '"') {
-            i += 2;
+        } else if (csharp && c === '"' && next === '"' && text[i + 2] === '"') {
+            // C# raw string: a run of 3 or more quotes, closed by the same run.
+            let run = 0;
+            while (text[i + run] === '"') run++;
+            const end = text.indexOf('"'.repeat(run), i + run);
+            i = end < 0 ? text.length : end + run;
+        } else if (csharp && ((c === '@' && next === '"') || (c === '@' && next === '$' && text[i + 2] === '"'))) {
+            i += next === '$' ? 3 : 2;
             while (i < text.length && !(text[i] === '"' && text[i + 1] !== '"')) {
                 i += text[i] === '"' ? 2 : 1;
             }
@@ -95,7 +104,7 @@ function stripCodeComments(text, csharp) {
                 i += text[i] === '\\' ? 2 : 1;
             }
             i++;
-        } else if (!csharp && c === '/' && REGEX_LEAD.test(text.slice(Math.max(0, i - 40), i).trimEnd().match(/(\w+|\S)$/)?.[1] ?? '')) {
+        } else if (!csharp && c === '/' && opensRegex(text.slice(Math.max(0, i - 40), i).trimEnd())) {
             i++;
             let inClass = false;
             while (i < text.length && text[i] !== '\n' && (inClass || text[i] !== '/')) {

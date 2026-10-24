@@ -95,6 +95,12 @@ describe('findUntrackedMarkers', () => {
         expect(findUntrackedMarkers('// TODO (DEC-P12-6): later', '.js')).toEqual([]);
     });
 
+    it('reads a division after an increment, C# raw strings and @$ strings (R11)', () => {
+        expect(findUntrackedMarkers('var r = i++ / 2; // TODO real', '.js')).toEqual([{ line: 1, match: 'TODO' }]);
+        expect(findUntrackedMarkers('var q = """\n  // TODO not a comment\n  """; // TODO real', '.cs')).toEqual([{ line: 3, match: 'TODO' }]);
+        expect(findUntrackedMarkers('var p = @$"C:\\dir\\"; // TODO real', '.cs')).toEqual([{ line: 1, match: 'TODO' }]);
+    });
+
     it('reads future phase in a multi-line block comment', () => {
         // Split so that this file's own block-comment-looking string does not trip the check.
         expect(findUntrackedMarkers('/*\n * in a future' + ' phase\n */', '.css')).toEqual([{ line: 2, match: 'future phase' }]);
