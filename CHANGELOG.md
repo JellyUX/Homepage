@@ -1,3 +1,12 @@
+## [2.17.1](https://github.com/JellyUX/Homepage/compare/v2.17.0...v2.17.1) (2026-10-24)
+
+### Bug Fixes
+
+* hide the chunk guard message away from the home page ([f2368cf](https://github.com/JellyUX/Homepage/commit/f2368cf29074061f7f2387ef937ab17f452c5747)), closes [#jux-chunk-notice](https://github.com/JellyUX/Homepage/issues/jux-chunk-notice)
+* keep a Min votes of 0 on the admin page ([71588d3](https://github.com/JellyUX/Homepage/commit/71588d327b36f930e645122be40f6425937a6acb))
+* move the detail breadcrumb under the header on narrow screens ([6c6083a](https://github.com/JellyUX/Homepage/commit/6c6083a3865e9a0884e83322bd0934d23b701fdf))
+* paint the narrow-screen breadcrumb past the header's containment ([748262a](https://github.com/JellyUX/Homepage/commit/748262a812a70cc9beff89097ae11ad261fa630a))
+
 ## [2.17.0](https://github.com/JellyUX/Homepage/compare/v2.16.0...v2.17.0) (2026-10-23)
 
 ### Features
