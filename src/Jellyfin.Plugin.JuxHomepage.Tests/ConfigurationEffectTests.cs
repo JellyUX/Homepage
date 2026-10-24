@@ -86,6 +86,15 @@ public sealed class ConfigurationEffectTests
         Assert.Equal(["A_Enabled", "B"], Sources.TestMethods(source).Select(t => t.Name));
     }
 
+    // A comment naming a type does not make the test use it (R11).
+    [Fact]
+    public void TestMethods_LeaveCommentsOutOfTheBody()
+    {
+        const string source = "[Fact]\npublic void A_Enabled()\n{\n    // UserConfiguration is not used here\n    _ = new WidgetConfig();\n}";
+
+        Assert.DoesNotContain("UserConfiguration", Sources.TestMethods(source).Single().Body, StringComparison.Ordinal);
+    }
+
     public static TheoryData<string> FrozenSettings() => new(Frozen);
 
     // A frozen setting that production code reads again, or that a page names, is a thawed one: it
@@ -172,6 +181,7 @@ public sealed class ConfigurationEffectTests
 
         internal static IEnumerable<TestMethod> TestMethods(string source)
         {
+            source = StripComments(source);
             var matches = Regex.Matches(source, @"\[(?:Fact|Theory)\b[^\]]*\](?:\s*\[[^\]]*\])*\s*public (?:async Task|void) (\w+)\(");
             for (var i = 0; i < matches.Count; i++)
             {
