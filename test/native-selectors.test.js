@@ -162,7 +162,7 @@ describe('Web/jux-native-selectors.json', () => {
         expect([...inventoryTokens()].filter((t) => !used.has(t)).sort()).toEqual([]);
     });
 
-    it('lists every native attribute value the client scripts match on, with the bundle fragment that sets it (Clôture.b)', () => {
+    it('lists every native attribute value the client scripts match on, with the bundle fragment that sets it (TODO_V5 closure criterion b)', () => {
         const inventory = JSON.parse(readFileSync(INVENTORY, 'utf8'));
         const listed = new Set((inventory.attributeValues ?? []).map((v) => `${v.attribute}=${v.value}`));
         const used = new Set();

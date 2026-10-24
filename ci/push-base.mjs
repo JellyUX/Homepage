@@ -1,6 +1,6 @@
 // The commit a CI run checks from: the push's "before", or for a manual run or a new branch (no usable
 // "before") the merge base with origin/main, or HEAD~1 when HEAD is origin/main itself (TODO_V5
-// Clôture.c, A-03). Prints it; reads BEFORE and HEAD_SHA. Run from the repository root:
+// closure criterion c, A-03). Prints it; reads BEFORE and HEAD_SHA. Run from the repository root:
 //   BEFORE=<sha> HEAD_SHA=<sha> node ci/push-base.mjs
 
 import { execFileSync } from 'node:child_process';

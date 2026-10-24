@@ -88,7 +88,7 @@ jobs:
           node-version: lts/*
 
       # HEAD gets the full suites in the other jobs; each earlier commit of the push is built and runs
-      # Vitest, so no intermediate commit ships broken (TODO_V5 Clôture.c, CONTRIBUTING.md "Change Checklist").
+      # Vitest, so no intermediate commit ships broken (TODO_V5 closure criterion c, CONTRIBUTING.md "Change Checklist").
       - name: Build and unit-test each commit before HEAD
         env:
           BEFORE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
