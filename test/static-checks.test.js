@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
 import {
     findEmDashes,
     findColorLiterals,
@@ -145,6 +146,22 @@ describe('checkTargetAbi', () => {
 
     it('fails when the plugin compiles against a newer SDK than targetAbi', () => {
         expect(checkTargetAbi({ ...ok, csproj: `<JellyfinVersion Condition="'$(JellyfinVersion)' == ''">10.11.10</JellyfinVersion>` })).toHaveLength(1);
+    });
+
+    // checkTargetAbi, the minimum ABI and the drift job assume one Jellyfin line. The Jellyfin 12 line
+    // breaks this test on purpose: each of these checks then needs a value per line (PROC-05, COMPAT-03).
+    it('holds while the repository builds a single Jellyfin line (PROC-05)', () => {
+        const buildYaml = readFileSync('build.yaml', 'utf8');
+        const csproj = readFileSync('src/Jellyfin.Plugin.JuxHomepage/Jellyfin.Plugin.JuxHomepage.csproj', 'utf8');
+        const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
+        const driftJob = /\n {2}drift:[\s\S]*?(?=\r?\n {2}[\w-]+:|$)/.exec(ci)[0];
+
+        expect(buildYaml.match(/^targetAbi:/gm)).toHaveLength(1);
+        expect(buildYaml.match(/^framework:/gm)).toHaveLength(1);
+        expect(csproj.match(/<JellyfinVersion Condition=/g)).toHaveLength(1);
+        expect(csproj.match(/<TargetFrameworks?>/g)).toHaveLength(1);
+        expect(new Set(driftJob.match(/jellyfin\/jellyfin:[\d.]+/g))).toHaveProperty('size', 1);
+        expect(checkTargetAbi({ buildYaml, manifest: readFileSync('manifest.json', 'utf8'), csproj })).toEqual([]);
     });
 });
 
