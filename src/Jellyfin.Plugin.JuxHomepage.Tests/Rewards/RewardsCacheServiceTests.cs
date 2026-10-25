@@ -36,6 +36,20 @@ public sealed class RewardsCacheServiceTests : IDisposable
     private string CacheFilePath(string instanceId) =>
         Path.Combine(_tempDir, "Jellyfin.Plugin.JuxHomepage", "cache", "rewards", $"rewards_{Guid.Parse(instanceId):N}.json");
 
+    // One configured Rewards widget row, the only way RefreshAllInstancesAsync reaches an instance.
+    private static WidgetConfig[] RowFor(string instanceId) =>
+    [
+        new WidgetConfig
+        {
+            WidgetType = RewardsWidgetTypes.Rewards,
+            ExtraParams =
+            [
+                new WidgetExtraParam { Key = "value", Value = instanceId },
+                new WidgetExtraParam { Key = "categoryQid", Value = "Q102427" }
+            ]
+        }
+    ];
+
     private static ILibraryManager LibraryWith(params BaseItem[] libraryItems)
     {
         var mock = new Mock<ILibraryManager>();
@@ -68,10 +82,9 @@ public sealed class RewardsCacheServiceTests : IDisposable
                 new RewardsWinner { Id = 117085614, FilmQid = "Q117085614", FilmLabel = "Oppenheimer", ImdbId = "tt15398776" }
             ]);
 
-        var service = BuildService(apiClientMock.Object, LibraryWith(libraryItem));
-        var filter = new RewardsFilter { CategoryQid = "Q102427" };
+        var service = BuildService(apiClientMock.Object, LibraryWith(libraryItem), RowFor(instanceId));
 
-        await service.RefreshInstanceAsync(instanceId, filter, CancellationToken.None);
+        await service.RefreshAllInstancesAsync(CancellationToken.None);
 
         Assert.True(File.Exists(CacheFilePath(instanceId)));
         var cached = service.GetRewards(instanceId);
@@ -103,9 +116,9 @@ public sealed class RewardsCacheServiceTests : IDisposable
                 new RewardsWinner { Id = 550, FilmQid = "Q550", FilmLabel = "Some Film", ImdbId = "tt0000000" }
             ]);
 
-        var service = BuildService(apiClientMock.Object, libraryManager);
+        var service = BuildService(apiClientMock.Object, libraryManager, RowFor(instanceId));
 
-        await service.RefreshInstanceAsync(instanceId, new RewardsFilter { CategoryQid = "Q102427" }, CancellationToken.None);
+        await service.RefreshAllInstancesAsync(CancellationToken.None);
 
         var cached = service.GetRewards(instanceId);
         Assert.Single(cached);
@@ -130,13 +143,12 @@ public sealed class RewardsCacheServiceTests : IDisposable
             ])
             .ReturnsAsync((IReadOnlyList<RewardsWinner>)[]);
 
-        var service = BuildService(apiClientMock.Object, libraryManager);
-        var filter = new RewardsFilter { CategoryQid = "Q102427" };
+        var service = BuildService(apiClientMock.Object, libraryManager, RowFor(instanceId));
 
-        await service.RefreshInstanceAsync(instanceId, filter, CancellationToken.None);
+        await service.RefreshAllInstancesAsync(CancellationToken.None);
         Assert.Single(service.GetRewards(instanceId));
 
-        await service.RefreshInstanceAsync(instanceId, filter, CancellationToken.None);
+        await service.RefreshAllInstancesAsync(CancellationToken.None);
         Assert.Single(service.GetRewards(instanceId));
     }
 
@@ -220,8 +232,8 @@ public sealed class RewardsCacheServiceTests : IDisposable
         var section = new SectionId(user, RewardsWidgetTypes.Rewards, instanceId, null);
         Assert.True(sections.Set(section, 0, 20, new WidgetResult([], 0), sections.StampOf(user), TimeSpan.FromMinutes(15)));
 
-        await BuildService(apiClientMock.Object, library.Object, sectionResults: sections)
-            .RefreshInstanceAsync(instanceId, new RewardsFilter { CategoryQid = "Q102427" }, CancellationToken.None);
+        await BuildService(apiClientMock.Object, library.Object, RowFor(instanceId), sections)
+            .RefreshAllInstancesAsync(CancellationToken.None);
 
         Assert.False(sections.TryGet(section, 0, 20, out _));
     }

@@ -38,36 +38,6 @@ public interface ITMDbCacheService
     /// <returns>The cached movies, or an empty list if no refresh has completed yet.</returns>
     IReadOnlyList<TMDbMovie> GetDiscoverMovies(string instanceId);
 
-    /// <summary>Refreshes the trending movies cache from TMDb, cross-referencing the local library.</summary>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    Task RefreshTrendingMoviesAsync(CancellationToken cancellationToken);
-
-    /// <summary>Refreshes the trending shows cache from TMDb, cross-referencing the local library.</summary>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    Task RefreshTrendingShowsAsync(CancellationToken cancellationToken);
-
-    /// <summary>Refreshes the airing-today cache from TMDb, cross-referencing the local library.</summary>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    Task RefreshAiringTodayAsync(CancellationToken cancellationToken);
-
-    /// <summary>Refreshes the top-rated-movies cache from TMDb, cross-referencing the local library.</summary>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    Task RefreshTopRatedMoviesAsync(CancellationToken cancellationToken);
-
-    /// <summary>Refreshes the top-rated-shows cache from TMDb, cross-referencing the local library.</summary>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    Task RefreshTopRatedShowsAsync(CancellationToken cancellationToken);
-
-    /// <summary>Refreshes the now-playing-movies cache from TMDb, cross-referencing the local library.</summary>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    Task RefreshNowPlayingMoviesAsync(CancellationToken cancellationToken);
-
-    /// <summary>Refreshes a single Discover widget instance's cache from TMDb, cross-referencing the local library.</summary>
-    /// <param name="instanceId">The Discover widget instance's identifier (its config row's <c>ExtraParams["value"]</c>).</param>
-    /// <param name="filter">The instance's configured filter parameters.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    Task RefreshDiscoverMoviesAsync(string instanceId, TMDbDiscoverFilter filter, CancellationToken cancellationToken);
-
     /// <summary>
     /// Returns whether the given cache type is missing or due: older than the configured refresh
     /// interval (<see cref="Configuration.CacheConfig.TMDbRefreshIntervalHours"/>) less the one-hour

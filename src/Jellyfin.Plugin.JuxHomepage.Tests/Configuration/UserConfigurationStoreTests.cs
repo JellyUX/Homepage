@@ -19,16 +19,16 @@ public sealed class UserConfigurationStoreTests : IDisposable
     }
 
     [Fact]
-    public void SaveUserConfiguration_WhenTheDiskRefuses_ReturnsFalse()
+    public void UpdateUserConfiguration_WhenTheDiskRefuses_ReturnsFalse()
     {
         var fileSystem = new FailingFileSystem();
         var store = BuildStore(fileSystem);
         var userId = Guid.NewGuid();
-        Assert.True(store.SaveUserConfiguration(new UserConfiguration { UserId = userId, Enabled = false }));
+        Assert.True(store.UpdateUserConfiguration(userId, c => { c.Enabled = false; return true; }));
 
         fileSystem.FailWrites = true;
 
-        Assert.False(store.SaveUserConfiguration(new UserConfiguration { UserId = userId, Enabled = true }));
+        Assert.False(store.UpdateUserConfiguration(userId, c => { c.Enabled = true; return true; }));
         Assert.False(store.GetUserConfiguration(userId)!.Enabled);
     }
 
@@ -39,11 +39,11 @@ public sealed class UserConfigurationStoreTests : IDisposable
         var store = BuildStore(new FailingFileSystem { FailCreateDirectory = true });
 
         Assert.Null(store.GetUserConfiguration(Guid.NewGuid()));
-        Assert.False(store.SaveUserConfiguration(new UserConfiguration { UserId = Guid.NewGuid() }));
+        Assert.False(store.UpdateUserConfiguration(Guid.NewGuid(), _ => true));
     }
 
     [Fact]
-    public void SaveUserConfiguration_CreatesTheDirectoryOnceItCanBeCreated_AfterAFailedStart()
+    public void UpdateUserConfiguration_CreatesTheDirectoryOnceItCanBeCreated_AfterAFailedStart()
     {
         Directory.Delete(_tempDir, recursive: true);
         var fileSystem = new FailingFileSystem { FailCreateDirectory = true };
@@ -52,7 +52,7 @@ public sealed class UserConfigurationStoreTests : IDisposable
 
         fileSystem.FailCreateDirectory = false;
 
-        Assert.True(store.SaveUserConfiguration(new UserConfiguration { UserId = userId, Enabled = false }));
+        Assert.True(store.UpdateUserConfiguration(userId, c => { c.Enabled = false; return true; }));
         Assert.False(store.GetUserConfiguration(userId)!.Enabled);
     }
 
@@ -68,14 +68,12 @@ public sealed class UserConfigurationStoreTests : IDisposable
     public void SaveThenGet_RoundTripsEquivalentData()
     {
         var userId = Guid.NewGuid();
-        var config = new UserConfiguration
+        _store.UpdateUserConfiguration(userId, c =>
         {
-            UserId = userId,
-            Enabled = false,
-            WidgetOverrides = [new Widgets.WidgetConfig { WidgetType = "jux.admin.genre", MinItems = 2 }]
-        };
-
-        _store.SaveUserConfiguration(config);
+            c.Enabled = false;
+            c.WidgetOverrides = [new Widgets.WidgetConfig { WidgetType = "jux.admin.genre", MinItems = 2 }];
+            return true;
+        });
         var result = _store.GetUserConfiguration(userId);
 
         Assert.NotNull(result);
@@ -97,15 +95,15 @@ public sealed class UserConfigurationStoreTests : IDisposable
 
         Assert.Null(_store.GetUserConfiguration(userId));
 
-        _store.SaveUserConfiguration(new UserConfiguration { UserId = userId, Enabled = false });
+        _store.UpdateUserConfiguration(userId, c => { c.Enabled = false; return true; });
         Assert.Equal(false, _store.GetUserConfiguration(userId)?.Enabled);
     }
 
     [Fact]
-    public void SaveUserConfiguration_LeavesNoStrayTempFileBehind()
+    public void UpdateUserConfiguration_LeavesNoStrayTempFileBehind()
     {
         var userId = Guid.NewGuid();
-        _store.SaveUserConfiguration(new UserConfiguration { UserId = userId });
+        _store.UpdateUserConfiguration(userId, _ => true);
 
         var usersDir = Path.Combine(_tempDir, "Jellyfin.Plugin.JuxHomepage", "users");
         var tmpFiles = Directory.GetFiles(usersDir, "*.tmp");
@@ -122,7 +120,7 @@ public sealed class UserConfigurationStoreTests : IDisposable
         var store = BuildStore(fileSystem);
         var saved = Guid.NewGuid();
         var none = Guid.NewGuid();
-        Assert.True(store.SaveUserConfiguration(new UserConfiguration { UserId = saved, Enabled = false }));
+        Assert.True(store.UpdateUserConfiguration(saved, c => { c.Enabled = false; return true; }));
         File.Delete(Path.Combine(_tempDir, "Jellyfin.Plugin.JuxHomepage", "users", $"{saved}.json"));
         fileSystem.Reads = 0;
 
@@ -131,7 +129,7 @@ public sealed class UserConfigurationStoreTests : IDisposable
         Assert.Null(store.GetUserConfiguration(none));
         Assert.Equal(1, fileSystem.Reads);
 
-        Assert.True(store.SaveUserConfiguration(new UserConfiguration { UserId = none, Enabled = false }));
+        Assert.True(store.UpdateUserConfiguration(none, c => { c.Enabled = false; return true; }));
         Assert.False(store.GetUserConfiguration(none)!.Enabled);
         Assert.Equal(1, fileSystem.Reads);
     }
@@ -140,7 +138,7 @@ public sealed class UserConfigurationStoreTests : IDisposable
     public void GetUserConfiguration_ReturnsANewInstanceEachTime()
     {
         var userId = Guid.NewGuid();
-        _store.SaveUserConfiguration(new UserConfiguration { UserId = userId, Enabled = false });
+        _store.UpdateUserConfiguration(userId, c => { c.Enabled = false; return true; });
 
         var first = _store.GetUserConfiguration(userId)!;
         first.Enabled = true;
@@ -157,7 +155,7 @@ public sealed class UserConfigurationStoreTests : IDisposable
     // writer right before the atomic rename so the test can deterministically control the
     // interleaving instead of relying on real-world race timing.
     [Fact]
-    public async Task SaveUserConfiguration_ConcurrentWithGetUserConfiguration_ReaderWaitsForWriterThenSeesNewValue()
+    public async Task UpdateUserConfiguration_ConcurrentWithGetUserConfiguration_ReaderWaitsForWriterThenSeesNewValue()
     {
         var userId = Guid.NewGuid();
         var blockingFileSystem = new BlockingFileSystem();
@@ -166,12 +164,12 @@ public sealed class UserConfigurationStoreTests : IDisposable
         // Seed an initial value so the "new value" assertion below is unambiguous. Release the
         // pause for this seed write only -- it must complete normally, not block.
         blockingFileSystem.ReleaseWrite.Set();
-        store.SaveUserConfiguration(new UserConfiguration { UserId = userId, Enabled = false });
+        store.UpdateUserConfiguration(userId, c => { c.Enabled = false; return true; });
         blockingFileSystem.WriteStarted.Reset();
         blockingFileSystem.ReleaseWrite.Reset();
 
         var writeTask = Task.Run(() =>
-            store.SaveUserConfiguration(new UserConfiguration { UserId = userId, Enabled = true }));
+            store.UpdateUserConfiguration(userId, c => { c.Enabled = true; return true; }));
 
         // Wait until the writer has entered the write lock and is paused right before the rename,
         // so the interleaving below is deterministic rather than a guessed delay.

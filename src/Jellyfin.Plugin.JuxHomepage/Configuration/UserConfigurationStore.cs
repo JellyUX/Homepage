@@ -89,24 +89,6 @@ public sealed class UserConfigurationStore : IUserConfigurationStore, IDisposabl
         }
     }
 
-    /// <summary>
-    /// Persists the given user configuration to disk.
-    /// </summary>
-    /// <param name="config">The configuration to save.</param>
-    /// <returns>False when the file could not be written.</returns>
-    public bool SaveUserConfiguration(UserConfiguration config)
-    {
-        _lock.EnterWriteLock();
-        try
-        {
-            return WriteLocked(config);
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
-    }
-
     /// <inheritdoc/>
     public bool UpdateUserConfiguration(Guid userId, Func<UserConfiguration, bool> change)
     {

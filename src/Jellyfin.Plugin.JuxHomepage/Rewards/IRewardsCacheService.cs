@@ -13,12 +13,6 @@ public interface IRewardsCacheService
     /// <returns>The cached items, or an empty list if the instance id is invalid or no refresh has completed yet.</returns>
     IReadOnlyList<RewardsWinner> GetRewards(string instanceId);
 
-    /// <summary>Refreshes a single Rewards widget instance's cache from Wikidata.</summary>
-    /// <param name="instanceId">The widget instance id (a GUID, from <c>ExtraParams["value"]</c>).</param>
-    /// <param name="filter">The instance's configured ceremony/category/year filter.</param>
-    /// <param name="cancellationToken">Cancellation token.</param>
-    Task RefreshInstanceAsync(string instanceId, RewardsFilter filter, CancellationToken cancellationToken);
-
     /// <summary>
     /// Refreshes every configured Rewards widget instance. Shared with the admin "Refresh now" action
     /// (<see cref="Controllers.JuxHomepageController"/>) and the weekly scheduled task

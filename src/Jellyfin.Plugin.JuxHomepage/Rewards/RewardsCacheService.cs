@@ -87,10 +87,6 @@ public sealed class RewardsCacheService : IRewardsCacheService, IDisposable
         return _cache.Read(GetFileName(instanceId));
     }
 
-    /// <inheritdoc/>
-    public Task RefreshInstanceAsync(string instanceId, RewardsFilter filter, CancellationToken cancellationToken) =>
-        RefreshInstanceAsync(instanceId, filter, NewMoviesIndex(), cancellationToken);
-
     /// <summary>
     /// The movie library index of one refresh, read on first use and shared by every row of that
     /// refresh (R11.c, <c>RefreshAllInstancesAsync_TwoRows_ReadTheMovieLibraryOnce</c>). A failed read is

@@ -106,8 +106,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
         var service = BuildService(apiClientMock.Object, NoMatchLibraryManager(),
             lists: new TMDbListsConfig { TrendingMoviesPages = 3, TrendingShowsPages = 2 });
 
-        await service.RefreshTrendingMoviesAsync(CancellationToken.None);
-        await service.RefreshTrendingShowsAsync(CancellationToken.None);
+        await service.RefreshAllAsync(null, CancellationToken.None);
 
         apiClientMock.Verify(c => c.GetTrendingMoviesAsync(3, It.IsAny<CancellationToken>()), Times.Once);
         apiClientMock.Verify(c => c.GetTrendingShowsAsync(2, It.IsAny<CancellationToken>()), Times.Once);
@@ -124,7 +123,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
 
         var service = BuildService(apiClientMock.Object, NoMatchLibraryManager(), refreshIntervalHours: 24);
 
-        await service.RefreshTrendingMoviesAsync(CancellationToken.None);
+        await service.RefreshAllAsync(null, CancellationToken.None);
 
         Assert.False(service.IsStale(TMDbCacheType.TrendingMovies));
     }
@@ -158,7 +157,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
 
         var service = BuildService(apiClientMock.Object, NoMatchLibraryManager(), refreshIntervalHours: 1);
 
-        await service.RefreshTrendingMoviesAsync(CancellationToken.None);
+        await service.RefreshAllAsync(null, CancellationToken.None);
         File.SetLastWriteTimeUtc(CacheFilePath, DateTime.UtcNow.AddHours(-2));
 
         Assert.True(service.IsStale(TMDbCacheType.TrendingMovies));
@@ -193,7 +192,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
 
         var service = BuildService(apiClientMock.Object, LibraryWith(libraryItem));
 
-        await service.RefreshTrendingMoviesAsync(CancellationToken.None);
+        await service.RefreshAllAsync(null, CancellationToken.None);
         var result = service.GetTrendingMovies();
 
         Assert.Single(result);
@@ -213,7 +212,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
 
         var service = BuildService(apiClientMock.Object, LibraryWith(libraryItem));
 
-        await service.RefreshTrendingMoviesAsync(CancellationToken.None);
+        await service.RefreshAllAsync(null, CancellationToken.None);
         var result = service.GetTrendingMovies();
 
         Assert.Single(result);
@@ -231,7 +230,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
 
         var service = BuildService(apiClientMock.Object, NoMatchLibraryManager());
 
-        await service.RefreshTrendingMoviesAsync(CancellationToken.None);
+        await service.RefreshAllAsync(null, CancellationToken.None);
         var result = service.GetTrendingMovies();
 
         Assert.Single(result);
@@ -361,10 +360,12 @@ public sealed class TMDbCacheServiceTests : IDisposable
             .ReturnsAsync((IReadOnlyList<TMDbMovie>)[new TMDbMovie { Id = 555, Title = "Shelter" }]);
         apiClientMock.Setup(c => c.GetMovieExternalIdsAsync(555, It.IsAny<CancellationToken>()))
             .ReturnsAsync(string.Empty);
-        var service = BuildService(apiClientMock.Object, NoMatchLibraryManager());
+        var service = BuildService(apiClientMock.Object, NoMatchLibraryManager(), apiKey: "key");
 
-        await service.RefreshTrendingMoviesAsync(CancellationToken.None);
-        await service.RefreshTrendingMoviesAsync(CancellationToken.None);
+        await service.RefreshDueAsync(null, CancellationToken.None);
+        File.SetLastWriteTimeUtc(CacheFilePath, DateTime.UtcNow.AddHours(-25));
+        await service.RefreshDueAsync(null, CancellationToken.None);
+        apiClientMock.Verify(c => c.GetTrendingMoviesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Exactly(2));
         apiClientMock.Verify(c => c.GetMovieExternalIdsAsync(555, It.IsAny<CancellationToken>()), Times.Once);
 
         await service.RefreshAllAsync(null, CancellationToken.None);
@@ -387,7 +388,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
 
         var service = BuildService(apiClientMock.Object, LibraryWith(libraryItem));
 
-        await service.RefreshTrendingMoviesAsync(CancellationToken.None);
+        await service.RefreshAllAsync(null, CancellationToken.None);
         var result = service.GetTrendingMovies();
 
         Assert.Single(result);
@@ -415,7 +416,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
         var service = BuildService(apiClientMock.Object, LibraryWith(libraryItem));
 
         // First refresh succeeds and populates the cache.
-        await service.RefreshTrendingMoviesAsync(CancellationToken.None);
+        await service.RefreshAllAsync(null, CancellationToken.None);
         Assert.Single(service.GetTrendingMovies());
 
         // A subsequent refresh fails (e.g. the configured key became invalid) and the API client
@@ -423,7 +424,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
         apiClientMock.Setup(c => c.GetTrendingMoviesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((IReadOnlyList<TMDbMovie>)[]);
 
-        await service.RefreshTrendingMoviesAsync(CancellationToken.None);
+        await service.RefreshAllAsync(null, CancellationToken.None);
 
         // The good cache from the first refresh must still be there.
         var result = service.GetTrendingMovies();
@@ -470,7 +471,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
 
         var service = BuildService(apiClientMock.Object, LibraryWith([.. libraryItemsByTmdbId.Values]));
 
-        await service.RefreshTrendingMoviesAsync(CancellationToken.None);
+        await service.RefreshAllAsync(null, CancellationToken.None);
 
         var result = service.GetTrendingMovies();
         Assert.Equal(ItemCount, result.Count);
@@ -524,7 +525,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
 
         var service = BuildService(apiClientMock.Object, NoMatchLibraryManager());
 
-        await service.RefreshTrendingMoviesAsync(CancellationToken.None);
+        await service.RefreshAllAsync(null, CancellationToken.None);
         var lastRefreshed = service.GetLastRefreshedUtc(TMDbCacheType.TrendingMovies);
 
         Assert.NotNull(lastRefreshed);

@@ -129,10 +129,6 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
         return _movieCache.Read(GetDiscoverFileName(instanceId));
     }
 
-    /// <inheritdoc/>
-    public Task RefreshTrendingMoviesAsync(CancellationToken cancellationToken) =>
-        RefreshTrendingMoviesAsync(new RefreshIndexes(_crossReferencer), cancellationToken);
-
     private Task RefreshTrendingMoviesAsync(RefreshIndexes indexes, CancellationToken cancellationToken)
     {
         var pages = _getConfiguration()?.TMDbLists?.TrendingMoviesPages ?? 1;
@@ -142,10 +138,6 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
             indexes,
             cancellationToken);
     }
-
-    /// <inheritdoc/>
-    public Task RefreshTrendingShowsAsync(CancellationToken cancellationToken) =>
-        RefreshTrendingShowsAsync(new RefreshIndexes(_crossReferencer), cancellationToken);
 
     private Task RefreshTrendingShowsAsync(RefreshIndexes indexes, CancellationToken cancellationToken)
     {
@@ -157,10 +149,6 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
             cancellationToken);
     }
 
-    /// <inheritdoc/>
-    public Task RefreshAiringTodayAsync(CancellationToken cancellationToken) =>
-        RefreshAiringTodayAsync(new RefreshIndexes(_crossReferencer), cancellationToken);
-
     private Task RefreshAiringTodayAsync(RefreshIndexes indexes, CancellationToken cancellationToken)
     {
         var pages = _getConfiguration()?.TMDbLists?.AiringTodayPages ?? 1;
@@ -170,10 +158,6 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
             indexes,
             cancellationToken);
     }
-
-    /// <inheritdoc/>
-    public Task RefreshTopRatedMoviesAsync(CancellationToken cancellationToken) =>
-        RefreshTopRatedMoviesAsync(new RefreshIndexes(_crossReferencer), cancellationToken);
 
     private Task RefreshTopRatedMoviesAsync(RefreshIndexes indexes, CancellationToken cancellationToken)
     {
@@ -187,10 +171,6 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
             cancellationToken);
     }
 
-    /// <inheritdoc/>
-    public Task RefreshTopRatedShowsAsync(CancellationToken cancellationToken) =>
-        RefreshTopRatedShowsAsync(new RefreshIndexes(_crossReferencer), cancellationToken);
-
     private Task RefreshTopRatedShowsAsync(RefreshIndexes indexes, CancellationToken cancellationToken)
     {
         var tmdbLists = _getConfiguration()?.TMDbLists;
@@ -203,10 +183,6 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
             cancellationToken);
     }
 
-    /// <inheritdoc/>
-    public Task RefreshNowPlayingMoviesAsync(CancellationToken cancellationToken) =>
-        RefreshNowPlayingMoviesAsync(new RefreshIndexes(_crossReferencer), cancellationToken);
-
     private Task RefreshNowPlayingMoviesAsync(RefreshIndexes indexes, CancellationToken cancellationToken)
     {
         var tmdbLists = _getConfiguration()?.TMDbLists;
@@ -218,10 +194,6 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
             indexes,
             cancellationToken);
     }
-
-    /// <inheritdoc/>
-    public Task RefreshDiscoverMoviesAsync(string instanceId, TMDbDiscoverFilter filter, CancellationToken cancellationToken) =>
-        RefreshDiscoverMoviesAsync(instanceId, filter, new RefreshIndexes(_crossReferencer), cancellationToken);
 
     private async Task RefreshDiscoverMoviesAsync(string instanceId, TMDbDiscoverFilter filter, RefreshIndexes indexes, CancellationToken cancellationToken)
     {
@@ -552,7 +524,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
 
     /// <summary>
     /// Builds the cache file name for a Discover widget instance. <paramref name="instanceId"/> is
-    /// validated as a GUID by the only two callers (<see cref="RefreshDiscoverMoviesAsync(string, TMDbDiscoverFilter, CancellationToken)"/> and
+    /// validated as a GUID by the only two callers (<see cref="RefreshDiscoverMoviesAsync(string, TMDbDiscoverFilter, RefreshIndexes, CancellationToken)"/> and
     /// <see cref="GetDiscoverMovies"/> via the widget's own <c>ExtraParams["value"]</c>-derived
     /// AdditionalData) before it ever reaches this method, but re-validating here is cheap defense
     /// in depth against a malformed instance id being used as a file name.

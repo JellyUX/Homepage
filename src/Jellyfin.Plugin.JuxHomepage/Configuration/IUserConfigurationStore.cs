@@ -13,13 +13,6 @@ public interface IUserConfigurationStore
     UserConfiguration? GetUserConfiguration(Guid userId);
 
     /// <summary>
-    /// Persists the given user configuration.
-    /// </summary>
-    /// <param name="config">The configuration to save.</param>
-    /// <returns>False when the configuration could not be written.</returns>
-    bool SaveUserConfiguration(UserConfiguration config);
-
-    /// <summary>
     /// Reads the user's configuration (a new one when none is saved), applies <paramref name="change"/>
     /// and saves it, under one lock: no other save can land between the read and the write. A file that
     /// exists but cannot be read is left unchanged; a corrupt one is replaced.

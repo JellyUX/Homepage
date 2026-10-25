@@ -64,7 +64,12 @@ public sealed class HomeLanguageMemoryTests : IDisposable
     [Fact]
     public void HomeLanguage_KeepsTheUsersOtherSettings()
     {
-        _store.SaveUserConfiguration(new UserConfiguration { UserId = _userId, Enabled = false, HiddenSections = ["jux.admin.genre#1"] });
+        _store.UpdateUserConfiguration(_userId, c =>
+        {
+            c.Enabled = false;
+            c.HiddenSections = ["jux.admin.genre#1"];
+            return true;
+        });
 
         new HomeLanguageMemory(_store).Remember(_userId, "fr");
 
@@ -85,7 +90,12 @@ public sealed class HomeLanguageMemoryTests : IDisposable
     [Fact]
     public void HomeLanguage_SettingsFileThatCannotBeRead_IsLeftUnchanged()
     {
-        _store.SaveUserConfiguration(new UserConfiguration { UserId = _userId, Enabled = false, HiddenSections = ["jux.admin.genre#1"] });
+        _store.UpdateUserConfiguration(_userId, c =>
+        {
+            c.Enabled = false;
+            c.HiddenSections = ["jux.admin.genre#1"];
+            return true;
+        });
         var before = File.ReadAllText(UserFile);
         using var locked = Reopened(new FailingFileSystem { FailReads = true });
 
@@ -98,7 +108,7 @@ public sealed class HomeLanguageMemoryTests : IDisposable
     [Fact]
     public void UpdateUserConfiguration_CorruptFile_IsReplaced()
     {
-        _store.SaveUserConfiguration(new UserConfiguration { UserId = _userId });
+        _store.UpdateUserConfiguration(_userId, _ => true);
         File.WriteAllText(UserFile, "{\"UserId\": \"" + _userId + "\", \"Enabled\": fal");
         using var store = Reopened();
 
