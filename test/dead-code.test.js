@@ -21,6 +21,53 @@ describe('csUnreferenced', () => {
         ];
         expect([...csUnreferenced(sources).keys()]).toEqual(['Parse']);
     });
+
+    it('counts an interface member declared without a modifier as a declaration (D-12.a)', () => {
+        const sources = [
+            ['IStore.cs', 'public interface IStore\n{\n    bool Save(Config config);\n\n    Task<bool> Update(\n        Guid id,\n        Func<Config, bool> change);\n}'],
+            ['Store.cs', 'public sealed class Store : IStore\n{\n    public bool Save(Config config) => true;\n    public Task<bool> Update(Guid id, Func<Config, bool> change) => Task.FromResult(change(new Config()));\n}'],
+            ['Use.cs', 'store.Update(id, c => true);']
+        ];
+        expect([...csUnreferenced(sources)]).toEqual([['Save', ['IStore.cs', 'Store.cs']]]);
+    });
+
+    it('reports a public overload whose only calls go to a private homonym (D-12.a)', () => {
+        const sources = [
+            ['ICache.cs', 'public interface ICache\n{\n    Task Refresh(CancellationToken cancellationToken);\n\n    Task RefreshAll(CancellationToken cancellationToken);\n}'],
+            ['Cache.cs', [
+                'public sealed class Cache : ICache',
+                '{',
+                '    public Task Refresh(CancellationToken cancellationToken) =>',
+                '        Refresh(new Indexes(), cancellationToken);',
+                '',
+                '    private Task Refresh(Indexes indexes, CancellationToken cancellationToken) => Task.CompletedTask;',
+                '',
+                '    public Task RefreshAll(CancellationToken cancellationToken)',
+                '    {',
+                '        Func<Indexes, CancellationToken, Task>[] steps = [Refresh];',
+                '        return steps[0](new Indexes(), cancellationToken);',
+                '    }',
+                '}'
+            ].join('\n')],
+            ['Task.cs', 'await _cache.RefreshAll(cancellationToken);']
+        ];
+        expect([...csUnreferenced(sources)]).toEqual([['Refresh', ['Cache.cs', 'ICache.cs']]]);
+    });
+
+    it('keeps an overload called with its own arity, optional parameters and generic arguments included (D-12.a)', () => {
+        const sources = [
+            ['Lib.cs', [
+                'public static class Lib',
+                '{',
+                '    public static int Get(int a, int b = 0) => a + b;',
+                '    public static int Get(Dictionary<string, int> map, string key, int fallback) => fallback;',
+                '    private static int Get(string a) => 0;',
+                '}'
+            ].join('\n')],
+            ['Use.cs', 'var x = Lib.Get(1);\nvar y = Lib.Get(new Dictionary<string, int>(), "k", Get("z"));']
+        ];
+        expect([...csUnreferenced(sources).keys()]).toEqual([]);
+    });
 });
 
 describe('jsUnused', () => {

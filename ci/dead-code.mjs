@@ -2,7 +2,10 @@
 //   - C#: a member or type name seen only at its declarations in the plugin sources is a candidate; each
 //     declaring file must be listed in ci/dead-code-allowlist.json ("File.cs:Name") with the reason it has
 //     no visible caller (HTTP route, framework entry point, JSON property, test seam); a listed entry that
-//     is no longer a candidate is reported so the list stays short;
+//     is no longer a candidate is reported so the list stays short. Interface members count as
+//     declarations, and a public overload that no call reaches with its own arity is a candidate even when
+//     a homonym is called (D-12.a); a second homonym case this text check misses calls for a Roslyn
+//     analyzer instead;
 //   - JS: a function of Web/*.js, declared or assigned to a variable, named nowhere else in the
 //     production files;
 //   - CSS: a jux class or id of Web/*.css that no script, page or C# file names, nor builds from a prefix;
@@ -21,6 +24,9 @@ const ALLOWLIST = 'ci/dead-code-allowlist.json';
 
 const CS_DECLARATION = /^\s*(?:\[[^\]]*\]\s*)*(?:public|internal|protected|private)\s+(?:(?:static|readonly|override|virtual|abstract|sealed|async|const|new|partial|required)\s+)*[\w<>[\],.?() ]+?\s+(\w+)\s*(?:\(|\{|=|;)/gm;
 const NOT_A_NAME = new Set(['get', 'set', 'init', 'class', 'record', 'interface', 'enum', 'struct']);
+// An interface method has no modifier: a file declaring an interface, a member line at the member indent.
+const CS_INTERFACE = /\binterface\s+\w+/;
+const CS_INTERFACE_MEMBER = /^ {4}(?!(?:public|internal|protected|private|return|await|var|new|if|else|throw)\b)[\w[\],.?]+(?:<[^>\n]*>)?\??\s+(\w+)\s*\(/gm;
 
 const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const wordCount = (name, text) => (text.match(new RegExp(`\\b${escape(name)}\\b`, 'g')) ?? []).length;
@@ -45,28 +51,148 @@ export function builtFromPrefix(name, separator, text) {
 }
 
 /**
+ * The arguments of the call or parameter list whose "(" is at open: top-level commas split them, and
+ * strings, nested brackets and generic argument lists are skipped.
+ * @param {string} text
+ * @param {number} open
+ * @returns {string[]}
+ */
+export function csArguments(text, open) {
+    const args = [];
+    let depth = 0;
+    let start = open + 1;
+    for (let i = open + 1; i < text.length; i++) {
+        const c = text[i];
+        if (c === '"' || c === "'") {
+            const close = text.slice(i + 1).search(c === '"' ? /(?<!\\)"/ : /(?<!\\)'/);
+            i += close < 0 ? 0 : close + 1;
+        } else if (c === '<' && /\w/.test(text[i - 1] ?? '')) {
+            const generic = /^<[\w\s,.?[\]<>]*>/.exec(text.slice(i));
+            i += generic ? generic[0].length - 1 : 0;
+        } else if ('([{'.includes(c)) {
+            depth++;
+        } else if (')]}'.includes(c) && depth > 0) {
+            depth--;
+        } else if (c === ')' || (c === ',' && depth === 0)) {
+            args.push(text.slice(start, i).trim());
+            start = i + 1;
+            if (c === ')') {
+                break;
+            }
+        }
+    }
+    return args.length === 1 && args[0] === '' ? [] : args;
+}
+
+/**
+ * Method declarations and their arity: [file, name, index of "(", min, max, public]. Interface members,
+ * declared without a modifier, count as public.
+ * @param {[string, string][]} files .cs files, comments blanked, as [path, text].
+ * @returns {{file: string, name: string, at: number, min: number, max: number, open: boolean}[]}
+ */
+function csMethods(files) {
+    const methods = [];
+    const add = (file, text, match, open) => {
+        const paren = match.index + match[0].length - 1;
+        const params = csArguments(text, paren);
+        const optional = params.filter((p) => p.includes('=')).length;
+        const extension = /^this\s/.test(params[0] ?? '') ? 1 : 0;
+        const max = params.some((p) => /^params\s/.test(p)) ? Infinity : params.length;
+        methods.push({ file, name: match[1], at: match.index + match[0].lastIndexOf(match[1]), min: params.length - optional - extension, max, open });
+    };
+    for (const [file, text] of files) {
+        for (const match of text.matchAll(CS_DECLARATION)) {
+            if (match[0].endsWith('(') && !NOT_A_NAME.has(match[1])) {
+                add(file, text, match, !/^\s*(?:\[[^\]]*\]\s*)*(?:private|protected)\b/.test(match[0]));
+            }
+        }
+        if (CS_INTERFACE.test(text)) {
+            for (const match of text.matchAll(CS_INTERFACE_MEMBER)) {
+                add(file, text, match, true);
+            }
+        }
+    }
+    return methods;
+}
+
+/**
+ * Public overloads no call reaches with their own arity, though a homonym is called (a private overload
+ * the public one forwards to, D-12.a). A method group goes to the non-public overloads when there are
+ * any, and nameof() to every overload.
+ * @param {[string, string][]} files .cs files, comments blanked, as [path, text].
+ * @returns {Map<string, Set<string>>} Name -> files declaring an unreached public overload.
+ */
+function csUnreachedOverloads(files) {
+    const methods = csMethods(files);
+    const byName = Map.groupBy(methods, (m) => m.name);
+    const unreached = new Map();
+    for (const [name, overloads] of byName) {
+        if (new Set(overloads.map((m) => `${m.min}-${m.max}`)).size < 2) {
+            continue;
+        }
+        const declarations = new Set(overloads.map((m) => `${m.file}:${m.at}`));
+        const arities = [];
+        let groupReachesPublic = false;
+        for (const [file, text] of files) {
+            for (const use of text.matchAll(new RegExp(`\\b${escape(name)}\\b`, 'g'))) {
+                if (declarations.has(`${file}:${use.index}`)) {
+                    continue;
+                }
+                const after = /^\s*\(/.exec(text.slice(use.index + name.length));
+                if (/nameof\(\s*(?:[\w.]+\.)?$/.test(text.slice(Math.max(0, use.index - 80), use.index))) {
+                    groupReachesPublic = true;
+                } else if (after) {
+                    arities.push(csArguments(text, use.index + name.length + after[0].length - 1).length);
+                } else if (!overloads.some((m) => !m.open)) {
+                    groupReachesPublic = true;
+                }
+            }
+        }
+        for (const m of overloads.filter((o) => o.open)) {
+            if (!groupReachesPublic && !arities.some((n) => n >= m.min && n <= m.max)) {
+                unreached.set(name, (unreached.get(name) ?? new Set()).add(m.file));
+            }
+        }
+    }
+    return unreached;
+}
+
+/**
  * C# names seen in the plugin sources only at their declarations (an interface and its implementation
- * count as one declaration each).
+ * count as one declaration each), and public overloads only a homonym's calls name (D-12.a).
  * @param {[string, string][]} sources Plugin .cs, .js, .html and .json files, as [path, text].
  * @returns {Map<string, string[]>} Candidate name -> declaring files.
  */
 export function csUnreferenced(sources) {
     // Declarations are counted one by one, so two unused overloads in one file are still candidates.
     const declared = new Map();
-    for (const [file, text] of sources.filter(([f]) => f.endsWith('.cs'))) {
+    const count = (name, file) => {
+        const entry = declared.get(name) ?? { files: new Set(), count: 0 };
+        entry.files.add(file);
+        entry.count++;
+        declared.set(name, entry);
+    };
+    const csFiles = sources.filter(([f]) => f.endsWith('.cs'));
+    for (const [file, text] of csFiles) {
         for (const match of text.matchAll(CS_DECLARATION)) {
             if (!NOT_A_NAME.has(match[1])) {
-                const entry = declared.get(match[1]) ?? { files: new Set(), count: 0 };
-                entry.files.add(file);
-                entry.count++;
-                declared.set(match[1], entry);
+                count(match[1], file);
             }
+        }
+        if (CS_INTERFACE.test(text)) {
+            [...text.matchAll(CS_INTERFACE_MEMBER)].forEach((match) => count(match[1], file));
         }
     }
     const corpus = sources.map(([, text]) => text).join('\n');
-    return new Map([...declared]
+    const candidates = new Map([...declared]
         .filter(([name, entry]) => wordCount(name, corpus) <= entry.count)
-        .map(([name, entry]) => [name, [...entry.files].sort()]));
+        .map(([name, entry]) => [name, new Set(entry.files)]));
+    // Comments blanked to spaces, so a cref naming a signature is no call and positions stay right.
+    const code = csFiles.map(([file, text]) => [file, text.replace(/(?<!:)\/\/[^\n]*|\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '))]);
+    for (const [name, files] of csUnreachedOverloads(code)) {
+        candidates.set(name, new Set([...(candidates.get(name) ?? []), ...files]));
+    }
+    return new Map([...candidates].map(([name, files]) => [name, [...files].sort()]));
 }
 
 /**

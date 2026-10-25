@@ -29,6 +29,7 @@
         "PluginServiceRegistrator.cs:RegisterServices": "IPluginServiceRegistrator entry point, called by Jellyfin at startup",
         "Rewards/Tasks/RewardsWeeklyRefreshTask.cs:ExecuteAsync": "IScheduledTask member, called by the Jellyfin task manager",
         "Rewards/Tasks/RewardsWeeklyRefreshTask.cs:GetDefaultTriggers": "IScheduledTask member, called by the Jellyfin task manager",
+        "TMDb/ITMDbCacheService.cs:RefreshAllAsync": "test seam, called by the tests only: production refreshes through RunRefreshLockedAsync and RefreshDueAsync",
         "TMDb/Models/TMDbMovie.cs:BackdropPath": "TMDb JSON property, set by the deserializer",
         "TMDb/Models/TMDbMovie.cs:PosterPath": "TMDb JSON property, set by the deserializer",
         "TMDb/Models/TMDbMovie.cs:VoteAverage": "TMDb JSON property, set by the deserializer",
@@ -38,6 +39,7 @@
         "TMDb/Models/TMDbShow.cs:VoteAverage": "TMDb JSON property, set by the deserializer",
         "TMDb/Models/TMDbTrending.cs:TotalPages": "TMDb JSON property, set by the deserializer",
         "TMDb/Models/TMDbTrending.cs:TotalResults": "TMDb JSON property, set by the deserializer",
+        "TMDb/TMDbCacheService.cs:RefreshAllAsync": "test seam, called by the tests only: production refreshes through RunRefreshLockedAsync and RefreshDueAsync",
         "TMDb/Tasks/TMDbDailyRefreshTask.cs:ExecuteAsync": "IScheduledTask member, called by the Jellyfin task manager",
         "TMDb/Tasks/TMDbDailyRefreshTask.cs:GetDefaultTriggers": "IScheduledTask member, called by the Jellyfin task manager",
         "UserDataSavedListener.cs:StopAsync": "IHostedService member, called by the host at shutdown",
@@ -53,6 +55,7 @@
         "Widgets/Service/SectionResultCache.cs:CountForTesting": "test seam (ForTesting suffix), called by the tests only",
         "Widgets/Service/SessionCache.cs:SetLastAccessedForTesting": "test seam (ForTesting suffix), called by the tests only",
         "Widgets/Service/WidgetItemFetcher.cs:DrawCountForTesting": "test seam (ForTesting suffix), called by the tests only",
+        "Widgets/Service/WidgetLayoutResolver.cs:BuildDescriptors": "test seam, called by the tests only: production calls the overload with onProbed (WidgetService)",
         "Widgets/Service/WidgetService.cs:WhenIdleForTesting": "test seam (ForTesting suffix), called by the tests only"
     }
 }
