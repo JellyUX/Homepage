@@ -14,6 +14,9 @@ export default defineConfig({
         coverage: {
             provider: 'v8',
             include: ['src/Jellyfin.Plugin.JuxHomepage/Web/*.js'],
+            // A template the server fills in before splicing it into the home chunk: v8 cannot parse it as
+            // it is. ci/coverage-summary.mjs lists it as not instrumented.
+            exclude: ['src/Jellyfin.Plugin.JuxHomepage/Web/jux-loadsections-inject.js'],
             reporter: ['text-summary', 'json-summary', 'lcov', 'html'],
             reportsDirectory: 'coverage/js'
         }

@@ -1,10 +1,15 @@
 import { describe, it, expect } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
     addedLines,
     coberturaFiles,
     coberturaLineHits,
     lcovLineHits,
-    changedLinesCoverage
+    changedLinesCoverage,
+    coverageRows
 } from '../ci/coverage-summary.mjs';
 
 const cobertura = `<coverage><packages><package><classes>
@@ -73,5 +78,34 @@ describe('changedLinesCoverage', () => {
         const other = new Map([['/repo/src/Jellyfin.Plugin.JuxHomepage/BA.cs', new Map([[1, 0]])]]);
 
         expect(changedLinesCoverage(added, [other])).toMatchObject({ total: 0, unreported: ['src/Jellyfin.Plugin.JuxHomepage/A.cs'] });
+    });
+});
+
+describe('risky files (PROC-05.b)', () => {
+    const js = {
+        total: { lines: { covered: 1, total: 2 } },
+        '/repo/src/Jellyfin.Plugin.JuxHomepage/Web/jux-featured.js': { lines: { covered: 1, total: 2 } }
+    };
+
+    it('lists the V6 risk areas, and the template v8 cannot instrument as such', () => {
+        const rows = coverageRows(coberturaFiles(cobertura), js, 'c.xml').join('\n');
+
+        for (const area of ['C# Widgets/Service/', 'JS jux-featured.js', 'JS config.js']) {
+            expect(rows).toContain(`| ${area} |`);
+        }
+        expect(rows).toContain('| JS jux-featured.js | 1 | 2 | 50.0 % |');
+        expect(rows).toContain('| JS jux-loadsections-inject.js | - | - | not instrumented (template) |');
+    });
+
+    it('prints the JS part and says why the C# part is missing when there is no Cobertura report (PROC-05.c)', () => {
+        const dir = mkdtempSync(join(tmpdir(), 'jux-coverage-'));
+        writeFileSync(join(dir, 'coverage-summary.json'), JSON.stringify(js));
+        const env = { ...process.env, GITHUB_STEP_SUMMARY: '' };
+
+        const out = execFileSync(process.execPath, ['ci/coverage-summary.mjs', join(dir, 'missing.xml'), join(dir, 'coverage-summary.json')], { encoding: 'utf8', env });
+
+        expect(out).toContain('no Cobertura report');
+        expect(out).toContain('| **JS total** | 1 | 2 | **50.0 %** |');
+        expect(out).toContain('| JS jux-featured.js | 1 | 2 | 50.0 % |');
     });
 });

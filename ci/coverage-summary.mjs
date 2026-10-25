@@ -1,7 +1,8 @@
 // Markdown summary of the C# (coverlet, Cobertura) and JS (Vitest, json-summary and lcov) line coverage,
 // with the files the audit ranks as risky (TODO_V4.md 3.4, F-31), and the coverage of the plugin lines
 // added since a base commit, with a warning under 80 % (TODO_V5 PROC-01.c). Informative only: it never
-// fails the job.
+// fails the job, and prints the JS part alone when there is no Cobertura report (PROC-05.c). A new risk
+// area enters the risky lists in the commit that introduces it (CONTRIBUTING.md "Testing", PROC-05.b).
 //   node ci/coverage-summary.mjs <cobertura.xml> <coverage-summary.json> [--diff-base <commit>]
 // Writes to $GITHUB_STEP_SUMMARY when set, to stdout otherwise; the warning always goes to stdout, where
 // the runner reads workflow commands. lcov.info is read next to coverage-summary.json.
@@ -10,8 +11,12 @@ import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 
-const RISKY_CS = ['Inject/', 'Controllers/', 'Personalized/', 'Plugin.cs', 'PluginServiceRegistrator.cs'];
-const RISKY_JS = ['jux-tab-injector.js', 'jux-homepage.js', 'jux-history.js', 'jux-progress.js', 'jux-watchlist.js', 'jux-card-hooks.js'];
+const RISKY_CS = ['Inject/', 'Controllers/', 'Personalized/', 'Widgets/Service/', 'Plugin.cs', 'PluginServiceRegistrator.cs'];
+const RISKY_JS = ['jux-tab-injector.js', 'jux-homepage.js', 'jux-history.js', 'jux-progress.js', 'jux-watchlist.js', 'jux-card-hooks.js',
+    'jux-featured.js', 'config.js', 'jux-loadsections-inject.js'];
+// Left out of the Vitest coverage (vitest.config.js): a template the server fills in before splicing it
+// into the home chunk, which v8 cannot parse as it is.
+const NOT_INSTRUMENTED_JS = new Set(['jux-loadsections-inject.js']);
 const PLUGIN_DIR = 'src/Jellyfin.Plugin.JuxHomepage/';
 const CHANGED_LINES_WARNING = 80;
 
@@ -148,6 +153,36 @@ export function sumMatching(files, fragment) {
     return { covered, total };
 }
 
+/**
+ * The coverage table: C# total and risky C# areas (left out, with a note, without a Cobertura report),
+ * then JS total and risky scripts.
+ * @param {Map<string, {covered: number, total: number}> | null} cs Per-file C# coverage, or null.
+ * @param {Record<string, {lines: {covered: number, total: number}}>} js Vitest json-summary.
+ * @param {string} coberturaPath Named in the note when cs is null.
+ * @returns {string[]}
+ */
+export function coverageRows(cs, js, coberturaPath) {
+    const row = (scope, c) => `| ${scope} | ${c.covered} | ${c.total} | ${pct(c.covered, c.total)} |`;
+    const csAll = cs && sumMatching(cs, '');
+    return [
+        ...(cs ? [] : [`_C#: no Cobertura report at \`${coberturaPath}\`, the C# rows are left out._`, '']),
+        '| Scope | Covered | Lines | Coverage |',
+        '|---|---|---|---|',
+        ...(cs
+            ? [`| **C# total** | ${csAll.covered} | ${csAll.total} | **${pct(csAll.covered, csAll.total)}** |`,
+                ...RISKY_CS.map((f) => row(`C# ${f}`, sumMatching(cs, f)))]
+            : []),
+        `| **JS total** | ${js.total.lines.covered} | ${js.total.lines.total} | **${pct(js.total.lines.covered, js.total.lines.total)}** |`,
+        ...RISKY_JS.map((f) => {
+            if (NOT_INSTRUMENTED_JS.has(f)) {
+                return `| JS ${f} | - | - | not instrumented (template) |`;
+            }
+            const entry = Object.entries(js).find(([file]) => file.replace(/\\/g, '/').endsWith(`/${f}`))?.[1];
+            return entry ? row(`JS ${f}`, entry.lines) : `| JS ${f} | - | - | not measured |`;
+        })
+    ];
+}
+
 function changedLinesRows(base, csHits, jsHits) {
     if (!base || /^0+$/.test(base)) {
         return { rows: ['', '_Changed lines: no base commit for this run._'], warning: null };
@@ -192,31 +227,17 @@ function main() {
     const baseIndex = args.indexOf('--diff-base');
     const base = baseIndex >= 0 ? args[baseIndex + 1] : null;
     const [coberturaPath, jsSummaryPath] = args.filter((_, i) => baseIndex < 0 || (i !== baseIndex && i !== baseIndex + 1));
-    const csHits = coberturaLineHits(readFileSync(coberturaPath, 'utf8'));
-    const cs = coberturaFiles(readFileSync(coberturaPath, 'utf8'));
+    const xml = existsSync(coberturaPath) ? readFileSync(coberturaPath, 'utf8') : null;
+    const csHits = xml ? coberturaLineHits(xml) : new Map();
     const js = JSON.parse(readFileSync(jsSummaryPath, 'utf8'));
     const lcovPath = join(dirname(jsSummaryPath), 'lcov.info');
     const jsHits = existsSync(lcovPath) ? lcovLineHits(readFileSync(lcovPath, 'utf8')) : new Map();
 
-    const csAll = sumMatching(cs, '');
     const changed = changedLinesRows(base, csHits, jsHits);
     const rows = [
         '## Coverage (lines, informative)',
         '',
-        '| Scope | Covered | Lines | Coverage |',
-        '|---|---|---|---|',
-        `| **C# total** | ${csAll.covered} | ${csAll.total} | **${pct(csAll.covered, csAll.total)}** |`,
-        ...RISKY_CS.map((f) => {
-            const c = sumMatching(cs, f);
-            return `| C# ${f} | ${c.covered} | ${c.total} | ${pct(c.covered, c.total)} |`;
-        }),
-        `| **JS total** | ${js.total.lines.covered} | ${js.total.lines.total} | **${pct(js.total.lines.covered, js.total.lines.total)}** |`,
-        ...RISKY_JS.map((f) => {
-            const entry = Object.entries(js).find(([file]) => file.replace(/\\/g, '/').endsWith(`/${f}`))?.[1];
-            return entry
-                ? `| JS ${f} | ${entry.lines.covered} | ${entry.lines.total} | ${pct(entry.lines.covered, entry.lines.total)} |`
-                : `| JS ${f} | - | - | not measured |`;
-        }),
+        ...coverageRows(xml ? coberturaFiles(xml) : null, js, coberturaPath),
         ...changed.rows
     ];
 

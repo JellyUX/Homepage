@@ -119,8 +119,9 @@ Versioned documents are checked too: every symbol, repository path and `jux.*` k
 backticks in `README.md`, `CONTRIBUTING.md` and `docs/` must exist (`DocSymbolSyncTests`).
 
 A comment that defers work names the registry id that tracks it; the id prefixes the check accepts are
-the registry id pattern of `ci/static-checks.mjs`. A new finding category enters that list in the commit that
-introduces it.
+the registry id pattern of `ci/static-checks.mjs`. The CI coverage summary (`ci/coverage-summary.mjs`)
+details the risky C# areas and scripts. A new finding category, or a new area at risk, enters these
+lists in the commit that introduces it.
 
 **Manual test procedure**:
 1. Run `.\docker\scripts\deploy-plugin.ps1` to deploy the latest build.
