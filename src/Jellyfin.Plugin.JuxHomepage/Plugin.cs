@@ -174,8 +174,9 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
         // native tab-switching it depended on turned out to be unreliable in real usage (confirmed by
         // the user) -- so there is no V3-to-V4 tier here anymore. No V4-to-V5 tier is needed either:
         // removing a field is not a data transform an installation needs applied, it simply stops
-        // being read/written. The version is still bumped per the policy of CONTRIBUTING.md
-        // "Configuration Schema Versioning", since the on-disk schema shape did change.
+        // being read/written. Versions 4 and 5 were stamped by those releases and keep no tier. Only a
+        // new tier, a transform an installation must apply, bumps the constant (CONTRIBUTING.md
+        // "Configuration Schema Versioning"): adding or removing a field alone takes none.
 
         if (config.SchemaVersion < 6)
         {
