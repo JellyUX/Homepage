@@ -101,6 +101,83 @@ public sealed class DocSymbolSyncTests
         Assert.All(cited, section => Assert.Contains(section, headings));
     }
 
+    public static TheoryData<string> FailurePathRows()
+    {
+        var contributing = File.ReadAllText(Path.Combine(RepoPaths.Root(), "CONTRIBUTING.md"));
+        var section = Regex.Match(contributing, @"^## Failure Paths\r?$([\s\S]*?)^## ", RegexOptions.Multiline).Groups[1].Value;
+        return new(Regex.Matches(section, @"^\| (?!Boundary \||---)(.+) \|\r?$", RegexOptions.Multiline).Select(m => m.Groups[1].Value));
+    }
+
+    // PROC-06.c: a model test the Failure Paths table cites must exist, so the table cannot keep pointing
+    // to a renamed test or claim a test it does not have.
+    [Theory]
+    [MemberData(nameof(FailurePathRows))]
+    public void EveryFailurePathModelTest_Exists(string row)
+    {
+        var problems = ModelTestProblems(row, RepoPaths.Root());
+
+        Assert.True(problems.Count == 0, string.Join("; ", problems));
+    }
+
+    [Fact]
+    public void ModelTestProblems_ReportsAMissingTestADescriptionNoFileHoldsAndAnUntrackedGap()
+    {
+        var root = RepoPaths.Root();
+
+        Assert.Empty(ModelTestProblems("Boundary | `DocSymbolSyncTests.EveryFailurePathModelTest_Exists`, `test/jux-core.test.js`, \"answers with the server, and rejects once the limit passes without an answer\" | proves", root));
+        Assert.Empty(ModelTestProblems("Boundary | to be written (FIAB-02) | proves", root));
+        Assert.Equal(3, ModelTestProblems("Boundary | `DocSymbolSyncTests.NoSuchTest`, `test/jux-core.test.js`, \"no such description\" | proves", root)
+            .Concat(ModelTestProblems("Boundary | to be written | proves", root)).Count());
+    }
+
+    // The model test cell of a table row: C# tests as `Class.Method`, script tests as `path`, "description",
+    // a gap as "to be written (registry id)".
+    private static List<string> ModelTestProblems(string row, string root)
+    {
+        var cell = row.Split(" | ")[1];
+        var problems = new List<string>();
+        if (cell.StartsWith("to be written", StringComparison.Ordinal))
+        {
+            if (!Regex.IsMatch(cell, @"\([A-Z]+-\d{2}(?:, [A-Z]+-\d{2})*\)"))
+            {
+                problems.Add($"\"{cell}\" names no registry id that will write the test");
+            }
+
+            return problems;
+        }
+
+        var testsDir = Path.Combine(root, "src", "Jellyfin.Plugin.JuxHomepage.Tests");
+        string? script = null;
+        foreach (Match part in Regex.Matches(cell, "`([^`]+)`|\"([^\"]+)\""))
+        {
+            if (part.Groups[2].Success)
+            {
+                var text = script is null ? string.Empty : File.ReadAllText(Path.Combine(root, script));
+                if (!text.Contains($"'{part.Groups[2].Value}'", StringComparison.Ordinal) && !text.Contains($"\"{part.Groups[2].Value}\"", StringComparison.Ordinal))
+                {
+                    problems.Add($"{script ?? "no file"} has no test \"{part.Groups[2].Value}\"");
+                }
+            }
+            else if (part.Groups[1].Value.Contains('/', StringComparison.Ordinal))
+            {
+                script = part.Groups[1].Value;
+            }
+            else if (part.Groups[1].Value.Split('.') is [var type, var method])
+            {
+                var declared = SourceFiles(root, Path.GetRelativePath(root, testsDir), "*.cs")
+                    .Select(File.ReadAllText)
+                    .Any(text => Regex.IsMatch(text, $@"\bclass {type}\b")
+                        && Regex.IsMatch(text, $@"\[(?:Fact|Theory)\b[^\]]*\](?:\s*\[[^\]]*\])*\s*public (?:async Task|void) {method}\("));
+                if (!declared)
+                {
+                    problems.Add($"no [Fact] or [Theory] {type}.{method}");
+                }
+            }
+        }
+
+        return problems;
+    }
+
     [Fact]
     public void WithoutComments_KeepsStringsThatLookLikeComments_AndTheCodeAfterThem()
     {
