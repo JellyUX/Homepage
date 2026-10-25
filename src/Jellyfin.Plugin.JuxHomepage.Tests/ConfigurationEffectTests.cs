@@ -13,6 +13,9 @@ namespace Jellyfin.Plugin.JuxHomepage.Tests;
 /// (the admin or user settings page counts); (c) a [Fact] or [Theory] is named after it, and also names
 /// its type when several configuration types declare that name (A-07). Read from the sources, so a
 /// setting nobody reads, writes or tests fails here instead of shipping as a switch with no effect.
+/// The widget <c>ExtraParams</c> keys are settings too (D-12.c): each key constant is read by production
+/// code, and each <c>data-jux-*</c> attribute the scripts set from a setting is read by a stylesheet or a
+/// script.
 /// </summary>
 public sealed class ConfigurationEffectTests
 {
@@ -95,6 +98,53 @@ public sealed class ConfigurationEffectTests
         Assert.DoesNotContain("UserConfiguration", Sources.TestMethods(source).Single().Body, StringComparison.Ordinal);
     }
 
+    // Attributes the scripts set that nothing reads, each with the registry id that
+    // gives it an effect. An exemption the attribute no longer needs fails.
+    private static readonly Dictionary<string, string> UnreadAttributes = new(StringComparer.Ordinal)
+    {
+        ["data-jux-theme"] = "BKL-04: the seasonal preset Theme key reaches the section, no style draws it until V6 phase 18",
+    };
+
+    public static TheoryData<string> ExtraParamKeys() => new(Regex.Matches(Code.Value.All, @"public const string (\w+Param) = """)
+        .Select(m => m.Groups[1].Value)
+        .Distinct(StringComparer.Ordinal)
+        .Order(StringComparer.Ordinal));
+
+    [Theory]
+    [MemberData(nameof(ExtraParamKeys))]
+    public void EveryExtraParamKey_IsReadByProductionCode(string constant)
+    {
+        var uses = Regex.Matches(Code.Value.Readers, $@"\b{constant}\b").Count;
+        var declarations = Regex.Matches(Code.Value.Readers, $@"public const string {constant} =").Count;
+
+        Assert.True(uses > declarations, $"{constant}: no production code outside its declaration reads this ExtraParams key");
+    }
+
+    public static TheoryData<string> AttributesTheScriptsSet() => new(Sources.SetAttributes(Code.Value.Scripts));
+
+    [Theory]
+    [MemberData(nameof(AttributesTheScriptsSet))]
+    public void EveryAttributeTheScriptsSet_IsReadByAStylesheetOrAScript(string attribute)
+    {
+        var read = Sources.ReadsAttribute(Code.Value.Scripts + "\n" + Code.Value.Styles, attribute);
+        var exempt = UnreadAttributes.ContainsKey(attribute);
+
+        Assert.True(read != exempt, read
+            ? $"{attribute} is read now: remove its exemption"
+            : $"{attribute} is set by the scripts but no stylesheet or script reads it: the setting behind it has no effect");
+    }
+
+    [Fact]
+    public void Attributes_AreFoundSetAndRead_ThroughSetAttributeAndDataset()
+    {
+        const string scripts = "el.setAttribute('data-jux-theme', t);\nel.dataset.juxHasMore = '1';\nif (el.dataset.juxHasMore) { }";
+
+        Assert.Equal(["data-jux-has-more", "data-jux-theme"], Sources.SetAttributes(scripts));
+        Assert.True(Sources.ReadsAttribute(scripts, "data-jux-has-more"));
+        Assert.False(Sources.ReadsAttribute(scripts, "data-jux-theme"));
+        Assert.True(Sources.ReadsAttribute(".jux-widget-section[data-jux-theme=\"halloween\"] { }", "data-jux-theme"));
+    }
+
     public static TheoryData<string> FrozenSettings() => new(Frozen);
 
     // A frozen setting that production code reads again, or that a page names, is a thawed one: it
@@ -144,7 +194,7 @@ public sealed class ConfigurationEffectTests
 
     internal sealed record TestMethod(string Name, string Body);
 
-    private sealed record Sources(string Readers, string Writers, string Scripts, IReadOnlyList<TestMethod> Tests)
+    private sealed record Sources(string All, string Readers, string Writers, string Scripts, string Styles, IReadOnlyList<TestMethod> Tests)
     {
         public static Sources Load()
         {
@@ -171,13 +221,33 @@ public sealed class ConfigurationEffectTests
                 .ToList();
 
             var scripts = files.Where(f => f.Path.EndsWith(".js", StringComparison.Ordinal));
+            var styles = Directory.GetFiles(Path.Combine(plugin, "Web"), "*.css")
+                .Select(f => Regex.Replace(File.ReadAllText(f), @"/\*[\s\S]*?\*/", string.Empty));
 
             return new Sources(
+                string.Join('\n', files.Select(f => f.Text)),
                 string.Join('\n', readers.Select(f => f.Text)),
                 string.Join('\n', writers.Select(f => f.Text)),
                 string.Join('\n', scripts.Select(f => f.Text)),
+                string.Join('\n', styles),
                 tests);
         }
+
+        /// <summary>The data-jux-* attributes the scripts set, by setAttribute or a dataset assignment.</summary>
+        internal static string[] SetAttributes(string scripts) => Regex.Matches(scripts, @"setAttribute\('(data-jux-[a-z-]+)'|dataset\.(jux\w+)\s*=(?!=)")
+            .Select(m => m.Groups[1].Success ? m.Groups[1].Value : DatasetAttribute(m.Groups[2].Value))
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        /// <summary>Whether a selector, getAttribute/hasAttribute or a dataset read (not an assignment) reads the attribute.</summary>
+        internal static bool ReadsAttribute(string code, string attribute)
+        {
+            var dataset = Regex.Replace(attribute["data-".Length..], "-([a-z])", m => m.Groups[1].Value.ToUpperInvariant());
+            return Regex.IsMatch(code, $@"\[{Regex.Escape(attribute)}\b|(?:get|has)Attribute\('{Regex.Escape(attribute)}'\)|dataset\.{dataset}\b(?!\s*=(?!=))");
+        }
+
+        private static string DatasetAttribute(string key) => "data-" + Regex.Replace(key, "[A-Z]", m => "-" + m.Value.ToLowerInvariant());
 
         internal static IEnumerable<TestMethod> TestMethods(string source)
         {
