@@ -1,8 +1,8 @@
 // Shared helpers for the bench scripts. Credentials are read at run time from the gitignored
 // identifiants.txt at the repository root and never written anywhere.
 // JUX_URL picks the server (default http://localhost:8096), JUX_CONTAINER its Docker container (default
-// jellyux-test), JUX_BENCH_OUT the folder raw results are written to (default TODO_V5/mesures/raw, not
-// versioned).
+// jellyux-test), JUX_BENCH_OUT the folder raw results are written to (default bench/.work/raw, not
+// versioned, like e2e/.work).
 import { mkdirSync, readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -10,7 +10,7 @@ import path from 'node:path';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const repoRoot = path.resolve(here, '..');
-export const rawDir = path.resolve(repoRoot, process.env.JUX_BENCH_OUT || path.join('TODO_V5', 'mesures', 'raw'));
+export const rawDir = path.resolve(repoRoot, process.env.JUX_BENCH_OUT || path.join('bench', '.work', 'raw'));
 mkdirSync(rawDir, { recursive: true });
 export const serverUrl = process.env.JUX_URL || 'http://localhost:8096';
 // Jellyfin revokes the previous token of a DeviceId on each AuthenticateByName: one DeviceId per run keeps
