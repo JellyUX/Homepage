@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { env, login, watchJuxErrors, adminToken, pluginConfiguration } from '../helpers.mjs';
+import { env, login, watchJuxErrors, adminToken, pluginConfiguration, isPainted } from '../helpers.mjs';
 
 // KTW-01: a featured section, alone on the home page so its place does not depend on the others. The
 // configuration is restored after each test. Each movie of the bench has a backdrop (e2e/setup.mjs).
@@ -86,6 +86,7 @@ test('KTW-01.a banner: a featured section shows its movies, loads two backdrops,
             const copy = await shown.locator('.jux-featured-copy').boundingBox();
             expect(Math.abs(media.width / media.height - 16 / 9)).toBeLessThan(0.02);
             expect(copy.y).toBeGreaterThanOrEqual(media.y + media.height - 1);
+            expect(await isPainted(shown.locator('.jux-featured-copy'))).toBe(true);
             await testInfo.attach('featured-390', { body: await page.locator('.jux-featured:visible').screenshot(), contentType: 'image/png' });
         }
         expect(errors).toEqual([]);

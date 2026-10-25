@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { env, NATIVE_SECTIONS, TABS, login, loadedSections, apiGet, watchJuxErrors, trackJuxRequests } from '../helpers.mjs';
+import { env, NATIVE_SECTIONS, TABS, login, loadedSections, apiGet, watchJuxErrors, trackJuxRequests, isPainted } from '../helpers.mjs';
 
 // The native sections the client reads straight from Jellyfin (NATIVE_ROUTES in jux-homepage.js); every
 // other section, native ones included, is read through JuxHomepage/Section/{type}.
@@ -152,6 +152,7 @@ test('a long section title wraps left of the native scroll buttons at 390 px (KT
 
     await test.info().attach('titles at 390 px', { body: await page.screenshot(), contentType: 'image/png' });
     expect(overlaps).toEqual([]);
+    expect(await isPainted(page.locator('.jux-widget-section .sectionTitle').first())).toBe(true);
 });
 
 test('the four JellyUX tabs open, one pane at a time', async ({ page }) => {

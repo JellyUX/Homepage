@@ -163,3 +163,19 @@ export function watchJuxErrors(page) {
     });
     return errors;
 }
+
+/**
+ * Whether the element is painted where it is laid out, and reachable: the topmost element at a point of
+ * its box is the element or one of its children. A box comparison alone passes for an element a paint
+ * containment clips or another element covers (D-12.d: the breadcrumb under the header, 748262a).
+ * @param {import('@playwright/test').Locator} locator
+ * @returns {Promise<boolean>}
+ */
+export async function isPainted(locator) {
+    await locator.scrollIntoViewIfNeeded();
+    return locator.evaluate((element) => {
+        const box = element.getBoundingClientRect();
+        const hit = document.elementFromPoint(box.left + Math.min(20, box.width / 2), (box.top + box.bottom) / 2);
+        return element.contains(hit);
+    });
+}
