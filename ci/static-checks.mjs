@@ -24,7 +24,9 @@ const HEX_COLOR = /(?<![\w&#-])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4
 const COLOR_FUNCTION = /\b(?:rgba?|hsla?)\(\s*[\d.]/g;
 const VAR_FALLBACK = /var\(\s*--[\w-]+\s*,\s*(?:#[0-9a-fA-F]{3,8}|(?:rgba?|hsla?)\([^()]*\))\s*\)/g;
 // A comment that defers work must name the registry id that tracks it (TODO_V5 rule R8, PROC-04.b).
-const DEFERRED_MARKER = /\bTODO\b|\bFIXME\b|future phase|worth revisiting/gi;
+// "yet" alone mostly describes a state ("none saved yet"): it defers work after a negation and a verb
+// saying what the code does not do ("no style reads it yet", D-12.b).
+const DEFERRED_MARKER = /\bTODO\b|\bFIXME\b|future phase|worth revisiting|\b(?:no|not|nothing|never)\s+(?:\w+\s+){0,3}(?:reads?|uses?|handles?|supports?|implemented|wired|renders?|consumes?|applie[sd]|honou?rs?)\b[^.\n]*\byet\b/gi;
 // Only the registry prefixes: V5 and V6 audit findings, backlog items, bench probes, hypotheses and
 // decisions (audit D-nn, per-phase DEC-Pnn-n, decision records DR-nnn), V4 findings (A-03.e, PROC-05.a).
 // A new finding category enters this list in the commit that introduces it (CONTRIBUTING.md "Testing").

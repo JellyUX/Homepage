@@ -202,7 +202,7 @@
             'verticalSection jux-widget-section jux-widget-' +
             descriptor.WidgetType.replace(/\./g, '-');
 
-        // Seasonal presets set a Theme; no style reads it yet (TODO_V4.md 7.4).
+        // Seasonal presets set a Theme; no style reads it yet (BKL-04).
         if (descriptor.Theme) {
             sectionEl.setAttribute('data-jux-theme', descriptor.Theme);
         }

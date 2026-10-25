@@ -104,6 +104,16 @@ describe('findUntrackedMarkers', () => {
         expect(findUntrackedMarkers('// TODO (DR-01): later', '.js')).toEqual([{ line: 1, match: 'TODO' }]);
     });
 
+    it('reads "not ... yet" about code as a deferral, and leaves a state described with yet alone (D-12.b)', () => {
+        expect(findUntrackedMarkers('// Seasonal presets set a Theme; no style reads it yet.', '.js').map((f) => f.line)).toEqual([1]);
+        expect(findUntrackedMarkers('// Nothing renders the banner yet', '.js').map((f) => f.line)).toEqual([1]);
+        expect(findUntrackedMarkers('// Seasonal presets set a Theme; no style reads it yet (BKL-04).', '.js')).toEqual([]);
+        for (const state of ['// Not listening yet.', '/// <returns>Null if none has been saved yet.</returns>',
+            '// the rows do not exist yet', '/* not up yet */', '// any value typed but not yet saved']) {
+            expect(findUntrackedMarkers(state, '.cs')).toEqual([]);
+        }
+    });
+
     it('reads a division after an increment, C# raw strings and @$ strings (R11)', () => {
         expect(findUntrackedMarkers('var r = i++ / 2; // TODO real', '.js')).toEqual([{ line: 1, match: 'TODO' }]);
         expect(findUntrackedMarkers('var q = """\n  // TODO not a comment\n  """; // TODO real', '.cs')).toEqual([{ line: 3, match: 'TODO' }]);
