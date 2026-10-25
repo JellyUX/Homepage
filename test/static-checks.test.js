@@ -95,6 +95,14 @@ describe('findUntrackedMarkers', () => {
         expect(findUntrackedMarkers('// TODO (DEC-P12-6): later', '.js')).toEqual([]);
     });
 
+    it('takes the V6 audit categories and decision records as registry ids (PROC-05.a)', () => {
+        for (const id of ['LIST-03', 'COMPAT-01', 'VIS-02', 'FEAT-03', 'BENCH-01', 'REV-04', 'BKL-04', 'MB-23', 'DR-001']) {
+            expect(findUntrackedMarkers(`// TODO (${id}): later`, '.js')).toEqual([]);
+        }
+        expect(findUntrackedMarkers('// TODO (ZZZ-01): later', '.js')).toEqual([{ line: 1, match: 'TODO' }]);
+        expect(findUntrackedMarkers('// TODO (DR-01): later', '.js')).toEqual([{ line: 1, match: 'TODO' }]);
+    });
+
     it('reads a division after an increment, C# raw strings and @$ strings (R11)', () => {
         expect(findUntrackedMarkers('var r = i++ / 2; // TODO real', '.js')).toEqual([{ line: 1, match: 'TODO' }]);
         expect(findUntrackedMarkers('var q = """\n  // TODO not a comment\n  """; // TODO real', '.cs')).toEqual([{ line: 3, match: 'TODO' }]);

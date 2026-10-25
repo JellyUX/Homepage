@@ -118,6 +118,10 @@ node e2e/setup.mjs up; npx playwright test -c e2e # end to end, disposable serve
 Versioned documents are checked too: every symbol, repository path and `jux.*` key cited between
 backticks in `README.md`, `CONTRIBUTING.md` and `docs/` must exist (`DocSymbolSyncTests`).
 
+A comment that defers work names the registry id that tracks it; the id prefixes the check accepts are
+the registry id pattern of `ci/static-checks.mjs`. A new finding category enters that list in the commit that
+introduces it.
+
 **Manual test procedure**:
 1. Run `.\docker\scripts\deploy-plugin.ps1` to deploy the latest build.
 2. Open `http://localhost:8096` and verify the home screen loads correctly.
