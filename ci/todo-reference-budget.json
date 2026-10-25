@@ -1,0 +1,9 @@
+{
+    "description": "References from the versioned files (CHANGELOG.md and this file left out) to each unversioned roadmap, counted by ci/static-checks.mjs (PROC-07.d). A new reference fails: cite the registry id or the versioned document instead. A removal lowers the count here in the same commit; a raise needs a Budget: trailer.",
+    "references": {
+        "TODO_V2": 56,
+        "TODO_V3": 55,
+        "TODO_V4": 141,
+        "TODO_V5": 13
+    }
+}

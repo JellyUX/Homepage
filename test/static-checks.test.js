@@ -5,6 +5,8 @@ import {
     findColorLiterals,
     findBannedFonts,
     findUntrackedMarkers,
+    countTodoReferences,
+    checkTodoReferences,
     checkTargetAbi,
     checkCommit,
     checkBudget,
@@ -123,6 +125,34 @@ describe('findUntrackedMarkers', () => {
     it('reads future phase in a multi-line block comment', () => {
         // Split so that this file's own block-comment-looking string does not trip the check.
         expect(findUntrackedMarkers('/*\n * in a future' + ' phase\n */', '.css')).toEqual([{ line: 2, match: 'future phase' }]);
+    });
+});
+
+describe('roadmap references (PROC-07.d)', () => {
+    // Built, so this file's fixtures are not references the check counts.
+    const [v4, v5, v6] = [4, 5, 6].map((n) => `TODO_${'V'}${n}`);
+
+    it('counts the references to each unversioned roadmap, outside the changelog and the budget itself', () => {
+        const files = [
+            ['src/A.cs', `// ${v4}.md 8.2 and ${v4}.md 8.3`],
+            ['bench/README.md', `see ${v5}/mesures and ${v6}/phase_02.md`],
+            ['CHANGELOG.md', `fix: per ${v5} rule R3`],
+            ['ci/todo-reference-budget.json', `{"references": {"${v4}": 2}}`],
+            ['src/B.cs', `var TODO_VX = 1; // MY_${v4}`]
+        ];
+        expect(countTodoReferences(files)).toEqual({ [v4]: 2, [v5]: 1, [v6]: 1 });
+    });
+
+    it('fails on a new reference and on a drop the budget does not record', () => {
+        const budget = { references: { [v4]: 2, [v5]: 1 } };
+        expect(checkTodoReferences({ [v4]: 2, [v5]: 1 }, budget)).toEqual([]);
+        expect(checkTodoReferences({ [v4]: 3, [v5]: 1 }, budget)).toEqual([
+            `${v4}: 3 references in versioned files, 2 allowed by ci/todo-reference-budget.json: versioned code must not point to an unversioned roadmap.`
+        ]);
+        expect(checkTodoReferences({ [v4]: 2 }, budget)).toEqual([
+            `${v5}: 0 references in versioned files, 1 in ci/todo-reference-budget.json: lower the budget to 0 in this commit.`
+        ]);
+        expect(checkTodoReferences({ [v4]: 2, [v5]: 1, [v6]: 1 }, budget)).toHaveLength(1);
     });
 });
 

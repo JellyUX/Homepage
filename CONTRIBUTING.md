@@ -121,7 +121,8 @@ backticks in `README.md`, `CONTRIBUTING.md` and `docs/` must exist (`DocSymbolSy
 A comment that defers work names the registry id that tracks it; the id prefixes the check accepts are
 the registry id pattern of `ci/static-checks.mjs`. The CI coverage summary (`ci/coverage-summary.mjs`)
 details the risky C# areas and scripts. A new finding category, or a new area at risk, enters these
-lists in the commit that introduces it.
+lists in the commit that introduces it. Versioned files do not point to the unversioned roadmap files:
+the remaining references are counted in `ci/todo-reference-budget.json`, which only goes down.
 
 **Manual test procedure**:
 1. Run `.\docker\scripts\deploy-plugin.ps1` to deploy the latest build.

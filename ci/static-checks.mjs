@@ -18,7 +18,10 @@ const FIRST_VERSION_REQUIRING_MIN_ABI = '2.4.0.0';
 const BINARY_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.ico', '.webp', '.dll', '.pdb', '.zip', '.mkv', '.woff', '.woff2']);
 export const BASELINE_PATH = 'ci/duplication-baseline.json';
 // Ratcheted budgets (TODO_V5 rule R3): a value may only rise in a commit carrying a "Budget:" trailer.
-export const BUDGET_FILES = ['ci/perf-budget.json', 'ci/asset-budget.json', 'ci/duplication-baseline.json', 'ci/dead-code-allowlist.json'];
+export const TODO_REFERENCE_BUDGET = 'ci/todo-reference-budget.json';
+export const BUDGET_FILES = ['ci/perf-budget.json', 'ci/asset-budget.json', 'ci/duplication-baseline.json', 'ci/dead-code-allowlist.json', TODO_REFERENCE_BUDGET];
+// A reference from versioned code to an unversioned roadmap file (TODO_V<n>.md, TODO_V<n>/), PROC-07.d.
+const TODO_REFERENCE = /(?<!\w)TODO_V(\d+)\b/g;
 
 const HEX_COLOR = /(?<![\w&#-])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{3,4})(?![\w-])/g;
 const COLOR_FUNCTION = /\b(?:rgba?|hsla?)\(\s*[\d.]/g;
@@ -166,6 +169,43 @@ export function findUntrackedMarkers(text, ext) {
     return comments.split('\n').flatMap((line, i) => (REGISTRY_ID.test(line)
         ? []
         : [...line.matchAll(DEFERRED_MARKER)].map((m) => ({ line: i + 1, match: m[0] }))));
+}
+
+/**
+ * References to each unversioned roadmap (TODO_V<n>) in the versioned files, the changelog
+ * (release notes quote commit subjects) and the budget file itself left out.
+ * @param {[string, string][]} files Versioned text files, as [path, text].
+ * @returns {Record<string, number>}
+ */
+export function countTodoReferences(files) {
+    const counts = {};
+    for (const [file, text] of files.filter(([f]) => f !== 'CHANGELOG.md' && f !== TODO_REFERENCE_BUDGET)) {
+        for (const match of text.matchAll(TODO_REFERENCE)) {
+            counts[`TODO_V${match[1]}`] = (counts[`TODO_V${match[1]}`] ?? 0) + 1;
+        }
+    }
+    return counts;
+}
+
+/**
+ * Compares the roadmap references with their budget: a new one fails (versioned code must not point to an
+ * unversioned file), and so does a drop the budget does not record, so the ratchet follows every removal.
+ * @param {Record<string, number>} counts
+ * @param {{references: Record<string, number>}} budget
+ * @returns {string[]} Errors.
+ */
+export function checkTodoReferences(counts, budget) {
+    const prefixes = [...new Set([...Object.keys(counts), ...Object.keys(budget.references)])].sort();
+    return prefixes.flatMap((prefix) => {
+        const count = counts[prefix] ?? 0;
+        const allowed = budget.references[prefix] ?? 0;
+        if (count > allowed) {
+            return [`${prefix}: ${count} references in versioned files, ${allowed} allowed by ${TODO_REFERENCE_BUDGET}: versioned code must not point to an unversioned roadmap.`];
+        }
+        return count < allowed
+            ? [`${prefix}: ${count} references in versioned files, ${allowed} in ${TODO_REFERENCE_BUDGET}: lower the budget to ${count} in this commit.`]
+            : [];
+    });
 }
 
 /**
@@ -547,12 +587,14 @@ function main() {
     const warnings = [];
     const report = (list, file, items, what) => items.forEach((it) => list.push({ file, line: it.line, message: `${what}: ${it.match ?? ''}`.trim() }));
 
+    const texts = [];
     for (const file of git(['ls-files']).split('\n').filter(Boolean)) {
         const ext = path.extname(file).toLowerCase();
         if (BINARY_EXTENSIONS.has(ext) || !existsSync(file)) {
             continue;
         }
         const text = readFileSync(file, 'utf8');
+        texts.push([file, text]);
         findEmDashes(text).forEach((line) => errors.push({ file, line, message: 'em dash' }));
         if (file.startsWith(WEB_DIR) && ['.css', '.html', '.js'].includes(ext)) {
             report(errors, file, findColorLiterals(text, ext), 'color literal outside a var() fallback');
@@ -564,6 +606,9 @@ function main() {
             report(errors, file, findUntrackedMarkers(text, ext), 'deferred-work comment without a registry id');
         }
     }
+
+    checkTodoReferences(countTodoReferences(texts), JSON.parse(readFileSync(TODO_REFERENCE_BUDGET, 'utf8')))
+        .forEach((message) => errors.push({ file: TODO_REFERENCE_BUDGET, message }));
 
     checkTargetAbi({
         buildYaml: readFileSync('build.yaml', 'utf8'),

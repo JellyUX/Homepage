@@ -35,6 +35,7 @@
 !ci/dead-code.mjs
 !ci/push-base.mjs
 !ci/dead-code-allowlist.json
+!ci/todo-reference-budget.json
 !e2e/
 !e2e/setup.mjs
 !e2e/helpers.mjs
