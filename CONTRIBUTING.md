@@ -195,7 +195,10 @@ Each change goes through these steps, in order:
 6. **Review**: a fresh-context review of the diff against the criteria.
 7. **Push**: only once the bench run passed (every green `feat:`/`fix:` push publishes a release). Each
    commit of a push must build and pass Vitest on its own (the `commits` CI job, which gates the release);
-   HEAD alone runs the xUnit, E2E and drift suites.
+   HEAD alone runs the xUnit, E2E and drift suites. A `feat:`, `fix:` or `refactor:` commit that adds
+   lines on a surface of `ci/decision-surfaces.json` (cache, concurrency, route, dependency, target,
+   schema tier, budget table) carries a `Decision: DR-nnn` trailer naming its decision record, or
+   `Decision: none - <reason>`; the static job warns without one (`mode` in that file).
 
 ## Definition of Done
 

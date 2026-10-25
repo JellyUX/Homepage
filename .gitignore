@@ -36,6 +36,7 @@
 !ci/push-base.mjs
 !ci/dead-code-allowlist.json
 !ci/todo-reference-budget.json
+!ci/decision-surfaces.json
 !e2e/
 !e2e/setup.mjs
 !e2e/helpers.mjs

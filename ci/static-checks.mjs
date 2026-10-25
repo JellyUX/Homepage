@@ -19,6 +19,7 @@ const BINARY_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.ico', '.we
 export const BASELINE_PATH = 'ci/duplication-baseline.json';
 // Ratcheted budgets (TODO_V5 rule R3): a value may only rise in a commit carrying a "Budget:" trailer.
 export const TODO_REFERENCE_BUDGET = 'ci/todo-reference-budget.json';
+const DECISION_SURFACES = 'ci/decision-surfaces.json';
 export const BUDGET_FILES = ['ci/perf-budget.json', 'ci/asset-budget.json', 'ci/duplication-baseline.json', 'ci/dead-code-allowlist.json', TODO_REFERENCE_BUDGET];
 // A reference from versioned code to an unversioned roadmap file (TODO_V<n>.md, TODO_V<n>/), PROC-07.d.
 const TODO_REFERENCE = /(?<!\w)TODO_V(\d+)\b/g;
@@ -302,6 +303,57 @@ export function checkCommit({ sha, subject, body, files, added }) {
 }
 
 /**
+ * The decision surfaces (ci/decision-surfaces.json) a commit adds lines on, from its zero-context diff.
+ * @param {string} diff `git show --format= --unified=0` output.
+ * @param {{name: string, file: string, line?: string}[]} surfaces
+ * @returns {string[]} Surface names, in list order.
+ */
+export function decisionSurfaceHits(diff, surfaces) {
+    const compiled = surfaces.map((s) => ({ name: s.name, file: new RegExp(s.file), line: s.line ? new RegExp(s.line) : null }));
+    const hits = new Set();
+    let file = null;
+    for (const line of diff.split('\n')) {
+        if (line.startsWith('+++ ')) {
+            file = line === '+++ /dev/null' ? null : line.slice(4).replace(/^b\//, '');
+        } else if (file && line.startsWith('+')) {
+            compiled.filter((s) => s.file.test(file) && (!s.line || s.line.test(line.slice(1)))).forEach((s) => hits.add(s.name));
+        }
+    }
+    return surfaces.map((s) => s.name).filter((name) => hits.has(name));
+}
+
+/**
+ * A feat, fix or refactor commit adding lines on a decision surface names its decision record, or says why
+ * it needs none (D-11): a warning while the surfaces are calibrated, an error once mode is "error".
+ * @param {{sha: string, subject: string, body: string, hits: string[], mode: string}} commit
+ * @returns {{errors: string[], warnings: string[]}}
+ */
+export function checkDecisionTrailer({ sha, subject, body, hits, mode }) {
+    const type = /^(feat|fix|refactor)(\([\w./-]+\))?!?:/.exec(subject)?.[1];
+    if (!type || hits.length === 0 || /^decision:\s*(?:DR-\d{3}\b|none - \S)/im.test(body)) {
+        return { errors: [], warnings: [] };
+    }
+    const message = `${sha.slice(0, 7)}: ${type}: on a decision surface (${hits.join(', ')}) needs a "Decision: DR-nnn" or "Decision: none - <reason>" trailer.`;
+    return mode === 'error' ? { errors: [message], warnings: [] } : { errors: [], warnings: [message] };
+}
+
+/**
+ * Replays the decision trailer rule on a commit range: the commits it concerns, as "sha surfaces | subject".
+ * @param {string} range
+ * @param {{name: string, file: string, line?: string}[]} surfaces
+ * @returns {string[]}
+ */
+export function replayDecisionSurfaces(range, surfaces) {
+    // One git call for the range: each record is sha, subject, body, then the commit's diff.
+    const log = git(['log', '--no-merges', '-p', '--unified=0', '--no-color', '--format=%x1e%H%x1f%s%x1f%b%x1f', range]);
+    return log.split('\x1e').filter(Boolean).flatMap((record) => {
+        const [sha, subject, body, diff] = record.split('\x1f');
+        const { warnings } = checkDecisionTrailer({ sha, subject, body, hits: decisionSurfaceHits(diff, surfaces), mode: 'warning' });
+        return warnings.length > 0 ? [`${sha.slice(0, 7)} ${decisionSurfaceHits(diff, surfaces).join('+')} | ${subject}`] : [];
+    });
+}
+
+/**
  * Measures of a ratcheted file, keyed "table/name", with the tables they come from:
  * - a table of numbers (endpoints, assets, totals): each number;
  * - a table of strings (an allowlist): its entry count, as "table/#entries";
@@ -544,7 +596,7 @@ export function compareDuplication(current, baseline) {
 }
 
 function git(args) {
-    return execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    return execFileSync('git', args, { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
 }
 
 function gitShowOrNull(spec) {
@@ -620,6 +672,7 @@ function main() {
     const range = rangeArg > 0 ? process.argv[rangeArg + 1] : '';
     if (range) {
         const pushCommits = [];
+        const decisions = JSON.parse(readFileSync(DECISION_SURFACES, 'utf8'));
         for (const sha of git(['rev-list', '--no-merges', range]).split('\n').filter(Boolean)) {
             const author = git(['log', '-1', '--format=%an', sha]).trim();
             if (author.endsWith('[bot]')) {
@@ -632,9 +685,14 @@ function main() {
                 added[file] = plus === '-' ? 0 : Number(plus);
             }
             const files = Object.keys(added);
-            const result = checkCommit({ sha, subject: git(['log', '-1', '--format=%s', sha]).trim(), body, files, added });
-            result.errors.forEach((message) => errors.push({ message }));
-            result.warnings.forEach((message) => warnings.push({ message }));
+            const subject = git(['log', '-1', '--format=%s', sha]).trim();
+            const hits = /^(feat|fix|refactor)\b/.test(subject)
+                ? decisionSurfaceHits(git(['show', '--format=', '--unified=0', '--no-color', sha]), decisions.surfaces)
+                : [];
+            for (const result of [checkCommit({ sha, subject, body, files, added }), checkDecisionTrailer({ sha, subject, body, hits, mode: decisions.mode })]) {
+                result.errors.forEach((message) => errors.push({ message }));
+                result.warnings.forEach((message) => warnings.push({ message }));
+            }
             pushCommits.unshift({ sha, body, files });
         }
         const [base, head] = range.split('..');

@@ -9,6 +9,9 @@ import {
     checkTodoReferences,
     checkTargetAbi,
     checkCommit,
+    decisionSurfaceHits,
+    checkDecisionTrailer,
+    replayDecisionSurfaces,
     checkBudget,
     checkPushBudgets,
     groupCloneFamilies,
@@ -303,6 +306,40 @@ describe('checkPushBudgets', () => {
     it('reports a single raise once, from the commit that makes it', () => {
         const errors = run(budget(17), [{ sha: 'aaaaaaa1', text: budget(18) }]);
         expect(errors).toEqual([expect.stringContaining('aaaaaaa: ci/perf-budget.json raises')]);
+    });
+});
+
+describe('decision surfaces (D-11)', () => {
+    const surfaces = JSON.parse(readFileSync('ci/decision-surfaces.json', 'utf8')).surfaces;
+    const diff = (file, ...lines) => `diff --git a/${file} b/${file}\n--- a/${file}\n+++ b/${file}\n@@ -1,0 +1,${lines.length} @@\n${lines.map((l) => `+${l}`).join('\n')}\n`;
+
+    it('finds the surfaces a commit adds lines on, from the path or the added line', () => {
+        expect(decisionSurfaceHits(diff('src/Jellyfin.Plugin.JuxHomepage/Widgets/Service/WidgetService.cs', 'var a = 1;'), surfaces)).toEqual(['Widgets/Service/**']);
+        expect(decisionSurfaceHits(diff('src/Jellyfin.Plugin.JuxHomepage/Controllers/JuxHomepageController.cs', '    [HttpGet("x")]'), surfaces)).toEqual(['HTTP route']);
+        expect(decisionSurfaceHits(diff('src/Jellyfin.Plugin.JuxHomepage/Plugin.cs', '    private const int CurrentSchemaVersion = 12;'), surfaces)).toEqual(['schema tier']);
+        expect(decisionSurfaceHits(diff('src/Jellyfin.Plugin.JuxHomepage/Web/jux-ui.js', 'var a = 1;'), surfaces)).toEqual([]);
+        expect(decisionSurfaceHits('--- a/src/Jellyfin.Plugin.JuxHomepage/Caching/X.cs\n+++ /dev/null\n@@ -1 +0,0 @@\n-gone\n', surfaces)).toEqual([]);
+    });
+
+    it('warns about a feat, fix or refactor on a surface without a Decision trailer, errors once blocking', () => {
+        const hits = ['Caching/**'];
+        const commit = { sha: 'abcdef1234', subject: 'fix: keep the cache', body: '' };
+        expect(checkDecisionTrailer({ ...commit, hits, mode: 'warning' })).toEqual({
+            errors: [],
+            warnings: ['abcdef1: fix: on a decision surface (Caching/**) needs a "Decision: DR-nnn" or "Decision: none - <reason>" trailer.']
+        });
+        expect(checkDecisionTrailer({ ...commit, hits, mode: 'error' }).errors).toHaveLength(1);
+        expect(checkDecisionTrailer({ ...commit, body: 'Decision: DR-004', hits, mode: 'error' })).toEqual({ errors: [], warnings: [] });
+        expect(checkDecisionTrailer({ ...commit, body: 'Decision: none - a rename', hits, mode: 'error' })).toEqual({ errors: [], warnings: [] });
+        expect(checkDecisionTrailer({ ...commit, body: 'Decision: DR-4', hits, mode: 'error' }).errors).toHaveLength(1);
+        expect(checkDecisionTrailer({ ...commit, subject: 'chore(ci): move', hits, mode: 'error' })).toEqual({ errors: [], warnings: [] });
+        expect(checkDecisionTrailer({ ...commit, hits: [], mode: 'error' })).toEqual({ errors: [], warnings: [] });
+    });
+
+    it('concerns 15 to 40 commits of v2.14.0..v2.17.1, the calibration of MB-23 (D-11.b)', () => {
+        const concerned = replayDecisionSurfaces('v2.14.0..v2.17.1', surfaces);
+        expect(concerned.length).toBeGreaterThanOrEqual(15);
+        expect(concerned.length).toBeLessThanOrEqual(40);
     });
 });
 

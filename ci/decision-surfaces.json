@@ -1,0 +1,13 @@
+{
+    "description": "Code surfaces where a feat, fix or refactor commit makes a non-trivial choice (cache, concurrency, API contract, dependency, target, schema, budget table), read by ci/static-checks.mjs --commits (D-11). A commit that adds a line on one carries a 'Decision: DR-nnn' trailer naming its decision record, or 'Decision: none - <reason>'. A surface matches a file path (file) and, when given, an added line (line), both regular expressions. Calibrated by replaying the rule on v2.14.0..v2.17.1: 25 of 210 commits (test/static-checks.test.js keeps it between 15 and 40). mode is 'warning' while the list is calibrated, 'error' once it blocks.",
+    "mode": "warning",
+    "surfaces": [
+        { "name": "Caching/**", "file": "^src/Jellyfin\\.Plugin\\.JuxHomepage/Caching/" },
+        { "name": "Widgets/Service/**", "file": "^src/Jellyfin\\.Plugin\\.JuxHomepage/Widgets/Service/" },
+        { "name": "HTTP route", "file": "\\.cs$", "line": "\\[Http(Get|Post|Put|Delete|Patch)\\b" },
+        { "name": "package reference", "file": "\\.csproj$", "line": "<PackageReference\\b" },
+        { "name": "target framework or Jellyfin version", "file": "\\.(csproj|props|targets|ya?ml)$", "line": "(TargetFramework|JellyfinVersion|targetAbi)" },
+        { "name": "schema tier", "file": "\\.cs$", "line": "Current(User)?SchemaVersion\\s*=\\s*\\d+" },
+        { "name": "perf budget table", "file": "^ci/perf-budget\\.json$", "line": "^\\s{2}\"[^\"]+\"\\s*:\\s*[{[]" }
+    ]
+}
