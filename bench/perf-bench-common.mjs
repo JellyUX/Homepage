@@ -58,8 +58,18 @@ export function stats(values) {
         const lo = Math.floor(idx), hi = Math.ceil(idx);
         return v[lo] + (v[hi] - v[lo]) * (idx - lo);
     };
-    // Median: linear interpolation. p95: nearest rank, v[ceil(0.95 n) - 1] (equals the maximum when n <= 19).
-    return { n: v.length, median: q(0.5), p95: v[Math.ceil(0.95 * v.length) - 1], min: v[0], max: v[v.length - 1] };
+    // Median: linear interpolation. p95: nearest rank, v[ceil(0.95 n) - 1], only from 20 values (V3, PROC-02.c):
+    // below, the nearest rank is the maximum, so the tail is reported as the maximum with its n (tail()).
+    return { n: v.length, median: q(0.5), p95: v.length >= P95_MIN_N ? v[Math.ceil(0.95 * v.length) - 1] : null, min: v[0], max: v[v.length - 1] };
+}
+
+export const P95_MIN_N = 20;
+export const TAIL_HEADER = 'p95 (n >= 20) / max (n)';
+
+/** The tail of a stats() result: its p95 from 20 values, otherwise "max <value> (n)". */
+export function tail(s, format = String) {
+    if (s.n === 0) { return 'n/a'; }
+    return s.n >= P95_MIN_N ? format(s.p95) : `max ${format(s.max)} (${s.n})`;
 }
 
 import { execFileSync } from 'node:child_process';

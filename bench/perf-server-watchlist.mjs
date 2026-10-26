@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { serverUrl, rawDir, stats } from './perf-bench-common.mjs';
+import { serverUrl, rawDir, stats, tail } from './perf-bench-common.mjs';
 import { authUnique } from './perf-server-auth.mjs';
 import { startSeries, endSeries } from './bench-fingerprint.mjs';
 
@@ -33,7 +33,7 @@ const rows = ['rep,label,ms'];
 for (let r = 0; r < reps; r++) {
     routes.forEach(([label, route], i) => { const ms = curl(route); v[i].push(ms); rows.push([r, `"${label}"`, ms.toFixed(1)].join(',')); });
 }
-routes.forEach(([label], i) => { const s = stats(v[i]); console.log(label.padEnd(58), 'median', s.median.toFixed(0), 'p95', s.p95.toFixed(0)); });
+routes.forEach(([label], i) => { const s = stats(v[i]); console.log(label.padEnd(58), 'median', s.median.toFixed(0), 'tail', tail(s, (x) => x.toFixed(0))); });
 writeFileSync(path.join(rawDir, 'perf-server-watchlist.csv'), rows.join('\n') + '\n');
 await u.logout();
 await endSeries(series);

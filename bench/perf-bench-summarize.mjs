@@ -1,8 +1,9 @@
-// Aggregates the perf-bench raw files into flat CSVs and prints median / p95 tables (markdown).
+// Aggregates the perf-bench raw files into flat CSVs and prints median / tail tables (markdown): the p95 from
+// 20 values, the maximum and n below (V3).
 //   node bench/perf-bench-summarize.mjs
 import { readFileSync, existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { rawDir, stats } from './perf-bench-common.mjs';
+import { rawDir, stats, tail, TAIL_HEADER } from './perf-bench-common.mjs';
 
 const f1 = (x) => (x === null || x === undefined ? 'n/a' : (Math.round(x * 10) / 10).toLocaleString('fr-FR'));
 const f0 = (x) => (x === null || x === undefined ? 'n/a' : Math.round(x).toLocaleString('fr-FR'));
@@ -68,15 +69,15 @@ writeFileSync(path.join(rawDir, 'perf-bench-browser-flat.csv'), 'profile,viewpor
 const fmtFor = (k) => (/bytes|Bytes/.test(k) ? kib : /Ms$|MiB$/.test(k) ? f0 : f1);
 for (const set of browserSets) {
     console.log(`\n### Navigateur ${set.profile} ${set.viewport} (${set.file})\n`);
-    console.log('| Indicateur | froid médiane | froid p95 | chaud médiane | chaud p95 | n froid / chaud |');
+    console.log(`| Indicateur | froid médiane | froid ${TAIL_HEADER} | chaud médiane | chaud ${TAIL_HEADER} | n froid / chaud |`);
     console.log('|---|---|---|---|---|---|');
     const keys = [...new Set([...set.cold, ...set.warm].flatMap((v) => Object.keys(v)))];
     for (const k of keys) {
         const c = stats(set.cold.map((v) => v[k])); const w = stats(set.warm.map((v) => v[k]));
         const f = fmtFor(k);
-        console.log(`| ${k}${/bytes|Bytes/.test(k) ? ' (KiB)' : ''} | ${f(c.median)} | ${f(c.p95)} | ${f(w.median)} | ${f(w.p95)} | ${c.n} / ${w.n} |`);
+        console.log(`| ${k}${/bytes|Bytes/.test(k) ? ' (KiB)' : ''} | ${f(c.median)} | ${tail(c, f)} | ${f(w.median)} | ${tail(w, f)} | ${c.n} / ${w.n} |`);
     }
-    for (const [k, arr] of Object.entries(set.mem)) { const s = stats(arr); console.log(`| mem.${k} (MiB) | ${f1(s.median)} | ${f1(s.p95)} | | | ${s.n} |`); }
+    for (const [k, arr] of Object.entries(set.mem)) { const s = stats(arr); console.log(`| mem.${k} (MiB) | ${f1(s.median)} | ${tail(s, f1)} | | | ${s.n} |`); }
 
     // Duplicated URLs (same method + URL more than once) during the home load, and across the session.
     const dupHome = new Map(); const dupSession = new Map();
@@ -121,11 +122,11 @@ for (const profile of ['std', 'lowend']) {
         if (mode === 'cold') { e.cold.push(Number(total)); e.coldT.push(Number(ttfb)); } else { e.warm.push(Number(total)); e.warmT.push(Number(ttfb)); }
     }
     console.log(`\n### Endpoints ${profile} (perf-bench-endpoints-${profile}.csv), time_total ms (TTFB entre parenthèses)\n`);
-    console.log('| Endpoint | froid médiane | froid p95 | chaud médiane | chaud p95 | n froid / chaud | octets | HTTP |');
+    console.log(`| Endpoint | froid médiane | froid ${TAIL_HEADER} | chaud médiane | chaud ${TAIL_HEADER} | n froid / chaud | octets | HTTP |`);
     console.log('|---|---|---|---|---|---|---|---|');
     for (const ep of order) {
         const e = m.get(ep); const c = stats(e.cold); const w = stats(e.warm); const ct = stats(e.coldT); const wt = stats(e.warmT);
-        console.log(`| ${ep} | ${f1(c.median)} (${f1(ct.median)}) | ${f1(c.p95)} | ${f1(w.median)} (${f1(wt.median)}) | ${f1(w.p95)} | ${c.n} / ${w.n} | ${e.size} | ${[...e.codes].join('/')} |`);
+        console.log(`| ${ep} | ${f1(c.median)} (${f1(ct.median)}) | ${tail(c, f1)} | ${f1(w.median)} (${f1(wt.median)}) | ${tail(w, f1)} | ${c.n} / ${w.n} | ${e.size} | ${[...e.codes].join('/')} |`);
     }
 }
 
@@ -138,14 +139,14 @@ for (const profile of ['std', 'lowend']) {
     const e = load(`perf-bench-startup-endpoints-${profile}.json`); if (e) { e.forEach((r) => add(r, 'endpoints')); }
     if (recs.length === 0) { continue; }
     console.log(`\n### Démarrage ${profile} (n = ${recs.length} redémarrages ; ms depuis State.StartedAt du conteneur)\n`);
-    console.log('| Jalon | médiane | p95 | min | max | n |');
+    console.log(`| Jalon | médiane | ${TAIL_HEADER} | min | max | n |`);
     console.log('|---|---|---|---|---|---|');
     const keys = Object.keys(recs[0].markersFromProcessStartMs || {});
-    for (const k of keys) { const s = stats(recs.map((r) => r.markersFromProcessStartMs[k])); console.log(`| ${k} | ${f0(s.median)} | ${f0(s.p95)} | ${f0(s.min)} | ${f0(s.max)} | ${s.n} |`); }
-    for (const k of ['startedToHealthyMs', 'cmdToHealthyMs']) { const s = stats(recs.map((r) => r[k])); console.log(`| ${k} | ${f0(s.median)} | ${f0(s.p95)} | ${f0(s.min)} | ${f0(s.max)} | ${s.n} |`); }
-    const s = stats(recs.map((r) => r.memRest && r.memRest.memMiB)); console.log(`| mémoire au repos (MiB, 30 s après /health) | ${f1(s.median)} | ${f1(s.p95)} | ${f1(s.min)} | ${f1(s.max)} | ${s.n} |`);
+    for (const k of keys) { const s = stats(recs.map((r) => r.markersFromProcessStartMs[k])); console.log(`| ${k} | ${f0(s.median)} | ${tail(s, f0)} | ${f0(s.min)} | ${f0(s.max)} | ${s.n} |`); }
+    for (const k of ['startedToHealthyMs', 'cmdToHealthyMs']) { const s = stats(recs.map((r) => r[k])); console.log(`| ${k} | ${f0(s.median)} | ${tail(s, f0)} | ${f0(s.min)} | ${f0(s.max)} | ${s.n} |`); }
+    const s = stats(recs.map((r) => r.memRest && r.memRest.memMiB)); console.log(`| mémoire au repos (MiB, 30 s après /health) | ${f1(s.median)} | ${tail(s, f1)} | ${f1(s.min)} | ${f1(s.max)} | ${s.n} |`);
     const d = stats(recs.map((r) => r.markersFromProcessStartMs.registeredHomeHtml - r.markersFromProcessStartMs.juxIndexRegistered));
-    console.log(`| durée enregistrement patchs JellyUX (index.html -> home-html) | ${f0(d.median)} | ${f0(d.p95)} | ${f0(d.min)} | ${f0(d.max)} | ${d.n} |`);
+    console.log(`| durée enregistrement patchs JellyUX (index.html -> home-html) | ${f0(d.median)} | ${tail(d, f0)} | ${f0(d.min)} | ${f0(d.max)} | ${d.n} |`);
 }
 
 for (const profile of ['std', 'lowend']) {
@@ -156,9 +157,9 @@ for (const profile of ['std', 'lowend']) {
     const sc = stats(tg.disabled.map((r) => r.markersFromProcessStartMs.startupComplete));
     console.log(`
 ### JellyUX désactivé ${profile} (perf-bench-plugin-toggle-${profile}.json)
-- mémoire au repos : médiane ${f1(s.median)} MiB, p95 ${f1(s.p95)}, n=${s.n}
-- StartedAt -> /health : médiane ${f0(h.median)} ms, p95 ${f0(h.p95)}, n=${h.n}
-- StartedAt -> Startup complete : médiane ${f0(sc.median)} ms, p95 ${f0(sc.p95)}, n=${sc.n}
+- mémoire au repos : médiane ${f1(s.median)} MiB, ${TAIL_HEADER} ${tail(s, f1)}, n=${s.n}
+- StartedAt -> /health : médiane ${f0(h.median)} ms, ${TAIL_HEADER} ${tail(h, f0)}, n=${h.n}
+- StartedAt -> Startup complete : médiane ${f0(sc.median)} ms, ${TAIL_HEADER} ${tail(sc, f0)}, n=${sc.n}
 - statut JellyUX pendant : ${[...new Set(tg.disabled.map((r) => r.juxStatus))].join(',')}
 - après : ${tg.after.plugins.map((p) => `${p.name} ${p.version} ${p.status}`).join('; ')}`);
 }
@@ -169,21 +170,21 @@ for (const profile of ['std', 'lowend']) {
     console.log(`
 ### Sections selon le délai depuis l'appel précédent ${profile} (perf-bench-sections-interval-${profile}.csv)
 `);
-    console.log('| délai (s) | médiane ms | p95 ms | min | max | n |');
+    console.log(`| délai (s) | médiane ms | ${TAIL_HEADER} ms | min | max | n |`);
     console.log('|---|---|---|---|---|---|');
     for (const gap of [...new Set(lines.map((l) => l[1]))]) {
         const st = stats(lines.filter((l) => l[1] === gap).map((l) => Number(l[5])));
-        console.log(`| ${gap} | ${f0(st.median)} | ${f0(st.p95)} | ${f0(st.min)} | ${f0(st.max)} | ${st.n} |`);
+        console.log(`| ${gap} | ${f0(st.median)} | ${tail(st, f0)} | ${f0(st.min)} | ${f0(st.max)} | ${st.n} |`);
     }
 }
 for (const profile of ['std', 'lowend']) {
     const t = load(`perf-bench-tasks-${profile}.json`);
     if (!t) { continue; }
     console.log(`\n### Tâches planifiées ${profile} (perf-bench-tasks-${profile}.json)\n`);
-    console.log('| Tâche | médiane ms | p95 ms | min | max | n | statuts |');
+    console.log(`| Tâche | médiane ms | ${TAIL_HEADER} ms | min | max | n | statuts |`);
     console.log('|---|---|---|---|---|---|---|');
     for (const name of [...new Set(t.map((x) => x.task))]) {
         const xs = t.filter((x) => x.task === name); const s = stats(xs.map((x) => x.durationMs));
-        console.log(`| ${name} | ${f0(s.median)} | ${f0(s.p95)} | ${f0(s.min)} | ${f0(s.max)} | ${s.n} | ${[...new Set(xs.map((x) => x.status))].join(',')} |`);
+        console.log(`| ${name} | ${f0(s.median)} | ${tail(s, f0)} | ${f0(s.min)} | ${f0(s.max)} | ${s.n} | ${[...new Set(xs.map((x) => x.status))].join(',')} |`);
     }
 }

@@ -58,7 +58,7 @@ through `JUX_BENCH_OVERRIDES` (items separated by `;`).
 | `perf-bench-plugin-toggle.mjs` | memory and startup with JellyUX disabled, then enabled again |
 | `perf-server-sections-ttl.mjs` | `Sections` polled at a fixed step: cache expiry pattern |
 | `perf-server-watchlist.mjs --reps 7` | `Watchlist/Ids` and `Watchlist/Items` against native queries |
-| `perf-bench-summarize.mjs` | median and p95 tables from the raw files |
+| `perf-bench-summarize.mjs` | median and tail tables from the raw files: the p95 from 20 values, otherwise `max <value> (n)` |
 
 `lowend.override.yml` limits the container to 1 CPU and 1 GiB for the low-end profile.
 
