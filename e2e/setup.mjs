@@ -35,7 +35,17 @@ const FILE_TRANSFORMATION = {
     }
 };
 
-const MOVIES = [['Alder Creek', 2001], ['Birch Hollow', 2004], ['Cedar Point', 2009], ['Dogwood Lane', 2015]];
+// Twelve movies, more than one screen of cards at 1920 px (5 x 23.5vw) and at 390 px (3 x 45.5vw) (V7,
+// PROC-01.b): the 4 dramas each have a backdrop, the 8 comedies 2 only, so a featured comedy section has
+// too few backdrops for a banner and falls back to a row of cards wider than the screen.
+const MOVIES = [
+    ['Alder Creek', 2001, 'Drama', true], ['Birch Hollow', 2004, 'Drama', true],
+    ['Cedar Point', 2009, 'Drama', true], ['Dogwood Lane', 2015, 'Drama', true],
+    ['Ivy Court', 2003, 'Comedy', true], ['Juniper Hill', 2006, 'Comedy', true],
+    ['Kapok Grove', 2008, 'Comedy', false], ['Larch Meadow', 2011, 'Comedy', false],
+    ['Maple Ford', 2013, 'Comedy', false], ['Nutmeg Run', 2017, 'Comedy', false],
+    ['Olive Wharf', 2019, 'Comedy', false], ['Pine Ridge', 2021, 'Comedy', false]
+];
 // Four of each: the recently added sections only show from MinItems = 4 (NativeWidgetDefaults).
 const SHOWS = ['Elm Street Stories', 'Fir Valley', 'Ginkgo Bay', 'Hazel Ridge'];
 const EPISODES = 2;
@@ -148,19 +158,21 @@ function writeLibrary(image) {
         '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=duration=2:size=320x180:rate=10',
         '-f', 'lavfi', '-i', 'sine=duration=2', '-c:v', 'libx264', '-c:a', 'aac', '-shortest', '/out/seed.mkv');
     const seed = path.join(media, 'seed.mkv');
-    // One local backdrop per movie (read by Jellyfin's local image provider, no fetcher needed): a
-    // featured section shows only items with a backdrop (KTW-01, KTW-02); the shows keep none.
+    // A local backdrop for the movies flagged in MOVIES (read by Jellyfin's local image provider, no fetcher
+    // needed): a featured section shows only items with a backdrop (KTW-01, KTW-02); the shows keep none.
     docker('run', '--rm', '--entrypoint', '/usr/lib/jellyfin-ffmpeg/ffmpeg', '-v', `${media}:/out`, image,
         '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc2=size=1280x720', '-frames:v', '1', '/out/backdrop.jpg');
     const backdrop = path.join(media, 'backdrop.jpg');
 
-    for (const [title, year] of MOVIES) {
+    for (const [title, year, genre, hasBackdrop] of MOVIES) {
         const dir = path.join(media, 'movies', `${title} (${year})`);
         mkdirSync(dir, { recursive: true });
         copyFileSync(seed, path.join(dir, `${title} (${year}).mkv`));
-        copyFileSync(backdrop, path.join(dir, 'backdrop.jpg'));
+        if (hasBackdrop) {
+            copyFileSync(backdrop, path.join(dir, 'backdrop.jpg'));
+        }
         writeFileSync(path.join(dir, 'movie.nfo'),
-            `<movie><title>${title}</title><year>${year}</year><genre>Drama</genre><rating>7</rating></movie>`);
+            `<movie><title>${title}</title><year>${year}</year><genre>${genre}</genre><rating>7</rating></movie>`);
     }
 
     for (const title of SHOWS) {
@@ -223,6 +235,7 @@ async function up() {
         admin: { name: 'admin', password: randomBytes(12).toString('hex') },
         restricted: { name: 'restricted', password: randomBytes(12).toString('hex') },
         movies: MOVIES.map(([t]) => t),
+        moviesWithBackdrop: MOVIES.filter((m) => m[3]).map(([t]) => t),
         shows: SHOWS
     };
     await waitForServer(env.serverUrl);

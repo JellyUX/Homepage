@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { env, login, watchJuxErrors, adminToken, pluginConfiguration, isPainted } from '../helpers.mjs';
 
 // KTW-01: a featured section, alone on the home page so its place does not depend on the others. The
-// configuration is restored after each test. Each movie of the bench has a backdrop (e2e/setup.mjs).
+// configuration is restored after each test. The bench movies with a backdrop are listed in env.json.
 async function withOnlyRow(row, run) {
     const token = await adminToken();
     const saved = await pluginConfiguration(token);
@@ -51,7 +51,7 @@ test('KTW-01.a banner: a featured section shows its movies, loads two backdrops,
 
         const banner = page.locator('.jux-featured');
         await expect(banner).toBeVisible();
-        await expect(banner.locator('.jux-featured-slide')).toHaveCount(4);
+        await expect(banner.locator('.jux-featured-slide')).toHaveCount(env.moviesWithBackdrop.length);
         await expect(banner.locator('.jux-featured-slide.jux-featured-active .jux-featured-backdrop.jux-featured-loaded')).toHaveCount(1);
 
         // KTW-01.b image budget: the active slide and the next one only, at a server size, and at most the
