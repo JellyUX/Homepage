@@ -80,7 +80,7 @@ server.version,server.image` declares the fields a comparison changes on purpose
 | Script | Measures |
 |---|---|
 | `perf-bench-endpoints.mjs --profile std --cycles 5 --warm 10` | cold and warm latency of every JellyUX GET endpoint, startup timings |
-| `perf-bench-cycle.mjs --profile std --viewport desktop --cycles 5 --warm 5` | home page in a browser, cold then warm (uses `perf-bench-browser.mjs`) |
+| `perf-bench-cycle.mjs --profile std --viewport desktop --cycles 5 --warm 5 [--banner]` | home page in a browser, cold then warm (uses `perf-bench-browser.mjs`); `mobile` is 390 x 844 at DPR 3 |
 | `perf-bench-sections-interval.mjs --gaps 0,5,15,30,60 --reps 5` | `Sections` latency against the delay since the previous call |
 | `perf-bench-tasks.mjs --runs 5` | duration of each JellyUX scheduled task |
 | `perf-bench-plugin-toggle.mjs` | memory and startup with JellyUX disabled, then enabled again |
@@ -89,6 +89,16 @@ server.version,server.image` declares the fields a comparison changes on purpose
 | `perf-bench-summarize.mjs` | median and tail tables from the raw files: the p95 from 20 values, otherwise `max <value> (n)` |
 
 `lowend.override.yml` limits the container to 1 CPU and 1 GiB for the low-end profile.
+
+The browser scripts count a home row (`.homeSectionsContainer .verticalSection`, the same on native Jellyfin,
+Homepage and KefinTweaks) as shown when it holds a real card or the loaded backdrop of the active banner
+slide (`BENCH_SECTION_SEL`, `BENCH_CARD_SEL` override them). Before a series they check the selectors on
+the target (`selectors-<viewport>.json`): a row with a card, no skeleton counted, and with `--banner` a
+loaded banner first. Each home load records a timed chain from Resource Timing (`chain.*`: user known, home
+and loadSections chunks, loadSections called, end of Sections, first row request, first row shown); the
+loadSections call is estimated by the start of the first request it sends, no mark is placed in the product
+(`BENCH_LOADSECTIONS_CHUNK` names the chunk of another Jellyfin Web bundle). `BENCH_KT_LOCAL=<folder>`
+serves KefinTweaks from a local copy instead of jsDelivr.
 
 ## Reliability (disposable E2E bench on 8098)
 

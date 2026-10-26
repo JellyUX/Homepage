@@ -37,6 +37,7 @@ function flatHome(run) {
         'home.longtaskCount': h.longtaskCount, 'home.longtaskTotalMs': h.longtaskTotalMs, 'home.longtaskMaxMs': h.longtaskMaxMs,
         'home.jsHeapUsedMiB': h.jsHeapUsedMiB
     };
+    for (const [k, x] of Object.entries(h.chain || {})) { v[`chain.${k}`] = x; }
     if (run.back) {
         v['back.firstSectionMs'] = run.back.firstSectionMs; v['back.allSectionsMs'] = run.back.allSectionsMs;
         v['back.requestsLocal'] = run.back.net.list.filter((r) => !r.url.startsWith('http')).length;
@@ -91,6 +92,7 @@ export function summarizeSeries(dir) {
             console.log(`| ${k}${/bytes|Bytes/.test(k) ? ' (KiB)' : ''} | ${f(c.median)} | ${tail(c, f)} | ${f(w.median)} | ${tail(w, f)} | ${c.n} / ${w.n} |`);
         }
         for (const [k, arr] of Object.entries(set.mem)) { const s = stats(arr); console.log(`| mem.${k} (MiB) | ${f1(s.median)} | ${tail(s, f1)} | | | ${s.n} |`); }
+        console.log('\nchain.* : ms depuis le début de la navigation (Resource Timing) ; chain.loadSectionsCallEstMs est une estimation (début de la 1re requête Sections ou UserViews), aucune marque dans le produit.');
 
         // Duplicated URLs (same method + URL more than once) during the home load, and across the session.
         const dupHome = new Map(); const dupSession = new Map();

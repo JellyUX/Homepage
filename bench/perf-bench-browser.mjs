@@ -7,6 +7,23 @@ import path from 'node:path';
 import { serverUrl, readCredentials, sleep, rawDir } from './perf-bench-common.mjs';
 
 export const VIEWPORTS = { desktop: { width: 1920, height: 1080 }, mobile: { width: 390, height: 844 } };
+// Browser contexts: the phone is a 390 x 844 screen at DPR 3 with touch, so its images are the ones a phone
+// asks for (PROC-01.d).
+export const CONTEXTS = {
+    desktop: { viewport: VIEWPORTS.desktop, deviceScaleFactor: 1 },
+    mobile: { viewport: VIEWPORTS.mobile, deviceScaleFactor: 3, isMobile: true, hasTouch: true }
+};
+// Selectors shared by native Jellyfin, Homepage and KefinTweaks homes: every home row is a .verticalSection of
+// .homeSectionsContainer, shown once it holds a real card (not a JellyUX skeleton) or the loaded backdrop of the
+// active banner slide. validateTarget() checks them on the target before a series (V6).
+export const SECTION_SEL = process.env.BENCH_SECTION_SEL || '.page:not(.hide) .homeSectionsContainer .verticalSection';
+export const CARD_SEL = process.env.BENCH_CARD_SEL || '.card:not(.jux-skeleton-card), .jux-featured-active .jux-featured-backdrop.jux-featured-loaded';
+// Chunk that defines loadSections in Jellyfin Web 10.11.10 and 10.11.11 (TransformationPatches.HookCardBuilder);
+// another bundle names it differently: set BENCH_LOADSECTIONS_CHUNK to its pattern.
+const LOADSECTIONS_CHUNK = process.env.BENCH_LOADSECTIONS_CHUNK || '/56213\\.[0-9a-f]+\\.chunk\\.js';
+// KefinTweaks served from a local folder instead of jsDelivr (PROC-02.h): BENCH_KT_LOCAL=<folder holding the
+// files of the KefinTweaks repository at the version measured>.
+const KT_CDN = /^https:\/\/cdn\.jsdelivr\.net\/gh\/ranaldsgift\/KefinTweaks@[^/]+\/(.+?)(\?.*)?$/;
 // Low-end profile network: 150 ms latency, 1.6 Mbit/s down, 750 kbit/s up, both x0.9 as DevTools does.
 export const LOWEND_NETWORK = { offline: false, latency: 150, downloadThroughput: Math.round(1.6e6 * 0.9 / 8), uploadThroughput: Math.round(750e3 * 0.9 / 8) };
 export const LOWEND_CPU_RATE = 4;
@@ -18,28 +35,31 @@ export const TABS = [
 ];
 
 // Runs before every document: long tasks, long animation frames (script attribution), and a
-// per-frame poll recording when each JellyUX section first holds a visible card.
+// per-frame poll recording when each home row first holds a visible card.
 const INIT = `(() => {
+  const SEC = ${JSON.stringify(SECTION_SEL)}, CARD = ${JSON.stringify(CARD_SEL)};
+  try { performance.setResourceTimingBufferSize(5000); } catch (e) {}
   const P = window.__juxPerf = { longtasks: [], loaf: [], sections: [], firstSection: null, lastChange: 0, t0: 0 };
   try { new PerformanceObserver((l) => l.getEntries().forEach((e) => P.longtasks.push({ start: e.startTime, dur: e.duration, attr: (e.attribution || []).map((a) => a.containerSrc || a.containerName || a.name) }))).observe({ type: 'longtask', buffered: true }); } catch (e) {}
   try { new PerformanceObserver((l) => l.getEntries().forEach((e) => P.loaf.push({ start: e.startTime, dur: e.duration, blocking: e.blockingDuration, scripts: (e.scripts || []).map((s) => ({ src: s.sourceURL, fn: s.sourceFunctionName, dur: s.duration, inv: s.invoker, charPos: s.sourceCharPosition })) }))).observe({ type: 'long-animation-frame', buffered: true }); } catch (e) {}
+  const label = (s) => ([...s.classList].find((c) => c.startsWith('jux-widget-jux-')) || (s.querySelector('.sectionTitle') || {}).textContent || '?').replace('jux-widget-', '').trim().slice(0, 60);
   const seen = new WeakMap();
   P.reset = () => { P.sections = []; P.firstSection = null; P.t0 = performance.now(); P.lastChange = P.t0; P.gen = (P.gen || 0) + 1; };
   const tick = () => {
     const now = performance.now();
-    const list = document.querySelectorAll('.page:not(.hide) .jux-widget-section');
+    const list = document.querySelectorAll(SEC);
     for (const s of list) {
       let rec = seen.get(s);
       if (!rec || rec.gen !== (P.gen || 0)) {
-        rec = { gen: P.gen || 0, cls: ([...s.classList].find((c) => c.startsWith('jux-widget-jux-')) || '?').replace('jux-widget-', ''), created: now - P.t0, card: null, visible: null };
+        rec = { gen: P.gen || 0, cls: label(s), created: now - P.t0, card: null, visible: null };
         seen.set(s, rec); P.sections.push(rec); P.lastChange = now;
       }
       if (rec.card === null) {
-        const card = s.querySelector('.card:not(.jux-skeleton-card)');
-        if (card) { rec.card = now - P.t0; P.lastChange = now; }
+        const card = s.querySelector(CARD);
+        if (card) { rec.card = now - P.t0; rec.cls = label(s); P.lastChange = now; }
       }
       if (rec.visible === null && rec.card !== null) {
-        const card = s.querySelector('.card:not(.jux-skeleton-card)');
+        const card = s.querySelector(CARD);
         const r = card.getBoundingClientRect();
         if (r.height > 0 && r.width > 0 && r.top < innerHeight && r.bottom > 0) {
           rec.visible = now - P.t0;
@@ -137,8 +157,80 @@ async function waitQuiet(page, net, { quietMs = 3000, maxMs = 90000 } = {}) {
     return false;
 }
 
+/**
+ * Timed chain of a home load (PS 1.4 point 2), from Resource Timing, in ms since the navigation start: user
+ * known (end of /Users/{id}), home chunk and loadSections chunk received, loadSections called, end of
+ * Sections, first row request, first row shown. No mark is placed in the product: the loadSections call is
+ * estimated as the start of the first request it sends (Sections with Homepage, UserViews without).
+ * Runs in the page.
+ */
+function timedChain({ firstSection, chunk }) {
+    const res = performance.getEntriesByType('resource');
+    const find = (re, after = -1) => res.find((r) => re.test(r.name) && r.startTime >= after);
+    const end = (e) => (e ? Math.round(e.responseEnd) : null);
+    const start = (e) => (e ? Math.round(e.startTime) : null);
+    const loadSectionsChunk = find(new RegExp(chunk));
+    const after = loadSectionsChunk ? loadSectionsChunk.responseEnd : -1;
+    return {
+        userKnownMs: end(find(/\/Users\/[0-9a-f]{32}(\?|$)/i)),
+        homeChunkMs: end(find(/\/home\.[0-9a-f]+\.chunk\.js/)),
+        loadSectionsChunkMs: end(loadSectionsChunk),
+        loadSectionsCallEstMs: start(find(/\/JuxHomepage\/Sections(\?|$)|\/UserViews(\?|$)/, after)),
+        sectionsEndMs: end(find(/\/JuxHomepage\/Sections(\?|$)/)),
+        firstRowRequestMs: start(find(/\/JuxHomepage\/Section\/|\/Items\/Latest|\/Items\/Resume|\/Shows\/NextUp/, after)),
+        firstSectionMs: firstSection === null ? null : Math.round(firstSection)
+    };
+}
+
+/** Serves the KefinTweaks files from BENCH_KT_LOCAL instead of jsDelivr, when set (PROC-02.h). */
+async function routeKefinTweaks(context) {
+    const dir = process.env.BENCH_KT_LOCAL;
+    if (!dir) { return; }
+    await context.route(KT_CDN, (route) => {
+        const file = path.join(dir, decodeURIComponent(route.request().url().match(KT_CDN)[1]));
+        if (!existsSync(file)) { return route.fulfill({ status: 404, body: 'not in BENCH_KT_LOCAL' }); }
+        const type = file.endsWith('.css') ? 'text/css' : file.endsWith('.json') ? 'application/json' : 'application/javascript';
+        return route.fulfill({ status: 200, contentType: type, body: readFileSync(file) });
+    });
+}
+
+/**
+ * Checks the selectors on the target before a series (V6): at least one row with a real card, no skeleton
+ * counted as a card, and with banner a loaded banner in the first visible row. Throws when a check fails.
+ */
+export async function validateTarget(context, { banner = false, timeoutMs = 120000 } = {}) {
+    await routeKefinTweaks(context);
+    const page = await context.newPage();
+    try {
+        await page.addInitScript(INIT);
+        await page.goto(`${serverUrl}/web/#/home`, { waitUntil: 'commit', timeout: timeoutMs });
+        await page.waitForFunction(() => window.__juxPerf && window.__juxPerf.firstSection !== null, null, { timeout: timeoutMs, polling: 100 });
+        await sleep(3000);
+        const r = await page.evaluate(({ sec, card }) => {
+            const rows = [...document.querySelectorAll(sec)];
+            const firstVisible = rows.find((s) => s.offsetParent !== null);
+            return {
+                rows: rows.length,
+                rowsWithCard: rows.filter((s) => s.querySelector(card)).length,
+                skeletonsCounted: rows.filter((s) => { const c = s.querySelector(card); return c && c.classList.contains('jux-skeleton-card'); }).length,
+                firstRowIsBanner: !!(firstVisible && firstVisible.querySelector('.jux-featured')),
+                bannerLoaded: !!document.querySelector('.jux-featured-active .jux-featured-backdrop.jux-featured-loaded')
+            };
+        }, { sec: SECTION_SEL, card: CARD_SEL });
+        const problems = [];
+        if (r.rowsWithCard === 0) { problems.push('no row holds a card'); }
+        if (r.skeletonsCounted > 0) { problems.push(`${r.skeletonsCounted} skeleton cards counted as cards`); }
+        if (banner && !(r.firstRowIsBanner && r.bannerLoaded)) { problems.push('banner profile without a loaded banner in the first row'); }
+        if (problems.length > 0) { throw new Error(`selectors not valid on ${serverUrl}: ${problems.join('; ')} (${JSON.stringify(r)})`); }
+        return { sectionSelector: SECTION_SEL, cardSelector: CARD_SEL, ...r };
+    } finally {
+        await page.close();
+    }
+}
+
 /** Opens the home page in a new page of the given context and measures it, then SPA return and tabs. */
 export async function measurePage(context, { lowend = false, doBack = true, doTabs = true, timeoutMs = 120000, afterHome = null } = {}) {
+    await routeKefinTweaks(context);
     const page = await context.newPage();
     await page.addInitScript(INIT);
     const cdp = await context.newCDPSession(page);
@@ -155,7 +247,7 @@ export async function measurePage(context, { lowend = false, doBack = true, doTa
     await page.waitForFunction(() => window.__juxPerf && window.__juxPerf.firstSection !== null, null, { timeout: timeoutMs, polling: 100 });
     out.home.quiet = await waitQuiet(page, net, { maxMs: timeoutMs });
     if (process.env.PERF_DEBUG) { console.error(new Date().toISOString(), 'home quiet', out.home.quiet); }
-    const perf = await page.evaluate(() => {
+    const perf = await page.evaluate((sel) => {
         const P = window.__juxPerf;
         const nav = performance.getEntriesByType('navigation')[0];
         return {
@@ -163,9 +255,9 @@ export async function measurePage(context, { lowend = false, doBack = true, doTa
             sections: P.sections.map((s) => ({ cls: s.cls, created: s.created, card: s.card, visible: s.visible })),
             longtasks: P.longtasks, loaf: P.loaf.filter((f) => f.dur > 50),
             domContentLoaded: nav ? nav.domContentLoadedEventEnd : null, load: nav ? nav.loadEventEnd : null,
-            homeVisibleSections: document.querySelectorAll('.page:not(.hide) .jux-widget-section:not(.hide)').length
+            homeVisibleSections: [...document.querySelectorAll(sel)].filter((e) => !e.classList.contains('hide')).length
         };
-    });
+    }, SECTION_SEL);
     const withCard = perf.sections.filter((s) => s.card !== null);
     out.home.firstSectionMs = perf.firstSectionMs;
     out.home.allSectionsMs = withCard.length ? Math.max(...withCard.map((s) => s.card)) : null;
@@ -184,6 +276,7 @@ export async function measurePage(context, { lowend = false, doBack = true, doTa
     out.home.layoutDurationMs = metrics.LayoutDuration * 1000;
     out.home.jsHeapUsedMiB = metrics.JSHeapUsedSize / 1048576;
     out.home.net = summarize(net.reqs, 'home');
+    out.home.chain = await page.evaluate(timedChain, { firstSection: perf.firstSectionMs, chunk: LOADSECTIONS_CHUNK });
 
     if (afterHome) { out.afterHome = await afterHome(); }
 
@@ -198,12 +291,12 @@ export async function measurePage(context, { lowend = false, doBack = true, doTa
             await page.waitForFunction(() => { const d = document.querySelector('.itemDetailPage:not(.hide)'); return d && d.querySelector('.itemName, h1, h3'); }, null, { timeout: timeoutMs });
             await waitQuiet(page, net, { maxMs: timeoutMs });
             net.state.phase = 'back';
-            const tSpa = await page.evaluate(() => { window.__juxPerf.reset(); window.__juxOldFirst = document.querySelector('.homeSectionsContainer .jux-widget-section'); history.back(); return performance.now(); });
+            const tSpa = await page.evaluate(() => { window.__juxPerf.reset(); window.__juxOldFirst = document.querySelector('.homeSectionsContainer .verticalSection'); history.back(); return performance.now(); });
             await page.waitForFunction(() => window.__juxPerf.firstSection !== null && location.hash.startsWith('#/home'), null, { timeout: timeoutMs, polling: 50 });
             await waitQuiet(page, net, { maxMs: timeoutMs });
             const b = await page.evaluate(() => {
                 const P = window.__juxPerf;
-                const first = document.querySelector('.page:not(.hide) .jux-widget-section');
+                const first = document.querySelector('.page:not(.hide) .homeSectionsContainer .verticalSection');
                 return { firstSectionMs: P.firstSection, sections: P.sections.length, rebuilt: first !== window.__juxOldFirst, withCards: P.sections.filter((s) => s.card !== null).map((s) => s.card) };
             });
             out.back = { detailItemId: target, tStart: tSpa, firstSectionMs: b.firstSectionMs, allSectionsMs: b.withCards.length ? Math.max(...b.withCards) : null, rebuilt: b.rebuilt, sections: b.sections, net: summarize(net.reqs, 'back') };
@@ -250,8 +343,8 @@ if (process.argv[1] && process.argv[1].endsWith('perf-bench-browser.mjs')) {
     const browser = await launch();
     try {
         const state = await ensureStorageState(browser, storageStatePath(scratch));
-        const vp = process.argv.includes('--mobile') ? VIEWPORTS.mobile : VIEWPORTS.desktop;
-        const context = await browser.newContext({ storageState: state, viewport: vp, locale: 'en-US' });
+        const options = process.argv.includes('--mobile') ? CONTEXTS.mobile : CONTEXTS.desktop;
+        const context = await browser.newContext({ storageState: state, ...options, locale: 'en-US' });
         const r = await measurePage(context, { lowend: process.argv.includes('--lowend') });
         const file = path.join(scratch, 'explore.json');
         writeFileSync(file, JSON.stringify(r, null, 1));
