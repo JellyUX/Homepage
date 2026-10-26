@@ -7,6 +7,9 @@ import { appendFileSync, writeFileSync, existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { readCredentials, authenticate, api, serverUrl, rawDir, restartAndMeasure, dockerStats, sleep } from './perf-bench-common.mjs';
+import { startSeries, endSeries } from './bench-fingerprint.mjs';
+
+const series = await startSeries({ label: 'perf-bench-endpoints' });
 
 const arg = (name, def) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : def; };
 const profile = arg('profile', 'std');
@@ -98,3 +101,4 @@ for (let c = 1; c <= cycles; c++) {
     appendFileSync(csv, rows.join('\n') + '\n');
     console.log(new Date().toISOString(), profile, 'cycle', c, 'done; startup', st.cmdToHealthyMs, 'ms; mem', st.memRest.memMiB);
 }
+await endSeries(series);

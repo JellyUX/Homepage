@@ -7,6 +7,9 @@ import { writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { readCredentials, authenticate, serverUrl, rawDir, sleep } from './perf-bench-common.mjs';
+import { startSeries, endSeries } from './bench-fingerprint.mjs';
+
+const series = await startSeries({ label: 'perf-bench-sections-interval' });
 
 const arg = (name, def) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : def; };
 const gaps = arg('gaps', '0,5,15,30,45,60,90').split(',').map(Number);
@@ -32,3 +35,4 @@ for (const gap of gaps) {
     }
 }
 writeFileSync(path.join(rawDir, `perf-bench-sections-interval-${profile}.csv`), rows.join('\n') + '\n');
+await endSeries(series);

@@ -8,6 +8,9 @@
 import { writeFileSync, cpSync, existsSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { readCredentials, authenticate, api, rawDir, repoRoot, restartAndMeasure, dockerStats, sleep } from './perf-bench-common.mjs';
+import { startSeries, endSeries } from './bench-fingerprint.mjs';
+
+const series = await startSeries({ label: 'perf-bench-plugin-toggle' });
 
 const arg = (name, def) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : def; };
 const cycles = Number(arg('cycles', 5));
@@ -70,3 +73,4 @@ try {
     log('after', JSON.stringify(result.after.plugins.map((p) => `${p.name} ${p.version} ${p.status}`)), st.loadSectionsLine);
     writeFileSync(path.join(rawDir, `perf-bench-plugin-toggle-${profile}.json`), JSON.stringify({ profile, ...result }, null, 1));
 }
+await endSeries(series);

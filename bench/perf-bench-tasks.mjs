@@ -5,6 +5,9 @@ import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { readCredentials, authenticate, api, rawDir, sleep, CONTAINER } from './perf-bench-common.mjs';
+import { startSeries, endSeries } from './bench-fingerprint.mjs';
+
+const series = await startSeries({ label: 'perf-bench-tasks' });
 
 const arg = (name, def) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : def; };
 const runs = Number(arg('runs', 5));
@@ -33,3 +36,4 @@ for (const t of tasks) {
     }
 }
 writeFileSync(path.join(rawDir, `perf-bench-tasks-${profile}.json`), JSON.stringify(out, null, 1));
+await endSeries(series);

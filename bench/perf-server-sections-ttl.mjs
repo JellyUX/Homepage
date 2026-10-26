@@ -12,6 +12,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { serverUrl, rawDir, sleep, stats } from './perf-bench-common.mjs';
 import { authUnique } from './perf-server-auth.mjs';
+import { startSeries, endSeries } from './bench-fingerprint.mjs';
+
+const series = await startSeries({ label: 'perf-server-sections-ttl' });
 
 const arg = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i > 0 ? process.argv[i + 1] : d; };
 const step = Number(arg('step', 10)), duration = Number(arg('duration', 260)), reps = Number(arg('reps', 5));
@@ -76,3 +79,4 @@ rows.push(['B-sum', new Date().toISOString(), '', 'sum-of-medians', '', sum.toFi
 rows.push(['B-max', new Date().toISOString(), '', 'max-of-medians', '', Math.max(...med).toFixed(1)].join(','));
 writeFileSync(path.join(rawDir, `perf-server-sections-ttl${skipA ? '-probes' : ''}.csv`), rows.join('\n') + '\n');
 await u.logout();
+await endSeries(series);

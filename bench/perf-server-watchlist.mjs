@@ -7,6 +7,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { serverUrl, rawDir, stats } from './perf-bench-common.mjs';
 import { authUnique } from './perf-server-auth.mjs';
+import { startSeries, endSeries } from './bench-fingerprint.mjs';
+
+const series = await startSeries({ label: 'perf-server-watchlist' });
 
 const arg = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i > 0 ? process.argv[i + 1] : d; };
 const reps = Number(arg('reps', 7));
@@ -33,3 +36,4 @@ for (let r = 0; r < reps; r++) {
 routes.forEach(([label], i) => { const s = stats(v[i]); console.log(label.padEnd(58), 'median', s.median.toFixed(0), 'p95', s.p95.toFixed(0)); });
 writeFileSync(path.join(rawDir, 'perf-server-watchlist.csv'), rows.join('\n') + '\n');
 await u.logout();
+await endSeries(series);

@@ -36,6 +36,17 @@ into one working volume per bench before each series. A copy is proved equal to 
 
 `node bench/db-shape.mjs <jellyfin.db>` reads a database copy: images, providers and user-data rows per item.
 
+## Series fingerprint
+
+`JUX_BENCH_OUT` holds one series. Every `perf-*` script writes `fingerprint.json` there when it starts
+(`bench-fingerprint.mjs`): item counts, images and providers per item type, the bench user's played,
+liked, in-progress and favourite movies, Jellyfin version and image, plugins, repositories, md5 of the
+Homepage DLL, `SessionTtlMinutes`, featured sections, deviations from the product defaults, CPU and memory
+limits, storage of `/config` and the warm-up line. A second script in the same folder must find the same
+fingerprint. At the end it writes `fingerprint-end.json` and fails when the Homepage DLL or the item counts
+changed during the series (automatic plugin update, library scan). Changes applied on purpose are listed
+through `JUX_BENCH_OVERRIDES` (items separated by `;`).
+
 ## Performance (main bench, `identifiants.txt`)
 
 | Script | Measures |

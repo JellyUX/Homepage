@@ -6,6 +6,9 @@ import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { rawDir, restartAndMeasure, dockerStats, sleep } from './perf-bench-common.mjs';
 import { launch, ensureStorageState, storageStatePath, measurePage, VIEWPORTS } from './perf-bench-browser.mjs';
+import { startSeries, endSeries } from './bench-fingerprint.mjs';
+
+const series = await startSeries({ label: 'perf-bench-cycle' });
 
 const arg = (name, def) => { const i = process.argv.indexOf(`--${name}`); return i > 0 ? process.argv[i + 1] : def; };
 const profile = arg('profile', 'std');
@@ -58,3 +61,4 @@ try {
     await browser.close();
 }
 log('done', out);
+await endSeries(series);
