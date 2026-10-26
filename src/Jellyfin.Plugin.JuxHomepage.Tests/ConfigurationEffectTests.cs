@@ -105,19 +105,26 @@ public sealed class ConfigurationEffectTests
         ["data-jux-theme"] = "BKL-04: the seasonal preset Theme key reaches the section, no style draws it until V6 phase 18",
     };
 
-    public static TheoryData<string> ExtraParamKeys() => new(Regex.Matches(Code.Value.All, @"public const string (\w+Param) = """)
-        .Select(m => m.Groups[1].Value)
+    // Keyed "Class.Constant": two widgets may declare the same constant name (YearParam), and one read must
+    // not stand for the other (R11).
+    public static TheoryData<string> ExtraParamKeys() => new(Code.Value.AllFiles
+        .SelectMany(f => Regex.Matches(f.Text, @"public const string (\w+Param) = """)
+            .Select(m => $"{Regex.Matches(f.Text[..m.Index], @"\bclass (\w+)").Last().Groups[1].Value}.{m.Groups[1].Value}"))
         .Distinct(StringComparer.Ordinal)
         .Order(StringComparer.Ordinal));
 
     [Theory]
     [MemberData(nameof(ExtraParamKeys))]
-    public void EveryExtraParamKey_IsReadByProductionCode(string constant)
+    public void EveryExtraParamKey_IsReadByProductionCode(string key)
     {
-        var uses = Regex.Matches(Code.Value.Readers, $@"\b{constant}\b").Count;
-        var declarations = Regex.Matches(Code.Value.Readers, $@"public const string {constant} =").Count;
+        var (type, constant) = (key.Split('.')[0], key.Split('.')[1]);
+        // Qualified anywhere, or bare inside the declaring class and the classes deriving from it.
+        var reads = Code.Value.ReaderFiles.Sum(f => Regex.Matches(f.Text, $@"\b{type}\.{constant}\b").Count
+            + (Regex.IsMatch(f.Text, $@"\bclass {type}\b|:\s*{type}\b")
+                ? Regex.Matches(f.Text, $@"(?<!\.)\b{constant}\b(?!\s*=\s*"")").Count
+                : 0));
 
-        Assert.True(uses > declarations, $"{constant}: no production code outside its declaration reads this ExtraParams key");
+        Assert.True(reads > 0, $"{key}: no production code reads this ExtraParams key");
     }
 
     public static TheoryData<string> AttributesTheScriptsSet() => new(Sources.SetAttributes(Code.Value.Scripts));
@@ -194,7 +201,7 @@ public sealed class ConfigurationEffectTests
 
     internal sealed record TestMethod(string Name, string Body);
 
-    private sealed record Sources(string All, string Readers, string Writers, string Scripts, string Styles, IReadOnlyList<TestMethod> Tests)
+    private sealed record Sources(string Readers, string Writers, string Scripts, string Styles, IReadOnlyList<TestMethod> Tests, IReadOnlyList<(string Path, string Text)> AllFiles, IReadOnlyList<(string Path, string Text)> ReaderFiles)
     {
         public static Sources Load()
         {
@@ -225,12 +232,13 @@ public sealed class ConfigurationEffectTests
                 .Select(f => Regex.Replace(File.ReadAllText(f), @"/\*[\s\S]*?\*/", string.Empty));
 
             return new Sources(
-                string.Join('\n', files.Select(f => f.Text)),
                 string.Join('\n', readers.Select(f => f.Text)),
                 string.Join('\n', writers.Select(f => f.Text)),
                 string.Join('\n', scripts.Select(f => f.Text)),
                 string.Join('\n', styles),
-                tests);
+                tests,
+                files,
+                readers.ToList());
         }
 
         /// <summary>The data-jux-* attributes the scripts set, by setAttribute or a dataset assignment.</summary>
