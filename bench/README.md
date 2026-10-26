@@ -116,6 +116,9 @@ go to `<out>/<config>-<profile>` (one series each, `native-<profile>` is the wit
 cell is archived to `<out>/archives`. `--image jellyfin/jellyfin:12.3 --template jux-bench-tpl-12` runs the
 12.3 line. The matrix refuses to start next to another Jellyfin container.
 
+`JUX_URL=<disposable bench> node bench/bench-history.mjs --played 500 --watchlist 100` gives the bench user
+the history of the template (deterministic): 500 played, 100 liked, 10 in progress, 10 favourites.
+
 ## Reliability (disposable E2E bench on 8098)
 
 Start it with `node e2e/setup.mjs up`; these scripts read its generated logins from `e2e/.work/env.json`.
