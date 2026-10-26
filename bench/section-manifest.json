@@ -1,0 +1,11 @@
+{
+    "description": "Common home rows of the bench comparisons (PROC-02.d): a comparison between Homepage, native Jellyfin and KefinTweaks is equivalent only when the rows it measures are the same on both sides. Each row gives, per target, a regular expression matched against the label the browser bench records for a row with cards (Homepage: its jux-widget class; native and KefinTweaks: the row title, English UI). null: the target has no such row. Read by bench/section-manifest.mjs. KefinTweaks equivalents from the audit V5 bench (KefinTweaks 0.5.3, native rows kept by its configuration).",
+    "rows": [
+        { "id": "my-media", "homepage": "^jux-native-my-media$", "native": "^My Media$", "kefintweaks": "^My Media$" },
+        { "id": "continue-watching", "homepage": "^jux-native-continue-watching$", "native": "^Continue Watching$", "kefintweaks": "^Continue Watching$" },
+        { "id": "next-up", "homepage": "^jux-native-next-up$", "native": "^Next Up$", "kefintweaks": "^Next Up$" },
+        { "id": "recently-added-movies", "homepage": "^jux-native-recently-added-movies$", "native": "^Recently Added in (Films|Movies)$", "kefintweaks": "^Recently Added in (Films|Movies)$" },
+        { "id": "recently-added-shows", "homepage": "^jux-native-recently-added-(shows|episodes)$", "native": "^Recently Added in (S[ée]ries|Shows)$", "kefintweaks": "^Recently Added in (S[ée]ries|Shows)$" },
+        { "id": "watchlist", "homepage": "^jux-native-watchlist$", "native": null, "kefintweaks": "^Watchlist$" }
+    ]
+}

@@ -52,6 +52,7 @@
 !bench/*.mjs
 !bench/lowend.override.yml
 !bench/README.md
+!bench/section-manifest.json
 !mkdocs.yml
 
 # Documentation assets

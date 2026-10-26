@@ -100,6 +100,9 @@ loadSections call is estimated by the start of the first request it sends, no ma
 (`BENCH_LOADSECTIONS_CHUNK` names the chunk of another Jellyfin Web bundle). `BENCH_KT_LOCAL=<folder>`
 serves KefinTweaks from a local copy instead of jsDelivr.
 
+Each browser summary prints the common rows of `section-manifest.json` the series showed: two series compare
+the same rows only when the same manifest rows are present on both sides.
+
 ## Reliability (disposable E2E bench on 8098)
 
 Start it with `node e2e/setup.mjs up`; these scripts read its generated logins from `e2e/.work/env.json`.

@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { rawDir, stats, tail, TAIL_HEADER } from './perf-bench-common.mjs';
 import { compareFingerprints, VARIABLE_FIELDS } from './bench-fingerprint.mjs';
+import { matchManifest } from './section-manifest.mjs';
 
 const f1 = (x) => (x === null || x === undefined ? 'n/a' : (Math.round(x * 10) / 10).toLocaleString('fr-FR'));
 const f0 = (x) => (x === null || x === undefined ? 'n/a' : Math.round(x).toLocaleString('fr-FR'));
@@ -50,6 +51,18 @@ function flatHome(run) {
         v[`tab.${name}.juxBytes`] = t.net.juxBytes;
     }
     return v;
+}
+
+/** Target of a series for the section manifest, from its fingerprint. */
+export function targetOf(fingerprint) {
+    if (!fingerprint) { return 'native'; }
+    if (fingerprint.homepage) { return 'homepage'; }
+    return Object.keys(fingerprint.plugins || {}).some((p) => /kefin|javascript injector/i.test(p)) ? 'kefintweaks' : 'native';
+}
+
+/** Labels of the home rows that showed cards in any run of a browser set. */
+function rowLabels(set) {
+    return [...new Set(set.runs.flatMap(({ run }) => (run.home.sections || []).filter((s) => s.card !== null).map((s) => s.cls)))];
 }
 
 /** Prints the tables of one series folder and writes its flat CSV there. */
@@ -93,6 +106,8 @@ export function summarizeSeries(dir) {
         }
         for (const [k, arr] of Object.entries(set.mem)) { const s = stats(arr); console.log(`| mem.${k} (MiB) | ${f1(s.median)} | ${tail(s, f1)} | | | ${s.n} |`); }
         console.log('\nchain.* : ms depuis le début de la navigation (Resource Timing) ; chain.loadSectionsCallEstMs est une estimation (début de la 1re requête Sections ou UserViews), aucune marque dans le produit.');
+        const rows = matchManifest(targetOf(load('fingerprint.json')), rowLabels(set));
+        console.log(`Manifeste de sections (${targetOf(load('fingerprint.json'))}) : présentes ${rows.present.join(', ') || 'aucune'} ; absentes ${rows.missing.join(', ') || 'aucune'} ; hors manifeste ${rows.outside.join(', ') || 'aucune'}`);
 
         // Duplicated URLs (same method + URL more than once) during the home load, and across the session.
         const dupHome = new Map(); const dupSession = new Map();
