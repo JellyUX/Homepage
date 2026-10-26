@@ -3,6 +3,7 @@
 // fingerprint.json at its top, bench-fingerprint.mjs).
 //   node bench/perf-bench-summarize.mjs [<series folder>] [--witness <native series folder>]
 //   node bench/perf-bench-summarize.mjs --compare <series A> <series B> [--allow <field>,<field>]
+// (--compare checks the two fingerprints only; each side keeps its own witness requirement when summarized.)
 // A series with Homepage is summarized only next to a native witness on the same data set (PROC-02.g): the
 // folder given by --witness, otherwise the sibling folder native-<suffix> (bench/perf-matrix.mjs layout,
 // e.g. hp-srvperso next to native-srvperso). --compare refuses two series whose fingerprints differ outside
@@ -232,7 +233,9 @@ export function summarizeSeries(dir) {
     }
 }
 
-const WITNESS_VARIABLE = [...VARIABLE_FIELDS, 'plugins.', 'homepage.'];
+// A witness differs from its series by Homepage only: a series running other plugins (KefinTweaks, the production
+// stack) is not a native witness.
+const WITNESS_VARIABLE = [...VARIABLE_FIELDS, 'plugins.JellyUX Homepage', 'plugins.File Transformation', 'homepage.'];
 
 /** Why a series cannot be summarized against its witness (empty: it can). */
 export function checkWitness(series, witness) {

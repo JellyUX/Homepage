@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { compareFingerprints, VARIABLE_FIELDS } from '../bench/bench-fingerprint.mjs';
+import { compareFingerprints, VARIABLE_FIELDS, widgetRows } from '../bench/bench-fingerprint.mjs';
 
 const base = () => ({
     label: 'perf-bench-cycle',
@@ -42,8 +42,24 @@ describe('bench fingerprint comparison (PROC-02.b)', () => {
         expect(diff[0].startsWith(`${key}:`)).toBe(true);
     });
 
-    it('declares a variable field for the whole warm-up subtree only', () => {
-        expect(VARIABLE_FIELDS).toContain('warmup.');
-        expect(compareFingerprints({ warmupX: 1 }, { warmupX: 2 })).toEqual(['warmupX: 1 | 2']);
+    it('lets the warm-up instant vary, never whether the warm-up happened', () => {
+        expect(VARIABLE_FIELDS).toContain('warmup.builtAt');
+        expect(compareFingerprints({ warmup: { built: true, builtAt: 'a' } }, { warmup: { built: false, builtAt: null } })).toEqual(['warmup.built: true | false']);
+    });
+
+    it('refuses two Homepage configurations with other rows (PROC-01.c)', () => {
+        const b = base();
+        b.homepage = { ...b.homepage, widgets: ['jux.native.next-up|true|false|1|100'] };
+        const a = base();
+        a.homepage = { ...a.homepage, widgets: ['jux.native.next-up|true|false|1|20'] };
+        expect(compareFingerprints(a, b)).toHaveLength(1);
+    });
+});
+
+describe('Homepage configuration in the fingerprint', () => {
+    it('normalizes the rows whatever their order in the file', () => {
+        const w = (WidgetType, MaxItems) => ({ WidgetType, Enabled: true, Featured: false, MinItems: 1, MaxItems, SortBy: 'SortName', SortOrder: 'Ascending', ViewMode: 'Portrait', Order: 1, ExtraParams: [{ Key: 'b', Value: '2' }, { Key: 'a', Value: '1' }] });
+        expect(widgetRows({ Widgets: [w('x', 20), w('y', 20)] })).toEqual(widgetRows({ Widgets: [w('y', 20), w('x', 20)] }));
+        expect(widgetRows({ Widgets: [w('x', 20)] })[0]).toBe('x|true|false|1|20|SortName|Ascending|Portrait|1|a=1&b=2');
     });
 });

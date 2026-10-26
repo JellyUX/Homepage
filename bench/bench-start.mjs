@@ -61,7 +61,7 @@ async function waitReady({ name, base, since, homepage, waitS }) {
     const healthyMs = await waitHealthy(base);
     let warmup = null;
     if (homepage) {
-        warmup = await waitForLog(name, since, /Built the home screen/, WARMUP_TIMEOUT_S * 1000).catch(() => null);
+        warmup = await waitForLog(name, since, /Built the home screen/, WARMUP_TIMEOUT_S * 1000);
     } else {
         await sleep(Math.max(0, waitS * 1000 - (Date.now() - t0)));
     }

@@ -42,6 +42,10 @@ describe('native witness of a series (PROC-02.g)', () => {
         expect(checkWitness(hp, { ...native, server: { limits: { nanoCpus: 24e9 } } })).toEqual(['witness differs: server.limits.nanoCpus: 1000000000 | 24000000000']);
     });
 
+    it('refuses a witness running other plugins (KefinTweaks, the production stack)', () => {
+        expect(checkWitness(hp, { ...native, plugins: { 'JavaScript Injector': '2.0 Active' } })[0]).toMatch(/witness differs: plugins.JavaScript Injector/);
+    });
+
     it('accepts a native witness on the same set and profile', () => {
         expect(checkWitness(hp, native)).toEqual([]);
     });

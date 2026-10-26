@@ -21,9 +21,17 @@ export const PRODUCT_DEFAULTS = { sessionTtlMinutes: 15, featuredSections: 0 };
 // V4) and the names of the container, its port and its working volume (two copies of the template hold the
 // same data: the counts, shapes and user history prove it). Everything else must be equal. A path ending in
 // "." covers the whole subtree.
-export const VARIABLE_FIELDS = ['capturedAt', 'server.startedAt', 'server.url', 'server.container', 'server.storage.source', 'homepage.dllMd5', 'homepage.version', 'plugins.JellyUX Homepage', 'warmup.', 'otherContainers', 'label'];
+export const VARIABLE_FIELDS = ['capturedAt', 'server.startedAt', 'server.url', 'server.container', 'server.storage.source', 'homepage.dllMd5', 'homepage.version', 'plugins.JellyUX Homepage', 'warmup.builtAt', 'warmup.afterStartMs', 'otherContainers', 'label'];
 
 const round2 = (x) => Math.round(x * 100) / 100;
+
+/** The rows of a Homepage configuration, normalized: what a series shows does not depend on their order in the file. */
+export function widgetRows(config) {
+    return config.Widgets
+        .map((w) => [w.WidgetType, w.Enabled, w.Featured, w.MinItems, w.MaxItems, w.SortBy, w.SortOrder, w.ViewMode, w.Order,
+            (w.ExtraParams || []).map((p) => `${p.Key}=${p.Value}`).sort().join('&')].join('|'))
+        .sort();
+}
 
 async function typeShape(session, type) {
     const body = (await api(session, `/Items?Recursive=true&IncludeItemTypes=${type}&Fields=ProviderIds&EnableUserData=false&EnableTotalRecordCount=true`)).body;
@@ -51,8 +59,9 @@ async function userShape(session) {
 
 /** md5 of the Homepage DLL inside the container, or null when the plugin is not installed. */
 export function homepageDllMd5(container = CONTAINER) {
+    // Every installed copy: an automatic update adds a second version folder before the next restart.
     const out = dockerOrNull(['exec', container, 'sh', '-c', 'md5sum /config/plugins/*/Jellyfin.Plugin.JuxHomepage.dll 2>/dev/null | cut -c1-32']);
-    return out ? out.split(/\r?\n/)[0] : null;
+    return out ? out.split(/\r?\n/).filter(Boolean).sort().join(',') : null;
 }
 
 function containerShape(container) {
@@ -61,6 +70,7 @@ function containerShape(container) {
     return {
         startedAt: j.State.StartedAt,
         image: j.Config.Image,
+        imageId: j.Image,
         limits: { nanoCpus: j.HostConfig.NanoCpus, cpusetCpus: j.HostConfig.CpusetCpus || '', memory: j.HostConfig.Memory, memorySwap: j.HostConfig.MemorySwap },
         storage: config ? { type: config.Type, source: config.Type === 'volume' ? config.Name : config.Source } : null
     };
@@ -70,9 +80,9 @@ function containerShape(container) {
 function warmupShape(container, startedAt) {
     const logs = dockerOrNull(['logs', '-t', '--since', startedAt, container]) || '';
     const line = logs.split(/\r?\n/).reverse().find((l) => /Built the home screen/.test(l));
-    if (!line) { return { builtAt: null }; }
+    if (!line) { return { built: false, builtAt: null }; }
     const at = line.slice(0, 30).split(' ')[0];
-    return { builtAt: at, afterStartMs: Date.parse(at) - Date.parse(startedAt) };
+    return { built: true, builtAt: at, afterStartMs: Date.parse(at) - Date.parse(startedAt) };
 }
 
 /**
@@ -91,7 +101,11 @@ export async function collectFingerprint({ label = '', overrides = (process.env.
         const plugins = (await api(admin, '/Plugins')).body;
         const homepage = plugins.find((p) => p.Id.replace(/-/g, '') === HOMEPAGE_PLUGIN_ID.replace(/-/g, ''));
         let config = null;
-        if (homepage) { config = (await api(admin, `/Plugins/${HOMEPAGE_PLUGIN_ID}/Configuration`)).body; }
+        if (homepage) {
+            const res = await api(admin, `/Plugins/${HOMEPAGE_PLUGIN_ID}/Configuration`);
+            if (homepage.Status !== 'Active' || res.status !== 200) { throw new Error(`JellyUX Homepage is ${homepage.Status} (configuration HTTP ${res.status}): fix the bench before measuring`); }
+            config = res.body;
+        }
         const sessionTtlMinutes = config ? config.Cache.SessionTtlMinutes : null;
         const featuredSections = config ? config.Widgets.filter((w) => w.Enabled && w.Featured).length : null;
         const deviations = [];
@@ -107,7 +121,7 @@ export async function collectFingerprint({ label = '', overrides = (process.env.
             user: await userShape(user),
             plugins: Object.fromEntries(plugins.map((p) => [p.Name, `${p.Version} ${p.Status}`]).sort()),
             repositories: (await api(admin, '/Repositories')).body.map((r) => r.Url).sort(),
-            homepage: homepage ? { version: homepage.Version, dllMd5: homepageDllMd5(CONTAINER), sessionTtlMinutes, featuredSections, enabledSections: config.Widgets.filter((w) => w.Enabled).length, deviations, overrides } : null,
+            homepage: homepage ? { version: homepage.Version, dllMd5: homepageDllMd5(CONTAINER), sessionTtlMinutes, featuredSections, enabledSections: config.Widgets.filter((w) => w.Enabled).length, widgets: widgetRows(config), cache: config.Cache, deviations, overrides } : null,
             warmup: warmupShape(CONTAINER, c.startedAt),
             otherContainers: others
         };
@@ -164,6 +178,8 @@ export async function endSeries(start, opts = {}) {
     const before = start.homepage && start.homepage.dllMd5;
     const after = end.homepage && end.homepage.dllMd5;
     if (before !== after) { throw new Error(`Homepage DLL changed during the series: ${before} -> ${after}`); }
+    const plugins = compareFingerprints({ plugins: start.plugins, homepage: start.homepage && start.homepage.version }, { plugins: end.plugins, homepage: end.homepage && end.homepage.version }, []);
+    if (plugins.length > 0) { throw new Error(`plugins changed during the series: ${plugins.join('; ')}`); }
     // The media folders are a real library: a scheduled scan during the series would change the data set.
     const counts = compareFingerprints({ counts: start.counts }, { counts: end.counts }, []);
     if (counts.length > 0) { throw new Error(`item counts changed during the series: ${counts.join('; ')}`); }
