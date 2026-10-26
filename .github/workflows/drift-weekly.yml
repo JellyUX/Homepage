@@ -1,0 +1,41 @@
+name: Weekly Jellyfin Web drift
+
+# The drift job of ci.yml checks the validated 10.11 bundle on each push; this one checks the newest
+# published 10.11 image every week, so a new Jellyfin patch that renames a hooked token shows up before
+# a user reports it (CONTRIBUTING.md "Jellyfin Update Procedure").
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    name: Jellyfin Web drift (newest 10.11)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Extract jellyfin-web from jellyfin/jellyfin:10.11
+        run: |
+          docker pull jellyfin/jellyfin:10.11
+          docker create --name jf-drift-extract jellyfin/jellyfin:10.11
+          docker inspect --format '{{index .Config.Labels "org.opencontainers.image.version"}}' jf-drift-extract
+          WEB_DIR=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' jf-drift-extract | grep '^JELLYFIN_WEB_DIR=' | cut -d= -f2)
+          docker cp "jf-drift-extract:$WEB_DIR" ./jellyfin-web-extract
+          docker rm jf-drift-extract
+          echo "JELLYFIN_WEB_EXTRACT_PATH=$PWD/jellyfin-web-extract" >> "$GITHUB_ENV"
+
+      - name: Restore & build
+        run: |
+          dotnet restore
+          dotnet build --configuration Release --no-restore
+
+      - name: Run the drift checks
+        run: dotnet test --no-build --configuration Release --filter "Category=RequiresDocker"
