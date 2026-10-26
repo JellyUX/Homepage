@@ -1,7 +1,8 @@
 // Disposable Jellyfin bench for the browser tests (TODO_V4.md rule G3): a Jellyfin container with the
 // plugin built from this checkout, File Transformation, a tiny synthetic library, an admin and a
-// user restricted to the movie library. Run from the repository root, after a Release build:
-//   node e2e/setup.mjs up [--image jellyfin/jellyfin:10.11.10] [--port 8098]
+// user restricted to the movie library. Run from the repository root, after a Release build, or with
+// the jprm archive a release publishes (--plugin-zip, what the CI installs):
+//   node e2e/setup.mjs up [--image jellyfin/jellyfin:10.11.10] [--port 8098] [--plugin-zip <archive.zip>]
 //   node e2e/setup.mjs base-url /jf     (sets a BaseUrl and restarts the server)
 //   node e2e/setup.mjs load-config <plugin configuration .xml>   (replaces it and restarts the server)
 //   node e2e/setup.mjs down
@@ -188,7 +189,11 @@ async function up() {
     const image = arg('--image', 'jellyfin/jellyfin:10.11.10');
     const port = arg('--port', '8098');
     const serverVersion = image.split(':')[1];
-    if (!existsSync(PLUGIN_DLL)) {
+    const pluginZip = arg('--plugin-zip', '');
+    if (pluginZip && !existsSync(pluginZip)) {
+        throw new Error(`Plugin archive not found: ${pluginZip}.`);
+    }
+    if (!pluginZip && !existsSync(PLUGIN_DLL)) {
         throw new Error(`Build the plugin first (dotnet build -c Release): ${PLUGIN_DLL} is missing.`);
     }
 
@@ -196,7 +201,11 @@ async function up() {
     const pluginsDir = path.join(WORK, 'config', 'plugins');
     const juxDir = path.join(pluginsDir, 'JellyUX Homepage');
     mkdirSync(juxDir, { recursive: true });
-    copyFileSync(PLUGIN_DLL, path.join(juxDir, path.basename(PLUGIN_DLL)));
+    if (pluginZip) {
+        unzip(readFileSync(pluginZip), juxDir);
+    } else {
+        copyFileSync(PLUGIN_DLL, path.join(juxDir, path.basename(PLUGIN_DLL)));
+    }
     await installFileTransformation(serverVersion, pluginsDir);
     writeLibrary(image);
 
