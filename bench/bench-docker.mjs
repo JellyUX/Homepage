@@ -28,6 +28,24 @@ export function readLocal() {
     return local;
 }
 
+// Server profiles (V5, PROC-11), as docker run flags. std: no limit. lowend: 1 vCPU / 1 GiB. 2c8g: 2 vCPU /
+// 8 GiB. srvperso: the production server calibrated on 2026-10-25 (MB-27), SRV_CPUS=1.0 on 3 pinned cores with
+// 12 GiB: the total throughput matches, a single thread stays 3.6 to 8 times faster than production (cite this
+// limit with every srvperso result). A disk IOPS limit (--device-read-iops) only applies to the WSL2 disk of
+// Docker, never to a Windows bind mount: it is not part of any profile.
+export const PROFILES = {
+    std: () => [],
+    lowend: () => ['--cpus', '1', '--memory', '1g', '--memory-swap', '1g'],
+    '2c8g': () => ['--cpus', '2', '--memory', '8g', '--memory-swap', '8g'],
+    srvperso: () => ['--cpuset-cpus', '0-2', '--cpus', process.env.SRV_CPUS || '1.0', '--memory', '12g', '--memory-swap', '12g']
+};
+
+export function profileLimits(profile) {
+    const p = PROFILES[profile];
+    if (!p) { throw new Error(`unknown profile ${profile} (${Object.keys(PROFILES).join(', ')})`); }
+    return p();
+}
+
 export function volumeExists(name) { return dockerOrNull(['volume', 'inspect', name]) !== null; }
 
 /** An empty plugins folder, for a server with no plugin at all (native configuration, first opening of a volume). */

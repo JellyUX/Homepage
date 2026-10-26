@@ -36,6 +36,25 @@ into one working volume per bench before each series. A copy is proved equal to 
 
 `node bench/db-shape.mjs <jellyfin.db>` reads a database copy: images, providers and user-data rows per item.
 
+## Starting a bench
+
+`node bench/bench-start.mjs --name <container> --port <port> --volume <working volume> --plugins <key|folder>
+--profile std|lowend|2c8g|srvperso [--banner]` starts a disposable container on a working volume and waits
+for `/health`, then for the warm-up line "Built the home screen" (the same fixed wait without Homepage).
+The plugins folder (a `pluginDirs` key of the local file, or a folder) is copied without the Homepage
+configuration file: every series starts on the defaults of the build under test. `--banner` adds the one
+deviation of the "banner first" profile (a featured top-rated movie section above every row).
+
+| Profile | Limits |
+|---|---|
+| `std` | none |
+| `lowend` | 1 vCPU, 1 GiB, no swap |
+| `2c8g` | 2 vCPU, 8 GiB |
+| `srvperso` | cores 0-2, `SRV_CPUS` (default 1.0), 12 GiB: the production server's total throughput (calibrated 2026-10-25), a single thread stays 3.6 to 8 times faster; cite this limit with every result |
+
+A disk IOPS limit (`--device-read-iops`) only applies to the WSL2 disk of Docker, never to a Windows bind
+mount: no profile uses it, and an NTFS bind of `/config` is the "slow disk" variant.
+
 ## Series fingerprint
 
 `JUX_BENCH_OUT` holds one series. Every `perf-*` script writes `fingerprint.json` there when it starts
