@@ -47,6 +47,12 @@ fingerprint. At the end it writes `fingerprint-end.json` and fails when the Home
 changed during the series (automatic plugin update, library scan). Changes applied on purpose are listed
 through `JUX_BENCH_OVERRIDES` (items separated by `;`).
 
+`node bench/perf-bench-summarize.mjs <series folder>` refuses a series with Homepage unless a native series
+on the same data set and profile stands next to it (`--witness <folder>`, or the sibling `native-<suffix>`).
+`node bench/perf-bench-summarize.mjs --compare <A> <B>` refuses two series whose fingerprints differ outside
+the variable fields (build under test, clock, warm-up, container and volume names); `--allow
+server.version,server.image` declares the fields a comparison changes on purpose.
+
 ## Performance (main bench, `identifiants.txt`)
 
 | Script | Measures |

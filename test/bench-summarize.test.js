@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { stats, tail } from '../bench/perf-bench-common.mjs';
+import { checkWitness } from '../bench/perf-bench-summarize.mjs';
 
 const range = (n) => Array.from({ length: n }, (_, i) => i + 1);
 
@@ -18,5 +19,30 @@ describe('bench tail notation (V3, PROC-02.c)', () => {
 
     it('reports n/a for an empty series', () => {
         expect(tail(stats([]))).toBe('n/a');
+    });
+});
+
+describe('native witness of a series (PROC-02.g)', () => {
+    const native = { counts: { MovieCount: 1116 }, server: { limits: { nanoCpus: 1e9 } }, plugins: {}, homepage: null };
+    const hp = { counts: { MovieCount: 1116 }, server: { limits: { nanoCpus: 1e9 } }, plugins: { 'JellyUX Homepage': '2.17.1.0 Active' }, homepage: { version: '2.17.1.0', sessionTtlMinutes: 15 } };
+
+    it('summarizes a native series on its own', () => {
+        expect(checkWitness(native, null)).toEqual([]);
+    });
+
+    it('refuses a Homepage series without a native witness', () => {
+        expect(checkWitness(hp, null)[0]).toMatch(/no native witness/);
+    });
+
+    it('refuses a witness that runs Homepage', () => {
+        expect(checkWitness(hp, hp)[0]).toMatch(/not a native witness/);
+    });
+
+    it('refuses a witness measured on another data set or profile', () => {
+        expect(checkWitness(hp, { ...native, server: { limits: { nanoCpus: 24e9 } } })).toEqual(['witness differs: server.limits.nanoCpus: 1000000000 | 24000000000']);
+    });
+
+    it('accepts a native witness on the same set and profile', () => {
+        expect(checkWitness(hp, native)).toEqual([]);
     });
 });
