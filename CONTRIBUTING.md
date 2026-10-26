@@ -114,7 +114,10 @@ dotnet test --filter "Category!=RequiresDocker"   # server (xUnit)
 npx vitest run                                    # client scripts
 node ci/static-checks.mjs                         # project rules, duplication
 node e2e/setup.mjs up; npx playwright test -c e2e # end to end, disposable server on 8098
+npm run preflight                                 # static job checks and Vitest, before a push
 ```
+`node e2e/setup.mjs up --plugin-zip <archive.zip>` installs a jprm archive instead of the Release build,
+as the CI does.
 Versioned documents are checked too: every symbol, repository path and `jux.*` key cited between
 backticks in `README.md`, `CONTRIBUTING.md` and `docs/` must exist (`DocSymbolSyncTests`).
 
@@ -195,10 +198,15 @@ Each change goes through these steps, in order:
 6. **Review**: a fresh-context review of the diff against the criteria.
 7. **Push**: only once the bench run passed and `npm run preflight` is green (the static job checks over
    the commits not yet on `origin/main`, the asset budget, the dead code checks and Vitest; `-- --range
-   A..B` replays another range). Every green `feat:`/`fix:` push publishes a release. Each
-   commit of a push must build and pass Vitest on its own (the `commits` CI job, which gates the release);
-   HEAD alone runs the xUnit, E2E and drift suites. A `feat:`, `fix:` or `refactor:` commit that adds
-   lines on a surface of `ci/decision-surfaces.json` (cache, concurrency, route, dependency, target,
+   A..B` replays another range). A push runs the CI only: when its commits call for a release
+   (`feat:`, `fix:`, `perf:`, a revert or a breaking change: `.releaserc.json` and the commit analyzer
+   defaults), the `release` job waits for an approval of the `release` environment, given once the
+   bench run passed, then publishes the jprm archive the E2E installed (`ci/plugin-package.mjs`). Approve
+   the newest run: an older one publishes nothing (semantic-release skips a commit behind `main`), its
+   commits ship with the newer run. After a release,
+   `git pull --rebase` the `chore(release)` commit before the next push. Each commit of a push must
+   build and pass Vitest on its own (the `commits` CI job, which gates the release); HEAD alone runs
+   the xUnit, E2E and drift suites. A `feat:`, `fix:` or `refactor:` commit that adds lines on a surface of `ci/decision-surfaces.json` (cache, concurrency, route, dependency, target,
    schema tier, budget table) carries a `Decision: DR-nnn` trailer naming its decision record, or
    `Decision: none - <reason>`; the static job warns without one (`mode` in that file).
 
@@ -230,7 +238,9 @@ Any Jellyfin Web build can rename them, so run this procedure after every Jellyf
 1. **Drift checks**: extract `/jellyfin/jellyfin-web` from the new image (as the `drift` job of
    `.github/workflows/ci.yml` does), set `JELLYFIN_WEB_EXTRACT_PATH` to it and run
    `dotnet test --filter "Category=RequiresDocker"` (`JellyfinWebDriftTests`: loadSections splice,
-   home-html anchor, every token, carrier and attribute value of `Web/jux-native-selectors.json`).
+   home-html anchor, every token, carrier and attribute value of `Web/jux-native-selectors.json`). The
+   `.github/workflows/drift-weekly.yml` workflow runs them every Monday on the newest 10.11 image: a red
+   run there is the signal to start this procedure.
 2. **E2E suite**: `node e2e/setup.mjs up --image jellyfin/jellyfin:<version>`, then
    `npx playwright test -c e2e`.
 3. **Server log**: bump the image in `docker/docker-compose.yml`, run
