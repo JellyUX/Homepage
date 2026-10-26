@@ -68,6 +68,41 @@ describe('csUnreferenced', () => {
         ];
         expect([...csUnreferenced(sources).keys()]).toEqual([]);
     });
+
+    it('counts an interface member with a nested generic return type (R11)', () => {
+        const sources = [
+            ['IClient.cs', 'public interface IClient\n{\n    Task<IReadOnlyList<int>> Fetch(int a);\n}'],
+            ['Client.cs', 'public sealed class Client : IClient\n{\n    public Task<IReadOnlyList<int>> Fetch(int a) => null;\n}']
+        ];
+        expect([...csUnreferenced(sources).keys()]).toEqual(['Fetch']);
+    });
+
+    it('reaches a params overload with no argument, a call holding an escaped backslash, and a generic call (R11)', () => {
+        const sources = [
+            ['L.cs', [
+                'public static class L',
+                '{',
+                '    public static int Sum(params int[] xs) => 0;',
+                '    private static int Sum(int a, int b) => a + b;',
+                '    public static string Join(string a, string b) => a + b;',
+                '    private static string Join(string a) => a;',
+                '    public static T Get<T>(int a) => default;',
+                '    private static T Get<T>(int a, int b) => default;',
+                '}'
+            ].join('\n')],
+            ['Use.cs', 'var s = L.Sum() + L.Sum(1, 2);\nvar j = L.Join("a\\\\", "b") + L.Join(@"c:\\", "d") + L.Join("e");\nvar g = L.Get<int>(1) + L.Get<int>(1, 2);']
+        ];
+        expect([...csUnreferenced(sources).keys()]).toEqual([]);
+    });
+
+    it('credits a method group to the private overloads of its own file only (R11)', () => {
+        const sources = [
+            ['A.cs', 'public sealed class A\n{\n    public void Handle(int x) { }\n    public void Run(List<int> items) => items.ForEach(Handle);\n}'],
+            ['B.cs', 'public sealed class B\n{\n    private void Handle(string a, string b) { }\n    public void Go() => Handle("a", "b");\n}'],
+            ['Use.cs', 'new A().Run(list); new B().Go();']
+        ];
+        expect([...csUnreferenced(sources).keys()]).toEqual([]);
+    });
 });
 
 describe('jsUnused', () => {

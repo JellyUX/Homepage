@@ -22,11 +22,11 @@ const WEB = `${PLUGIN}Web/`;
 const LOCALIZATION = `${PLUGIN}Localization/`;
 const ALLOWLIST = 'ci/dead-code-allowlist.json';
 
-const CS_DECLARATION = /^\s*(?:\[[^\]]*\]\s*)*(?:public|internal|protected|private)\s+(?:(?:static|readonly|override|virtual|abstract|sealed|async|const|new|partial|required)\s+)*[\w<>[\],.?() ]+?\s+(\w+)\s*(?:\(|\{|=|;)/gm;
+const CS_DECLARATION = /^\s*(?:\[[^\]]*\]\s*)*(?:public|internal|protected|private)\s+(?:(?:static|readonly|override|virtual|abstract|sealed|async|const|new|partial|required)\s+)*[\w<>[\],.?() ]+?\s+(\w+)\s*(?:<[\w\s,]+>\s*)?(?:\(|\{|=|;)/gm;
 const NOT_A_NAME = new Set(['get', 'set', 'init', 'class', 'record', 'interface', 'enum', 'struct']);
 // An interface method has no modifier: a file declaring an interface, a member line at the member indent.
 const CS_INTERFACE = /\binterface\s+\w+/;
-const CS_INTERFACE_MEMBER = /^ {4}(?!(?:public|internal|protected|private|return|await|var|new|if|else|throw)\b)[\w[\],.?]+(?:<[^>\n]*>)?\??\s+(\w+)\s*\(/gm;
+const CS_INTERFACE_MEMBER = /^ {4}(?!(?:public|internal|protected|private|return|await|var|new|if|else|throw)\b)[\w[\],.?]+(?:<(?:[^<>\n]|<(?:[^<>\n]|<[^<>\n]*>)*>)*>)?\??\s+(\w+)\s*(?:<[\w\s,]+>\s*)?\(/gm;
 
 const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const wordCount = (name, text) => (text.match(new RegExp(`\\b${escape(name)}\\b`, 'g')) ?? []).length;
@@ -51,6 +51,28 @@ export function builtFromPrefix(name, separator, text) {
 }
 
 /**
+ * Index of the quote that closes the string or character literal opening at i: escapes are skipped in a
+ * regular string, a doubled quote in a verbatim one (@"...", $@"...").
+ * @param {string} text
+ * @param {number} i
+ * @returns {number}
+ */
+function stringEnd(text, i) {
+    const quote = text[i];
+    const verbatim = quote === '"' && /@\$?$|\$@$/.test(text.slice(Math.max(0, i - 2), i));
+    for (let j = i + 1; j < text.length; j++) {
+        if (verbatim && text[j] === '"' && text[j + 1] === '"') {
+            j++;
+        } else if (!verbatim && text[j] === '\\') {
+            j++;
+        } else if (text[j] === quote || text[j] === '\n') {
+            return j;
+        }
+    }
+    return text.length;
+}
+
+/**
  * The arguments of the call or parameter list whose "(" is at open: top-level commas split them, and
  * strings, nested brackets and generic argument lists are skipped.
  * @param {string} text
@@ -64,8 +86,7 @@ export function csArguments(text, open) {
     for (let i = open + 1; i < text.length; i++) {
         const c = text[i];
         if (c === '"' || c === "'") {
-            const close = text.slice(i + 1).search(c === '"' ? /(?<!\\)"/ : /(?<!\\)'/);
-            i += close < 0 ? 0 : close + 1;
+            i = stringEnd(text, i);
         } else if (c === '<' && /\w/.test(text[i - 1] ?? '')) {
             const generic = /^<[\w\s,.?[\]<>]*>/.exec(text.slice(i));
             i += generic ? generic[0].length - 1 : 0;
@@ -95,7 +116,8 @@ function csMethods(files) {
     const add = (file, text, match, open) => {
         const paren = match.index + match[0].length - 1;
         const params = csArguments(text, paren);
-        const optional = params.filter((p) => p.includes('=')).length;
+        // An optional parameter or a params array may receive no argument.
+        const optional = params.filter((p) => p.includes('=') || /^params\s/.test(p)).length;
         const extension = /^this\s/.test(params[0] ?? '') ? 1 : 0;
         const max = params.some((p) => /^params\s/.test(p)) ? Infinity : params.length;
         methods.push({ file, name: match[1], at: match.index + match[0].lastIndexOf(match[1]), min: params.length - optional - extension, max, open });
@@ -117,8 +139,8 @@ function csMethods(files) {
 
 /**
  * Public overloads no call reaches with their own arity, though a homonym is called (a private overload
- * the public one forwards to, D-12.a). A method group goes to the non-public overloads when there are
- * any, and nameof() to every overload.
+ * the public one forwards to, D-12.a). A method group goes to the non-public overloads of its own file
+ * when there are any, and nameof() to every overload.
  * @param {[string, string][]} files .cs files, comments blanked, as [path, text].
  * @returns {Map<string, Set<string>>} Name -> files declaring an unreached public overload.
  */
@@ -138,12 +160,12 @@ function csUnreachedOverloads(files) {
                 if (declarations.has(`${file}:${use.index}`)) {
                     continue;
                 }
-                const after = /^\s*\(/.exec(text.slice(use.index + name.length));
+                const after = /^\s*(?:<[\w\s,.?[\]<>]*>\s*)?\(/.exec(text.slice(use.index + name.length));
                 if (/nameof\(\s*(?:[\w.]+\.)?$/.test(text.slice(Math.max(0, use.index - 80), use.index))) {
                     groupReachesPublic = true;
                 } else if (after) {
                     arities.push(csArguments(text, use.index + name.length + after[0].length - 1).length);
-                } else if (!overloads.some((m) => !m.open)) {
+                } else if (!overloads.some((m) => !m.open && m.file === file)) {
                     groupReachesPublic = true;
                 }
             }
