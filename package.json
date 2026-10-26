@@ -2,6 +2,7 @@
   "name": "jellyux-homepage-ci",
   "private": true,
   "scripts": {
+    "preflight": "node ci/preflight.mjs",
     "test": "vitest run"
   },
   "devDependencies": {
