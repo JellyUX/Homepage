@@ -126,6 +126,7 @@ public sealed class DocSymbolSyncTests
 
         Assert.Empty(ModelTestProblems("Boundary | `DocSymbolSyncTests.EveryFailurePathModelTest_Exists`, `test/jux-core.test.js`, \"answers with the server, and rejects once the limit passes without an answer\" | proves", root));
         Assert.Empty(ModelTestProblems("Boundary | to be written (FIAB-02) | proves", root));
+        Assert.Empty(ModelTestProblems("Boundary | to be written (FIAB-02.a, DR-001, DEC-P12-6) | proves", root));
         Assert.Equal(3, ModelTestProblems("Boundary | `DocSymbolSyncTests.NoSuchTest`, `test/jux-core.test.js`, \"no such description\" | proves", root)
             .Concat(ModelTestProblems("Boundary | to be written | proves", root)).Count());
     }
@@ -138,7 +139,9 @@ public sealed class DocSymbolSyncTests
         var problems = new List<string>();
         if (cell.StartsWith("to be written", StringComparison.Ordinal))
         {
-            if (!Regex.IsMatch(cell, @"\([A-Z]+-\d{2}(?:, [A-Z]+-\d{2})*\)"))
+            // The registry ids of ci/static-checks.mjs (finding, criterion, decision record, phase decision).
+            const string id = @"(?:[A-Z]+-\d{2}(?:\.[a-z])?|DR-\d{3}|DEC-P\d{2}-\d+)";
+            if (!Regex.IsMatch(cell, $@"\({id}(?:, {id})*\)"))
             {
                 problems.Add($"\"{cell}\" names no registry id that will write the test");
             }
