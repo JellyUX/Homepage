@@ -147,8 +147,69 @@ jobs:
         if: ${{ !cancelled() }}
         run: node ci/dead-code.mjs
 
+  package:
+    name: Build the plugin archive
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.version.outputs.release }}
+      version: ${{ steps.version.outputs.version }}
+      sha256: ${{ steps.archive.outputs.sha256 }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The release version is read from the v* tags and the commits since the last one.
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: 9.0.x
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.x'
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      # The version semantic-release gives this commit, or the last one when nothing is released: the
+      # E2E installs this archive and the release job publishes it as is (CONTRIBUTING.md "Change Checklist").
+      - name: Compute the release version
+        id: version
+        run: |
+          node ci/plugin-package.mjs next-version > next-version.txt
+          cat next-version.txt
+          cat next-version.txt >> "$GITHUB_OUTPUT"
+
+      - name: Install JPRM
+        run: pip install jprm
+
+      - name: Build the jprm archive
+        id: archive
+        run: |
+          mkdir -p artifacts
+          python3 .github/scripts/set-plugin-version.py ${{ steps.version.outputs.version }}
+          jprm plugin build . --version=${{ steps.version.outputs.version }}.0 --output=./artifacts
+          ZIPS=$(ls artifacts/*.zip)
+          if [ "$(echo "$ZIPS" | wc -l)" != 1 ]; then
+            echo "::error::jprm is expected to build one zip, found: $ZIPS"
+            exit 1
+          fi
+          sha256sum "$ZIPS"
+          echo "sha256=$(sha256sum "$ZIPS" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: plugin-zip
+          path: artifacts/*.zip
+          retention-days: 14
+
   e2e:
     name: End-to-end (Jellyfin ${{ matrix.jellyfin }})
+    needs: [package]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -158,12 +219,14 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      # The archive of the package job, the one a release publishes.
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          dotnet-version: 9.0.x
+          name: plugin-zip
+          path: plugin-zip
 
-      - name: Build the plugin
-        run: dotnet build src/Jellyfin.Plugin.JuxHomepage/Jellyfin.Plugin.JuxHomepage.csproj --configuration Release
+      - name: Show the installed archive
+        run: sha256sum plugin-zip/*.zip
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -193,7 +256,7 @@ jobs:
           fi
 
       - name: Start the Jellyfin bench
-        run: node e2e/setup.mjs up --image jellyfin/jellyfin:${{ matrix.jellyfin }}
+        run: node e2e/setup.mjs up --image jellyfin/jellyfin:${{ matrix.jellyfin }} --plugin-zip "$(ls plugin-zip/*.zip)"
 
       - name: Run the browser tests
         run: npx playwright test -c e2e --project root --project mobile
@@ -253,8 +316,9 @@ jobs:
 
   release:
     name: Release
-    needs: [build-test, build-newest-abi, commits, static, e2e, drift]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build-test, build-newest-abi, commits, static, package, e2e, drift]
+    # Only a commit that calls for a release waits for the approval.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.package.outputs.release == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -266,9 +330,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+      # Published as is: ci/plugin-package.mjs verify (verifyReleaseCmd) checks its sha256 and version.
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          dotnet-version: 9.0.x
+          name: plugin-zip
+          path: artifacts
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -291,4 +357,6 @@ jobs:
           GIT_AUTHOR_EMAIL: github-actions[bot]@users.noreply.github.com
           GIT_COMMITTER_NAME: github-actions[bot]
           GIT_COMMITTER_EMAIL: github-actions[bot]@users.noreply.github.com
+          PACKAGE_VERSION: ${{ needs.package.outputs.version }}
+          PACKAGE_SHA256: ${{ needs.package.outputs.sha256 }}
         run: npx semantic-release

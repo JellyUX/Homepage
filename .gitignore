@@ -35,6 +35,7 @@
 !ci/dead-code.mjs
 !ci/push-base.mjs
 !ci/preflight.mjs
+!ci/plugin-package.mjs
 !ci/dead-code-allowlist.json
 !ci/todo-reference-budget.json
 !ci/decision-surfaces.json

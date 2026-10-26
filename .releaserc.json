@@ -39,7 +39,8 @@
     [
       "@semantic-release/exec",
       {
-        "prepareCmd": "mkdir -p artifacts && python3 .github/scripts/set-plugin-version.py ${nextRelease.version} && jprm plugin build . --version=${nextRelease.version}.0 --output=./artifacts && python3 .github/scripts/update-manifest.py ${nextRelease.version}"
+        "verifyReleaseCmd": "node ci/plugin-package.mjs verify ${nextRelease.version}",
+        "prepareCmd": "python3 .github/scripts/update-manifest.py ${nextRelease.version}"
       }
     ],
     [
