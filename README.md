@@ -7,7 +7,7 @@
 <p align="center">
   <img src="https://github.com/JellyUX/Homepage/actions/workflows/ci.yml/badge.svg" alt="Build">
   <img src="https://img.shields.io/github/v/release/JellyUX/Homepage" alt="Version">
-  <img src="https://img.shields.io/badge/Jellyfin-10.11.10-orange" alt="Jellyfin">
+  <img src="https://img.shields.io/badge/Jellyfin-10.11.11-orange" alt="Jellyfin">
   <img src="https://img.shields.io/badge/license-GPL--3.0-green" alt="License">
   <a href="https://jellyux.github.io/Homepage/"><img src="https://img.shields.io/badge/docs-online-blue" alt="Documentation"></a>
 </p>
@@ -20,7 +20,7 @@ A modular home screen engine for Jellyfin that replaces the default home page wi
 
 ## Prerequisites
 
-- **Jellyfin** 10.11.9 or later in the 10.11 series (validated on 10.11.10). The catalog only offers
+- **Jellyfin** 10.11.9 or later in the 10.11 series (validated on 10.11.11). The catalog only offers
   JellyUX to servers at 10.11.9 or above. A copy installed by hand on an older server is marked
   *NotSupported* by Jellyfin and may be deleted at the next restart.
 - **[File Transformation plugin](https://github.com/IAmParadox27/jellyfin-plugin-file-transformation)** 3.0 or later (required - JellyUX uses it to inject its scripts into the Jellyfin web client; from 3.0 the transformed `index.html` is revalidated on every load, so a change to the module switches applies at the next page reload)

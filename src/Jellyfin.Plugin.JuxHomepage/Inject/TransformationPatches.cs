@@ -63,7 +63,8 @@ public static class TransformationPatches
     // read through its .default export. It is the only minified name the inject fragment depends on
     // besides the module self-reference, which is resolved at patch time. Verified by extracting the
     // web bundle from jellyfin/jellyfin:10.11.10 and inspecting the var declarations of the module
-    // that defines ",loadSections:". Update it when targeting a new Jellyfin web release.
+    // that defines ",loadSections:"; 10.11.11 ships the same chunk file (same name and md5). Update it
+    // when targeting a new Jellyfin web release.
     private const string HookCardBuilder = "u";
 
     private static readonly Regex LastVarRegex =

@@ -68,8 +68,8 @@ jobs:
 
       # The published build targets the declared minimum (build.yaml targetAbi); this one checks the
       # code still compiles against the newest server the plugin is validated on.
-      - name: Build against Jellyfin 10.11.10
-        run: dotnet build src/Jellyfin.Plugin.JuxHomepage/Jellyfin.Plugin.JuxHomepage.csproj --configuration Release -p:JellyfinVersion=10.11.10
+      - name: Build against Jellyfin 10.11.11
+        run: dotnet build src/Jellyfin.Plugin.JuxHomepage/Jellyfin.Plugin.JuxHomepage.csproj --configuration Release -p:JellyfinVersion=10.11.11
 
   commits:
     name: Build every commit of the push
@@ -154,7 +154,7 @@ jobs:
       fail-fast: false
       matrix:
         # The declared minimum (build.yaml targetAbi) and the newest validated server.
-        jellyfin: ['10.11.9', '10.11.10']
+        jellyfin: ['10.11.9', '10.11.11']
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -225,7 +225,7 @@ jobs:
           retention-days: 14
 
   drift:
-    name: Jellyfin Web drift (10.11.10)
+    name: Jellyfin Web drift (10.11.11)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -235,9 +235,9 @@ jobs:
           dotnet-version: 9.0.x
 
       # The bundle the HookCardBuilder constant and Web/jux-native-selectors.json are validated for.
-      - name: Extract jellyfin-web from jellyfin/jellyfin:10.11.10
+      - name: Extract jellyfin-web from jellyfin/jellyfin:10.11.11
         run: |
-          docker create --name jf-drift-extract jellyfin/jellyfin:10.11.10
+          docker create --name jf-drift-extract jellyfin/jellyfin:10.11.11
           WEB_DIR=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' jf-drift-extract | grep '^JELLYFIN_WEB_DIR=' | cut -d= -f2)
           docker cp "jf-drift-extract:$WEB_DIR" ./jellyfin-web-extract
           docker rm jf-drift-extract

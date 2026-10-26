@@ -15,7 +15,7 @@
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
     <!-- SDK the plugin compiles against: the declared minimum (build.yaml targetAbi). A build
          against a newer SDK references its assembly versions and fails to load on an older server.
-         CI also builds against the newest validated server: -p:JellyfinVersion=10.11.10 -->
+         CI also builds against the newest validated server: -p:JellyfinVersion=10.11.11 -->
     <JellyfinVersion Condition="'$(JellyfinVersion)' == ''">10.11.9</JellyfinVersion>
   </PropertyGroup>
 

@@ -2,7 +2,7 @@
 // plugin built from this checkout, File Transformation, a tiny synthetic library, an admin and a
 // user restricted to the movie library. Run from the repository root, after a Release build, or with
 // the jprm archive a release publishes (--plugin-zip, what the CI installs):
-//   node e2e/setup.mjs up [--image jellyfin/jellyfin:10.11.10] [--port 8098] [--plugin-zip <archive.zip>]
+//   node e2e/setup.mjs up [--image jellyfin/jellyfin:10.11.11] [--port 8098] [--plugin-zip <archive.zip>]
 //   node e2e/setup.mjs base-url /jf     (sets a BaseUrl and restarts the server)
 //   node e2e/setup.mjs load-config <plugin configuration .xml>   (replaces it and restarts the server)
 //   node e2e/setup.mjs down
@@ -21,6 +21,10 @@ const PLUGIN_DLL = path.resolve('src/Jellyfin.Plugin.JuxHomepage/bin/Release/net
 
 // File Transformation 3.0.0.0, the build matching each supported server version.
 const FILE_TRANSFORMATION = {
+    '10.11.11': {
+        url: 'https://github.com/IAmParadox27/jellyfin-plugin-file-transformation/releases/download/3.0.0.0/Release-10.11.11.zip',
+        sha256: '53c6355627bef47fdea2e1237e0087fbdab065889137f7aacb5470899fed1937'
+    },
     '10.11.10': {
         url: 'https://github.com/IAmParadox27/jellyfin-plugin-file-transformation/releases/download/3.0.0.0/Release-10.11.10.zip',
         sha256: '243f047ae21329eaf8833d975ffffb6917cbf68997dd5e5af190237403e87f4a'
@@ -186,7 +190,7 @@ function libraryOptions() {
 }
 
 async function up() {
-    const image = arg('--image', 'jellyfin/jellyfin:10.11.10');
+    const image = arg('--image', 'jellyfin/jellyfin:10.11.11');
     const port = arg('--port', '8098');
     const serverVersion = image.split(':')[1];
     const pluginZip = arg('--plugin-zip', '');

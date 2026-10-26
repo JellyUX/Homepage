@@ -12,7 +12,7 @@ namespace Jellyfin.Plugin.JuxHomepage.Tests.Inject;
 // (TransformationPatches.FindLoadSectionsChunks/TryPatchLoadSections/CheckHomeHtmlChunks) instead of
 // re-implementing the detection, and checks every native token of Web/jux-native-selectors.json.
 //
-// Needs the web client extracted from the target image (jellyfin/jellyfin:10.11.10, the version the
+// Needs the web client extracted from the target image (jellyfin/jellyfin:10.11.11, the version the
 // hook constant is validated for): tagged so the normal `dotnet test` run skips it; the "drift" job of
 // ci.yml extracts the bundle, sets JELLYFIN_WEB_EXTRACT_PATH and runs it as part of the release gate.
 [Trait("Category", "RequiresDocker")]
