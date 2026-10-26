@@ -53,6 +53,9 @@ on the same data set and profile stands next to it (`--witness <folder>`, or the
 the variable fields (build under test, clock, warm-up, container and volume names); `--allow
 server.version,server.image` declares the fields a comparison changes on purpose.
 
+`node bench/bench-archive.mjs <series folder> [--out <folder>]` zips a series (default
+`bench/.work/archives`) and prints its sha256 as the registry proof `raw:<path>#sha256=<hex>`.
+
 ## Performance (main bench, `identifiants.txt`)
 
 | Script | Measures |
