@@ -1,4 +1,4 @@
-import { configDefaults, defineConfig } from 'vitest/config';
+import { defineConfig } from 'vitest/config';
 
 // TODO_V2.md Phase 15.3: jsdom is needed only for the small handful of pure/near-pure functions in
 // jux-homepage.js that touch window.location/document (see test/jux-homepage.test.js). The plugin
@@ -6,8 +6,9 @@ import { configDefaults, defineConfig } from 'vitest/config';
 export default defineConfig({
     test: {
         environment: 'jsdom',
-        // e2e/ holds the Playwright browser tests (npx playwright test -c e2e).
-        exclude: [...configDefaults.exclude, 'e2e/**'],
+        // test/ only: e2e/ holds the Playwright browser tests (npx playwright test -c e2e), and the
+        // untracked folders of a local checkout hold other projects' suites.
+        include: ['test/**/*.test.js'],
         setupFiles: ['test/setup-core.js'],
         // npx vitest run --coverage; summarized in CI by ci/coverage-summary.mjs, no threshold. lcov gives
         // the per-line hits of the changed lines coverage.
