@@ -21,6 +21,11 @@ const f0 = (x) => (x === null || x === undefined ? 'n/a' : Math.round(x).toLocal
 const kib = (x) => (x === null || x === undefined ? 'n/a' : (Math.round(x / 1024 * 10) / 10).toLocaleString('fr-FR'));
 const loadFrom = (dir, name) => { const p = path.join(dir, name); return existsSync(p) ? JSON.parse(readFileSync(p, 'utf8')) : null; };
 
+// Files a plugin injects into the web client (BENCH-01): the Homepage assets served under /JuxHomepage/ (its API
+// routes start with a capital letter and are left out; the loadSections fragment is spliced into a Jellyfin
+// chunk and cannot be told apart), and the KefinTweaks files (jsDelivr, JavaScript Injector).
+const INJECTED = { homepage: /\/JuxHomepage\/[a-z][^/?]*\.(js|css)(\?|$)/, kefintweaks: /KefinTweaks|kefinTweaks|\/JavaScriptInjector\// };
+
 function flatHome(run) {
     const h = run.home;
     const list = h.net.list;
@@ -38,6 +43,10 @@ function flatHome(run) {
         'home.longtaskCount': h.longtaskCount, 'home.longtaskTotalMs': h.longtaskTotalMs, 'home.longtaskMaxMs': h.longtaskMaxMs,
         'home.jsHeapUsedMiB': h.jsHeapUsedMiB
     };
+    const homepageAssets = list.filter((r) => INJECTED.homepage.test(r.url));
+    const ktAssets = list.filter((r) => INJECTED.kefintweaks.test(r.url));
+    v['injected.homepageFiles'] = homepageAssets.length; v['injected.homepageBytes'] = homepageAssets.reduce((a, r) => a + r.bytes, 0);
+    v['injected.kefintweaksFiles'] = ktAssets.length; v['injected.kefintweaksBytes'] = ktAssets.reduce((a, r) => a + r.bytes, 0);
     for (const [k, x] of Object.entries(h.chain || {})) { v[`chain.${k}`] = x; }
     if (run.back) {
         v['back.firstSectionMs'] = run.back.firstSectionMs; v['back.allSectionsMs'] = run.back.allSectionsMs;
@@ -106,6 +115,8 @@ export function summarizeSeries(dir) {
         }
         for (const [k, arr] of Object.entries(set.mem)) { const s = stats(arr); console.log(`| mem.${k} (MiB) | ${f1(s.median)} | ${tail(s, f1)} | | | ${s.n} |`); }
         console.log('\nchain.* : ms depuis le début de la navigation (Resource Timing) ; chain.loadSectionsCallEstMs est une estimation (début de la 1re requête Sections ou UserViews), aucune marque dans le produit.');
+        const inj = (k) => stats(set.cold.map((v) => v[k])).median;
+        console.log(`Octets injectés (froid, médiane, BENCH-01) : Homepage ${kib(inj('injected.homepageBytes'))} KiB en ${f0(inj('injected.homepageFiles'))} fichiers / KefinTweaks ${kib(inj('injected.kefintweaksBytes'))} KiB en ${f0(inj('injected.kefintweaksFiles'))} fichiers`);
         const rows = matchManifest(targetOf(load('fingerprint.json')), rowLabels(set));
         console.log(`Manifeste de sections (${targetOf(load('fingerprint.json'))}) : présentes ${rows.present.join(', ') || 'aucune'} ; absentes ${rows.missing.join(', ') || 'aucune'} ; hors manifeste ${rows.outside.join(', ') || 'aucune'}`);
 
