@@ -172,8 +172,25 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
+      # The browser is cached per Playwright version. --with-deps is not used: on ubuntu-latest every
+      # library Chromium needs is already installed, and the extra fonts and upgrades it pulled from the
+      # apt mirror took up to 11 min on some runners. The system dependencies are installed only when
+      # Chromium fails to start.
+      - name: Read the Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
       - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+        run: |
+          npx playwright install chromium
+          if ! node -e "require('@playwright/test').chromium.launch().then((b) => b.close())"; then
+            npx playwright install-deps chromium
+          fi
 
       - name: Start the Jellyfin bench
         run: node e2e/setup.mjs up --image jellyfin/jellyfin:${{ matrix.jellyfin }}
