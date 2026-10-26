@@ -15,6 +15,27 @@ Requirements: Node.js with the repository's `npm ci` done (Playwright Chromium f
 | `JUX_BENCH_OUT` | `bench/.work/raw` | folder the raw results are written to (not versioned) |
 | `PERF_SCRATCH` | `JUX_BENCH_OUT` | browser scripts: signed-in state (a token, one file per server port) |
 
+## Reference volume
+
+Every V6 measurement runs on the same big data set, held in a named Docker volume (the template) and copied
+into one working volume per bench before each series. A copy is proved equal to its template by
+`verify` until a server opens it. Media folders and plugin folders are machine paths: they live in
+`bench/.work/bench-local.json` (or the file `JUX_BENCH_LOCAL` names), never in the repository:
+
+```json
+{ "mediaMounts": ["E:/Films/Films:/media/films1"], "pluginDirs": { "native": "D:/bench/plugins-native" } }
+```
+
+| Command | Does |
+|---|---|
+| `node bench/volume-template.mjs create --from <config folder> --name <volume> --image jellyfin/jellyfin:10.11.11` | copies a Jellyfin `/config` (without `log/` and `plugins/`), opens it once with the image (forward migration: never open it with an older image), writes the stamp `.jux-template.json` (item counts, files, bytes, database sha256) |
+| `node bench/volume-template.mjs copy --from <volume> --to <volume>` | copies a volume and verifies the copy |
+| `node bench/volume-template.mjs verify <volume>` | compares a volume with its stamp, exit 1 on any difference |
+| `node bench/volume-template.mjs shape <volume>` | `db-shape.mjs` on a copy of its database, exit 1 below 3 images per movie |
+| `node bench/volume-template.mjs migrate --from <volume> --to <volume> --image jellyfin/jellyfin:12.3` | copies a volume, opens the copy with another image, exit 1 if the item counts change |
+
+`node bench/db-shape.mjs <jellyfin.db>` reads a database copy: images, providers and user-data rows per item.
+
 ## Performance (main bench, `identifiants.txt`)
 
 | Script | Measures |

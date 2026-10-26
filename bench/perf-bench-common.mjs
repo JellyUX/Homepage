@@ -30,19 +30,20 @@ export function readCredentials() {
     return { admin: users[0], user: users[1] };
 }
 
-export async function authenticate(user) {
-    const res = await fetch(`${serverUrl}/Users/AuthenticateByName`, {
+/** Signs a user in on JUX_URL, or on `base` (a bench started by a script on its own port). */
+export async function authenticate(user, base = serverUrl) {
+    const res = await fetch(`${base}/Users/AuthenticateByName`, {
         method: 'POST',
         headers: { Authorization: AUTH, 'Content-Type': 'application/json' },
         body: JSON.stringify({ Username: user.name, Pw: user.password })
     });
     if (!res.ok) { throw new Error(`auth failed ${res.status}`); }
     const j = await res.json();
-    return { token: j.AccessToken, userId: j.User.Id, header: `${AUTH}, Token="${j.AccessToken}"` };
+    return { base, token: j.AccessToken, userId: j.User.Id, header: `${AUTH}, Token="${j.AccessToken}"` };
 }
 
 export async function api(session, route, opts = {}) {
-    const res = await fetch(`${serverUrl}${route}`, { ...opts, headers: { Authorization: session.header, 'Content-Type': 'application/json', ...(opts.headers || {}) } });
+    const res = await fetch(`${session.base || serverUrl}${route}`, { ...opts, headers: { Authorization: session.header, 'Content-Type': 'application/json', ...(opts.headers || {}) } });
     const text = await res.text();
     let body = text;
     try { body = JSON.parse(text); } catch { /* not JSON */ }
