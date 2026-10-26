@@ -3,7 +3,7 @@
 // Homepage is installed (the same fixed wait otherwise, so native and Homepage start measuring alike).
 // Ported from the audit V5 start-warm.sh.
 //   node bench/bench-start.mjs --name <container> --port <port> --volume <working volume> --plugins <key|folder>
-//        [--profile std|lowend|2c8g|srvperso] [--image jellyfin/jellyfin:10.11.11] [--banner] [--wait-s 300]
+//        [--profile std|lowend|2c8g|srvperso] [--image jellyfin/jellyfin:10.11.11] [--banner] [--wait-s 60]
 // --plugins: a key of pluginDirs in bench/.work/bench-local.json, or a folder. The folder is copied to
 // bench/.work/plugins-run/<container> without the Homepage configuration file, so every series starts on the
 // defaults of the build under test. --banner adds the one deviation the "banner first" profile needs (a
@@ -18,6 +18,7 @@ import { HOMEPAGE_PLUGIN_ID } from './bench-fingerprint.mjs';
 
 export const BANNER_OVERRIDE = 'banner first: featured jux.local.top-rated (Movie) above every row';
 const HOMEPAGE_CONFIG = 'Jellyfin.Plugin.JuxHomepage.xml';
+const WARMUP_TIMEOUT_S = 300;
 
 /** Copies a plugins folder for one run, without the Homepage configuration (defaults of the build). */
 export function preparePlugins(source, container) {
@@ -51,13 +52,16 @@ function hasHomepage(pluginsDir) {
     return docker(['run', '--rm', '--entrypoint', 'sh', '-v', `${pluginsDir}:/p:ro`, 'jellyfin/jellyfin:10.11.11', '-c', 'ls /p/*/Jellyfin.Plugin.JuxHomepage.dll 2>/dev/null | wc -l']) !== '0';
 }
 
-/** Waits for /health then for the warm-up line (Homepage) or the same fixed wait (no Homepage). */
+/**
+ * Waits for /health, then for the warm-up line with Homepage (at most WARMUP_TIMEOUT_S), or the fixed wait waitS
+ * without it (the wait a Homepage warm-up takes on the profile, so both configurations start measuring alike).
+ */
 async function waitReady({ name, base, since, homepage, waitS }) {
     const t0 = Date.now();
     const healthyMs = await waitHealthy(base);
     let warmup = null;
     if (homepage) {
-        warmup = await waitForLog(name, since, /Built the home screen/, waitS * 1000).catch(() => null);
+        warmup = await waitForLog(name, since, /Built the home screen/, WARMUP_TIMEOUT_S * 1000).catch(() => null);
     } else {
         await sleep(Math.max(0, waitS * 1000 - (Date.now() - t0)));
     }
@@ -83,7 +87,7 @@ async function applyBanner(base) {
 /**
  * @param {{name: string, port: number|string, volume: string, plugins: string, profile?: string, image?: string, banner?: boolean, waitS?: number}} o
  */
-export async function startProfiled({ name, port, volume, plugins, profile = 'std', image = 'jellyfin/jellyfin:10.11.11', banner = false, waitS = 300 }) {
+export async function startProfiled({ name, port, volume, plugins, profile = 'std', image = 'jellyfin/jellyfin:10.11.11', banner = false, waitS = 60 }) {
     const base = `http://localhost:${port}`;
     const pluginsDir = preparePlugins(resolvePlugins(plugins), name);
     const homepage = hasHomepage(pluginsDir);
@@ -101,7 +105,7 @@ export async function startProfiled({ name, port, volume, plugins, profile = 'st
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const arg = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i > 0 ? process.argv[i + 1] : d; };
-    const o = { name: arg('name'), port: arg('port'), volume: arg('volume'), plugins: arg('plugins'), profile: arg('profile', 'std'), image: arg('image', 'jellyfin/jellyfin:10.11.11'), banner: process.argv.includes('--banner'), waitS: Number(arg('wait-s', 300)) };
+    const o = { name: arg('name'), port: arg('port'), volume: arg('volume'), plugins: arg('plugins'), profile: arg('profile', 'std'), image: arg('image', 'jellyfin/jellyfin:10.11.11'), banner: process.argv.includes('--banner'), waitS: Number(arg('wait-s', 60)) };
     if (!o.name || !o.port || !o.volume || !o.plugins) { console.error('usage: node bench/bench-start.mjs --name <container> --port <port> --volume <volume> --plugins <key|folder> [--profile std] [--banner]'); process.exit(2); }
     try {
         console.log(JSON.stringify(await startProfiled(o)));
