@@ -13,7 +13,7 @@
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { rawDir, dockerStats, sleep, waitHealthy, CONTAINER } from './perf-bench-common.mjs';
+import { rawDir, repoRoot, dockerStats, sleep, waitHealthy, CONTAINER } from './perf-bench-common.mjs';
 import { launch, ensureStorageState, storageStatePath, measurePage, validateTarget, CONTEXTS } from './perf-bench-browser.mjs';
 import { startSeries, endSeries } from './bench-fingerprint.mjs';
 import { waitForLog } from './bench-docker.mjs';
@@ -45,7 +45,7 @@ async function restart(waitWarm) {
     const healthyMs = Date.now() - t0;
     let warmLine = null;
     if (waitWarm && homepage) {
-        warmLine = await waitForLog(CONTAINER, since, /Built the home screen/, (waitS + 60) * 1000).then((w) => w.line.trim()).catch(() => null);
+        warmLine = await waitForLog(CONTAINER, since, /Built the home screen/, 300 * 1000).then((w) => w.line.trim());
     } else if (waitWarm) {
         await sleep(Math.max(0, waitS * 1000 - (Date.now() - t0)));
     }
@@ -59,7 +59,7 @@ const save = () => { for (const f of Object.values(files)) { writeFileSync(path.
 const browser = await launch();
 try {
     // The signed-in state (a token) stays out of the series folder, which is archived.
-    const scratch = process.env.PERF_SCRATCH || rawDir;
+    const scratch = process.env.PERF_SCRATCH || path.join(repoRoot, 'bench', '.work', 'state');
     mkdirSync(scratch, { recursive: true });
     const state = await ensureStorageState(browser, storageStatePath(scratch));
     const context = (b) => browser.newContext({ storageState: state, locale: 'en-US', ...BROWSERS[b].ctx });

@@ -5,13 +5,13 @@
 //        [cell options: --browsers desktop,desktop-slow,phone --colds 3 --boot-colds 3 --warm-desktop 20 --warm-phone 10]
 // A configuration is a pluginDirs key of bench/.work/bench-local.json (native: no plugin; pile: the production
 // plugins without Homepage; full: with it; hp: Homepage alone). Per cell: the template is copied into
-// jux-bench-mx-<config> (refused when it exists, unless --remove-volumes removes it first, and again after the
+// jux-bench-mx-<config>-<profile> (refused when it exists, unless --remove-volumes removes it first, and again after the
 // cell; the signed-in state of each cell is its own, a token of another copy is refused), the container jux-bench-mx starts on the profile and the product defaults (bench-start.mjs), the cell
 // runs with its own raw folder <out>/<config>-<profile> (the native cell is the witness of the others, so
 // run native in every matrix), and the folder is archived. Only one Jellyfin container may run (V4): the
 // matrix refuses to start next to another one.
 import { execFileSync } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { repoRoot } from './perf-bench-common.mjs';
@@ -46,7 +46,7 @@ async function main() {
     const cellArgs = CELL_OPTIONS.flatMap((o) => (arg(o) ? [`--${o}`, arg(o)] : []));
     for (const config of configs) {
         for (const profile of profiles) {
-            const volume = `jux-bench-mx-${config}`;
+            const volume = `jux-bench-mx-${config}-${profile}`;
             const dir = cellFolder(out, config, profile);
             console.log(`== ${config} ${profile} ${new Date().toISOString()}`);
             if (volumeExists(volume)) {
@@ -61,10 +61,13 @@ async function main() {
                 const waitS = profile === 'lowend' ? 100 : 60;
                 const started = await startProfiled({ name: NAME, port: PORT, volume, plugins: config, profile, image, banner: useBanner, waitS: waitS });
                 console.log(JSON.stringify(started));
+                if (existsSync(dir) && readdirSync(dir).length > 0) { throw new Error(`${dir} already holds a series: pick another --out`); }
                 mkdirSync(dir, { recursive: true });
+                const scratch = path.join(out, '.state', `${config}-${profile}`);
+                rmSync(scratch, { recursive: true, force: true });
                 execFileSync(process.execPath, ['--no-warnings', path.join(repoRoot, 'bench', 'perf-matrix-cell.mjs'), ...cellArgs, ...(useBanner ? ['--banner'] : []), '--wait-s', String(waitS)], {
                     stdio: 'inherit', timeout: 4 * 3600 * 1000,
-                    env: { ...process.env, JUX_URL: `http://localhost:${PORT}`, JUX_CONTAINER: NAME, JUX_BENCH_OUT: dir, PERF_SCRATCH: path.join(out, '.state', `${config}-${profile}`), JUX_BENCH_OVERRIDES: useBanner ? BANNER_OVERRIDE : '' }
+                    env: { ...process.env, JUX_URL: `http://localhost:${PORT}`, JUX_CONTAINER: NAME, JUX_BENCH_OUT: dir, PERF_SCRATCH: scratch, JUX_BENCH_OVERRIDES: useBanner ? BANNER_OVERRIDE : '' }
                 });
                 console.log(JSON.stringify(archiveSeries(dir, path.join(out, 'archives'))));
             } finally {

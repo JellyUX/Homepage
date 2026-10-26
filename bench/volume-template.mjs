@@ -38,10 +38,13 @@ function inContainer(image, mounts, script) {
 export function contentOf(volume, image = DEFAULT_IMAGE) {
     const out = inContainer(image, [`${volume}:/v:ro`],
         `cd /v && find . -type f ! -name ${STAMP} -printf '%s\\n' | awk '{n++; s+=$1} END {printf "%d %d\\n", n, s}'`
-        + ' && sha256sum data/jellyfin.db | cut -c1-64 && ls data | grep -c "jellyfin.db-wal" || true');
-    const [counts, sha, wal] = out.split(/\r?\n/);
+        + ' && sha256sum data/jellyfin.db | cut -c1-64'
+        // Path, size and modification time of every file (cp -a keeps them): an edit of the same size still shows.
+        + ` && find . -type f ! -name ${STAMP} -printf '%p %s %T@\\n' | sort | sha256sum | cut -c1-64`
+        + ' && (ls data | grep -c "jellyfin.db-wal" || true)');
+    const [counts, sha, listing, wal] = out.split(/\r?\n/);
     const [files, bytes] = counts.split(' ').map(Number);
-    return { files, bytes, dbSha256: sha, wal: Number(wal || 0) > 0 };
+    return { files, bytes, dbSha256: sha, listingSha256: listing, wal: Number(wal || 0) > 0 };
 }
 
 export function readStamp(volume, image = DEFAULT_IMAGE) {
@@ -62,7 +65,7 @@ function writeStamp(volume, stamp, image) {
 /** Differences between a stamp and the content measured now (empty: same content). */
 export function compareContent(stamp, now) {
     const diff = [];
-    for (const k of ['files', 'bytes', 'dbSha256', 'wal']) {
+    for (const k of ['files', 'bytes', 'dbSha256', 'listingSha256', 'wal']) {
         if (stamp.content[k] !== now[k]) { diff.push(`${k}: stamp ${stamp.content[k]}, now ${now[k]}`); }
     }
     return diff;
@@ -161,7 +164,7 @@ async function shape() {
     const volume = process.argv[3]; const image = arg('image', DEFAULT_IMAGE); const min = Number(arg('min-movie-images', 3));
     const dir = mkdtempSync(path.join(tmpdir(), 'jux-dbshape-'));
     try {
-        inContainer(image, [`${volume}:/v:ro`, `${dir}:/out`], 'cp /v/data/jellyfin.db /out/jellyfin.db');
+        inContainer(image, [`${volume}:/v:ro`, `${dir}:/out`], 'cp /v/data/jellyfin.db* /out/');
         const result = await dbShape(path.join(dir, 'jellyfin.db'));
         const problem = checkMovieImages(result, min);
         console.log(JSON.stringify({ volume, ...result, check: problem || `>= ${min} images per movie` }, null, 2));
@@ -186,11 +189,14 @@ async function migrate() {
     if (!from || !to || !image) { throw new Error('migrate needs --from <volume> --to <volume> --image <image>'); }
     const before = readStamp(from);
     if (!before) { throw new Error(`no ${STAMP} in ${from}`); }
+    const source = verifyOrList(from, before.image);
+    if (source.length > 0) { throw new Error(`${from} differs from its stamp: ${source.join('; ')}`); }
     const copyMs = copyVolume(from, to, before.image);
     const opened = await openOnce(to, image);
     const diff = compareCounts(before.counts, opened.counts);
     const stamp = { source: from, image, createdAt: new Date().toISOString(), version: opened.version, counts: opened.counts, migratedFrom: { volume: from, image: before.image, version: before.version, counts: before.counts }, content: contentOf(to, image) };
-    writeStamp(to, stamp, image);
+    // A refused migration gets no stamp: verify and copy then refuse the volume.
+    if (diff.length === 0) { writeStamp(to, stamp, image); }
     console.log(JSON.stringify({ from, to, copyMs, migrationOpenMs: opened.openMs, countsBefore: before.counts, countsAfter: opened.counts, countsEqual: diff.length === 0, diff }, null, 2));
     if (diff.length > 0) { process.exitCode = 1; }
 }

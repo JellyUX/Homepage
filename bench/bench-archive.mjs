@@ -4,7 +4,7 @@
 // The folder must hold its fingerprint.json: a raw without it cannot be compared later (PROC-02.a).
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { repoRoot } from './perf-bench-common.mjs';
@@ -24,6 +24,8 @@ export function archiveName(dir, now = new Date()) {
 export function archiveSeries(dir, outDir) {
     const src = path.resolve(dir);
     if (!existsSync(path.join(src, 'fingerprint.json'))) { throw new Error(`${src} has no fingerprint.json: not a series folder`); }
+    const tokens = readdirSync(src).filter((f) => /^perf-bench-storage-/.test(f));
+    if (tokens.length > 0) { throw new Error(`${src} holds a signed-in state (${tokens.join(', ')}): move it out before archiving`); }
     mkdirSync(outDir, { recursive: true });
     const zip = path.join(path.resolve(outDir), archiveName(src));
     // bsdtar writes a zip from the extension (-a): Windows ships it as tar.exe, elsewhere zip(1) does the same.

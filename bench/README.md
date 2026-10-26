@@ -13,7 +13,7 @@ Requirements: Node.js with the repository's `npm ci` done (Playwright Chromium f
 | `JUX_URL` | `http://localhost:8096` | server to measure |
 | `JUX_CONTAINER` | `jellyux-test` | its container, for restarts, `docker stats` and logs |
 | `JUX_BENCH_OUT` | `bench/.work/raw` | folder the raw results are written to (not versioned) |
-| `PERF_SCRATCH` | `JUX_BENCH_OUT` | browser scripts: signed-in state (a token, one file per server port) |
+| `PERF_SCRATCH` | `bench/.work/state` | browser scripts: signed-in state (a token, one file per server port), never in a series folder: `bench-archive.mjs` refuses one |
 
 ## Reference volume
 
@@ -28,11 +28,11 @@ into one working volume per bench before each series. A copy is proved equal to 
 
 | Command | Does |
 |---|---|
-| `node bench/volume-template.mjs create --from <config folder> --name <volume> --image jellyfin/jellyfin:10.11.11` | copies a Jellyfin `/config` (without `log/` and `plugins/`), opens it once with the image (forward migration: never open it with an older image), writes the stamp `.jux-template.json` (item counts, files, bytes, database sha256) |
+| `node bench/volume-template.mjs create --from <config folder> --name <volume> --image jellyfin/jellyfin:10.11.11` | copies a Jellyfin `/config` (without `log/` and `plugins/`), opens it once with the image (forward migration: never open it with an older image), writes the stamp `.jux-template.json` (item counts, files, bytes, database sha256, digest of every path, size and modification time) |
 | `node bench/volume-template.mjs copy --from <volume> --to <volume>` | copies a volume and verifies the copy |
 | `node bench/volume-template.mjs verify <volume>` | compares a volume with its stamp, exit 1 on any difference |
 | `node bench/volume-template.mjs shape <volume>` | `db-shape.mjs` on a copy of its database, exit 1 below 3 images per movie |
-| `node bench/volume-template.mjs migrate --from <volume> --to <volume> --image jellyfin/jellyfin:12.3` | copies a volume, opens the copy with another image, exit 1 if the item counts change |
+| `node bench/volume-template.mjs migrate --from <volume> --to <volume> --image jellyfin/jellyfin:12.3` | copies a volume, checks the source against its stamp, opens the copy with another image, exit 1 and no stamp (unusable copy) if the item counts change |
 
 `node bench/db-shape.mjs <jellyfin.db>` reads a database copy: images, providers and user-data rows per item.
 
@@ -108,7 +108,7 @@ only when the same manifest rows are present on both sides.
 
 `node bench/perf-matrix.mjs --configs native,pile,full,hp --profiles lowend,2c8g,srvperso --remove-volumes`
 runs each configuration (a `pluginDirs` key) on each server profile, on a fresh copy of the template per cell
-(`jux-bench-mx-<config>`, replaced and removed by `--remove-volumes`), container `jux-bench-mx` on 8112. A
+(`jux-bench-mx-<config>-<profile>`, replaced and removed by `--remove-volumes`; a cell folder that already holds a series is refused), container `jux-bench-mx` on 8112. A
 cell (`perf-matrix-cell.mjs`) measures cold pages after the warm-up, cold pages at `/health` (desktop) and
 warm reloads, for the desktop, desktop-slow (CPU x4, low-end network) and phone (390 px DPR 3, CPU x4,
 low-end network) browsers (`--browsers`, `--colds`, `--boot-colds`, `--warm-desktop`, `--warm-phone`). Raws

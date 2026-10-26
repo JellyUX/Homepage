@@ -6,7 +6,7 @@
 // the first row (the banner-first profile, bench-start.mjs --banner). mobile = 390 x 844 at DPR 3.
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { rawDir, restartAndMeasure, dockerStats, sleep } from './perf-bench-common.mjs';
+import { rawDir, repoRoot, restartAndMeasure, dockerStats, sleep } from './perf-bench-common.mjs';
 import { launch, ensureStorageState, storageStatePath, measurePage, validateTarget, VIEWPORTS, CONTEXTS } from './perf-bench-browser.mjs';
 import { startSeries, endSeries } from './bench-fingerprint.mjs';
 
@@ -20,7 +20,8 @@ const warm = Number(arg('warm', 5));
 const settleMs = Number(arg('settle', 30000));
 const lowend = profile === 'lowend';
 const timeoutMs = lowend ? 300000 : 120000;
-const scratch = process.env.PERF_SCRATCH || rawDir;
+// The signed-in state (a token) stays out of the series folder, which is archived.
+const scratch = process.env.PERF_SCRATCH || path.join(repoRoot, 'bench', '.work', 'state');
 const out = path.join(rawDir, `perf-bench-browser-${profile}-${viewport}.json`);
 
 const log = (...a) => console.log(new Date().toISOString(), ...a);
