@@ -104,6 +104,18 @@ Each browser summary prints the bytes the plugins inject (Homepage assets under 
 files) and the common rows of `section-manifest.json` the series showed: two series compare the same rows
 only when the same manifest rows are present on both sides.
 
+## Load matrix
+
+`node bench/perf-matrix.mjs --configs native,pile,full,hp --profiles lowend,2c8g,srvperso --remove-volumes`
+runs each configuration (a `pluginDirs` key) on each server profile, on a fresh copy of the template per cell
+(`jux-bench-mx-<config>`, replaced and removed by `--remove-volumes`), container `jux-bench-mx` on 8112. A
+cell (`perf-matrix-cell.mjs`) measures cold pages after the warm-up, cold pages at `/health` (desktop) and
+warm reloads, for the desktop, desktop-slow (CPU x4, low-end network) and phone (390 px DPR 3, CPU x4,
+low-end network) browsers (`--browsers`, `--colds`, `--boot-colds`, `--warm-desktop`, `--warm-phone`). Raws
+go to `<out>/<config>-<profile>` (one series each, `native-<profile>` is the witness of the others) and each
+cell is archived to `<out>/archives`. `--image jellyfin/jellyfin:12.3 --template jux-bench-tpl-12` runs the
+12.3 line. The matrix refuses to start next to another Jellyfin container.
+
 ## Reliability (disposable E2E bench on 8098)
 
 Start it with `node e2e/setup.mjs up`; these scripts read its generated logins from `e2e/.work/env.json`.

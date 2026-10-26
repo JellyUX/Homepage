@@ -79,7 +79,7 @@ export function summarizeSeries(dir) {
     const load = (name) => loadFrom(dir, name);
     const rows = [];
     const browserSets = [];
-    for (const [profile, viewport] of [['std', 'desktop'], ['std', 'mobile'], ['lowend', 'desktop'], ['lowend', 'mobile']]) {
+    for (const [profile, viewport] of [['std', 'desktop'], ['std', 'mobile'], ['lowend', 'desktop'], ['lowend', 'mobile'], ['boot', 'desktop']]) {
         const file = `perf-bench-browser-${profile}-${viewport}.json`;
         const data = load(file);
         if (!data) { continue; }
@@ -174,7 +174,8 @@ export function summarizeSeries(dir) {
     // Startup and memory at rest.
     for (const profile of ['std', 'lowend']) {
         const recs = [];
-        const add = (r, source) => { if (r) { recs.push({ ...r, source }); } };
+        // Only restarts timed by restartAndMeasure() carry the log milestones (a matrix cell records healthyMs and readyMs).
+        const add = (r, source) => { if (r && r.markersFromProcessStartMs) { recs.push({ ...r, source }); } };
         const b = load(`perf-bench-browser-${profile}-desktop.json`); if (b) { b.cycles.forEach((c) => add({ ...c.startup, memRest: c.memRest }, 'browser-desktop')); }
         const bm = load(`perf-bench-browser-${profile}-mobile.json`); if (bm) { bm.cycles.forEach((c) => add({ ...c.startup, memRest: c.memRest }, 'browser-mobile')); }
         const e = load(`perf-bench-startup-endpoints-${profile}.json`); if (e) { e.forEach((r) => add(r, 'endpoints')); }
