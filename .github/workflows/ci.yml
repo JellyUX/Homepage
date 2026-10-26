@@ -320,6 +320,13 @@ jobs:
     # Only a commit that calls for a release waits for the approval.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.package.outputs.release == 'true'
     runs-on: ubuntu-latest
+    # Waits for an approval of the "release" environment, given once the phase passed on the bench; one
+    # publication at a time. A newer run reaching this job cancels an older one still pending (GitHub
+    # concurrency): the older commits ship with the newer run.
+    environment: release
+    concurrency:
+      group: release
+      cancel-in-progress: false
     permissions:
       contents: write
       issues: write
