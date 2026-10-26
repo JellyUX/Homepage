@@ -312,12 +312,15 @@ export function decisionSurfaceHits(diff, surfaces) {
     const compiled = surfaces.map((s) => ({ name: s.name, file: new RegExp(s.file), line: s.line ? new RegExp(s.line) : null }));
     const hits = new Set();
     let file = null;
+    let previous = '';
     for (const line of diff.split('\n')) {
-        if (line.startsWith('+++ ')) {
+        // A file header follows its "--- " line; an added line may also start with "++ ".
+        if (line.startsWith('+++ ') && previous.startsWith('--- ')) {
             file = line === '+++ /dev/null' ? null : line.slice(4).replace(/^b\//, '');
         } else if (file && line.startsWith('+')) {
             compiled.filter((s) => s.file.test(file) && (!s.line || s.line.test(line.slice(1)))).forEach((s) => hits.add(s.name));
         }
+        previous = line;
     }
     return surfaces.map((s) => s.name).filter((name) => hits.has(name));
 }
@@ -348,8 +351,9 @@ export function replayDecisionSurfaces(range, surfaces) {
     const log = git(['log', '--no-merges', '-p', '--unified=0', '--no-color', '--format=%x1e%H%x1f%s%x1f%b%x1f', range]);
     return log.split('\x1e').filter(Boolean).flatMap((record) => {
         const [sha, subject, body, diff] = record.split('\x1f');
-        const { warnings } = checkDecisionTrailer({ sha, subject, body, hits: decisionSurfaceHits(diff, surfaces), mode: 'warning' });
-        return warnings.length > 0 ? [`${sha.slice(0, 7)} ${decisionSurfaceHits(diff, surfaces).join('+')} | ${subject}`] : [];
+        const hits = decisionSurfaceHits(diff, surfaces);
+        const { warnings } = checkDecisionTrailer({ sha, subject, body, hits, mode: 'warning' });
+        return warnings.length > 0 ? [`${sha.slice(0, 7)} ${hits.join('+')} | ${subject}`] : [];
     });
 }
 

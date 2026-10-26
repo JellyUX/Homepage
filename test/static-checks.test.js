@@ -321,6 +321,11 @@ describe('decision surfaces (D-11)', () => {
         expect(decisionSurfaceHits('--- a/src/Jellyfin.Plugin.JuxHomepage/Caching/X.cs\n+++ /dev/null\n@@ -1 +0,0 @@\n-gone\n', surfaces)).toEqual([]);
     });
 
+    it('reads an added line starting with "++ " as a line, not as a file header (R11)', () => {
+        const caching = 'src/Jellyfin.Plugin.JuxHomepage/Caching/X.cs';
+        expect(decisionSurfaceHits(`--- a/${caching}\n+++ b/${caching}\n@@ -1,0 +1,2 @@\n+++ a\n+b\n`, surfaces)).toEqual(['Caching/**']);
+    });
+
     it('warns about a feat, fix or refactor on a surface without a Decision trailer, errors once blocking', () => {
         const hits = ['Caching/**'];
         const commit = { sha: 'abcdef1234', subject: 'fix: keep the cache', body: '' };
