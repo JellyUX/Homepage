@@ -234,8 +234,8 @@ export function summarizeSeries(dir) {
 }
 
 // A witness differs from its series by Homepage only: a series running other plugins (KefinTweaks, the production
-// stack) is not a native witness.
-const WITNESS_VARIABLE = [...VARIABLE_FIELDS, 'plugins.JellyUX Homepage', 'plugins.File Transformation', 'homepage.'];
+// stack) is not a native witness. The warm-up line is written by Homepage, so a native witness never has one.
+const WITNESS_VARIABLE = [...VARIABLE_FIELDS, 'plugins.JellyUX Homepage', 'plugins.File Transformation', 'homepage.', 'warmup.built'];
 
 /** Why a series cannot be summarized against its witness (empty: it can). */
 export function checkWitness(series, witness) {

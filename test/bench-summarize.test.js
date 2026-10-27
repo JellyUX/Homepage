@@ -23,8 +23,9 @@ describe('bench tail notation (V3, PROC-02.c)', () => {
 });
 
 describe('native witness of a series (PROC-02.g)', () => {
-    const native = { counts: { MovieCount: 1116 }, server: { limits: { nanoCpus: 1e9 } }, plugins: {}, homepage: null };
-    const hp = { counts: { MovieCount: 1116 }, server: { limits: { nanoCpus: 1e9 } }, plugins: { 'JellyUX Homepage': '2.17.1.0 Active' }, homepage: { version: '2.17.1.0', sessionTtlMinutes: 15 } };
+    // The warm-up line is written by Homepage only: a native witness never has one (bench-fingerprint.mjs warmupShape).
+    const native = { counts: { MovieCount: 1116 }, server: { limits: { nanoCpus: 1e9 } }, plugins: {}, homepage: null, warmup: { built: false, builtAt: null } };
+    const hp = { counts: { MovieCount: 1116 }, server: { limits: { nanoCpus: 1e9 } }, plugins: { 'JellyUX Homepage': '2.17.1.0 Active' }, homepage: { version: '2.17.1.0', sessionTtlMinutes: 15 }, warmup: { built: true, builtAt: '2026-10-27T10:16:01Z', afterStartMs: 61000 } };
 
     it('summarizes a native series on its own', () => {
         expect(checkWitness(native, null)).toEqual([]);
