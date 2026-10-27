@@ -1,5 +1,13 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { profileLimits } from '../bench/bench-docker.mjs';
+import { profileLimits, remainingUptimeMs } from '../bench/bench-docker.mjs';
+
+describe('bench cold page age (PERF-12 cold: server started more than 2 min ago)', () => {
+    it('waits for what the server still lacks of the minimum uptime, and never a negative time', () => {
+        expect(remainingUptimeMs(1000, 120, 1000 + 45000)).toBe(75000);
+        expect(remainingUptimeMs(1000, 120, 1000 + 130000)).toBe(0);
+        expect(remainingUptimeMs(1000, 0, 1000)).toBe(0);
+    });
+});
 
 describe('bench server profiles (V5, PROC-11)', () => {
     afterEach(() => { delete process.env.SRV_CPUS; });

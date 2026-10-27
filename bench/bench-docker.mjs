@@ -85,6 +85,11 @@ export async function waitForLog(name, since, pattern, timeoutMs = 1800000) {
     throw new Error(`${name}: no line ${pattern} within ${timeoutMs / 1000} s`);
 }
 
+/** Time left before a server started at `startedMs` (host clock, read when `docker restart` returned) is `minUptimeS` old. */
+export function remainingUptimeMs(startedMs, minUptimeS, nowMs = Date.now()) {
+    return Math.max(0, minUptimeS * 1000 - (nowMs - startedMs));
+}
+
 export function stopBench(name) {
     dockerOrNull(['stop', '-t', '30', name]);
     dockerOrNull(['rm', '-f', name]);

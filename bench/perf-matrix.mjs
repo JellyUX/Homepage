@@ -2,7 +2,7 @@
 // measured by bench/perf-matrix-cell.mjs. Ported from the audit V5 mx-run.sh.
 //   node bench/perf-matrix.mjs --configs native,pile,full,hp --profiles lowend,srvperso [--template jux-bench-tpl-1011]
 //        [--image jellyfin/jellyfin:10.11.11] [--out bench/.work/matrix] [--remove-volumes] [--banner]
-//        [cell options: --browsers desktop,desktop-slow,phone --colds 3 --boot-colds 3 --warm-desktop 20 --warm-phone 10]
+//        [cell options: --browsers desktop,desktop-slow,phone --colds 3 --boot-colds 3 --warm-desktop 20 --warm-phone 10 --min-uptime-s 120]
 // A configuration is a pluginDirs key of bench/.work/bench-local.json (native: no plugin; pile: the production
 // plugins without Homepage; full: with it; hp: Homepage alone). Per cell: the template is copied into
 // jux-bench-mx-<config>-<profile> (refused when it exists, unless --remove-volumes removes it first, and again after the
@@ -21,7 +21,7 @@ import { archiveSeries } from './bench-archive.mjs';
 
 const NAME = 'jux-bench-mx';
 const PORT = process.env.JUX_MATRIX_PORT || '8112';
-const CELL_OPTIONS = ['browsers', 'colds', 'boot-colds', 'warm-desktop', 'warm-phone'];
+const CELL_OPTIONS = ['browsers', 'colds', 'boot-colds', 'warm-desktop', 'warm-phone', 'min-uptime-s'];
 
 /** Other running Jellyfin containers (any image jellyfin/jellyfin), which a measured cell must not share the PC with. */
 export function otherJellyfins(except = NAME) {

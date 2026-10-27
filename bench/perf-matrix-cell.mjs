@@ -9,14 +9,14 @@
 // reads them: perf-bench-browser-{std-desktop,lowend-desktop,lowend-mobile,boot-desktop}.json.
 // Ported from the audit V5 mx-cell.mjs.
 //   node bench/perf-matrix-cell.mjs --browsers desktop,phone --colds 3 --boot-colds 3 --warm-desktop 20
-//        --warm-phone 10 --wait-s 100 [--banner]
+//        --warm-phone 10 --wait-s 100 [--min-uptime-s 120] [--banner]
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { rawDir, repoRoot, dockerStats, sleep, waitHealthy, CONTAINER } from './perf-bench-common.mjs';
 import { launch, ensureStorageState, storageStatePath, measurePage, validateTarget, CONTEXTS } from './perf-bench-browser.mjs';
 import { startSeries, endSeries } from './bench-fingerprint.mjs';
-import { waitForLog } from './bench-docker.mjs';
+import { waitForLog, remainingUptimeMs } from './bench-docker.mjs';
 
 const arg = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i > 0 ? process.argv[i + 1] : d; };
 const browsers = arg('browsers', 'desktop,desktop-slow,phone').split(',');
@@ -24,6 +24,7 @@ const colds = Number(arg('colds', 3));
 const bootColds = Number(arg('boot-colds', 3));
 const warmCounts = { desktop: Number(arg('warm-desktop', 20)), 'desktop-slow': Number(arg('warm-desktop', 20)), phone: Number(arg('warm-phone', 10)) };
 const waitS = Number(arg('wait-s', 100));
+const minUptimeS = Number(arg('min-uptime-s', 0));
 const banner = process.argv.includes('--banner');
 
 export const BROWSERS = {
@@ -36,10 +37,12 @@ const log = (...a) => console.log(new Date().toISOString(), path.basename(rawDir
 const series = await startSeries({ label: 'perf-matrix-cell' });
 const homepage = series.homepage !== null;
 
-/** Restarts the container; with waitWarm, waits for the warm-up line (Homepage) or the fixed wait. */
+/** Restarts the container; with waitWarm, waits for the warm-up line (Homepage) or the fixed wait, then until the
+ *  server is --min-uptime-s old (PERF-12 cold: started more than 2 min ago). */
 async function restart(waitWarm) {
     const t0 = Date.now();
     execFileSync('docker', ['restart', '-t', '30', CONTAINER], { timeout: 180000 });
+    const restartedMs = Date.now();
     const since = execFileSync('docker', ['inspect', CONTAINER, '--format={{.State.StartedAt}}'], { encoding: 'utf8' }).trim();
     await waitHealthy();
     const healthyMs = Date.now() - t0;
@@ -49,7 +52,8 @@ async function restart(waitWarm) {
     } else if (waitWarm) {
         await sleep(Math.max(0, waitS * 1000 - (Date.now() - t0)));
     }
-    return { startedAt: since, healthyMs, readyMs: Date.now() - t0, warmLine, memRest: dockerStats() };
+    if (waitWarm) { await sleep(remainingUptimeMs(restartedMs, minUptimeS)); }
+    return { startedAt: since, healthyMs, readyMs: Date.now() - t0, uptimeMs: Date.now() - restartedMs, warmLine, memRest: dockerStats() };
 }
 
 const files = {};

@@ -111,7 +111,9 @@ runs each configuration (a `pluginDirs` key) on each server profile, on a fresh 
 (`jux-bench-mx-<config>-<profile>`, replaced and removed by `--remove-volumes`; a cell folder that already holds a series is refused), container `jux-bench-mx` on 8112. A
 cell (`perf-matrix-cell.mjs`) measures cold pages after the warm-up, cold pages at `/health` (desktop) and
 warm reloads, for the desktop, desktop-slow (CPU x4, low-end network) and phone (390 px DPR 3, CPU x4,
-low-end network) browsers (`--browsers`, `--colds`, `--boot-colds`, `--warm-desktop`, `--warm-phone`). Raws
+low-end network) browsers (`--browsers`, `--colds`, `--boot-colds`, `--warm-desktop`, `--warm-phone`).
+`--min-uptime-s 120` holds every cold page after the warm-up until the server has run for 120 s (the PERF-12 cold
+state, started more than 2 min ago), the same age with and without Homepage; each raw records `startup.uptimeMs`. Raws
 go to `<out>/<config>-<profile>` (one series each, `native-<profile>` is the witness of the others) and each
 cell is archived to `<out>/archives`. `--image jellyfin/jellyfin:12.3 --template jux-bench-tpl-12` runs the
 12.3 line. The matrix refuses to start next to another Jellyfin container.
