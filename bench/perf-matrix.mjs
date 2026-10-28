@@ -66,7 +66,7 @@ async function main() {
                 const scratch = path.join(out, '.state', `${config}-${profile}`);
                 rmSync(scratch, { recursive: true, force: true });
                 execFileSync(process.execPath, ['--no-warnings', path.join(repoRoot, 'bench', 'perf-matrix-cell.mjs'), ...cellArgs, ...(useBanner ? ['--banner'] : []), '--wait-s', String(waitS)], {
-                    stdio: 'inherit', timeout: 4 * 3600 * 1000,
+                    stdio: 'inherit',
                     env: { ...process.env, JUX_URL: `http://localhost:${PORT}`, JUX_CONTAINER: NAME, JUX_BENCH_OUT: dir, PERF_SCRATCH: scratch, JUX_BENCH_OVERRIDES: useBanner ? BANNER_OVERRIDE : '' }
                 });
                 console.log(JSON.stringify(archiveSeries(dir, path.join(out, 'archives'))));
