@@ -11,7 +11,7 @@
 // run native in every matrix), and the folder is archived. Only one Jellyfin container may run (V4): the
 // matrix refuses to start next to another one.
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { repoRoot } from './perf-bench-common.mjs';
@@ -71,6 +71,9 @@ async function main() {
                 });
                 console.log(JSON.stringify(archiveSeries(dir, path.join(out, 'archives'))));
             } finally {
+                // The server log goes next to the signed-in states, outside the archived series folder.
+                const log = dockerOrNull(['logs', '--timestamps', NAME]);
+                if (log !== null) { mkdirSync(path.join(out, '.logs'), { recursive: true }); writeFileSync(path.join(out, '.logs', `${config}-${profile}.log`), log); }
                 stopBench(NAME);
                 if (removeVolumes && dockerOrNull(['volume', 'inspect', volume])) { docker(['volume', 'rm', volume]); }
             }

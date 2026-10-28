@@ -116,7 +116,7 @@ low-end network) browsers (`--browsers`, `--colds`, `--boot-colds`, `--warm-desk
 `--min-uptime-s 120` holds every cold page after the warm-up until the server has run for 120 s (the PERF-12 cold
 state, started more than 2 min ago), the same age with and without Homepage; each raw records `startup.uptimeMs`. Raws
 go to `<out>/<config>-<profile>` (one series each, `native-<profile>` is the witness of the others) and each
-cell is archived to `<out>/archives`. `--image jellyfin/jellyfin:12.3 --template jux-bench-tpl-12` runs the
+cell is archived to `<out>/archives`; its server log is kept in `<out>/.logs/<config>-<profile>.log`, outside the archive. `--image jellyfin/jellyfin:12.3 --template jux-bench-tpl-12` runs the
 12.3 line. The matrix refuses to start next to another Jellyfin container.
 
 `JUX_URL=<disposable bench> node bench/bench-history.mjs --played 500 --watchlist 100` gives the bench user
