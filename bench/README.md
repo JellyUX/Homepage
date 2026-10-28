@@ -33,6 +33,7 @@ into one working volume per bench before each series. A copy is proved equal to 
 | `node bench/volume-template.mjs verify <volume>` | compares a volume with its stamp, exit 1 on any difference |
 | `node bench/volume-template.mjs shape <volume>` | `db-shape.mjs` on a copy of its database, exit 1 below 3 images per movie |
 | `node bench/volume-template.mjs migrate --from <volume> --to <volume> --image jellyfin/jellyfin:12.3` | copies a volume, checks the source against its stamp, opens the copy with another image, exit 1 and no stamp (unusable copy) if the item counts change |
+| `node bench/volume-template.mjs mature --from <volume> --to <volume> --plugins full` | copies a template, runs it with a plugins folder until every interval task has run once (Jellyfin runs a never-run interval task one hour after the start: TMDb Box Sets then creates collections, which changes the library of any bench longer than one hour), stamps the copy with the counts after |
 
 `node bench/db-shape.mjs <jellyfin.db>` reads a database copy: images, providers and user-data rows per item.
 

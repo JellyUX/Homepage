@@ -6,6 +6,7 @@
 //   node bench/volume-template.mjs shape <volume> [--min-movie-images 3]
 //   node bench/volume-template.mjs rescan <volume>
 //   node bench/volume-template.mjs migrate --from <volume> --to <volume> --image jellyfin/jellyfin:12.3
+//   node bench/volume-template.mjs mature --from <volume> --to <volume> --plugins <key|folder>
 // create copies the folder (a Jellyfin /config without log/ and plugins/), opens it once with the image (a
 // forward database migration: never open the volume with an older image afterwards), stops it and writes a
 // stamp (.jux-template.json: item counts, file count, bytes, database sha256). verify compares a volume with
@@ -13,6 +14,9 @@
 // opens the copy with another image and refuses a migration that changes the item counts (PROC-02.f). rescan
 // runs a library scan with the stamped image and stamps the result: a 10.11 server keeps the items whose file
 // was deleted until a scan, a 12 migration drops them, so a template is rescanned before it is migrated.
+// mature copies a template and runs it with a plugins folder until every interval task has run once (DR-004):
+// Jellyfin runs an interval task that never ran one hour after the server start (TMDb Box Sets then creates
+// collections), so a bench longer than one hour on an unmatured template changes the library mid-series.
 // Bench logins: identifiants.txt (admin first). Media folders: bench/.work/bench-local.json (bench-docker.mjs).
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -20,6 +24,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readCredentials, authenticate, api, sleep } from './perf-bench-common.mjs';
 import { docker, volumeExists, emptyPluginsDir, startBench, waitForLog, stopBench } from './bench-docker.mjs';
+import { preparePlugins, resolvePlugins } from './bench-start.mjs';
 import { dbShape, checkMovieImages } from './db-shape.mjs';
 
 const STAMP = '.jux-template.json';
@@ -201,8 +206,52 @@ async function migrate() {
     if (diff.length > 0) { process.exitCode = 1; }
 }
 
+/** Tasks a matured template still waits for: an interval task that never ran, or any task running now. */
+export function pendingFirstRuns(tasks) {
+    return tasks.filter((t) => t.State !== 'Idle'
+        || (!t.LastExecutionResult && (t.Triggers || []).some((tr) => tr.Type === 'IntervalTrigger'))).map((t) => t.Name);
+}
+
+async function mature() {
+    const from = arg('from'); const to = arg('to'); const plugins = arg('plugins');
+    if (!from || !to || !plugins) { throw new Error('mature needs --from <volume> --to <volume> --plugins <key|folder>'); }
+    const before = readStamp(from);
+    if (!before) { throw new Error(`no ${STAMP} in ${from}`); }
+    const source = verifyOrList(from, before.image);
+    if (source.length > 0) { throw new Error(`${from} differs from its stamp: ${source.join('; ')}`); }
+    const copyMs = copyVolume(from, to, before.image);
+    const t0 = Date.now();
+    const since = startBench({ name: HELPER, port: HELPER_PORT, image: before.image, configVolume: to, pluginsDir: preparePlugins(resolvePlugins(plugins), HELPER) });
+    try {
+        await waitForLog(HELPER, since, /Startup complete/);
+        const base = `http://localhost:${HELPER_PORT}`;
+        // The first runs are due one hour after the start: no deadline below a few hours, a progress line instead.
+        let pending;
+        for (;;) {
+            const admin = await authenticate(readCredentials().admin, base);
+            const tasks = (await api(admin, '/ScheduledTasks')).body;
+            pending = pendingFirstRuns(tasks);
+            if (pending.length === 0) {
+                const counts = (await api(admin, '/Items/Counts')).body;
+                await api(admin, '/Sessions/Logout', { method: 'POST' });
+                stopBench(HELPER);
+                const stamp = { ...before, maturedAt: new Date().toISOString(), maturedFrom: { volume: from, counts: before.counts }, maturedWith: path.basename(resolvePlugins(plugins)), tasks: tasks.map((t) => ({ name: t.Name, last: t.LastExecutionResult ? t.LastExecutionResult.EndTimeUtc : null })), counts, content: contentOf(to, before.image) };
+                writeStamp(to, stamp, before.image);
+                console.log(JSON.stringify({ from, to, copyMs, matureMs: Date.now() - t0, countsBefore: before.counts, countsAfter: counts, diff: compareCounts(before.counts, counts) }, null, 2));
+                return;
+            }
+            await api(admin, '/Sessions/Logout', { method: 'POST' });
+            console.log(`${new Date().toISOString()} ${Math.round((Date.now() - t0) / 60000)} min, waiting for: ${pending.join(', ')}`);
+            if (Date.now() - t0 > 4 * 3600000) { throw new Error(`tasks still pending after 4 h: ${pending.join(', ')}`); }
+            await sleep(60000);
+        }
+    } finally {
+        stopBench(HELPER);
+    }
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-    const commands = { create, copy, verify, shape, rescan, migrate };
+    const commands = { create, copy, verify, shape, rescan, migrate, mature };
     const command = commands[process.argv[2]];
     if (!command) { console.error(`usage: node bench/volume-template.mjs ${Object.keys(commands).join('|')} ...`); process.exit(2); }
     await command();

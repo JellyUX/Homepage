@@ -1,6 +1,24 @@
 import { describe, it, expect } from 'vitest';
-import { compareContent, compareCounts } from '../bench/volume-template.mjs';
+import { compareContent, compareCounts, pendingFirstRuns } from '../bench/volume-template.mjs';
 import { checkMovieImages } from '../bench/db-shape.mjs';
+
+describe('matured template (DR-004)', () => {
+    const interval = [{ Type: 'IntervalTrigger', IntervalTicks: 864000000000 }];
+    const done = { EndTimeUtc: '2026-10-28T10:00:00Z', Status: 'Completed' };
+
+    it('waits for every interval task that never ran, and for any task still running', () => {
+        const tasks = [
+            { Name: 'Scan library for new box sets', State: 'Idle', Triggers: interval, LastExecutionResult: null },
+            { Name: 'Refresh People', State: 'Running', Triggers: interval, LastExecutionResult: done },
+            { Name: 'Clean up collections and playlists', State: 'Idle', Triggers: [{ Type: 'StartupTrigger' }], LastExecutionResult: null }
+        ];
+        expect(pendingFirstRuns(tasks)).toEqual(['Scan library for new box sets', 'Refresh People']);
+    });
+
+    it('is done when every interval task has a result and none runs', () => {
+        expect(pendingFirstRuns([{ Name: 'Scan library for new box sets', State: 'Idle', Triggers: interval, LastExecutionResult: done }])).toEqual([]);
+    });
+});
 
 describe('reference volume (REV-05.a)', () => {
     const stamp = { content: { files: 10, bytes: 100, dbSha256: 'x', wal: false } };
