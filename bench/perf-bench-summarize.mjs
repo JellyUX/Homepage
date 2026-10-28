@@ -115,7 +115,7 @@ export function summarizeSeries(dir) {
             console.log(`| ${k}${/bytes|Bytes/.test(k) ? ' (KiB)' : ''} | ${f(c.median)} | ${tail(c, f)} | ${f(w.median)} | ${tail(w, f)} | ${c.n} / ${w.n} |`);
         }
         for (const [k, arr] of Object.entries(set.mem)) { const s = stats(arr); console.log(`| mem.${k} (MiB) | ${f1(s.median)} | ${tail(s, f1)} | | | ${s.n} |`); }
-        console.log('\nchain.* : ms depuis le début de la navigation (Resource Timing) ; chain.loadSectionsCallEstMs est une estimation (début de la 1re requête Sections ou UserViews), aucune marque dans le produit.');
+        console.log('\nchain.* : ms depuis le début de la navigation (Resource Timing) ; chain.loadSectionsCallEstMs est une estimation (début de la 1re requête Sections ou UserViews après le chunk, sinon fin du chunk : chain.loadSectionsCallFromChunk = 1), aucune marque dans le produit.');
         const inj = (k) => stats(set.cold.map((v) => v[k])).median;
         console.log(`Octets injectés (froid, médiane, BENCH-01) : Homepage ${kib(inj('injected.homepageBytes'))} KiB en ${f0(inj('injected.homepageFiles'))} fichiers / KefinTweaks ${kib(inj('injected.kefintweaksBytes'))} KiB en ${f0(inj('injected.kefintweaksFiles'))} fichiers`);
         const rows = matchManifest(targetOf(load('fingerprint.json')), rowLabels(set));

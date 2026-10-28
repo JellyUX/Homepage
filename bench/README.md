@@ -97,7 +97,7 @@ slide (`BENCH_SECTION_SEL`, `BENCH_CARD_SEL` override them). Before a series the
 the target (`selectors-<viewport>.json`): a row with a card, no skeleton counted, and with `--banner` a
 loaded banner first. Each home load records a timed chain from Resource Timing (`chain.*`: user known, home
 and loadSections chunks, loadSections called, end of Sections, first row request, first row shown); the
-loadSections call is estimated by the start of the first request it sends, no mark is placed in the product
+loadSections call is estimated by the start of the first request it sends after its chunk, or by the chunk end when it sends none (`chain.loadSectionsCallFromChunk` 1: native rows reusing an earlier UserViews answer), no mark is placed in the product
 (`BENCH_LOADSECTIONS_CHUNK` names the chunk of another Jellyfin Web bundle). `BENCH_KT_LOCAL=<folder>`
 serves KefinTweaks from a local copy instead of jsDelivr.
 

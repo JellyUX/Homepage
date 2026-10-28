@@ -161,21 +161,24 @@ async function waitQuiet(page, net, { quietMs = 3000, maxMs = 90000 } = {}) {
  * Timed chain of a home load (PS 1.4 point 2), from Resource Timing, in ms since the navigation start: user
  * known (end of /Users/{id}), home chunk and loadSections chunk received, loadSections called, end of
  * Sections, first row request, first row shown. No mark is placed in the product: the loadSections call is
- * estimated as the start of the first request it sends (Sections with Homepage, UserViews without).
- * Runs in the page.
+ * estimated as the start of the first request it sends (Sections with Homepage, UserViews without), or as the
+ * end of its chunk when it sends none (native rows reusing a UserViews answer fetched before the chunk;
+ * loadSectionsCallFromChunk is then 1). Runs in the page, so it is self-contained.
  */
-function timedChain({ firstSection, chunk }) {
+export function timedChain({ firstSection, chunk }) {
     const res = performance.getEntriesByType('resource');
     const find = (re, after = -1) => res.find((r) => re.test(r.name) && r.startTime >= after);
     const end = (e) => (e ? Math.round(e.responseEnd) : null);
     const start = (e) => (e ? Math.round(e.startTime) : null);
     const loadSectionsChunk = find(new RegExp(chunk));
     const after = loadSectionsChunk ? loadSectionsChunk.responseEnd : -1;
+    const call = find(/\/JuxHomepage\/Sections(\?|$)|\/UserViews(\?|$)/, after);
     return {
         userKnownMs: end(find(/\/Users\/[0-9a-f]{32}(\?|$)/i)),
         homeChunkMs: end(find(/\/home\.[0-9a-f]+\.chunk\.js/)),
         loadSectionsChunkMs: end(loadSectionsChunk),
-        loadSectionsCallEstMs: start(find(/\/JuxHomepage\/Sections(\?|$)|\/UserViews(\?|$)/, after)),
+        loadSectionsCallEstMs: call ? start(call) : end(loadSectionsChunk),
+        loadSectionsCallFromChunk: call || !loadSectionsChunk ? 0 : 1,
         sectionsEndMs: end(find(/\/JuxHomepage\/Sections(\?|$)/)),
         firstRowRequestMs: start(find(/\/JuxHomepage\/Section\/|\/Items\/Latest|\/Items\/Resume|\/Shows\/NextUp/, after)),
         firstSectionMs: firstSection === null ? null : Math.round(firstSection)
