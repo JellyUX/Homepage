@@ -61,11 +61,11 @@ export function emptyPluginsDir() {
  * @param {{name: string, port: number|string, image: string, configVolume: string, pluginsDir: string, limits?: string[]}} o limits: extra docker run flags
  * @returns {string} the container start time (RFC 3339, from docker inspect)
  */
-export function startBench({ name, port, image, configVolume, pluginsDir, limits = [] }) {
+export function startBench({ name, port, image, configVolume, pluginsDir, limits = [], tz = null }) {
     const { mediaMounts } = readLocal();
     dockerOrNull(['rm', '-f', name]);
     docker(['run', '-d', '--name', name, '--restart', 'no', '-p', `${port}:8096`, ...limits,
-        '-e', `JELLYFIN_PublishedServerUrl=http://localhost:${port}`,
+        '-e', `JELLYFIN_PublishedServerUrl=http://localhost:${port}`, ...(tz ? ['-e', `TZ=${tz}`] : []),
         '-v', `${configVolume}:/config`, '-v', `${path.resolve(pluginsDir)}:/config/plugins`,
         ...mediaMounts.flatMap((m) => ['-v', `${m}:ro`]), image]);
     return docker(['inspect', name, '--format={{.State.StartedAt}}']);

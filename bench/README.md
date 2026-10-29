@@ -44,7 +44,9 @@ into one working volume per bench before each series. A copy is proved equal to 
 for `/health`, then for the warm-up line "Built the home screen" (the same fixed wait without Homepage).
 The plugins folder (a `pluginDirs` key of the local file, or a folder) is copied without the Homepage
 configuration file: every series starts on the defaults of the build under test. `--banner` adds the one
-deviation of the "banner first" profile (a featured top-rated movie section above every row).
+deviation of the "banner first" profile (a featured top-rated movie section above every row). `--tz <IANA zone>`
+sets the server's time zone: the scoring day change follows the server's local midnight, which a zone places at a
+chosen time of the bench day (first visit after midnight, MB-01); list it in `JUX_BENCH_OVERRIDES`.
 
 | Profile | Limits |
 |---|---|

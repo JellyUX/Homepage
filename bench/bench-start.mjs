@@ -3,12 +3,13 @@
 // Homepage is installed (the same fixed wait otherwise, so native and Homepage start measuring alike).
 // Ported from the audit V5 start-warm.sh.
 //   node bench/bench-start.mjs --name <container> --port <port> --volume <working volume> --plugins <key|folder>
-//        [--profile std|lowend|2c8g|srvperso] [--image jellyfin/jellyfin:10.11.11] [--banner] [--wait-s 60]
+//        [--profile std|lowend|2c8g|srvperso] [--image jellyfin/jellyfin:10.11.11] [--banner] [--wait-s 60] [--tz <IANA zone>]
 // --plugins: a key of pluginDirs in bench/.work/bench-local.json, or a folder. The folder is copied to
 // bench/.work/plugins-run/<container> without the Homepage configuration file, so every series starts on the
 // defaults of the build under test. --banner adds the one deviation the "banner first" profile needs (a
 // featured top-rated movie section above every other row), applied through the API before a restart; the
-// fingerprint lists it (JUX_BENCH_OVERRIDES).
+// fingerprint lists it (JUX_BENCH_OVERRIDES). --tz sets the server's local time zone (TZ), which places the server's
+// midnight, read by the scoring day change, at a chosen time of the bench day.
 import { cpSync, existsSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -85,14 +86,14 @@ async function applyBanner(base) {
 }
 
 /**
- * @param {{name: string, port: number|string, volume: string, plugins: string, profile?: string, image?: string, banner?: boolean, waitS?: number}} o
+ * @param {{name: string, port: number|string, volume: string, plugins: string, profile?: string, image?: string, banner?: boolean, waitS?: number, tz?: string}} o
  */
-export async function startProfiled({ name, port, volume, plugins, profile = 'std', image = 'jellyfin/jellyfin:10.11.11', banner = false, waitS = 60 }) {
+export async function startProfiled({ name, port, volume, plugins, profile = 'std', image = 'jellyfin/jellyfin:10.11.11', banner = false, waitS = 60, tz = null }) {
     const base = `http://localhost:${port}`;
     const pluginsDir = preparePlugins(resolvePlugins(plugins), name);
     const homepage = hasHomepage(pluginsDir);
     if (banner && !homepage) { throw new Error('--banner needs Homepage in the plugins folder'); }
-    let since = startBench({ name, port, image, configVolume: volume, pluginsDir, limits: profileLimits(profile) });
+    let since = startBench({ name, port, image, configVolume: volume, pluginsDir, limits: profileLimits(profile), tz });
     let ready = await waitReady({ name, base, since, homepage, waitS });
     if (banner) {
         await applyBanner(base);
@@ -100,12 +101,12 @@ export async function startProfiled({ name, port, volume, plugins, profile = 'st
         since = docker(['inspect', name, '--format={{.State.StartedAt}}']);
         ready = await waitReady({ name, base, since, homepage, waitS });
     }
-    return { name, port, volume, plugins, profile, image, homepage, overrides: banner ? [BANNER_OVERRIDE] : [], startedAt: since, ...ready };
+    return { name, port, volume, plugins, profile, image, tz, homepage, overrides: banner ? [BANNER_OVERRIDE] : [], startedAt: since, ...ready };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const arg = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i > 0 ? process.argv[i + 1] : d; };
-    const o = { name: arg('name'), port: arg('port'), volume: arg('volume'), plugins: arg('plugins'), profile: arg('profile', 'std'), image: arg('image', 'jellyfin/jellyfin:10.11.11'), banner: process.argv.includes('--banner'), waitS: Number(arg('wait-s', 60)) };
+    const o = { name: arg('name'), port: arg('port'), volume: arg('volume'), plugins: arg('plugins'), profile: arg('profile', 'std'), image: arg('image', 'jellyfin/jellyfin:10.11.11'), banner: process.argv.includes('--banner'), waitS: Number(arg('wait-s', 60)), tz: arg('tz', null) };
     if (!o.name || !o.port || !o.volume || !o.plugins) { console.error('usage: node bench/bench-start.mjs --name <container> --port <port> --volume <volume> --plugins <key|folder> [--profile std] [--banner]'); process.exit(2); }
     try {
         console.log(JSON.stringify(await startProfiled(o)));
