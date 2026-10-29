@@ -33,7 +33,9 @@ const layout = (await api(user, `/JuxHomepage/Sections?userId=${U}&page=0&lang=e
 function section(name, sectionKey, labelWithData = false) {
     const row = layout.find((s) => s.SectionKey === sectionKey);
     if (!row) {
-        throw new Error(`no layout row ${sectionKey}`);
+        // The layout of the configuration under test decides the rows (a bench on the product defaults has fewer).
+        console.warn(`no layout row ${sectionKey}: endpoint skipped`);
+        return null;
     }
     const query = new URLSearchParams({ userId: U, sectionKey, startIndex: '0', limit: String(row.MaxItems) });
     if (row.AdditionalData) {
@@ -71,7 +73,7 @@ const ENDPOINTS = [
     ['admin SeriesProgress/Items (2)', admin, `/JuxHomepage/SeriesProgress/Items?userId=${A}&sortBy=LastPlayed&sortOrder=Descending&startIndex=0&limit=50`],
     ['admin MovieHistory/Items (12)', admin, `/JuxHomepage/MovieHistory/Items?userId=${A}&sortBy=LastPlayed&sortOrder=Descending&startIndex=0&limit=50`],
     ['admin Statistics', admin, `/JuxHomepage/Statistics?userId=${A}`]
-];
+].filter(Boolean);
 
 function curl(session, route) {
     const out = execFileSync('curl', ['-s', '-o', os.devNull, '-H', `Authorization: ${session.header}`, '-w', '%{http_code},%{time_starttransfer},%{time_total},%{size_download}', `${serverUrl}${route}`], { encoding: 'utf8', timeout: 120000 });
