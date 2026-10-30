@@ -89,3 +89,54 @@ test('saving the admin page unchanged keeps every row as loaded (FIAB-02)', asyn
         await pluginConfiguration(token, saved);
     }
 });
+
+// FIAB-02.a: a field the browser would refuse, out of sight in another tab or in a folded card, used to
+// stop Save without a word (no request, no message). Save now opens the field's tab and card and puts the
+// focus on it, still sending nothing.
+test('FIAB-02.a: Save shows an invalid field hidden in another tab or a folded card', async ({ page }) => {
+    const token = await adminToken();
+    const saved = await pluginConfiguration(token);
+    const seeded = structuredClone(saved);
+    seeded.Widgets.push({ WidgetType: 'jux.connected.discover-movies', Enabled: true, Order: 900, MinItems: 1, MaxItems: 20, ViewMode: 'Portrait',
+        ExtraParams: [{ Key: 'value', Value: '66666666-7777-8888-9999-000000000000' }, { Key: 'pages', Value: '1' }] });
+    const posts = [];
+    page.on('request', (r) => {
+        if (r.method() === 'POST' && /Plugins\/.*Configuration/.test(r.url())) { posts.push(r.url()); }
+    });
+    try {
+        await pluginConfiguration(token, seeded);
+        await login(page, env.admin);
+        await page.goto(`${env.serverUrl}/web/#/configurationpage?name=JellyUX%20Homepage`);
+        const pageRoot = page.locator('#juxHomepageConfigPage:visible');
+        const save = pageRoot.locator('.jux-admin-actions .button-submit');
+
+        // An interval of 0 in Sources, saved from Settings.
+        await pageRoot.locator('#juxTab_sources').click();
+        const refresh = pageRoot.locator('#numTMDbRefresh');
+        await refresh.fill('0');
+        await pageRoot.locator('#juxTab_settings').click();
+        await expect(refresh).toBeHidden();
+        await save.click();
+        await expect(refresh).toBeVisible();
+        await expect(refresh).toBeFocused();
+        await refresh.fill('24');
+
+        // 9 pages (at most 5) in a Discover card folded again, saved from Settings.
+        await pageRoot.locator('#juxTab_sections').click();
+        const card = () => pageRoot.locator('.jux-admin-widget-card', { has: page.locator('.jux-discover-pages') });
+        await card().locator('.jux-admin-btn-toggle').click();
+        await card().locator('.jux-discover-pages').fill('9');
+        await card().locator('.jux-admin-btn-toggle').click();
+        await expect(card()).toHaveClass(/jux-admin-widget-card-collapsed/);
+        await pageRoot.locator('#juxTab_settings').click();
+        await save.click();
+        const pages = card().locator('.jux-discover-pages');
+        await expect(pages).toBeVisible();
+        await expect(pages).toBeFocused();
+        await expect(pages).toHaveValue('9');
+
+        expect(posts).toEqual([]);
+    } finally {
+        await pluginConfiguration(token, saved);
+    }
+});

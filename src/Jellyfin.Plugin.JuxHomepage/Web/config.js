@@ -1745,6 +1745,27 @@ function createConfigPage() {
             if (panel && panel.hidden) { this.selectTab(panel.id.replace('juxPanel_', '')); }
         },
 
+        // The first field the browser would refuse (min, max, pattern), brought into view: its tab open and
+        // its section card unfolded, the state read from the page first so the card renders what was typed.
+        revealInvalidField: function (form) {
+            var field = Array.prototype.find.call(form.elements, function (el) {
+                return el.willValidate && !el.checkValidity();
+            });
+            if (!field) { return null; }
+            var card = field.closest('.jux-admin-widget-card-collapsed');
+            if (card) {
+                var index = card.getAttribute('data-index');
+                var position = Array.prototype.indexOf.call(card.querySelectorAll('input, select, textarea'), field);
+                this._expandedRows.add(this.state.sortedWidgets[index]);
+                this.renderWidgets();
+                card = document.querySelector('#juxWidgetList .jux-admin-widget-card[data-index="' + index + '"]');
+                field = (field.id && document.getElementById(field.id)) ||
+                    card.querySelectorAll('input, select, textarea')[position];
+            }
+            this.revealField(field);
+            return field;
+        },
+
         // Leaving the page cannot be stopped from inside Jellyfin (DEC-P10-5): the unsaved changes are kept
         // for this browser session and shown again on return.
         leave: function () {
@@ -1843,6 +1864,14 @@ function createConfigPage() {
             tmdbError.hidden = true;
 
             self.readDomIntoState();
+
+            // The form is novalidate (DR-018): the browser's own check stops a Save without a word when the
+            // field it refuses sits in a hidden tab or a folded card, so the page brings it into view first.
+            var invalidField = self.revealInvalidField(document.querySelector('.juxConfigForm'));
+            if (invalidField) {
+                invalidField.reportValidity();
+                return;
+            }
 
             // Validate: admin sections must have a value, Rewards sections a ceremony or a category.
             var hasValueError = false;
