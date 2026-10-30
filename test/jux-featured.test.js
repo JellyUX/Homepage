@@ -205,6 +205,27 @@ describe('KTW-01.c motion and accessibility', () => {
         expect(active()).toBe('0');
     });
 
+    // A swipe moves one slide; a gesture the browser takes back (pointercancel, a vertical scroll) is
+    // forgotten, so a later pointerup does not move the banner (A5 §15.3).
+    it('moves on a swipe, and forgets a swipe the browser cancelled', () => {
+        render(items(5));
+        const stage = container.querySelector('.jux-featured-stage');
+        const pointer = (type, x) => {
+            const event = new Event(type, { bubbles: true });
+            event.clientX = x;
+            stage.dispatchEvent(event);
+        };
+
+        pointer('pointerdown', 300);
+        pointer('pointerup', 200);
+        expect(active()).toBe('1');
+
+        pointer('pointerdown', 300);
+        pointer('pointercancel', 300);
+        pointer('pointerup', 100);
+        expect(active()).toBe('1');
+    });
+
     it('moves with the arrow keys and the strip, hides and inerts the other slides', () => {
         render(items(5));
         const banner = container.querySelector('.jux-featured');

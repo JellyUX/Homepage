@@ -518,6 +518,8 @@
             }
             swipeX = null;
         });
+        // A gesture the browser takes back (a vertical scroll) is not a swipe.
+        state.stage.addEventListener('pointercancel', function () { swipeX = null; });
 
         if (!state.visible) {
             state.observer = new IntersectionObserver(function (entries) {
