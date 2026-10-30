@@ -135,6 +135,19 @@ describe('KTW-01.b images', () => {
         expect(logos()).toEqual([false, true, true]);
     });
 
+    // FIAB-03: a logo the server cannot send gives its place back to the text title, and is not asked again.
+    it('shows the title again when its logo fails to load', () => {
+        window.matchMedia = vi.fn(() => ({ matches: false }));
+        render(items(3).map((i) => ({ ...i, ImageTags: { Logo: 'L' + i.Id } })));
+        const heading = container.querySelector('.jux-featured-slide .jux-featured-heading');
+        expect(heading.classList.contains('jux-featured-has-logo')).toBe(true);
+
+        heading.querySelector('.jux-featured-logo').dispatchEvent(new Event('error'));
+        expect(heading.querySelector('.jux-featured-logo')).toBeNull();
+        expect(heading.classList.contains('jux-featured-has-logo')).toBe(false);
+        expect(heading.querySelector('.jux-featured-title').textContent).not.toBe('');
+    });
+
     it('decodes a blurhash into opaque pixels and refuses a malformed one', () => {
         const pixels = decodeBlurhash('LEHV6nWB2yk8pyo0adR*.7kCMdnj', 4, 3);
         expect(pixels).toHaveLength(4 * 3 * 4);

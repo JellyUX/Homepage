@@ -153,3 +153,27 @@ test('PERF-02: a featured skeleton is as tall as its banner', async ({ page }) =
         expect(Math.abs((await host.boundingBox()).height - banner)).toBeLessThanOrEqual(1);
     });
 });
+
+// FIAB-03: a slide whose logo the server cannot send shows its text title. No bench movie has a logo:
+// the section's answer is given one for its first movie, which the server answers 404.
+test('FIAB-03.a: a slide whose logo fails shows its title', async ({ page }) => {
+    await withOnlyRow(featured('jux.local.top-rated', 'itemTypes', 'Movie'), async () => {
+        await page.route(/\/JuxHomepage\/Section\/jux\.local\.top-rated/, async (route) => {
+            const response = await route.fetch();
+            const body = await response.json();
+            body.Items[0].ImageTags = { ...body.Items[0].ImageTags, Logo: 'e2e-missing' };
+            await route.fulfill({ response, json: body });
+        });
+        const logos = [];
+        page.on('response', (r) => {
+            if (/\/Images\/Logo/i.test(r.url())) { logos.push(r.status()); }
+        });
+        await login(page, env.admin);
+
+        const heading = page.locator('.jux-featured-slide.jux-featured-active .jux-featured-heading');
+        await expect.poll(() => logos).toEqual([404]);
+        await expect(heading.locator('.jux-featured-logo')).toHaveCount(0);
+        await expect(heading.locator('.jux-featured-title')).toBeVisible();
+        expect(await isPainted(heading.locator('.jux-featured-title'))).toBe(true);
+    });
+});

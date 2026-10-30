@@ -270,6 +270,11 @@
         var id = slide.dataset.id;
         var logo = slide.querySelector('.jux-featured-logo');
         if (logo && !logo.getAttribute('src') && !_phoneLayout()) {
+            // A logo the server cannot send gives its place back to the title, never asked again (FIAB-03).
+            logo.addEventListener('error', function () {
+                logo.parentNode.classList.remove('jux-featured-has-logo');
+                logo.remove();
+            }, { once: true });
             logo.src = _image(state.apiClient, id, { type: 'Logo', tag: logo.dataset.tag, maxWidth: LOGO_WIDTH, quality: 90 });
         }
         if (slide.dataset.loaded) {
