@@ -300,6 +300,7 @@
   "client.usersettings.sectionsHelp": "These sections replace the “Home screen section” lists above, which are hidden while JellyUX is on.",
   "client.usersettings.empty": "Your administrator has not let you change any section.",
   "client.usersettings.saveFailed": "JellyUX settings could not be saved. Check your connection, then save again.",
+  "client.usersettings.saveFailedServer": "The server could not save the JellyUX settings. Try again later, or tell your administrator if it keeps failing.",
 
   "client.error.title": "Couldn’t load {name}",
   "client.error.section": "This section couldn’t be loaded.",

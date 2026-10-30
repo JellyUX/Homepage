@@ -144,11 +144,11 @@
         _syncEnabled(form, block);
 
         form.addEventListener('submit', function () {
-            _save(block, userId);
+            _save(block, userId, t);
         });
     }
 
-    function _save(block, userId) {
+    function _save(block, userId, t) {
         var enabled = block.querySelector('.jux-user-enabled').checked;
         var hidden = Array.prototype.filter.call(
             block.querySelectorAll('.jux-user-section'),
@@ -169,6 +169,8 @@
             }
         }).catch(function (err) {
             console.error('[JellyUX] Failed to save the JellyUX settings:', err);
+            // A server error rejects with its response, a lost connection with no status (BKL-41).
+            error.textContent = err && typeof err.status === 'number' ? t.saveFailedServer : t.saveFailed;
             error.hidden = false;
         });
     }

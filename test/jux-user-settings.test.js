@@ -123,4 +123,26 @@ describe('JellyUX block of Preferences > Home (F-36)', () => {
         expect(form.querySelector('.jux-user-settings-error').hidden).toBe(false);
         errorSpy.mockRestore();
     });
+
+    // BKL-41: a server that answers with an error is not a lost connection; each gets its own message.
+    it('tells a server error from a lost connection', async () => {
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const t = english();
+        const saveWith = async (failure) => {
+            const form = nativeForm();
+            window.ApiClient = { getUrl: (route) => route, getCurrentUserId: () => 'u1', ajax: () => Promise.reject(failure) };
+            _render(form, settings, 'u1', t);
+            form.dispatchEvent(new Event('submit', { cancelable: true }));
+            await new Promise((r) => setTimeout(r, 0));
+            const error = form.querySelector('.jux-user-settings-error');
+            expect(error.hidden).toBe(false);
+            return error.textContent;
+        };
+
+        expect(await saveWith({ status: 500 })).toBe(t.saveFailedServer);
+        expect(await saveWith(new TypeError('Failed to fetch'))).toBe(t.saveFailed);
+        expect(t.saveFailedServer).toBeTruthy();
+        expect(t.saveFailedServer).not.toBe(t.saveFailed);
+        errorSpy.mockRestore();
+    });
 });

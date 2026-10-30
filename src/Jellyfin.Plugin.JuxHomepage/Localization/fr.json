@@ -300,6 +300,7 @@
   "client.usersettings.sectionsHelp": "Ces sections remplacent les listes « Section de l’écran d’accueil » ci-dessus, masquées tant que JellyUX est actif.",
   "client.usersettings.empty": "Ton administrateur ne t’a laissé modifier aucune section.",
   "client.usersettings.saveFailed": "Impossible d’enregistrer les réglages JellyUX. Vérifie ta connexion, puis enregistre à nouveau.",
+  "client.usersettings.saveFailedServer": "Le serveur n’a pas pu enregistrer les réglages JellyUX. Réessaie plus tard, ou préviens ton administrateur si ça continue.",
 
   "client.error.title": "Impossible de charger {name}",
   "client.error.section": "Impossible de charger cette section.",
