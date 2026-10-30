@@ -131,7 +131,7 @@
                 query.startIndex = list.rows.length;
                 query.limit = PAGE_SIZE;
 
-                window.ApiClient.getJSON(window.ApiClient.getUrl(config.endpoint, query)).then(function (result) {
+                window.JuxCore.fetchWithTimeout(window.ApiClient, window.ApiClient.getUrl(config.endpoint, query)).then(function (result) {
                     if (tab._list !== list) {
                         return;
                     }

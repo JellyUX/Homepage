@@ -361,6 +361,30 @@ describe('library infinite scroll, end of the list (FIAB-01)', () => {
         expect(document.querySelectorAll('.jux-infinite-sentinel')).toHaveLength(0);
     });
 
+    // BKL-39: a page the server never answers frees the list after the request delay, so the next time
+    // the user reaches the end it asks again instead of waiting forever.
+    it('asks again for a page the server left unanswered, once the request delay is over', async () => {
+        const getJSON = vi.fn(() => new Promise(() => {}));
+        vi.useFakeTimers({ shouldAdvanceTime: true });
+        await setUpLibrary(getJSON);
+        await mutate(1);
+        const asked = getJSON.mock.calls.length;
+        expect(asked).toBeGreaterThan(0);
+        reachSentinel();
+        await mutate(1);
+        expect(getJSON.mock.calls.length).toBe(asked);
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        await vi.advanceTimersByTimeAsync(15000);
+        vi.useRealTimers();
+        reachSentinel();
+        await mutate(1);
+
+        expect(getJSON.mock.calls.length).toBeGreaterThan(asked);
+        expect(errorSpy).toHaveBeenCalledWith('[JellyUX] Library infinite scroll fetch failed:', expect.any(Error));
+        errorSpy.mockRestore();
+    });
+
     it('reads a long list page by page, then stops at its last page', async () => {
         const page = (n) => ({ Items: Array.from({ length: n }, (_, i) => ({ Id: 'm' + i })), TotalRecordCount: 254 });
         const getJSON = vi.fn()

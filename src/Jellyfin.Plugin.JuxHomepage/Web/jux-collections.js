@@ -335,7 +335,7 @@
             Fields: 'PrimaryImageAspectRatio'
         });
 
-        window.ApiClient.getJSON(url).then(function (result) {
+        window.JuxCore.fetchWithTimeout(window.ApiClient, url).then(function (result) {
             var items = (result && result.Items) || [];
             itemsContainer.innerHTML = api.cardBuilder.getCardsHtml({
                 items: items,
@@ -364,7 +364,8 @@
             _storageKeys: _storageKeys,
             _buildCollectionsSectionSkeleton: _buildCollectionsSectionSkeleton,
             _currentDetailItemId: window.JuxCore.currentDetailItemId,
-            _syncObserver: _syncObserver
+            _syncObserver: _syncObserver,
+            _resortCollection: _resortCollection
         };
     }
 })();

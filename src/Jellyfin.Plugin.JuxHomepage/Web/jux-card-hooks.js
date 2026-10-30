@@ -790,7 +790,7 @@
 
         var url = window.ApiClient.getUrl('Users/' + userId + '/Items', query);
 
-        window.ApiClient.getJSON(url).then(function (result) {
+        window.JuxCore.fetchWithTimeout(window.ApiClient, url).then(function (result) {
             state.loading = false;
             var items = (result && result.Items) || [];
             state.totalRecordCount = (result && result.TotalRecordCount) || 0;

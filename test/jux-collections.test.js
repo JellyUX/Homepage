@@ -8,7 +8,8 @@ const {
     _storageKeys,
     _buildCollectionsSectionSkeleton,
     _currentDetailItemId,
-    _syncObserver
+    _syncObserver,
+    _resortCollection
 } = juxCollections;
 
 describe('_isSupportedForCollections', () => {
@@ -204,5 +205,30 @@ describe('detail page requests (F-09)', () => {
 
         expect(document.querySelectorAll('.jux-collections-section')).toHaveLength(1);
         expect(document.querySelector('.libraryPage').dataset.juxCollectionsPending).toBeUndefined();
+    });
+});
+
+// BKL-39: a re-sort the server never answers fails after the request delay and keeps the cards shown.
+describe('_resortCollection on a silent server', () => {
+    afterEach(() => {
+        vi.useRealTimers();
+        delete window.JellyfinAPI;
+        delete window.ApiClient;
+    });
+
+    it('gives up after the request delay and keeps the cards', async () => {
+        vi.useFakeTimers();
+        window.JellyfinAPI = { cardBuilder: { getCardsHtml: () => '' }, getPortraitShape: () => 'portrait' };
+        window.ApiClient = { getCurrentUserId: () => 'u1', getUrl: (route) => route, getJSON: vi.fn(() => new Promise(() => {})) };
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const container = document.createElement('div');
+        container.innerHTML = '<div class="card"></div>';
+
+        _resortCollection('c1', container, { sortBy: 'SortName', sortOrder: 'Ascending' });
+        await vi.advanceTimersByTimeAsync(15000);
+
+        expect(errorSpy).toHaveBeenCalledWith('[JellyUX] Collection re-sort fetch failed:', expect.any(Error));
+        expect(container.querySelectorAll('.card')).toHaveLength(1);
+        errorSpy.mockRestore();
     });
 });

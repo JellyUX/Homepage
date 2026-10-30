@@ -417,6 +417,29 @@ describe('createListTab failure (F-40)', () => {
         expect(getJSON).toHaveBeenCalledTimes(2);
         errorSpy.mockRestore();
     });
+
+    // BKL-39: a server that never answers shows the same error state once the request delay is over.
+    it('shows the error state when the server stays silent', async () => {
+        vi.useFakeTimers();
+        document.documentElement.lang = 'en';
+        document.body.innerHTML = '<div id="jux-tab-things"><div class="sections"></div></div>';
+        window.ApiClient = { getCurrentUserId: () => 'u1', getUrl: (route) => route, getJSON: vi.fn(() => new Promise(() => {})) };
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const tab = createListTab({
+            id: 'things', endpoint: 'JuxHomepage/Things/Items', logName: 'Things',
+            labels: scope('things', { title: 'Things', empty: 'No things', sortName: 'Name' }),
+            state: { sortBy: 'Name', sortOrder: 'Ascending' },
+            sortOptions: (t) => [{ value: 'Name', label: t.sortName }],
+            emptyIcon: 'inbox'
+        });
+
+        tab.render();
+        await vi.advanceTimersByTimeAsync(15000);
+
+        expect(document.querySelector('.jux-error-title').textContent).toBe('Couldn’t load Things');
+        errorSpy.mockRestore();
+        vi.useRealTimers();
+    });
 });
 
 describe('options dialog (F-44)', () => {

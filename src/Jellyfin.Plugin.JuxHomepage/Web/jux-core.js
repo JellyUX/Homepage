@@ -74,7 +74,7 @@
             return _statistics.promise;
         }
         var entry = { userId: userId, at: Date.now() };
-        entry.promise = window.ApiClient.getJSON(window.ApiClient.getUrl('JuxHomepage/Statistics', { userId: userId }))
+        entry.promise = fetchWithTimeout(window.ApiClient, window.ApiClient.getUrl('JuxHomepage/Statistics', { userId: userId }))
             .catch(function (err) {
                 if (_statistics === entry) {
                     _statistics = null;
@@ -86,18 +86,23 @@
     }
 
     // A JSON request that rejects after ms without an answer (FIAB-08, 15 s); a late answer is dropped
-    // (test: jux-core.test.js "fetchWithTimeout").
+    // (test: jux-core.test.js "fetchWithTimeout"). The request leaves at once, as a bare getJSON would, and
+    // a client that throws rejects like a failed request.
     var REQUEST_TIMEOUT_MS = 15000;
 
     function fetchWithTimeout(apiClient, url, ms) {
         var limit = ms || REQUEST_TIMEOUT_MS;
+        var request;
+        try {
+            request = apiClient.getJSON(url);
+        } catch (err) {
+            request = Promise.reject(err);
+        }
         return new Promise(function (resolve, reject) {
             var timer = setTimeout(function () {
                 reject(new Error('No answer within ' + limit + ' ms: ' + url));
             }, limit);
-            Promise.resolve().then(function () {
-                return apiClient.getJSON(url);
-            }).then(function (value) {
+            Promise.resolve(request).then(function (value) {
                 clearTimeout(timer);
                 resolve(value);
             }, function (err) {

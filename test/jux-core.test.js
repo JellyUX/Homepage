@@ -123,6 +123,18 @@ describe('getStatistics (Annexe.a)', () => {
         expect(getJSON.mock.calls.map((c) => c[0])).toEqual([
             'JuxHomepage/Statistics?userId=stats2', 'JuxHomepage/Statistics?userId=stats2', 'JuxHomepage/Statistics?userId=stats3']);
     });
+
+    // BKL-39: a server that never answers fails the request after the delay, and the next call asks again.
+    it('gives up on a silent server after the request delay', async () => {
+        vi.useFakeTimers();
+        const getJSON = client(vi.fn().mockReturnValueOnce(new Promise(() => {})).mockResolvedValue({}));
+
+        const silent = expect(juxCore.getStatistics('stats4')).rejects.toThrow('No answer');
+        await vi.advanceTimersByTimeAsync(15000);
+        await silent;
+        await juxCore.getStatistics('stats4');
+        expect(getJSON).toHaveBeenCalledTimes(2);
+    });
 });
 
 describe('observeCardImages (F-10, F-35)', () => {
