@@ -206,10 +206,20 @@
         return nav;
     }
 
+    // The header gives up its paint containment on narrow screens only while a trail shows under it
+    // (BKL-48): the trail element itself stays in the header, hidden, once a detail page has made it.
+    function _markHeader(container, shown) {
+        var header = container.closest('.skinHeader');
+        if (header) {
+            header.classList.toggle('jux-breadcrumb-shown', shown);
+        }
+    }
+
     function _renderBreadcrumb(container, segments) {
         if (!segments || segments.length === 0) {
             container.innerHTML = '';
             container.style.display = 'none';
+            _markHeader(container, false);
             return;
         }
 
@@ -224,6 +234,7 @@
 
         container.innerHTML = html;
         container.style.display = '';
+        _markHeader(container, true);
     }
 
     // Hiding also forgets the item shown, so reopening that same item renders it again (FIAB-09: the
@@ -233,6 +244,7 @@
         if (el) {
             el.style.display = 'none';
             delete el.dataset.juxBreadcrumbItemId;
+            _markHeader(el, false);
         }
     }
 
@@ -324,6 +336,8 @@
             _seasonFallbackName: _seasonFallbackName,
             _episodeLabel: _episodeLabel,
             _tryRenderBreadcrumb: _tryRenderBreadcrumb,
+            _renderBreadcrumb: _renderBreadcrumb,
+            _hideBreadcrumb: _hideBreadcrumb
         };
     }
 })();

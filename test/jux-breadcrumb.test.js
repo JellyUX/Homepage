@@ -9,7 +9,9 @@ const {
     _libraryHashFor,
     _buildBreadcrumbSegments,
     _seasonFallbackName,
-    _episodeLabel
+    _episodeLabel,
+    _renderBreadcrumb,
+    _hideBreadcrumb
 } = juxBreadcrumb;
 
 describe('_currentDetailItemId', () => {
@@ -282,5 +284,31 @@ describe('breadcrumb for a user who turned JellyUX off (H-09)', () => {
 
         expect(document.querySelector('.jux-breadcrumb').style.display).toBe('none');
         expect(window.ApiClient.getItem).not.toHaveBeenCalled();
+    });
+});
+
+// BKL-48: the header loses its paint containment only while a trail shows, not for good once the
+// trail element exists (it stays in the header, hidden, after the first detail page).
+describe('header mark of a shown trail', () => {
+    afterEach(() => {
+        document.body.innerHTML = '';
+    });
+
+    it('marks the header while the trail shows, and clears it when the trail empties or hides', async () => {
+        document.body.innerHTML = '<div class="skinHeader"><div class="headerLeft"><nav class="jux-breadcrumb"></nav></div></div>';
+        const header = document.querySelector('.skinHeader');
+        const nav = document.querySelector('.jux-breadcrumb');
+
+        _renderBreadcrumb(nav, [{ text: 'Movies', url: '#/movies' }, { text: 'Film' }]);
+        expect(header.classList.contains('jux-breadcrumb-shown')).toBe(true);
+        _hideBreadcrumb();
+        expect(header.classList.contains('jux-breadcrumb-shown')).toBe(false);
+        _renderBreadcrumb(nav, [{ text: 'Film' }]);
+        _renderBreadcrumb(nav, []);
+        expect(header.classList.contains('jux-breadcrumb-shown')).toBe(false);
+
+        const { readFileSync } = await import('node:fs');
+        const css = readFileSync('src/Jellyfin.Plugin.JuxHomepage/Web/jux-ui.css', 'utf8');
+        expect(css).not.toMatch(/:has\(\.jux-breadcrumb\)/);
     });
 });
