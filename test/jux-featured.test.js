@@ -226,6 +226,24 @@ describe('KTW-01.c motion and accessibility', () => {
         expect(active()).toBe('1');
     });
 
+    // A refresh of the section (data-monitor: a playback ended, an item marked played) renders the banner
+    // again: it stays on the slide shown, and starts over only when that item has left the list.
+    it('keeps the slide shown across a refresh of its section', () => {
+        render(items(5));
+        container.querySelector('.jux-featured-next').click();
+        container.querySelector('.jux-featured-next').click();
+        expect(active()).toBe('2');
+
+        container.innerHTML = html(items(5), { DisplayName: 'Top Rated' });
+        attach(container, apiClient);
+        expect(active()).toBe('2');
+        expect(container.querySelector('.jux-featured-slide[data-index="0"]').hasAttribute('inert')).toBe(true);
+
+        container.innerHTML = html(items(5).filter((i) => i.Id !== items(5)[2].Id), { DisplayName: 'Top Rated' });
+        attach(container, apiClient);
+        expect(active()).toBe('0');
+    });
+
     it('moves with the arrow keys and the strip, hides and inerts the other slides', () => {
         render(items(5));
         const banner = container.querySelector('.jux-featured');

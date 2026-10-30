@@ -447,7 +447,11 @@
     }
 
     // Arms the banner the container just rendered; a container showing cards or an error is left alone.
+    // A section refreshed by its data-monitor renders the banner again: it stays on the item shown while
+    // that item is still in the list.
     function attach(container, apiClient) {
+        var previous = container._juxFeatured;
+        var shownId = previous && previous.slides[previous.index] && previous.slides[previous.index].dataset.id;
         destroy(container);
         _sweep();
         var root = container.querySelector('.jux-featured');
@@ -529,6 +533,8 @@
             state.observer.observe(root);
         }
 
+        var shown = state.slides.findIndex(function (slide) { return slide.dataset.id === shownId; });
+        state.index = Math.max(shown, 0);
         _render(state);
         // Never rotates on its own under prefers-reduced-motion (KTW-01.c, D-03): paused until asked.
         _setPaused(state, _reducedMotion());
