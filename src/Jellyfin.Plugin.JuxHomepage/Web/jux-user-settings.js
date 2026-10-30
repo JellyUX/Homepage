@@ -64,6 +64,10 @@
         var lang = window.JuxCore.resolveLang();
         var url = window.ApiClient.getUrl('JuxHomepage/UserSettings', { userId: userId, lang: lang });
         window.ApiClient.getJSON(url).then(function (settings) {
+            // The switch read here is the one the other pages follow, not only one saved from here (BKL-40).
+            if (userId === window.ApiClient.getCurrentUserId()) {
+                window.JuxCore.setUserEnabled(userId, settings.Enabled !== false);
+            }
             if (!form.isConnected || form.querySelector('.jux-user-settings')) {
                 return;
             }
@@ -179,7 +183,7 @@
     }
 
     if (typeof module !== 'undefined' && module.exports) {
-        module.exports = { _blockHtml: _blockHtml, _render: _render, _save: _save, _pageUserId: _pageUserId };
+        module.exports = { _blockHtml: _blockHtml, _render: _render, _save: _save, _pageUserId: _pageUserId, _tryRender: _tryRender };
     }
 
     window.juxUserSettings.init();

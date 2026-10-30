@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import juxUserSettings from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-user-settings.js';
 
-const { _blockHtml, _render } = juxUserSettings;
+const { _blockHtml, _render, _tryRender } = juxUserSettings;
 const english = () => window.JuxCore.labels('usersettings', 'en');
 
 // The part of the native Preferences > Home form the block anchors on (measured on 10.11.10).
@@ -90,6 +90,25 @@ describe('JellyUX block of Preferences > Home (F-36)', () => {
         await new Promise((r) => setTimeout(r, 0));
 
         expect(rebuild).toHaveBeenCalledTimes(1);
+    });
+
+    // BKL-40: the switch read from the server is what the other pages follow, not only the one saved here.
+    it('hands the switch it reads to the pages of the signed-in user, never another user’s', async () => {
+        const getJSON = vi.fn().mockResolvedValue({ ...settings, Enabled: false });
+        window.ApiClient = { getUrl: (route, query) => route + '?userId=' + query.userId, getCurrentUserId: () => 'u1', getJSON };
+
+        location.hash = '#/mypreferenceshome?userId=u2';
+        nativeForm();
+        _tryRender();
+        await new Promise((r) => setTimeout(r, 0));
+        expect(window.JuxCore.isOffForUser()).toBe(false);
+
+        location.hash = '#/mypreferenceshome';
+        nativeForm();
+        _tryRender();
+        await new Promise((r) => setTimeout(r, 0));
+        expect(window.JuxCore.isOffForUser()).toBe(true);
+        location.hash = '';
     });
 
     it('says when the save failed', async () => {
