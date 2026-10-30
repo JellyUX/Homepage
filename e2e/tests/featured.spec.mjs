@@ -102,3 +102,39 @@ test('KTW-01.a: a featured section with fewer than 3 backdrops shows its cards i
         await expect(page.locator('.jux-featured')).toHaveCount(0);
     });
 });
+
+// FIAB-01.a: the 8 comedies of the bench hold 2 backdrops, so their featured section falls back to cards,
+// in landscape to run past a 1920 px screen too. Every card is reached by the user's own gesture on the
+// row, the arrow on a desktop and a finger swipe on a phone, and the page never moves sideways: the native
+// body clips it (D-12.d: painted and reachable).
+test('FIAB-01.a: the cards of a featured fallback wider than the screen are all reachable', async ({ page }, testInfo) => {
+    await withOnlyRow(featured('jux.admin.genre', 'value', 'Comedy'), async () => {
+        await login(page, env.admin);
+
+        const cards = page.locator('.jux-featured-host .card');
+        await expect(cards).toHaveCount(8);
+        const width = page.viewportSize().width;
+        const lastInView = async () => {
+            // No box once the home page is gone: a swipe outside a scroller turns the native tabs.
+            const box = await cards.last().boundingBox();
+            return !!box && box.x >= 0 && box.x + box.width <= width + 1;
+        };
+        expect(await lastInView()).toBe(false);
+
+        const cdp = testInfo.project.name === 'mobile' ? await page.context().newCDPSession(page) : null;
+        const row = await cards.first().boundingBox();
+        for (let step = 0; step < 12 && !(await lastInView()); step++) {
+            if (cdp) {
+                await cdp.send('Input.synthesizeScrollGesture', {
+                    x: Math.round(width / 2), y: Math.round(row.y + row.height / 2), xDistance: -300, gestureSourceType: 'touch'
+                });
+            } else {
+                await page.locator('.jux-featured-host .emby-scrollbuttons-button:has(.chevron_right)').click({ timeout: 5000 });
+                await page.waitForTimeout(400);
+            }
+        }
+        expect(await lastInView()).toBe(true);
+        expect(await isPainted(cards.last())).toBe(true);
+        expect(await page.evaluate(() => window.scrollX)).toBe(0);
+    });
+});

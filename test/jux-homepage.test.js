@@ -234,9 +234,15 @@ describe('_buildSection (F-11)', () => {
         expect(container.getAttribute('is')).toBe('emby-itemscontainer');
         expect(container.getAttribute('data-monitor')).toBe('videoplayback,markplayed');
         expect(container.getItemsHtml([slide(1), slide(2), slide(3)])).toContain('class="jux-featured"');
-        expect(container.getItemsHtml([slide(1), slide(2)])).toBe('<div class="jux-featured-cards"><div class="card"></div><div class="card"></div></div>');
+        // FIAB-01: the cards scroll in a scroller of their own, the container stays the only emby-itemscontainer.
+        expect(container.getItemsHtml([slide(1), slide(2)])).toBe('<div is="emby-scroller" class="padded-top-focusscale padded-bottom-focusscale" data-centerfocus="true">' +
+            '<div class="itemsContainer scrollSlider focuscontainer-x jux-featured-cards"><div class="card"></div><div class="card"></div></div></div>');
         container.afterRefresh();
         expect(attach).toHaveBeenCalledWith(container, {});
+        expect(container.classList.contains('jux-featured-scrolling')).toBe(false);
+        container.innerHTML = container.getItemsHtml([slide(1), slide(2)]);
+        container.afterRefresh();
+        expect(container.classList.contains('jux-featured-scrolling')).toBe(true);
         attach.mockRestore();
     });
 

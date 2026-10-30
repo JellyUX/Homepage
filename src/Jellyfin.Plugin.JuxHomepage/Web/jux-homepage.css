@@ -184,11 +184,23 @@
     padding-bottom: 1.2em;
 }
 
-/* Under 3 slides with a backdrop the section shows its cards, and a waiting one holds the banner's size. */
-.jux-featured-cards {
-    display: flex;
+/* Under 3 slides with a backdrop the section shows its cards in a native scroller, which pads them like
+   any row (FIAB-01). [dir] outranks the native [dir=ltr] .padded-left. */
+[dir] .jux-featured-host.jux-featured-scrolling {
+    padding-left: 0;
+    padding-right: 0;
 }
 
+/* The scroller marks its parent as the container of its arrows: they belong beside the title, as on a row. */
+.jux-featured-section {
+    position: relative;
+}
+
+.jux-featured-host.emby-scroller-container {
+    position: static;
+}
+
+/* A waiting featured section holds the banner's size. */
 .jux-featured-skeleton {
     aspect-ratio: 21 / 9;
     max-height: clamp(17rem, 64vh, 38rem);

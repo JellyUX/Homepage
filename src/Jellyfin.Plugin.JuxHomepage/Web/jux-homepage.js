@@ -266,13 +266,18 @@
 
         if (descriptor.Featured && window.JuxFeatured) {
             // A featured section (KTW-01) keeps the same container without the scroller: the banner,
-            // or a row of cards under 3 slides with a backdrop; the TV layout never gets here (FIAB-05).
+            // or under 3 slides with a backdrop a row of cards in a scroller of its own, so a row wider
+            // than the screen scrolls like the others (FIAB-01); the TV layout never gets here (FIAB-05).
             itemsContainer.className = 'itemsContainer jux-items-container jux-featured-host padded-left padded-right';
+            sectionEl.classList.add('jux-featured-section');
             itemsContainer.getItemsHtml = _guardGetItemsHtml(function (items) {
                 return window.JuxFeatured.html(items, descriptor) ||
-                    '<div class="jux-featured-cards">' + cardsHtml(items) + '</div>';
+                    '<div is="emby-scroller" class="padded-top-focusscale padded-bottom-focusscale" data-centerfocus="true">' +
+                    '<div class="itemsContainer scrollSlider focuscontainer-x jux-featured-cards">' + cardsHtml(items) + '</div></div>';
             });
             itemsContainer.afterRefresh = function () {
+                // The cards' scroller brings the native gutter: the container drops its own around it.
+                itemsContainer.classList.toggle('jux-featured-scrolling', !!itemsContainer.querySelector('.jux-featured-cards'));
                 window.JuxFeatured.attach(itemsContainer, apiClient);
             };
             sectionEl.appendChild(itemsContainer);

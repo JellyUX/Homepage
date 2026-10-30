@@ -1,7 +1,7 @@
 {
     "description": "Gzip bytes of each client asset the plugin serves: the injected scripts and styles, the admin page and the loadSections fragment (ci/asset-budget.mjs, line endings as committed); jux-i18n.js is rebuilt from the client.* keys as the server serves it (A-15.a). Measured on HEAD; fails above +2 %, raise only with a Budget: trailer, lower in the same commit when an asset falls more than 2 % under it.",
     "assets": {
-        "jux-homepage.css": 3991,
+        "jux-homepage.css": 4125,
         "jux-ui.css": 4497,
         "jux-i18n.js": 2759,
         "jux-core.js": 5954,
