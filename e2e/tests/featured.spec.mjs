@@ -138,3 +138,18 @@ test('FIAB-01.a: the cards of a featured fallback wider than the screen are all 
         expect(await page.evaluate(() => window.scrollX)).toBe(0);
     });
 });
+
+// PERF-02: the waiting section holds the banner's height, on a phone too (16/9 image, the text block, the
+// controls), so the rows below do not move once it renders. The skeleton is the markup the lazy loader
+// parks in a section below the fold.
+test('PERF-02: a featured skeleton is as tall as its banner', async ({ page }) => {
+    await withOnlyRow(featured('jux.local.top-rated', 'itemTypes', 'Movie'), async () => {
+        await login(page, env.admin);
+
+        const host = page.locator('.jux-featured-host');
+        await expect(host.locator('.jux-featured-slide.jux-featured-active .jux-featured-backdrop.jux-featured-loaded')).toHaveCount(1);
+        const banner = (await host.boundingBox()).height;
+        await host.evaluate((el) => { el.innerHTML = '<div class="jux-featured-skeleton jux-skeleton-block"></div>'; });
+        expect(Math.abs((await host.boundingBox()).height - banner)).toBeLessThanOrEqual(1);
+    });
+});

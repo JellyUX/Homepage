@@ -513,6 +513,30 @@
 
 /* Phones and narrow windows: the image on top at 16/9, the text below it, a counter for the strip. */
 @media (max-width: 50em) {
+    /* The text block under the image keeps one height (a title, the details, two lines of text, the
+       buttons), so the waiting section reserves the banner's real height and nothing moves (PERF-02). */
+    .jux-featured-host {
+        --jux-featured-copy-height: 11.75rem;
+        --jux-featured-rail-height: calc(0.75rem + 44px);
+    }
+
+    .jux-featured-skeleton {
+        aspect-ratio: auto;
+        max-height: none;
+    }
+
+    .jux-featured-skeleton::before {
+        content: "";
+        display: block;
+        aspect-ratio: 16 / 9;
+    }
+
+    .jux-featured-skeleton::after {
+        content: "";
+        display: block;
+        height: calc(var(--jux-featured-copy-height) + var(--jux-featured-rail-height));
+    }
+
     .jux-featured {
         --jux-featured-ink: var(--jf-palette-text-primary);
         --jux-featured-ink-soft: var(--jf-palette-text-secondary);
@@ -539,7 +563,9 @@
 
     .jux-featured-copy {
         position: static;
+        box-sizing: border-box;
         width: auto;
+        min-height: var(--jux-featured-copy-height);
         padding-top: 0.9rem;
         gap: 0.6rem;
     }
@@ -548,16 +574,25 @@
         display: none;
     }
 
+    /* A slide with less text keeps its buttons by the controls, the room left where the text would be. */
+    .jux-featured-actions {
+        margin-top: auto;
+    }
+
     .jux-featured-has-logo .jux-featured-logo[src] + .jux-featured-title {
         position: static;
         width: auto;
         height: auto;
-        overflow: visible;
+        overflow: hidden;
         clip: auto;
         white-space: normal;
     }
 
     .jux-featured-title {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        overflow: hidden;
         font-size: 1.45rem;
     }
 
