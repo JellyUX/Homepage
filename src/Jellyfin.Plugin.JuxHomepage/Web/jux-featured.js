@@ -49,7 +49,7 @@
         return BACKDROP_WIDTHS[BACKDROP_WIDTHS.length - 1];
     }
 
-    function _runtime(ticks, labels) {
+    function _runtime(ticks) {
         var minutes = Math.round((ticks || 0) / 600000000);
         if (!minutes) {
             return '';
@@ -60,12 +60,12 @@
             : window.JuxCore.t('client.featured.runtimeMinutes', { m: minutes });
     }
 
-    function _metaHtml(item, labels) {
+    function _metaHtml(item) {
         var parts = [];
         if (item.ProductionYear) {
             parts.push('<span>' + _esc(item.ProductionYear) + '</span>');
         }
-        var runtime = _runtime(item.RunTimeTicks, labels);
+        var runtime = _runtime(item.RunTimeTicks);
         if (runtime) {
             parts.push('<span>' + _esc(runtime) + '</span>');
         }
@@ -112,7 +112,7 @@
             '</div>' +
             '<div class="jux-featured-copy">' +
             heading +
-            _metaHtml(item, labels) +
+            _metaHtml(item) +
             (text ? '<p class="jux-featured-text">' + _esc(text) + '</p>' : '') +
             '<div class="jux-featured-actions">' +
             '<button type="button" class="itemAction jux-featured-button jux-featured-button-play" data-action="resume">' +
