@@ -34,11 +34,10 @@ public sealed class TMDbListsConfig
     public string? NowPlayingRegion { get; set; }
 
     /// <summary>
-    /// Gets or sets the minimum vote count for Top Rated Movies/Shows (shared by both), passed as
-    /// discover/movie|tv's <c>vote_count.gte</c>. Defaults to 200 to approximate the old fixed
-    /// <c>top_rated</c> endpoint's implicit behavior without requiring admin action. This is a
-    /// temporary fix for V2 (see TODO_V2.md Phase 3.4); a library-ranking-based approach is planned
-    /// for V3.
+    /// Gets or sets the minimum vote count of the TMDb Top Rated Movies and Shows lists (shared by both),
+    /// passed as discover/movie|tv's <c>vote_count.gte</c> and set on the admin page's Sources tab.
+    /// Defaults to 200, close to the retired fixed <c>top_rated</c> endpoint. The library's own ranking
+    /// is a separate section (<c>jux.local.top-rated</c>), not this list.
     /// </summary>
     public int TopRatedVoteCountMin { get; set; } = 200;
 }
