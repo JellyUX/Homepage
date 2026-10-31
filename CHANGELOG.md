@@ -1,3 +1,22 @@
+## [2.17.2](https://github.com/JellyUX/Homepage/compare/v2.17.1...v2.17.2) (2026-10-31)
+
+### Bug Fixes
+
+* **admin:** bring a refused field into view instead of a silent Save ([c98450a](https://github.com/JellyUX/Homepage/commit/c98450a0cae73203828a095d1f8810e97f0563d1))
+* **breadcrumb:** drop a trail whose answer comes after leaving the page ([0ad40e5](https://github.com/JellyUX/Homepage/commit/0ad40e50356a95146f67a05bc6e7a5fdc5c133ae))
+* **breadcrumb:** drop the header's paint containment only while a trail shows ([fd71948](https://github.com/JellyUX/Homepage/commit/fd719488ab9fbefbf7dd2ece854069d315f8c1d3))
+* **home:** forget a banner swipe the browser cancelled ([a0fc739](https://github.com/JellyUX/Homepage/commit/a0fc739aa81cf49627c9554437f3971ae7f67117))
+* **home:** give up on a silent server in the home rows and item lookups ([b80b9f3](https://github.com/JellyUX/Homepage/commit/b80b9f337fa950bf87af564922421d35529a9c96))
+* **home:** hold a featured banner's phone height while it waits ([cf30aa7](https://github.com/JellyUX/Homepage/commit/cf30aa79d33434ff6b0d59adb0f660af058d2f2d))
+* **home:** keep a paused banner paused when its section refreshes ([4223203](https://github.com/JellyUX/Homepage/commit/4223203d73f11d01eb5a3e44c89e749ed6ed61da))
+* **home:** keep the banner on its slide when its section refreshes ([7e3f61d](https://github.com/JellyUX/Homepage/commit/7e3f61def42d4f071b45564ab5bc37a6f9d78e03))
+* **home:** scroll a featured section's fallback cards in a native scroller ([d7c252f](https://github.com/JellyUX/Homepage/commit/d7c252f4b5bc16e9cdb8be50b452459567322465))
+* **home:** show a featured slide's title when its logo fails to load ([192bbcf](https://github.com/JellyUX/Homepage/commit/192bbcf790861cc8f985e2cda6d10352e712e979))
+* **tabs:** give up on a silent server in the tabs, collections and library requests ([47be0f4](https://github.com/JellyUX/Homepage/commit/47be0f4d13f77bf3a626bf6854cd6b9ec16b5f5a))
+* **user-settings:** follow the JellyUX switch read from the server ([705aec5](https://github.com/JellyUX/Homepage/commit/705aec52be5a31fa9ce2379dcecfea308e1d4efc))
+* **user-settings:** leave the JellyUX switch alone on an empty settings answer ([98a9006](https://github.com/JellyUX/Homepage/commit/98a9006f4899a4675ad108ff69e204b721cc1fce))
+* **user-settings:** tell a server error from a lost connection on save ([38a41e4](https://github.com/JellyUX/Homepage/commit/38a41e4882e7bf8717266aa95f91192b68d7c7f4))
+
 ## [2.17.1](https://github.com/JellyUX/Homepage/compare/v2.17.0...v2.17.1) (2026-10-24)
 
 ### Bug Fixes
