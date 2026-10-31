@@ -644,6 +644,22 @@ describe('failed home section (F-40)', () => {
         expect(await settle(failed)).toBe('pending');
     });
 
+    // R11 (phase 06, BKL-39 sisters): a server that never answers a row shows the error row with its
+    // retry once the request delay is over, for a native row and for a JellyUX row.
+    it('shows the error row when the server stays silent', async () => {
+        vi.useFakeTimers();
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const silent = { getUrl: (path) => path, getJSON: vi.fn(() => new Promise(() => {})) };
+        for (const descriptor of [{ WidgetType: 'jux.native.next-up' }, { WidgetType: 'jux.admin.genre', AdditionalData: 'Drama' }]) {
+            const pending = _guardFetchData(juxHomepage._makeFetchData(silent, 'u1', descriptor), descriptor)();
+            await vi.advanceTimersByTimeAsync(15000);
+            const result = await pending;
+            expect(_guardGetItemsHtml(() => 'cards')(result.Items)).toContain('jux-error-state-compact');
+        }
+        errorSpy.mockRestore();
+        vi.useRealTimers();
+    });
+
     it('passes successful rows through to the card renderer', async () => {
         const fetchData = _guardFetchData(() => Promise.resolve({ Items: [{ Id: 'a' }] }), { WidgetType: 'jux.genre' });
         const getItemsHtml = _guardGetItemsHtml((items) => 'cards:' + items.length);

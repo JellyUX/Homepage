@@ -98,7 +98,7 @@
             }
 
             return window.JuxCore.cached(itemId, 'flatten:episodes', function () {
-                return window.ApiClient.getJSON(window.ApiClient.getUrl('Shows/' + itemId + '/Episodes', {
+                return window.JuxCore.fetchWithTimeout(window.ApiClient, window.ApiClient.getUrl('Shows/' + itemId + '/Episodes', {
                     userId: userId,
                     Fields: 'UserData,PrimaryImageAspectRatio'
                 }));
@@ -172,7 +172,8 @@
             _seasonTitle: _seasonTitle,
             _buildFlattenedSectionSkeleton: _buildFlattenedSectionSkeleton,
             _currentDetailItemId: window.JuxCore.currentDetailItemId,
-            _syncObserver: _syncObserver
+            _syncObserver: _syncObserver,
+            _renderFlattened: _renderFlattened
         };
     }
 })();

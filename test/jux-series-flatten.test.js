@@ -1,7 +1,7 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import juxSeriesFlatten from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-series-flatten.js';
 
-const { _shouldFlatten, _seasonTitle, _buildFlattenedSectionSkeleton, _currentDetailItemId } = juxSeriesFlatten;
+const { _shouldFlatten, _seasonTitle, _buildFlattenedSectionSkeleton, _currentDetailItemId, _renderFlattened } = juxSeriesFlatten;
 
 describe('_shouldFlatten', () => {
     it('returns true for a single-season series', () => {
@@ -61,3 +61,32 @@ describe('_currentDetailItemId', () => {
     });
 });
 
+
+// R11 (phase 06, BKL-39 sisters): an episode list the server never answers fails after the request
+// delay and is asked again on the next pass, instead of holding the series page for good.
+describe('_renderFlattened on a silent server', () => {
+    it('gives up after the request delay and asks again on the next pass', async () => {
+        vi.useFakeTimers();
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const page = document.createElement('div');
+        page.innerHTML = '<div id="listChildrenCollapsible"></div>';
+        const getJSON = vi.fn(() => new Promise(() => {}));
+        window.ApiClient = {
+            getUrl: (path) => path,
+            getItem: vi.fn().mockResolvedValue({ Id: 'sf1', Type: 'Series', ChildCount: 1 }),
+            getJSON
+        };
+
+        const first = _renderFlattened(page, 'u1', 'sf1');
+        await vi.advanceTimersByTimeAsync(15000);
+        await first;
+        expect(errorSpy).toHaveBeenCalledWith('[JellyUX] Series flatten check failed:', expect.any(Error));
+        _renderFlattened(page, 'u1', 'sf1');
+        await vi.advanceTimersByTimeAsync(0);
+        expect(getJSON).toHaveBeenCalledTimes(2);
+
+        errorSpy.mockRestore();
+        delete window.ApiClient;
+        vi.useRealTimers();
+    });
+});

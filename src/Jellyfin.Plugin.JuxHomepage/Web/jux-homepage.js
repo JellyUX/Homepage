@@ -347,7 +347,7 @@
                     params[key] = nativeRoute.params[key];
                 });
                 // Items/Latest answers a bare array; the container reads { Items }.
-                return apiClient.getJSON(apiClient.getUrl(nativeRoute.path, params)).then(function (result) {
+                return window.JuxCore.fetchWithTimeout(apiClient, apiClient.getUrl(nativeRoute.path, params)).then(function (result) {
                     return Array.isArray(result)
                         ? { Items: _capPerSeries(result, descriptor.MaxPerSeries).slice(0, maxItems) }
                         : result;
@@ -356,7 +356,7 @@
         }
 
         return function () {
-            return apiClient.getJSON(
+            return window.JuxCore.fetchWithTimeout(apiClient,
                 apiClient.getUrl('JuxHomepage/Section/' + descriptor.WidgetType, {
                     userId: userId,
                     additionalData: descriptor.AdditionalData || undefined,

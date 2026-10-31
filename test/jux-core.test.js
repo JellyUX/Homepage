@@ -85,6 +85,29 @@ describe('cached', () => {
         expect(window.ApiClient.getJSON).toHaveBeenCalledWith('JuxHomepage/Collections/IncludedIn/shared1');
         delete window.ApiClient;
     });
+
+    // R11 (phase 06): a failed request is not kept, so the next look at the same item asks again.
+    it('asks again for an item after a failure', async () => {
+        let calls = 0;
+        const request = () => { calls += 1; return calls === 1 ? Promise.reject(new Error('down')) : Promise.resolve(calls); };
+
+        await expect(cached('f1', 'item', request)).rejects.toThrow('down');
+        await expect(cached('f1', 'item', request)).resolves.toBe(2);
+        expect(calls).toBe(2);
+    });
+
+    // R11 (phase 06, BKL-39 sisters): Included In gives up on a silent server and is asked again after.
+    it('gives up on a silent Included In after the request delay', async () => {
+        vi.useFakeTimers();
+        window.ApiClient = { getUrl: (path) => path, getJSON: vi.fn().mockReturnValueOnce(new Promise(() => {})).mockResolvedValue([]) };
+
+        const silent = expect(getIncludedIn('silent1')).rejects.toThrow('No answer');
+        await vi.advanceTimersByTimeAsync(15000);
+        await silent;
+        await expect(getIncludedIn('silent1')).resolves.toEqual([]);
+        delete window.ApiClient;
+        vi.useRealTimers();
+    });
 });
 
 describe('getStatistics (Annexe.a)', () => {

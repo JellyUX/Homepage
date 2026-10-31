@@ -41,12 +41,20 @@
     // stays cached (no retry on every DOM mutation) until another item is opened.
     var _itemCache = { itemId: null };
 
+    // A failed request is not kept: the next look at the same item asks again (R11, phase 06).
     function cached(itemId, key, request) {
         if (_itemCache.itemId !== itemId) {
             _itemCache = { itemId: itemId };
         }
         if (!_itemCache[key]) {
-            _itemCache[key] = request();
+            var entries = _itemCache;
+            var promise = Promise.resolve(request());
+            entries[key] = promise;
+            promise.catch(function () {
+                if (entries[key] === promise) {
+                    delete entries[key];
+                }
+            });
         }
         return _itemCache[key];
     }
@@ -60,7 +68,7 @@
     // The JellyUX collection references of an item ({ CollectionId, ... } rows).
     function getIncludedIn(itemId) {
         return cached(itemId, 'includedIn', function () {
-            return window.ApiClient.getJSON(window.ApiClient.getUrl('JuxHomepage/Collections/IncludedIn/' + itemId));
+            return fetchWithTimeout(window.ApiClient, window.ApiClient.getUrl('JuxHomepage/Collections/IncludedIn/' + itemId));
         });
     }
 

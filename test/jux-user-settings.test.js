@@ -111,6 +111,22 @@ describe('JellyUX block of Preferences > Home (F-36)', () => {
         location.hash = '';
     });
 
+    // R11 (phase 06, BKL-39 sisters): a settings request the server never answers fails after the delay.
+    it('gives up on a silent server when it loads the settings', async () => {
+        vi.useFakeTimers();
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        window.ApiClient = { getUrl: (route) => route, getCurrentUserId: () => 'u1', getJSON: vi.fn(() => new Promise(() => {})) };
+        location.hash = '#/mypreferenceshome';
+        nativeForm();
+        _tryRender();
+        await vi.advanceTimersByTimeAsync(15000);
+
+        expect(errorSpy).toHaveBeenCalledWith('[JellyUX] Failed to load the JellyUX settings:', expect.any(Error));
+        errorSpy.mockRestore();
+        location.hash = '';
+        vi.useRealTimers();
+    });
+
     // R11 (phase 06): an empty answer leaves the switch the pages follow alone, and fails as a failed load.
     it('leaves the switch alone on an empty answer', async () => {
         const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
