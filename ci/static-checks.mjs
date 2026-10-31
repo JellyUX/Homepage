@@ -16,7 +16,8 @@ const COMMIT_TYPES = ['feat', 'fix', 'refactor', 'style', 'docs', 'chore', 'test
 const WEB_DIR = 'src/Jellyfin.Plugin.JuxHomepage/Web/';
 // The Jellyfin lines the plugin is built for (D-01); the first is the default build.
 export const JELLYFIN_LINES = 'ci/jellyfin-lines.json';
-// The first release calling IUserManager.GetUsers(), which needs targetAbi 10.11.9.0.
+// IUserManager.GetUsers() needs targetAbi 10.11.9.0, called since release 2.4.0: no line may declare less.
+const MIN_ABI = '10.11.9.0';
 const FIRST_VERSION_REQUIRING_MIN_ABI = '2.4.0.0';
 const BINARY_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.ico', '.webp', '.dll', '.pdb', '.zip', '.mkv', '.woff', '.woff2']);
 export const BASELINE_PATH = 'ci/duplication-baseline.json';
@@ -378,6 +379,9 @@ export function checkTargetAbi({ buildYaml, manifest, csproj, lines }) {
         if (line.framework !== framework) {
             errors.push(`Jellyfin line ${line.name} declares ${line.framework}, the .csproj builds ${line.sdk} as ${framework}.`);
         }
+        if (compareVersions(line.targetAbi, MIN_ABI) < 0) {
+            errors.push(`Jellyfin line ${line.name} declares targetAbi ${line.targetAbi}, below the ${MIN_ABI} the plugin needs (IUserManager.GetUsers).`);
+        }
     }
 
     const abi = /^targetAbi:\s*"([0-9.]+)"/m.exec(buildYaml)?.[1];
@@ -391,13 +395,21 @@ export function checkTargetAbi({ buildYaml, manifest, csproj, lines }) {
         errors.push(`build.yaml framework ${framework} is not the framework ${defaultLine.framework} of the default Jellyfin line ${defaultLine.name}.`);
     }
 
-    const minAbi = lines.map((line) => line.targetAbi).sort(compareVersions)[0];
-    const offending = JSON.parse(manifest)[0].versions
+    const versions = JSON.parse(manifest)[0].versions;
+    const offending = versions
         .filter((v) => compareVersions(v.version, FIRST_VERSION_REQUIRING_MIN_ABI) >= 0)
-        .filter((v) => compareVersions(v.targetAbi, minAbi) < 0)
+        .filter((v) => compareVersions(v.targetAbi, MIN_ABI) < 0)
         .map((v) => v.version);
     if (offending.length > 0) {
-        errors.push(`manifest.json versions below targetAbi ${minAbi}: ${offending.join(', ')}.`);
+        errors.push(`manifest.json versions below targetAbi ${MIN_ABI}: ${offending.join(', ')}.`);
+    }
+    // An entry numbered X.Y.Z.<versionSuffix> is the build of that line (D-02): a 12 build offered with a
+    // 10.11 targetAbi would reach 10.11 servers that cannot load it.
+    for (const v of versions) {
+        const line = lines.find((l) => v.version.split('.')[3] === l.versionSuffix);
+        if (line && compareVersions(v.targetAbi, line.targetAbi) !== 0) {
+            errors.push(`manifest.json ${v.version} declares targetAbi ${v.targetAbi}, its Jellyfin line ${line.name} declares ${line.targetAbi}.`);
+        }
     }
 
     const sdk = /<JellyfinVersion Condition="[^"]*">([0-9.]+)</.exec(csproj)?.[1];

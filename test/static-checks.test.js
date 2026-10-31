@@ -240,8 +240,8 @@ describe('findBannedFonts', () => {
 describe('checkTargetAbi', () => {
     const manifest = (versions) => JSON.stringify([{ versions }]);
     const lines = [
-        { name: '10.11', sdk: '10.11.9', framework: 'net9.0', targetAbi: '10.11.9.0' },
-        { name: '12', sdk: '12.0.0', framework: 'net10.0', targetAbi: '12.0.0.0' }
+        { name: '10.11', sdk: '10.11.9', framework: 'net9.0', targetAbi: '10.11.9.0', versionSuffix: '10' },
+        { name: '12', sdk: '12.0.0', framework: 'net10.0', targetAbi: '12.0.0.0', versionSuffix: '12' }
     ];
     const ok = {
         buildYaml: 'targetAbi: "10.11.9.0"\nframework: "net9.0"\n',
@@ -264,6 +264,20 @@ describe('checkTargetAbi', () => {
         expect(checkTargetAbi({ ...ok, lines: [lines[0], { ...lines[1], sdk: '12.4.0' }] })).toEqual([
             'Jellyfin line 12 compiles against 12.4.0 but declares targetAbi 12.0.0.0.'
         ]);
+    });
+
+    it('keeps the 10.11.9.0 floor GetUsers needs and the targetAbi of each line in the manifest (R11)', () => {
+        const lowered = [{ ...lines[0], sdk: '10.11.8', targetAbi: '10.11.8.0' }, lines[1]];
+        expect(checkTargetAbi({
+            ...ok,
+            lines: lowered,
+            buildYaml: 'targetAbi: "10.11.8.0"\nframework: "net9.0"\n',
+            csproj: `<JellyfinVersion Condition="'$(JellyfinVersion)' == ''">10.11.8</JellyfinVersion>`
+        })).toEqual(['Jellyfin line 10.11 declares targetAbi 10.11.8.0, below the 10.11.9.0 the plugin needs (IUserManager.GetUsers).']);
+        expect(checkTargetAbi({ ...ok, manifest: manifest([{ version: '2.18.0.12', targetAbi: '10.11.9.0' }]) })).toEqual([
+            'manifest.json 2.18.0.12 declares targetAbi 10.11.9.0, its Jellyfin line 12 declares 12.0.0.0.'
+        ]);
+        expect(checkTargetAbi({ ...ok, manifest: manifest([{ version: '2.18.0.10', targetAbi: '10.11.9.0' }, { version: '2.17.3.0', targetAbi: '10.11.9.0' }]) })).toEqual([]);
     });
 
     it('fails when build.yaml is not the default line or a line names the wrong framework', () => {
