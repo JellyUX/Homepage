@@ -23,7 +23,12 @@ public sealed class LibraryProviderIndex
     {
         foreach (var item in items)
         {
+            // An alternate version points to its primary: a string in Jellyfin 10.11, a Guid? since 12.
+#if JELLYFIN_12
+            var entry = new Entry(item.Id, item is not Video { PrimaryVersionId: not null });
+#else
             var entry = new Entry(item.Id, item is not Video { PrimaryVersionId: { Length: > 0 } });
+#endif
             foreach (var (provider, value) in item.ProviderIds)
             {
                 if (string.IsNullOrWhiteSpace(value))

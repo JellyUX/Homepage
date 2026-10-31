@@ -211,7 +211,11 @@ public sealed class LibraryCrossReferencerTests
     {
         var primary = MovieWith(MetadataProvider.Tmdb, "27205");
         var alternate = MovieWith(MetadataProvider.Tmdb, "27205");
+#if JELLYFIN_12
+        alternate.PrimaryVersionId = primary.Id;
+#else
         alternate.PrimaryVersionId = primary.Id.ToString("N", CultureInfo.InvariantCulture);
+#endif
 
         Assert.Equal(primary.Id, Referencer(primary, alternate).BuildIndex([BaseItemKind.Movie]).Find(MetadataProvider.Tmdb, "27205"));
         Assert.Equal(primary.Id, Referencer(alternate, primary).BuildIndex([BaseItemKind.Movie]).Find(MetadataProvider.Tmdb, "27205"));
