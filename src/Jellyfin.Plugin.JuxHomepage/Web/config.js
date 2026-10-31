@@ -1892,12 +1892,13 @@ function createConfigPage() {
             });
 
             // Seasonal sections show an inline hint (not a save-blocking error) when their
-            // start/end date isn't a valid MM-JJ pair: unlike Admin's "Value" field, an invalid
-            // or empty date is not a broken configuration -- SeasonalWidget itself already
-            // treats it as "never active" and the section is generically excluded from the home
-            // screen (same MinItems=0-items mechanism as any other widget with no results), so
-            // saving is still allowed -- the admin can safely add a section and fill in its dates
-            // afterward, as described in the Seasonal manual test.
+            // start/end date is empty or not a real day: unlike Admin's "Value" field, such a date
+            // is not a broken configuration -- SeasonalWidget itself already treats it as "never
+            // active" and the section is generically excluded from the home screen (same
+            // MinItems=0-items mechanism as any other widget with no results), so saving is still
+            // allowed and the admin can fill in the dates afterward. A date typed outside the MM-JJ
+            // form is a typing slip the field's pattern refuses: revealInvalidField above brings it
+            // into view before this point (DR-018).
             var seasonalDatePattern = /^\d{2}-\d{2}$/;
             self.state.sortedWidgets.forEach(function (w, i) {
                 if (!self.isSeasonal(w.WidgetType)) { return; }
