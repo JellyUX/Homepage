@@ -25,7 +25,7 @@ public sealed class LibraryProviderIndex
         {
             // An alternate version points to its primary: a string in Jellyfin 10.11, a Guid? since 12.
 #if JELLYFIN_12
-            var entry = new Entry(item.Id, item is not Video { PrimaryVersionId: not null });
+            var entry = new Entry(item.Id, item is not Video { PrimaryVersionId: { } primaryId } || primaryId.Equals(Guid.Empty));
 #else
             var entry = new Entry(item.Id, item is not Video { PrimaryVersionId: { Length: > 0 } });
 #endif

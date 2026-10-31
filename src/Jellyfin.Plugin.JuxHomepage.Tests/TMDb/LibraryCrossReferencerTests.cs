@@ -222,6 +222,24 @@ public sealed class LibraryCrossReferencerTests
     }
 
     [Fact]
+    public void Find_PrimaryWithAnEmptyVersionLink_IsStillThePrimary()
+    {
+        // An empty link (an empty string in 10.11, Guid.Empty on 12) marks no alternate version (R11).
+        var alternate = MovieWith(MetadataProvider.Tmdb, "27205");
+        var primary = MovieWith(MetadataProvider.Tmdb, "27205");
+#if JELLYFIN_12
+        primary.PrimaryVersionId = Guid.Empty;
+        alternate.PrimaryVersionId = primary.Id;
+#else
+        primary.PrimaryVersionId = string.Empty;
+        alternate.PrimaryVersionId = primary.Id.ToString("N", CultureInfo.InvariantCulture);
+#endif
+
+        Assert.Equal(primary.Id, Referencer(primary, alternate).BuildIndex([BaseItemKind.Movie]).Find(MetadataProvider.Tmdb, "27205"));
+        Assert.Equal(primary.Id, Referencer(alternate, primary).BuildIndex([BaseItemKind.Movie]).Find(MetadataProvider.Tmdb, "27205"));
+    }
+
+    [Fact]
     public void Find_TwoDuplicatesShareTheId_ReturnsTheLowestItemIdWhateverTheOrder()
     {
         var first = new Movie { Id = new Guid("00000000-0000-0000-0000-000000000001") };
