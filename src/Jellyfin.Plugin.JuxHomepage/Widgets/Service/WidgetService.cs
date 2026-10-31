@@ -1,8 +1,6 @@
 using System.Collections.Concurrent;
-using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.Widgets.Personalized;
-using MediaBrowser.Model.Activity;
 using Microsoft.Extensions.Logging;
 
 namespace Jellyfin.Plugin.JuxHomepage.Widgets;
@@ -41,8 +39,7 @@ public sealed class WidgetService
     private readonly IPersonalizationState? _personalizationState;
     private readonly SectionResultCache? _sectionResults;
     private readonly UserAccessWatch? _accessWatch;
-    private readonly IActivityManager? _activityManager;
-    private readonly ConcurrentDictionary<string, byte> _reportedMismatches = new(StringComparer.Ordinal);
+    private readonly BinaryMismatchReporter? _mismatchReporter;
     private int _queuedRebuildCount;
 
     /// <summary>
@@ -69,9 +66,9 @@ public sealed class WidgetService
     /// Drops the user's cached home screen after an administrator changed what they may see. Null
     /// never reads the user's access.
     /// </param>
-    /// <param name="activityManager">
-    /// Records in the dashboard activity log, once per widget type, a section that fails because the
-    /// plugin build does not match the server (COMPAT-01.a). Null only logs it.
+    /// <param name="mismatchReporter">
+    /// Tells the administrator when a section fails because the plugin build does not match the server
+    /// (COMPAT-01.a). Null only logs it.
     /// </param>
     public WidgetService(
         IWidgetRegistry registry,
@@ -82,7 +79,7 @@ public sealed class WidgetService
         IPersonalizationState? personalizationState = null,
         SectionResultCache? sectionResults = null,
         UserAccessWatch? accessWatch = null,
-        IActivityManager? activityManager = null)
+        BinaryMismatchReporter? mismatchReporter = null)
     {
         _registry = registry;
         _sessionCache = sessionCache;
@@ -92,7 +89,7 @@ public sealed class WidgetService
         _personalizationState = personalizationState;
         _sectionResults = sectionResults;
         _accessWatch = accessWatch;
-        _activityManager = activityManager;
+        _mismatchReporter = mismatchReporter;
     }
 
     /// <summary>
@@ -318,37 +315,12 @@ public sealed class WidgetService
             }
 
             _logger.LogError(ex, "Widget '{WidgetType}' threw an exception during GetWidgetItems for user {UserId}.", widgetType, userId);
-            await ReportBinaryMismatchAsync(widgetType, ex).ConfigureAwait(false);
-            return WidgetResult.Empty;
-        }
-    }
-
-    /// <summary>
-    /// A missing member or type means the plugin was built for another Jellyfin version (a 10.11 build
-    /// on a Jellyfin 12 server): every section then answers empty, so the administrator is told once per
-    /// widget type in the dashboard activity log, which the server log alone did not do (COMPAT-01.a).
-    /// </summary>
-    private async Task ReportBinaryMismatchAsync(string widgetType, Exception ex)
-    {
-        if (_activityManager is null
-            || ex is not (MissingMemberException or TypeLoadException)
-            || !_reportedMismatches.TryAdd(widgetType, 0))
-        {
-            return;
-        }
-
-        try
-        {
-            await _activityManager.CreateAsync(new ActivityLog($"JellyUX Homepage: the {widgetType} section is unavailable", "JuxHomepageBinaryMismatch", Guid.Empty)
+            if (_mismatchReporter is not null)
             {
-                ShortOverview = ex.GetType().Name,
-                Overview = $"{ex.Message} The installed JellyUX Homepage build does not match this Jellyfin version: install the build for your Jellyfin version and restart the server.",
-                LogSeverity = LogLevel.Error
-            }).ConfigureAwait(false);
-        }
-        catch (Exception logEx)
-        {
-            _logger.LogError(logEx, "Could not record the unavailable section '{WidgetType}' in the activity log.", widgetType);
+                await _mismatchReporter.ReportAsync(widgetType, ex).ConfigureAwait(false);
+            }
+
+            return WidgetResult.Empty;
         }
     }
 

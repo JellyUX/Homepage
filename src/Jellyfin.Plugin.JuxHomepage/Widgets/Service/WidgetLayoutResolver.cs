@@ -22,6 +22,7 @@ public sealed class WidgetLayoutResolver
     private readonly ILocalizationService _localizationService;
     private readonly Func<PluginConfiguration?> _getConfiguration;
     private readonly ILogger<WidgetLayoutResolver> _logger;
+    private readonly BinaryMismatchReporter? _mismatchReporter;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WidgetLayoutResolver"/> class.
@@ -34,18 +35,24 @@ public sealed class WidgetLayoutResolver
     /// Defaults to <c>Plugin.Instance?.Configuration</c> in production.
     /// </param>
     /// <param name="logger">Logger.</param>
+    /// <param name="mismatchReporter">
+    /// Tells the administrator when a widget fails the layout probe because the plugin build does not match
+    /// the server, so the section left out of the layout is not silent (COMPAT-01.a). Null only logs it.
+    /// </param>
     public WidgetLayoutResolver(
         IWidgetRegistry registry,
         IUserConfigurationStore userConfigStore,
         ILocalizationService localizationService,
         Func<PluginConfiguration?> getConfiguration,
-        ILogger<WidgetLayoutResolver> logger)
+        ILogger<WidgetLayoutResolver> logger,
+        BinaryMismatchReporter? mismatchReporter = null)
     {
         _registry = registry;
         _userConfigStore = userConfigStore;
         _localizationService = localizationService;
         _getConfiguration = getConfiguration;
         _logger = logger;
+        _mismatchReporter = mismatchReporter;
     }
 
     /// <summary>
@@ -240,6 +247,7 @@ public sealed class WidgetLayoutResolver
                 "Widget '{WidgetType}' threw an exception during layout build for user {UserId} - skipping.",
                 config.WidgetType,
                 userId);
+            await ReportMismatchAsync(config.WidgetType, ex).ConfigureAwait(false);
             return null;
         }
 
@@ -315,6 +323,7 @@ public sealed class WidgetLayoutResolver
                 "Widget '{WidgetType}' threw an exception during layout build for user {UserId} - skipping.",
                 config.WidgetType,
                 userId);
+            await ReportMismatchAsync(config.WidgetType, ex).ConfigureAwait(false);
             return null;
         }
 
@@ -436,4 +445,7 @@ public sealed class WidgetLayoutResolver
             Lang = lang
         };
     }
+
+    private Task ReportMismatchAsync(string widgetType, Exception exception) =>
+        _mismatchReporter?.ReportAsync(widgetType, exception) ?? Task.CompletedTask;
 }

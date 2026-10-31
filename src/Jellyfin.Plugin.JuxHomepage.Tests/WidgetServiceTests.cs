@@ -383,22 +383,62 @@ public sealed class WidgetServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task GetWidgetItems_ActivityLogFails_StillAnswersEmpty()
+    public async Task GetWidgetItems_ActivityLogFails_AnswersEmptyAndTriesAgainAtTheNextFailure()
     {
         var activity = new Mock<IActivityManager>();
-        activity.Setup(a => a.CreateAsync(It.IsAny<ActivityLog>())).ThrowsAsync(new InvalidOperationException("db"));
+        activity.SetupSequence(a => a.CreateAsync(It.IsAny<ActivityLog>()))
+            .ThrowsAsync(new InvalidOperationException("db"))
+            .Returns(Task.CompletedTask);
         var mismatch = MakeWidget("mismatch", totalRecordCount: 1);
         Mock.Get(mismatch)
             .Setup(w => w.GetItemsAsync(It.IsAny<WidgetPayload>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new TypeLoadException("gone"));
         var service = BuildService(registeredWidgets: [mismatch], globalWidgets: [], activityManager: activity.Object);
 
-        var result = await service.GetWidgetItems(
-            Guid.NewGuid(), "mismatch", additionalData: null, sectionKey: null,
-            startIndex: 0, limit: 20, CancellationToken.None);
+        for (var read = 0; read < 3; read++)
+        {
+            var result = await service.GetWidgetItems(
+                Guid.NewGuid(), "mismatch", additionalData: null, sectionKey: null,
+                startIndex: 0, limit: 20, CancellationToken.None);
+            Assert.Same(WidgetResult.Empty, result);
+        }
 
-        Assert.Same(WidgetResult.Empty, result);
-        activity.Verify(a => a.CreateAsync(It.IsAny<ActivityLog>()), Times.Once);
+        activity.Verify(a => a.CreateAsync(It.IsAny<ActivityLog>()), Times.Exactly(2));
+    }
+
+    [Fact]
+    public async Task GetWidgetsForUser_ProbeHitsAWrappedMismatch_TellsTheAdministrator()
+    {
+        // A widget whose own query fails on a mismatched Jellyfin is left out of the layout: the client
+        // never reads its section, so the layout probe reports it (R11 of COMPAT-01.a).
+        var activity = new Mock<IActivityManager>();
+        var logged = new List<ActivityLog>();
+        activity.Setup(a => a.CreateAsync(It.IsAny<ActivityLog>())).Callback<ActivityLog>(logged.Add).Returns(Task.CompletedTask);
+        var widget = MakeWidget("probe-mismatch", totalRecordCount: 10);
+        Mock.Get(widget)
+            .Setup(w => w.GetItemsAsync(It.IsAny<WidgetPayload>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new AggregateException(new TypeInitializationException("Widget", new MissingFieldException("Video", "PrimaryVersionId"))));
+        var service = BuildService(
+            registeredWidgets: [widget],
+            globalWidgets: [new WidgetConfig { WidgetType = "probe-mismatch", Enabled = true, MinItems = 1, Order = 0 }],
+            activityManager: activity.Object);
+
+        var sections = (await service.GetWidgetsForUser(Guid.NewGuid(), page: 0, lang: "en", CancellationToken.None)).Sections;
+
+        Assert.Empty(sections);
+        var entry = Assert.Single(logged);
+        Assert.Contains("probe-mismatch", entry.Name, StringComparison.Ordinal);
+        Assert.Equal(nameof(MissingFieldException), entry.ShortOverview);
+    }
+
+    [Fact]
+    public void FindMismatch_UnwrapsAggregatesAndInnerExceptions_IgnoresOtherFailures()
+    {
+        var missing = new MissingMethodException("IDtoService", "GetBaseItemDtos");
+        Assert.Same(missing, BinaryMismatchReporter.FindMismatch(new System.Reflection.TargetInvocationException(new TypeInitializationException("W", missing))));
+        Assert.Same(missing, BinaryMismatchReporter.FindMismatch(new AggregateException(new InvalidOperationException("a"), missing)));
+        Assert.Null(BinaryMismatchReporter.FindMismatch(new AggregateException(new InvalidOperationException("a"))));
+        Assert.Null(BinaryMismatchReporter.FindMismatch(new InvalidOperationException("data", new TimeoutException())));
     }
 
     [Fact]
@@ -902,12 +942,14 @@ public sealed class WidgetServiceTests : IDisposable
 
         var config = new PluginConfiguration { Widgets = globalWidgets, Cache = cache ?? new CacheConfig() };
 
+        var mismatchReporter = activityManager is null ? null : new BinaryMismatchReporter(NullLogger<BinaryMismatchReporter>.Instance, activityManager);
         var layoutResolver = new WidgetLayoutResolver(
             registry,
             _userConfigStoreMock.Object,
             localizationService ?? new LocalizationService(new Dictionary<string, IReadOnlyDictionary<string, string>>()),
             () => config,
-            NullLogger<WidgetLayoutResolver>.Instance);
+            NullLogger<WidgetLayoutResolver>.Instance,
+            mismatchReporter);
 
         var sectionResults = new SectionResultCache(sessionCache ?? _sessionCache);
         _sectionResults.Add(sectionResults);
@@ -920,7 +962,7 @@ public sealed class WidgetServiceTests : IDisposable
             NullLogger<WidgetService>.Instance,
             personalizationState,
             sectionResults,
-            activityManager: activityManager);
+            mismatchReporter: mismatchReporter);
     }
 
     private static IWidget MakeWidget(string widgetType, int totalRecordCount)

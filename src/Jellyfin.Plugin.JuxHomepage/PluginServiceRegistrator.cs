@@ -103,6 +103,8 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<WidgetItemFetcher>();
         serviceCollection.AddSingleton<UserSettingsService>();
         serviceCollection.AddTransient<IRequestUserResolver, RequestUserResolver>();
+        // One reporter for the layout probe and the section reads, so a widget type is reported once (COMPAT-01.a).
+        serviceCollection.AddSingleton<BinaryMismatchReporter>();
         serviceCollection.AddSingleton<WidgetLayoutResolver>();
         // WidgetService takes the personalization state as an optional parameter: built by type
         // alone, it would get null, and a layout built while a user's first scoring still runs
