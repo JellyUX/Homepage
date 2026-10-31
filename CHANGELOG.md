@@ -1,3 +1,10 @@
+## [2.17.3](https://github.com/JellyUX/Homepage/compare/v2.17.2...v2.17.3) (2026-10-31)
+
+### Bug Fixes
+
+* **admin:** fill and save the admin page view on screen ([78ff2c8](https://github.com/JellyUX/Homepage/commit/78ff2c83007fef6d60db2ff9bd66057bfe813d03))
+* **admin:** tie the labels and tabs of a second admin view to its own fields ([55258a4](https://github.com/JellyUX/Homepage/commit/55258a43f623e902a4e2f4528a6b711d98f3e6d9))
+
 ## [2.17.2](https://github.com/JellyUX/Homepage/compare/v2.17.1...v2.17.2) (2026-10-31)
 
 ### Bug Fixes
