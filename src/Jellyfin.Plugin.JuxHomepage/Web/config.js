@@ -31,10 +31,6 @@ export function initialTab(remembered, warnings) {
     return (warnings || []).some(function (code) { return code.indexOf('TMDb') === 0; }) ? 'sources' : 'settings';
 }
 
-
-
-
-
 // What each tab saves in a configuration, as comparable strings (ADM-01.c): the configurations compared
 // both come from formConfig, so a field the page normalizes on save (Order, a trimmed name) compares equal.
 // The TMDb list fields are only on the page once External sources has opened (Annexe.a): they are
@@ -61,8 +57,6 @@ export function tabSnapshot(config) {
 export function changedTabs(baseline, current) {
     return ADMIN_TABS.filter(function (tab) { return baseline[tab] !== current[tab]; });
 }
-
-
 
 // sessionStorage can be unavailable (private window, blocked site data): the page then works without it.
 function readSession(key) {
@@ -394,13 +388,6 @@ function createConfigPage(view) {
             return changed;
         },
 
-
-
-
-
-
-
-
         renderWarnings: function (warnings) {
             var self = this;
             var banner = byId('juxWarningBanner');
@@ -437,8 +424,6 @@ function createConfigPage(view) {
             writeSession(TAB_KEY, name);
             if (name === 'sources') { this.loadSources(); }
         },
-
-
 
         // Opens the tab of a field before it is focused: focus() does nothing under a hidden panel (ADM-01.b).
         revealField: function (el) {
