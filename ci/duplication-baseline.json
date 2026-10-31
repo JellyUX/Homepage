@@ -2,12 +2,6 @@
   "families": [
     {
       "files": [
-        "Jellyfin.Plugin.JuxHomepage/Controllers/JuxHomepageController.cs"
-      ],
-      "copies": 3
-    },
-    {
-      "files": [
         "Jellyfin.Plugin.JuxHomepage/Widgets/Connected/AiringTodayShowsWidget.cs",
         "Jellyfin.Plugin.JuxHomepage/Widgets/Connected/DiscoverMoviesWidget.cs",
         "Jellyfin.Plugin.JuxHomepage/Widgets/Connected/NowPlayingMoviesWidget.cs",
@@ -31,13 +25,6 @@
   "pairs": [
     {
       "files": [
-        "Jellyfin.Plugin.JuxHomepage/Controllers/JuxHomepageController.cs",
-        "Jellyfin.Plugin.JuxHomepage/Controllers/JuxHomepageController.cs"
-      ],
-      "count": 2
-    },
-    {
-      "files": [
         "Jellyfin.Plugin.JuxHomepage/Watchlist/MovieHistoryCacheService.cs",
         "Jellyfin.Plugin.JuxHomepage/Watchlist/SeriesProgressCacheService.cs"
       ],
@@ -45,7 +32,7 @@
     }
   ],
   "totals": {
-    "csharp": 243,
+    "csharp": 218,
     "css": 6,
     "javascript": 21
   }

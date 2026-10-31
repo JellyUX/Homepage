@@ -269,6 +269,20 @@ public class JuxHomepageController : ControllerBase
         }
     }
 
+    // A page of one tab view, for the user the request may read: refused (403) when it names another user,
+    // its paging bounded, read under ReadView.
+    private async Task<ActionResult<T>> ReadUserPageAsync<T>(string view, Guid userId, int startIndex, int limit, Func<Guid, int, int, T> read)
+    {
+        var resolvedUserId = await ResolveRequestUserIdAsync(userId).ConfigureAwait(false);
+        if (resolvedUserId is null)
+        {
+            return StatusCode(StatusCodes.Status403Forbidden);
+        }
+
+        var (start, size) = BoundPage(startIndex, limit);
+        return ReadView(view, resolvedUserId.Value, () => read(resolvedUserId.Value, start, size));
+    }
+
     // -------------------------------------------------------------------------
     // Watchlist (authenticated user)
     // -------------------------------------------------------------------------
@@ -300,23 +314,14 @@ public class JuxHomepageController : ControllerBase
         [FromQuery] int limit = 50,
         CancellationToken cancellationToken = default)
     {
-        var resolvedUserId = await ResolveRequestUserIdAsync(userId).ConfigureAwait(false);
-        if (resolvedUserId is null)
+        return await ReadUserPageAsync("Watchlist", userId, startIndex, limit, (user, start, size) =>
         {
-            return StatusCode(StatusCodes.Status403Forbidden);
-        }
-
-        userId = resolvedUserId.Value;
-
-        (startIndex, limit) = BoundPage(startIndex, limit);
-        return ReadView("Watchlist", userId, () =>
-        {
-            var page = _watchlistService.GetItems(userId, sortBy, sortOrder, includeItemTypes, searchTerm, startIndex, limit, includeTotalRecordCount: true, cancellationToken);
+            var page = _watchlistService.GetItems(user, sortBy, sortOrder, includeItemTypes, searchTerm, start, size, includeTotalRecordCount: true, cancellationToken);
 
             // Projected here, so a failed projection is answered like a failed read.
             _ = page.Items;
             return page;
-        });
+        }).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -376,16 +381,8 @@ public class JuxHomepageController : ControllerBase
         [FromQuery] int limit = 50,
         CancellationToken cancellationToken = default)
     {
-        var resolvedUserId = await ResolveRequestUserIdAsync(userId).ConfigureAwait(false);
-        if (resolvedUserId is null)
-        {
-            return StatusCode(StatusCodes.Status403Forbidden);
-        }
-
-        userId = resolvedUserId.Value;
-
-        (startIndex, limit) = BoundPage(startIndex, limit);
-        return ReadView("Series Progress", userId, () => _seriesProgressViewService.GetItems(userId, sortBy, sortOrder, searchTerm, startIndex, limit, cancellationToken));
+        return await ReadUserPageAsync("Series Progress", userId, startIndex, limit, (user, start, size) =>
+            _seriesProgressViewService.GetItems(user, sortBy, sortOrder, searchTerm, start, size, cancellationToken)).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -413,16 +410,8 @@ public class JuxHomepageController : ControllerBase
         [FromQuery] int limit = 50,
         CancellationToken cancellationToken = default)
     {
-        var resolvedUserId = await ResolveRequestUserIdAsync(userId).ConfigureAwait(false);
-        if (resolvedUserId is null)
-        {
-            return StatusCode(StatusCodes.Status403Forbidden);
-        }
-
-        userId = resolvedUserId.Value;
-
-        (startIndex, limit) = BoundPage(startIndex, limit);
-        return ReadView("Movie History", userId, () => _movieHistoryViewService.GetItems(userId, sortBy, sortOrder, searchTerm, startIndex, limit, cancellationToken));
+        return await ReadUserPageAsync("Movie History", userId, startIndex, limit, (user, start, size) =>
+            _movieHistoryViewService.GetItems(user, sortBy, sortOrder, searchTerm, start, size, cancellationToken)).ConfigureAwait(false);
     }
 
     /// <summary>
