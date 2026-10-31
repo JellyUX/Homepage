@@ -42,6 +42,7 @@
 !ci/complexity-budget.json
 !ci/decision-surfaces.json
 !ci/jellyfin-lines.json
+!ci/conditional-compilation-budget.json
 !e2e/
 !e2e/setup.mjs
 !e2e/helpers.mjs

@@ -7,6 +7,8 @@ import {
     findUntrackedMarkers,
     countTodoReferences,
     checkTodoReferences,
+    countConditionalSites,
+    checkConditionalSites,
     measureComplexity,
     checkComplexity,
     checkTargetAbi,
@@ -158,6 +160,31 @@ describe('roadmap references (PROC-07.d)', () => {
             `${v5}: 0 references in versioned files, 1 in ci/todo-reference-budget.json: lower the budget to 0 in this commit.`
         ]);
         expect(checkTodoReferences({ [v4]: 2, [v5]: 1, [v6]: 1 }, budget)).toHaveLength(1);
+    });
+});
+
+describe('conditional compilation ratchet (D-01.b)', () => {
+    it('counts the #if lines of the product sources only', () => {
+        const files = [
+            ['src/Jellyfin.Plugin.JuxHomepage/A.cs', '#if JELLYFIN_12\nvar a = 1;\n#else\nvar a = 2;\n#endif'],
+            ['src/Jellyfin.Plugin.JuxHomepage/B.cs', '    #if DEBUG\r\n    #endif\r\n// #if in a comment'],
+            ['src/Jellyfin.Plugin.JuxHomepage.Tests/C.cs', '#if JELLYFIN_12\n#endif'],
+            ['src/Jellyfin.Plugin.JuxHomepage/Web/x.js', '#if']
+        ];
+        expect(countConditionalSites(files)).toBe(2);
+    });
+
+    it('fails on a rise without the budget, on a drop the budget does not record, and above 10 sites', () => {
+        expect(checkConditionalSites(1, { productSites: 1 })).toEqual([]);
+        expect(checkConditionalSites(2, { productSites: 1 })).toEqual([
+            '2 #if sites in the plugin sources, 1 allowed by ci/conditional-compilation-budget.json: raise the budget with a Budget: trailer.'
+        ]);
+        expect(checkConditionalSites(0, { productSites: 1 })).toEqual([
+            '0 #if sites in the plugin sources, 1 in ci/conditional-compilation-budget.json: lower the budget to 0 in this commit.'
+        ]);
+        expect(checkConditionalSites(11, { productSites: 11 })).toEqual([
+            '11 #if sites in the plugin sources, more than 10: review the dual-build decision (D-01) before adding more.'
+        ]);
     });
 });
 

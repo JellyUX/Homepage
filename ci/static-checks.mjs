@@ -23,8 +23,12 @@ export const BASELINE_PATH = 'ci/duplication-baseline.json';
 // Ratcheted budgets (TODO_V5 rule R3): a value may only rise in a commit carrying a "Budget:" trailer.
 export const TODO_REFERENCE_BUDGET = 'ci/todo-reference-budget.json';
 export const COMPLEXITY_BUDGET = 'ci/complexity-budget.json';
+export const CONDITIONAL_BUDGET = 'ci/conditional-compilation-budget.json';
+// Past this many #if sites in the plugin sources, the dual build (D-01) is to be reviewed.
+const MAX_CONDITIONAL_SITES = 10;
+const PRODUCT_DIR = 'src/Jellyfin.Plugin.JuxHomepage/';
 const DECISION_SURFACES = 'ci/decision-surfaces.json';
-export const BUDGET_FILES = ['ci/perf-budget.json', 'ci/asset-budget.json', 'ci/duplication-baseline.json', 'ci/dead-code-allowlist.json', TODO_REFERENCE_BUDGET, COMPLEXITY_BUDGET];
+export const BUDGET_FILES = ['ci/perf-budget.json', 'ci/asset-budget.json', 'ci/duplication-baseline.json', 'ci/dead-code-allowlist.json', TODO_REFERENCE_BUDGET, COMPLEXITY_BUDGET, CONDITIONAL_BUDGET];
 // A reference from versioned code to an unversioned roadmap file (TODO_V<n>.md, TODO_V<n>/), PROC-07.d.
 const TODO_REFERENCE = /(?<!\w)TODO_V(\d+)\b/g;
 
@@ -190,6 +194,36 @@ export function countTodoReferences(files) {
         }
     }
     return counts;
+}
+
+/**
+ * The #if lines of the plugin sources: each is a place where the Jellyfin lines diverge (D-01.b).
+ * @param {[string, string][]} files Versioned text files, as [path, text].
+ * @returns {number}
+ */
+export function countConditionalSites(files) {
+    return files
+        .filter(([file]) => file.startsWith(PRODUCT_DIR) && file.endsWith('.cs'))
+        .reduce((sum, [, text]) => sum + (text.match(/^[ \t]*#if\b/gm) ?? []).length, 0);
+}
+
+/**
+ * Compares the #if sites of the plugin sources with their budget: a rise needs a Budget: trailer, a drop
+ * lowers the budget in the same commit, and more than MAX_CONDITIONAL_SITES calls for a review of D-01.
+ * @param {number} count
+ * @param {{productSites: number}} budget
+ * @returns {string[]} Errors.
+ */
+export function checkConditionalSites(count, budget) {
+    if (count > MAX_CONDITIONAL_SITES) {
+        return [`${count} #if sites in the plugin sources, more than ${MAX_CONDITIONAL_SITES}: review the dual-build decision (D-01) before adding more.`];
+    }
+    if (count > budget.productSites) {
+        return [`${count} #if sites in the plugin sources, ${budget.productSites} allowed by ${CONDITIONAL_BUDGET}: raise the budget with a Budget: trailer.`];
+    }
+    return count < budget.productSites
+        ? [`${count} #if sites in the plugin sources, ${budget.productSites} in ${CONDITIONAL_BUDGET}: lower the budget to ${count} in this commit.`]
+        : [];
 }
 
 /**
@@ -776,6 +810,9 @@ function main() {
 
     checkTodoReferences(countTodoReferences(texts), JSON.parse(readFileSync(TODO_REFERENCE_BUDGET, 'utf8')))
         .forEach((message) => errors.push({ file: TODO_REFERENCE_BUDGET, message }));
+
+    checkConditionalSites(countConditionalSites(texts), JSON.parse(readFileSync(CONDITIONAL_BUDGET, 'utf8')))
+        .forEach((message) => errors.push({ file: CONDITIONAL_BUDGET, message }));
 
     checkComplexity(currentComplexity(), JSON.parse(readFileSync(COMPLEXITY_BUDGET, 'utf8')))
         .forEach((message) => errors.push({ file: COMPLEXITY_BUDGET, message }));

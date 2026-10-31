@@ -1,0 +1,4 @@
+{
+    "description": "The #if lines of the plugin sources (src/Jellyfin.Plugin.JuxHomepage, .cs files), counted by ci/static-checks.mjs (D-01.b): each is a place where the Jellyfin 10.11 and 12 builds diverge. A drop lowers the value here in the same commit; a rise needs a Budget: trailer. More than 10 fails: the dual build from one source (D-01) is then to be reviewed.",
+    "productSites": 0
+}
