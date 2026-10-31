@@ -13,7 +13,7 @@ import { dirname, join } from 'node:path';
 
 const RISKY_CS = ['Inject/', 'Controllers/', 'Personalized/', 'Widgets/Service/', 'Plugin.cs', 'PluginServiceRegistrator.cs'];
 const RISKY_JS = ['jux-tab-injector.js', 'jux-homepage.js', 'jux-history.js', 'jux-progress.js', 'jux-watchlist.js', 'jux-card-hooks.js',
-    'jux-featured.js', 'config.js', 'config-editors.js', 'config-sources.js', 'jux-loadsections-inject.js'];
+    'jux-featured.js', 'config.js', 'config-editors.js', 'config-sections.js', 'config-sources.js', 'jux-loadsections-inject.js'];
 // Left out of the Vitest coverage (vitest.config.js): a template the server fills in before splicing it
 // into the home chunk, which v8 cannot parse as it is.
 const NOT_INSTRUMENTED_JS = new Set(['jux-loadsections-inject.js']);

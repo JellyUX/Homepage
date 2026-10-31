@@ -2,8 +2,9 @@
     "description": "The complexity each web script of src/Jellyfin.Plugin.JuxHomepage/Web may reach, checked by ci/static-checks.mjs (QUAL-01.c): maxComplexity is the highest cyclomatic complexity of one function (1 + if, loops, catch, ?:, case, &&, ||, ??), maxFunctionLines the line count of its longest function, functions of 3 lines or less left out. A drop lowers the value here in the same commit; a rise needs a Budget: trailer. jux-loadsections-inject.js, a template, is not measured.",
     "maxComplexity": {
         "config-editors.js": 7,
+        "config-sections.js": 31,
         "config-sources.js": 11,
-        "config.js": 31,
+        "config.js": 8,
         "jux-breadcrumb.js": 24,
         "jux-card-hooks.js": 14,
         "jux-collections.js": 7,
@@ -21,8 +22,9 @@
     },
     "maxFunctionLines": {
         "config-editors.js": 35,
+        "config-sections.js": 565,
         "config-sources.js": 326,
-        "config.js": 1179,
+        "config.js": 602,
         "jux-breadcrumb.js": 322,
         "jux-card-hooks.js": 836,
         "jux-collections.js": 359,
