@@ -311,6 +311,10 @@ describe('checkTargetAbi', () => {
             expect(job('drift')).toContain(`image: '${line.newest.replace(/\.0$/, '')}'`);
         }
         expect(job('build-test-12')).toContain('-p:JellyfinVersion=12.0.0');
+        expect(job('commits')).toContain('-p:JellyfinVersion=12.0.0');
+        // The weekly drift leaves out the same tests as the drift job (R11).
+        const filters = (text) => [...text.matchAll(/^\s*filter: (.+?)\r?$/gm)].map((m) => m[1]).sort();
+        expect(filters(readFileSync('.github/workflows/drift-weekly.yml', 'utf8'))).toEqual(filters(job('drift')));
     });
 });
 

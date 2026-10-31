@@ -109,9 +109,12 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Each commit builds on both Jellyfin lines (ci/jellyfin-lines.json): .NET 9 for 10.11, .NET 10 for 12.
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: 9.0.x
+          dotnet-version: |
+            9.0.x
+            10.0.x
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -134,11 +137,11 @@ jobs:
               npm ci --no-audit --no-fund >/dev/null
               LOCK=$(git rev-parse "$SHA:package-lock.json")
             fi
-            if dotnet build --configuration Release && npx vitest run; then
+            if dotnet build --configuration Release && dotnet build --configuration Release -p:JellyfinVersion=12.0.0 && npx vitest run; then
               echo "::endgroup::"
             else
               echo "::endgroup::"
-              echo "::error::$(git log -1 --format='%h %s' "$SHA") does not build or fails Vitest"
+              echo "::error::$(git log -1 --format='%h %s' "$SHA") does not build on both Jellyfin lines or fails Vitest"
               FAILED="$FAILED $SHA"
             fi
           done
