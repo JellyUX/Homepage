@@ -169,9 +169,10 @@ describe('conditional compilation ratchet (D-01.b)', () => {
             ['src/Jellyfin.Plugin.JuxHomepage/A.cs', '#if JELLYFIN_12\nvar a = 1;\n#else\nvar a = 2;\n#endif'],
             ['src/Jellyfin.Plugin.JuxHomepage/B.cs', '    #if DEBUG\r\n    #endif\r\n// #if in a comment'],
             ['src/Jellyfin.Plugin.JuxHomepage.Tests/C.cs', '#if JELLYFIN_12\n#endif'],
-            ['src/Jellyfin.Plugin.JuxHomepage/Web/x.js', '#if']
+            ['src/Jellyfin.Plugin.JuxHomepage/Web/x.js', '#if'],
+            ['src/Jellyfin.Plugin.JuxHomepage/C.cs', '#if A\n#elif B\n#endif\n# if C\n#endif\n/// #if in a doc comment\nvar s = "#if";']
         ];
-        expect(countConditionalSites(files)).toBe(2);
+        expect(countConditionalSites(files)).toBe(5);
     });
 
     it('fails on a rise without the budget, on a drop the budget does not record, and above 10 sites', () => {

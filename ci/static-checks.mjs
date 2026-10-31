@@ -197,14 +197,14 @@ export function countTodoReferences(files) {
 }
 
 /**
- * The #if lines of the plugin sources: each is a place where the Jellyfin lines diverge (D-01.b).
+ * The #if and #elif lines of the plugin sources: each is a place where the Jellyfin lines diverge (D-01.b).
  * @param {[string, string][]} files Versioned text files, as [path, text].
  * @returns {number}
  */
 export function countConditionalSites(files) {
     return files
         .filter(([file]) => file.startsWith(PRODUCT_DIR) && file.endsWith('.cs'))
-        .reduce((sum, [, text]) => sum + (text.match(/^[ \t]*#if\b/gm) ?? []).length, 0);
+        .reduce((sum, [, text]) => sum + (text.match(/^[ \t]*#[ \t]*(?:if|elif)\b/gm) ?? []).length, 0);
 }
 
 /**
