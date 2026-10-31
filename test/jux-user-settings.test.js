@@ -111,6 +111,22 @@ describe('JellyUX block of Preferences > Home (F-36)', () => {
         location.hash = '';
     });
 
+    // R11 (phase 06): an empty answer leaves the switch the pages follow alone, and fails as a failed load.
+    it('leaves the switch alone on an empty answer', async () => {
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        window.ApiClient = { getUrl: (route) => route, getCurrentUserId: () => 'u1', getJSON: vi.fn().mockResolvedValue(null) };
+        location.hash = '#/mypreferenceshome';
+        nativeForm();
+        _tryRender();
+        await new Promise((r) => setTimeout(r, 0));
+
+        expect(window.JuxCore.isOffForUser()).toBe(false);
+        expect(errorSpy).toHaveBeenCalledWith('[JellyUX] Failed to load the JellyUX settings:', expect.any(TypeError));
+        expect(errorSpy.mock.calls[0][1].message).not.toMatch(/Enabled/);
+        errorSpy.mockRestore();
+        location.hash = '';
+    });
+
     it('says when the save failed', async () => {
         const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
         const form = nativeForm();

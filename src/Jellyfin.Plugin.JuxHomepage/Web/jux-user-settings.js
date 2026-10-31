@@ -65,7 +65,7 @@
         var url = window.ApiClient.getUrl('JuxHomepage/UserSettings', { userId: userId, lang: lang });
         window.ApiClient.getJSON(url).then(function (settings) {
             // The switch read here is the one the other pages follow, not only one saved from here (BKL-40).
-            if (userId === window.ApiClient.getCurrentUserId()) {
+            if (settings && userId === window.ApiClient.getCurrentUserId()) {
                 window.JuxCore.setUserEnabled(userId, settings.Enabled !== false);
             }
             if (!form.isConnected || form.querySelector('.jux-user-settings')) {
