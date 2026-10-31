@@ -29,6 +29,15 @@ public sealed class CollectionsIndexCacheServiceTests : IDisposable
             invalidationDelay);
     }
 
+    // A collection member resolves by id on Jellyfin 10.11 and in one batch (GetItemList by ItemIds) on 12.
+    private static void StubMember(Mock<ILibraryManager> libraryManagerMock, BaseItem member)
+    {
+        libraryManagerMock.Setup(m => m.GetItemById(member.Id)).Returns(member);
+        libraryManagerMock
+            .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.ItemIds.Contains(member.Id))))
+            .Returns([member]);
+    }
+
     [Fact]
     public async Task RefreshAsync_NoCollection_IndexIsNoLongerStale()
     {
@@ -76,9 +85,7 @@ public sealed class CollectionsIndexCacheServiceTests : IDisposable
         libraryManagerMock
             .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.IncludeItemTypes.Contains(BaseItemKind.BoxSet))))
             .Returns([boxSet]);
-        libraryManagerMock
-            .Setup(m => m.GetItemById(movie.Id))
-            .Returns(movie);
+        StubMember(libraryManagerMock, movie);
 
         BaseItem.LibraryManager = libraryManagerMock.Object;
 
@@ -106,7 +113,7 @@ public sealed class CollectionsIndexCacheServiceTests : IDisposable
         libraryManagerMock
             .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(q => q.IncludeItemTypes.Contains(BaseItemKind.BoxSet))))
             .Returns([boxSet]);
-        libraryManagerMock.Setup(m => m.GetItemById(movie.Id)).Returns(movie);
+        StubMember(libraryManagerMock, movie);
         BaseItem.LibraryManager = libraryManagerMock.Object;
         var applicationPathsMock = new Mock<IApplicationPaths>();
         applicationPathsMock.Setup(p => p.DataPath).Returns(_tempDir);

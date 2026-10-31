@@ -208,7 +208,7 @@ public sealed class CollectionsIndexCacheService : ICollectionsIndexCacheService
                 continue;
             }
 
-            var members = boxSetFolder.GetLinkedChildren(null).Where(m => m is Movie or Series);
+            var members = boxSetFolder.GetLinkedChildren().Where(m => m is Movie or Series);
 
             var collectionRef = new CollectionRef { CollectionId = boxSet.Id, CollectionName = boxSet.Name };
 
