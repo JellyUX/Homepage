@@ -226,6 +226,7 @@ public sealed class JuxHomepageControllerTests
     [InlineData("config.html")]
     [InlineData("config.js")]
     [InlineData("config-editors.js")]
+    [InlineData("config-sources.js")]
     [InlineData("config.css")]
     [InlineData("jux-native-selectors.json")]
     [InlineData("en.json")]

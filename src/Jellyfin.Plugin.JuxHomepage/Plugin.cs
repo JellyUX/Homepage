@@ -98,7 +98,7 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
     /// <c>juxhomepageconfig{part}js</c> that config.js imports as <c>./configurationpage?name=...</c>: like
     /// config.js, without cache headers, so a module never lags behind the page after an update (DR-019).
     /// </summary>
-    internal static readonly string[] ConfigModuleParts = ["editors"];
+    internal static readonly string[] ConfigModuleParts = ["editors", "sources"];
 
     /// <inheritdoc/>
     public override Guid Id => Guid.Parse("3adf1f1f-1541-4e47-b9e3-34d2d2968af6");

@@ -19,9 +19,10 @@
         "jux-collections.js": 4330,
         "jux-breadcrumb.js": 4103,
         "config-editors.js": 5013,
+        "config-sources.js": 5248,
         "config.css": 2895,
         "config.html": 3035,
-        "config.js": 22329,
+        "config.js": 18188,
         "jux-loadsections-inject.js": 964
     }
 }
