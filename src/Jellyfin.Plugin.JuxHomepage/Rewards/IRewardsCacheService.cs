@@ -15,7 +15,7 @@ public interface IRewardsCacheService
 
     /// <summary>
     /// Refreshes every configured Rewards widget instance. Shared with the admin "Refresh now" action
-    /// (<see cref="Controllers.JuxHomepageController"/>) and the weekly scheduled task
+    /// (<see cref="Controllers.JuxHomepageAdminController"/>) and the weekly scheduled task
     /// (<see cref="Tasks.RewardsWeeklyRefreshTask"/>), so the instance-enumeration logic isn't duplicated.
     /// Guarded by <see cref="TryAcquireRefreshLock"/>/<see cref="RunRefreshLockedAsync"/> internally --
     /// a concurrent call (manual button pressed twice, or overlapping with the weekly scheduled task)

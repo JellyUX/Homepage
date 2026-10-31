@@ -45,7 +45,7 @@ public sealed class RewardsWeeklyRefreshTask : IScheduledTask
     {
         // RefreshAllInstancesAsync is independently fault-tolerant per instance (RewardsCacheService
         // logs and swallows its own failures), so no special-casing is needed here beyond delegating
-        // to it. Shared with the admin "Refresh now" action (JuxHomepageController) so the
+        // to it. Shared with the admin "Refresh now" action (JuxHomepageAdminController) so the
         // instance-enumeration logic isn't duplicated.
         await _cacheService.RefreshAllInstancesAsync(cancellationToken).ConfigureAwait(false);
         progress.Report(100);

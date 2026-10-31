@@ -136,12 +136,12 @@ public sealed class ConfigurationBackupTests : IDisposable
     public void RestoreEndpoint_AnswersNoContentNotFoundOrBadRequest()
     {
         var backup = Backup();
-        Assert.IsType<NotFoundResult>(Jellyfin.Plugin.JuxHomepage.Controllers.JuxHomepageController.Restore(backup, _ => { }));
+        Assert.IsType<NotFoundResult>(Jellyfin.Plugin.JuxHomepage.Controllers.JuxHomepageAdminController.Restore(backup, _ => { }));
 
         backup.Save(Saved());
-        Assert.IsType<NotFoundResult>(Jellyfin.Plugin.JuxHomepage.Controllers.JuxHomepageController.Restore(backup, null));
-        Assert.IsType<NoContentResult>(Jellyfin.Plugin.JuxHomepage.Controllers.JuxHomepageController.Restore(backup, _ => { }));
-        Assert.IsType<BadRequestObjectResult>(Jellyfin.Plugin.JuxHomepage.Controllers.JuxHomepageController.Restore(backup, _ => throw new ArgumentException("refused")));
+        Assert.IsType<NotFoundResult>(Jellyfin.Plugin.JuxHomepage.Controllers.JuxHomepageAdminController.Restore(backup, null));
+        Assert.IsType<NoContentResult>(Jellyfin.Plugin.JuxHomepage.Controllers.JuxHomepageAdminController.Restore(backup, _ => { }));
+        Assert.IsType<BadRequestObjectResult>(Jellyfin.Plugin.JuxHomepage.Controllers.JuxHomepageAdminController.Restore(backup, _ => throw new ArgumentException("refused")));
     }
 
     [Fact]
