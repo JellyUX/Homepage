@@ -238,12 +238,14 @@
     }
 
     // Hiding also forgets the item shown, so reopening that same item renders it again (FIAB-09: the
-    // kept id made X -> home -> X return early with the breadcrumb hidden).
+    // kept id made X -> home -> X return early with the breadcrumb hidden), and the item still loading, so
+    // its late answer fails the staleness guard instead of showing a trail on the page left for.
     function _hideBreadcrumb() {
         var el = document.querySelector('.jux-breadcrumb');
         if (el) {
             el.style.display = 'none';
             delete el.dataset.juxBreadcrumbItemId;
+            delete el.dataset.juxBreadcrumbPending;
             _markHeader(el, false);
         }
     }

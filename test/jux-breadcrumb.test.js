@@ -264,6 +264,30 @@ describe('breadcrumb on a detail page reopened from the home page (FIAB-09)', ()
         expect(await visit('#/details?id=bc01')).toBe('');
         expect(document.querySelector('.jux-breadcrumb').textContent).toContain('Alder Creek');
     });
+
+    // R11 (phase 06): an answer that arrives once the user has left the detail page shows nothing.
+    it('drops an answer that arrives after the user left the detail page', async () => {
+        document.body.innerHTML = '<div class="skinHeader"><div class="headerLeft"></div></div>';
+        let answer;
+        window.ApiClient = {
+            getCurrentUserId: () => 'u1',
+            getUrl: (path) => path,
+            getItem: vi.fn(() => new Promise((resolve) => { answer = resolve; })),
+            getAncestorItems: vi.fn().mockResolvedValue([{ Type: 'CollectionFolder', Id: 'lib1', Name: 'Movies' }]),
+            getJSON: vi.fn().mockResolvedValue([])
+        };
+
+        location.hash = '#/details?id=bc09';
+        _tryRenderBreadcrumb();
+        location.hash = '#/home';
+        _tryRenderBreadcrumb();
+        answer({ Id: 'bc09', Name: 'Late Movie', Type: 'Movie' });
+        await flush();
+        await flush();
+
+        expect(document.querySelector('.jux-breadcrumb').style.display).toBe('none');
+        expect(document.querySelector('.skinHeader').classList.contains('jux-breadcrumb-shown')).toBe(false);
+    });
 });
 
 describe('breadcrumb for a user who turned JellyUX off (H-09)', () => {
