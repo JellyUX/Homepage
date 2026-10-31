@@ -314,11 +314,9 @@ function createConfigPage(view) {
             warning.appendChild(error);
         },
 
-        // Shows a configuration in the form. The rows are copies, so reading the form never changes the
-        // configuration given here.
-        populate: function (config) {
-            var self = this;
-            self.state.config = config;
+        // Shows the Settings tab's fields of a configuration (populate). The tab has no module of its own:
+        // these few fields do not pay for one more file to load (DR-019).
+        fillSettings: function (config) {
             byId('chkEnabled').checked = !!config.Enabled;
             byId('chkWatchlistAutoRemove').checked = config.WatchlistAutoRemove !== false;
             var modules = config.Modules || {};
@@ -326,6 +324,26 @@ function createConfigPage(view) {
                 el.checked = modules[el.getAttribute('data-module')] !== false;
             });
             byId('numSessionTtl').value = (config.Cache && config.Cache.SessionTtlMinutes) || 15;
+        },
+
+        // Reads the Settings tab's fields into the configuration the page would save (formConfig).
+        readSettings: function (config) {
+            config.Enabled = byId('chkEnabled').checked;
+            config.WatchlistAutoRemove = byId('chkWatchlistAutoRemove').checked;
+            if (!config.Modules) { config.Modules = {}; }
+            view.querySelectorAll('.jux-admin-module').forEach(function (el) {
+                config.Modules[el.getAttribute('data-module')] = el.checked;
+            });
+            if (!config.Cache) { config.Cache = {}; }
+            config.Cache.SessionTtlMinutes = Math.max(1, parseInt(byId('numSessionTtl').value, 10) || 15);
+        },
+
+        // Shows a configuration in the form. The rows are copies, so reading the form never changes the
+        // configuration given here.
+        populate: function (config) {
+            var self = this;
+            self.state.config = config;
+            self.fillSettings(config);
             self.fillSources(config);
 
             self.state.sortedWidgets = JSON.parse(JSON.stringify(config.Widgets || [])).sort(function (a, b) {
@@ -350,14 +368,7 @@ function createConfigPage(view) {
         formConfig: function (base, readRows) {
             var self = this;
             var config = JSON.parse(JSON.stringify(base || {}));
-            config.Enabled = byId('chkEnabled').checked;
-            config.WatchlistAutoRemove = byId('chkWatchlistAutoRemove').checked;
-            if (!config.Modules) { config.Modules = {}; }
-            view.querySelectorAll('.jux-admin-module').forEach(function (el) {
-                config.Modules[el.getAttribute('data-module')] = el.checked;
-            });
-            if (!config.Cache) { config.Cache = {}; }
-            config.Cache.SessionTtlMinutes = Math.max(1, parseInt(byId('numSessionTtl').value, 10) || 15);
+            self.readSettings(config);
             self.readSources(config);
 
             if (readRows) { self.readDomIntoState(); }
