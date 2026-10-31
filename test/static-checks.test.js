@@ -285,6 +285,18 @@ describe('checkTargetAbi', () => {
         expect(csproj).toContain(`<TargetFramework Condition="!$(JellyfinVersion.StartsWith('10.'))">net10.0</TargetFramework>`);
         expect(checkTargetAbi({ buildYaml, manifest: readFileSync('manifest.json', 'utf8'), csproj, lines: repoLines })).toEqual([]);
     });
+
+    // COMPAT-06: each line is built against its newest validated server and drift-checked with its own SDK.
+    it('builds and drift-checks every Jellyfin line in CI (COMPAT-06)', () => {
+        const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
+        const job = (name) => new RegExp(`\\n {2}${name}:[\\s\\S]*?(?=\\r?\\n {2}[\\w-]+:\\r?\\n|$)`).exec(ci)[0];
+        for (const line of JSON.parse(readFileSync('ci/jellyfin-lines.json', 'utf8')).lines) {
+            expect(job('build-newest-abi')).toContain(`jellyfin: '${line.newest}'`);
+            expect(job('drift')).toContain(`sdk: '${line.sdk}'`);
+            expect(job('drift')).toContain(`image: '${line.newest.replace(/\.0$/, '')}'`);
+        }
+        expect(job('build-test-12')).toContain('-p:JellyfinVersion=12.0.0');
+    });
 });
 
 describe('checkBudget', () => {

@@ -243,9 +243,12 @@ Any Jellyfin Web build can rename them, so run this procedure after every Jellyf
 1. **Drift checks**: extract `/jellyfin/jellyfin-web` from the new image (as the `drift` job of
    `.github/workflows/ci.yml` does), set `JELLYFIN_WEB_EXTRACT_PATH` to it and run
    `dotnet test --filter "Category=RequiresDocker"` (`JellyfinWebDriftTests`: loadSections splice,
-   home-html anchor, every token, carrier and attribute value of `Web/jux-native-selectors.json`). The
-   `.github/workflows/drift-weekly.yml` workflow runs them every Monday on the newest 10.11 image: a red
-   run there is the signal to start this procedure.
+   home-html anchor, every token, carrier and attribute value of `Web/jux-native-selectors.json`), with
+   `-p:JellyfinVersion=12.0.0` for a Jellyfin 12 image. The `drift` job runs them on the newest
+   validated server of each line (`ci/jellyfin-lines.json` `newest`); on Jellyfin 12 its filter leaves
+   out the three tests of the parts not ported yet (COMPAT-02). The `.github/workflows/drift-weekly.yml`
+   workflow runs them every Monday on the newest 10.11 and 12 images: a red run there is the signal to
+   start this procedure.
 2. **E2E suite**: `node e2e/setup.mjs up --image jellyfin/jellyfin:<version>`, then
    `npx playwright test -c e2e`.
 3. **Server log**: bump the image in `docker/docker-compose.yml`, run
@@ -259,8 +262,8 @@ Any Jellyfin Web build can rename them, so run this procedure after every Jellyf
    chunk found in step 3, find the webpack module that defines `,loadSections:` and the name it binds to
    the cardBuilder module (`,X=r(id)`, read as `X.default.getCardsHtml`).
 5. **Missing native token, moved carrier or attribute value**: adapt the script that uses it, then
-   `Web/jux-native-selectors.json` (`test/native-selectors.test.js` fails until both agree). Raise the E2E matrix and the `drift` job
-   image to the new validated version.
+   `Web/jux-native-selectors.json` (`test/native-selectors.test.js` fails until both agree). Raise the E2E matrix, the `drift` and
+   `build-newest-abi` jobs and the line's `newest` in `ci/jellyfin-lines.json` to the new validated version.
 6. **Home page**: if the JellyUX sections do not render, check the browser console (prefix `[JellyUX]`)
    before suspecting the minified hook constants. A drifted chunk shows "Jellyfin Web has changed:
    JellyUX went back to the native home screen" and never reloads the page; the cache message (CDN or
