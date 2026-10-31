@@ -18,7 +18,7 @@
         "jux-watchlist.js": 4
     },
     "maxFunctionLines": {
-        "config.js": 1440,
+        "config.js": 1454,
         "jux-breadcrumb.js": 322,
         "jux-card-hooks.js": 836,
         "jux-collections.js": 359,

@@ -143,7 +143,7 @@ function bindSearch(inputEl, options) {
         timer = setTimeout(function () {
             var request = ++latest;
             ApiClient.getJSON(options.url(query)).then(function (vals) {
-                var dl = document.getElementById(inputEl.getAttribute('list'));
+                var dl = inputEl.parentNode.querySelector('datalist');
                 if (request !== latest || !dl) { return; }
                 dl.innerHTML = (vals || []).map(function (v) {
                     return '<option value="' + escHtml(v.Label) + '"></option>';
@@ -366,11 +366,12 @@ function searchFieldsHtml(self, w, i, prefix, fields, labelFor) {
         var currentLabel = fieldValue ? labelFor(fieldName, fieldValue) : '';
         html += '<div class="inputContainer">';
         html += '<label class="inputLabel inputLabelUnfocused" for="' + prefix + fieldName + '_' + i + '">' + self.escHtml(field[1]) + '</label>';
-        html += '<input id="' + prefix + fieldName + '_' + i + '" type="text" list="' + prefix + 'Vals_' + i + '_' + fieldName + '"';
+        var listId = self.listId(prefix + 'Vals_' + i + '_' + fieldName);
+        html += '<input id="' + prefix + fieldName + '_' + i + '" type="text" list="' + listId + '"';
         html += ' class="emby-input jux-' + (prefix === 'disc' ? 'discover' : prefix) + '-' + fieldName + '" data-field="' + fieldName + '"';
         html += ' data-value="' + self.escHtml(fieldValue) + '"';
         html += ' placeholder="' + self.escHtml(self.t('admin.discover.search.placeholder')) + '" value="' + self.escHtml(currentLabel || fieldValue) + '" />';
-        html += '<datalist id="' + prefix + 'Vals_' + i + '_' + fieldName + '"></datalist>';
+        html += '<datalist id="' + listId + '"></datalist>';
         html += '</div>';
     });
     return html;
@@ -403,7 +404,7 @@ var EDITORS = {
         render: function (self, w, i, defaultName) {
             var currentValue = self.getExtraValue(w);
             var currentLabel = currentValue ? self.getLabelForValue(w.WidgetType, currentValue) : '';
-            var datalistId = 'juxVals_' + i;
+            var datalistId = self.listId('juxVals_' + i);
             var html = '<div class="inputContainer">';
             html += '<label class="inputLabel inputLabelUnfocused" for="widgetValue_' + i + '">' + self.escHtml(self.t('admin.value.label')) + '</label>';
             html += '<input id="widgetValue_' + i + '" type="text" list="' + datalistId + '"';
@@ -612,10 +613,21 @@ var EDITORS = {
     }
 };
 
-function createConfigPage() {
+// How many admin page views this module built, for ids that must stay unique in the document.
+var configPageCount = 0;
+
+function createConfigPage(view) {
+    // The element of this page's own view: jellyfin-web keeps an earlier view of the same page hidden in the
+    // document when the admin page opens under a second URL (A-13), with the same element ids.
+    function byId(id) {
+        return view.querySelector('[id="' + id + '"]');
+    }
+
     return {
         PLUGIN_ID: '3adf1f1f-1541-4e47-b9e3-34d2d2968af6',
         _submitBound: false,
+        // Tells this page's datalists apart from those of a hidden earlier view of the page (A-13).
+        _listKey: String(++configPageCount),
         // Cache of available values per widgetType, loaded on demand.
         _valuesCache: {},
         // Widget rows the admin unfolded; every other row shows as a one-line summary. Rows are
@@ -681,7 +693,7 @@ function createConfigPage() {
         // translated value. Safe to call multiple times (idempotent).
         translateStaticText: function () {
             var self = this;
-            document.querySelectorAll('[data-i18n]').forEach(function (el) {
+            view.querySelectorAll('[data-i18n]').forEach(function (el) {
                 el.textContent = self.t(el.getAttribute('data-i18n'));
             });
         },
@@ -887,10 +899,16 @@ function createConfigPage() {
             });
         },
 
+        // The id of a datalist of this page view: the browser looks up list="..." in the whole document,
+        // where a hidden earlier view of the page has the same rows (A-13).
+        listId: function (base) {
+            return base + '_' + this._listKey;
+        },
+
         // Populate all datalists for admin cards from the cache.
         populateDatalist: function (widgetType, datalistId) {
             var vals = this._valuesCache[widgetType] || [];
-            var dl = document.getElementById(datalistId);
+            var dl = byId(datalistId);
             if (!dl) { return; }
             var html = '';
             for (var i = 0; i < vals.length; i++) {
@@ -901,7 +919,7 @@ function createConfigPage() {
 
         renderWidgets: function () {
             var self = this;
-            var list = document.getElementById('juxWidgetList');
+            var list = byId('juxWidgetList');
             var widgets = this.state.sortedWidgets;
             var html = '';
             var userId = ApiClient.getCurrentUserId ? ApiClient.getCurrentUserId() : '';
@@ -1067,12 +1085,12 @@ function createConfigPage() {
                 widgets.forEach(function (w, i) {
                     if (self.isAdmin(w.WidgetType)) {
                         adminTypes.push(w.WidgetType);
-                        var datalistId = 'juxVals_' + i;
+                        var datalistId = self.listId('juxVals_' + i);
                         self.fetchValues(w.WidgetType, userId).then(function () {
                             self.populateDatalist(w.WidgetType, datalistId);
                             // Update the input when the stored Value differs from its Label
                             // (e.g. a collection GUID should display as the collection name).
-                            var inputEl = document.getElementById('widgetValue_' + i);
+                            var inputEl = byId('widgetValue_' + i);
                             if (inputEl) {
                                 var rawValue = self.getExtraValue(w);
                                 if (rawValue) {
@@ -1249,7 +1267,7 @@ function createConfigPage() {
         // Renders the row at index as it is on the page, unsaved, through POST JuxHomepage/Preview.
         previewRow: function (index) {
             var self = this;
-            var target = document.getElementById('juxPreview_' + index);
+            var target = byId('juxPreview_' + index);
             if (!target) { return Promise.resolve(); }
             self.readDomIntoState();
             var w = self.state.sortedWidgets[index];
@@ -1276,7 +1294,7 @@ function createConfigPage() {
         },
 
         readDomIntoState: function () {
-            var list = document.getElementById('juxWidgetList');
+            var list = byId('juxWidgetList');
             if (!list) { return; }
             var self = this;
             this.state.sortedWidgets.forEach(function (w, i) {
@@ -1307,7 +1325,7 @@ function createConfigPage() {
 
         populateAddSelect: function () {
             var self = this;
-            var sel = document.getElementById('juxAddWidgetType');
+            var sel = byId('juxAddWidgetType');
             if (!sel) { return; }
             var html = '<option value="">' + self.escHtml(self.t('admin.addsection.type.placeholder')) + '</option>';
             // Native sections are single-instance: offered only when absent, so an install that
@@ -1355,7 +1373,7 @@ function createConfigPage() {
         // value get silently re-displayed and then genuinely persisted over a real save.)
         renderTmdbStatus: function (statuses) {
             var self = this;
-            var list = document.getElementById('juxTmdbStatusList');
+            var list = byId('juxTmdbStatusList');
             if (!list) { return; }
             var labels = self._tmdbStatusLabels;
             var tmdbLists = (self.state.config && self.state.config.TMDbLists) || {};
@@ -1417,9 +1435,9 @@ function createConfigPage() {
             var labels = self._tmdbStatusLabels;
             var anyMissing = false;
             (statuses || []).forEach(function (s) {
-                var labelEl = document.getElementById('tmdbLabel_' + s.Type);
-                var refreshedEl = document.getElementById('tmdbRefreshed_' + s.Type);
-                var errorEl = document.getElementById('tmdbError_' + s.Type);
+                var labelEl = byId('tmdbLabel_' + s.Type);
+                var refreshedEl = byId('tmdbRefreshed_' + s.Type);
+                var errorEl = byId('tmdbError_' + s.Type);
                 if (!labelEl || !refreshedEl || !errorEl) {
                     anyMissing = true;
                     return;
@@ -1446,10 +1464,10 @@ function createConfigPage() {
         // (FIAB-10.b: the page no longer waits for these lists).
         refillListSelects: function () {
             var self = this;
-            document.querySelectorAll('.jux-discover-genre').forEach(function (sel) {
+            view.querySelectorAll('.jux-discover-genre').forEach(function (sel) {
                 sel.innerHTML = listOptionsHtml(self, self.t('admin.discover.genre.any'), self._tmdbGenres, sel.value);
             });
-            var region = document.getElementById('selNowPlayingRegion');
+            var region = byId('selNowPlayingRegion');
             if (region) {
                 region.innerHTML = listOptionsHtml(self, self.t('admin.tmdbregion.default'), self._tmdbCountries, region.value);
             }
@@ -1510,15 +1528,15 @@ function createConfigPage() {
         populate: function (config) {
             var self = this;
             self.state.config = config;
-            document.getElementById('chkEnabled').checked = !!config.Enabled;
-            document.getElementById('chkWatchlistAutoRemove').checked = config.WatchlistAutoRemove !== false;
+            byId('chkEnabled').checked = !!config.Enabled;
+            byId('chkWatchlistAutoRemove').checked = config.WatchlistAutoRemove !== false;
             var modules = config.Modules || {};
-            document.querySelectorAll('.jux-admin-module').forEach(function (el) {
+            view.querySelectorAll('.jux-admin-module').forEach(function (el) {
                 el.checked = modules[el.getAttribute('data-module')] !== false;
             });
-            document.getElementById('txtTMDb').value = (config.ApiKeys && config.ApiKeys.TMDb) || '';
-            document.getElementById('numSessionTtl').value = (config.Cache && config.Cache.SessionTtlMinutes) || 15;
-            document.getElementById('numTMDbRefresh').value = (config.Cache && config.Cache.TMDbRefreshIntervalHours) || 24;
+            byId('txtTMDb').value = (config.ApiKeys && config.ApiKeys.TMDb) || '';
+            byId('numSessionTtl').value = (config.Cache && config.Cache.SessionTtlMinutes) || 15;
+            byId('numTMDbRefresh').value = (config.Cache && config.Cache.TMDbRefreshIntervalHours) || 24;
             if (self._tmdbStatuses) { self.renderTmdbStatus(self._tmdbStatuses); }
 
             self.state.sortedWidgets = JSON.parse(JSON.stringify(config.Widgets || [])).sort(function (a, b) {
@@ -1543,24 +1561,24 @@ function createConfigPage() {
         formConfig: function (base, readRows) {
             var self = this;
             var config = JSON.parse(JSON.stringify(base || {}));
-            config.Enabled = document.getElementById('chkEnabled').checked;
-            config.WatchlistAutoRemove = document.getElementById('chkWatchlistAutoRemove').checked;
+            config.Enabled = byId('chkEnabled').checked;
+            config.WatchlistAutoRemove = byId('chkWatchlistAutoRemove').checked;
             if (!config.Modules) { config.Modules = {}; }
-            document.querySelectorAll('.jux-admin-module').forEach(function (el) {
+            view.querySelectorAll('.jux-admin-module').forEach(function (el) {
                 config.Modules[el.getAttribute('data-module')] = el.checked;
             });
             if (!config.ApiKeys) { config.ApiKeys = {}; }
-            config.ApiKeys.TMDb = document.getElementById('txtTMDb').value.trim() || null;
+            config.ApiKeys.TMDb = byId('txtTMDb').value.trim() || null;
             if (!config.Cache) { config.Cache = {}; }
-            config.Cache.SessionTtlMinutes = Math.max(1, parseInt(document.getElementById('numSessionTtl').value, 10) || 15);
-            config.Cache.TMDbRefreshIntervalHours = Math.max(1, parseInt(document.getElementById('numTMDbRefresh').value, 10) || 24);
+            config.Cache.SessionTtlMinutes = Math.max(1, parseInt(byId('numSessionTtl').value, 10) || 15);
+            config.Cache.TMDbRefreshIntervalHours = Math.max(1, parseInt(byId('numTMDbRefresh').value, 10) || 24);
 
             if (!config.TMDbLists) { config.TMDbLists = {}; }
             // A TMDb list field not on the page yet (External sources unopened, Annexe.a) keeps the value the
             // form shows, a restored draft's included (R11), not the one of base.
             var shown = (self.state.config && self.state.config.TMDbLists) || {};
             var listField = function (id, key, read) {
-                var el = document.getElementById(id);
+                var el = byId(id);
                 if (el) {
                     config.TMDbLists[key] = read(el.value);
                 } else if (Object.prototype.hasOwnProperty.call(shown, key)) {
@@ -1590,9 +1608,9 @@ function createConfigPage() {
             if (!self._baseline) { return []; }
             var changed = changedTabs(self._baseline, tabSnapshot(self.formConfig(self._loaded, readRows)));
             ADMIN_TABS.forEach(function (tab) {
-                document.querySelector('#juxTab_' + tab + ' .jux-admin-tab-dirty').hidden = changed.indexOf(tab) === -1;
+                view.querySelector('#juxTab_' + tab + ' .jux-admin-tab-dirty').hidden = changed.indexOf(tab) === -1;
             });
-            document.getElementById('juxUnsaved').hidden = !changed.length;
+            byId('juxUnsaved').hidden = !changed.length;
             self._changedTabs = changed;
             self.syncRefreshButton();
             return changed;
@@ -1601,8 +1619,8 @@ function createConfigPage() {
         // Refresh now refreshes from the saved settings: with unsaved External sources changes it would not
         // use what the admin sees, so it waits for a Save (ADM-02.a).
         syncRefreshButton: function () {
-            var button = document.getElementById('juxBtnRefreshTmdb');
-            var message = document.getElementById('juxTmdbRefreshMsg');
+            var button = byId('juxBtnRefreshTmdb');
+            var message = byId('juxTmdbRefreshMsg');
             var unsaved = (this._changedTabs || []).indexOf('sources') !== -1;
             button.disabled = unsaved || !!this._refreshing;
             if (this._refreshing) { return; }
@@ -1621,7 +1639,7 @@ function createConfigPage() {
         // POST TMDb/Refresh, then TMDb/Status every refreshPollMs until refreshSettled or refreshPolls tries.
         refreshTmdb: function () {
             var self = this;
-            var message = document.getElementById('juxTmdbRefreshMsg');
+            var message = byId('juxTmdbRefreshMsg');
             // Without a saved TMDb key no TMDb list can change: the refresh only redoes Rewards, which has no
             // status to follow (bench 8098: 30 polls, then "taking longer").
             var tmdbKey = !!((self._loaded || {}).ApiKeys || {}).TMDb;
@@ -1683,7 +1701,7 @@ function createConfigPage() {
 
         renderWarnings: function (warnings) {
             var self = this;
-            var banner = document.getElementById('juxWarningBanner');
+            var banner = byId('juxWarningBanner');
             banner.innerHTML = '';
             warnings.forEach(function (code) {
                 var p = document.createElement('p');
@@ -1707,13 +1725,13 @@ function createConfigPage() {
 
         selectTab: function (name, focus) {
             ADMIN_TABS.forEach(function (tab) {
-                var button = document.getElementById('juxTab_' + tab);
+                var button = byId('juxTab_' + tab);
                 var selected = tab === name;
                 button.setAttribute('aria-selected', selected ? 'true' : 'false');
                 button.tabIndex = selected ? 0 : -1;
-                document.getElementById('juxPanel_' + tab).hidden = !selected;
+                byId('juxPanel_' + tab).hidden = !selected;
             });
-            if (focus) { document.getElementById('juxTab_' + name).focus(); }
+            if (focus) { byId('juxTab_' + name).focus(); }
             writeSession(TAB_KEY, name);
             if (name === 'sources') { this.loadSources(); }
         },
@@ -1758,8 +1776,8 @@ function createConfigPage() {
                 var position = Array.prototype.indexOf.call(card.querySelectorAll('input, select, textarea'), field);
                 this._expandedRows.add(this.state.sortedWidgets[index]);
                 this.renderWidgets();
-                card = document.querySelector('#juxWidgetList .jux-admin-widget-card[data-index="' + index + '"]');
-                field = (field.id && document.getElementById(field.id)) ||
+                card = view.querySelector('#juxWidgetList .jux-admin-widget-card[data-index="' + index + '"]');
+                field = (field.id && byId(field.id)) ||
                     card.querySelectorAll('input, select, textarea')[position];
             }
             this.revealField(field);
@@ -1782,7 +1800,7 @@ function createConfigPage() {
 
         // Shows again the changes kept by leave(), unless the saved configuration has changed since.
         restoreDraft: function () {
-            var notice = document.getElementById('juxDraftNotice');
+            var notice = byId('juxDraftNotice');
             var draft = null;
             try {
                 draft = JSON.parse(readSession(DRAFT_KEY) || 'null');
@@ -1800,7 +1818,7 @@ function createConfigPage() {
         },
 
         discardDraft: function () {
-            document.getElementById('juxDraftNotice').hidden = true;
+            byId('juxDraftNotice').hidden = true;
             this.populate(JSON.parse(JSON.stringify(this._loaded)));
             this.updateDirty(true);
         },
@@ -1813,7 +1831,7 @@ function createConfigPage() {
             var genres = self.loadTmdbGenres();
             self._sourcesLoad = null;
             self._tmdbStatuses = null;
-            document.getElementById('juxTmdbStatusList').innerHTML = '';
+            byId('juxTmdbStatusList').innerHTML = '';
             Promise.all([
                 ApiClient.getPluginConfiguration(self.PLUGIN_ID),
                 ApiClient.getJSON(ApiClient.getUrl('JuxHomepage/Admin/Catalog')),
@@ -1853,12 +1871,12 @@ function createConfigPage() {
             e.preventDefault();
             var self = this;
 
-            var tmdbVal = document.getElementById('txtTMDb').value.trim();
-            var tmdbError = document.getElementById('juxTmdbError');
+            var tmdbVal = byId('txtTMDb').value.trim();
+            var tmdbError = byId('juxTmdbError');
             if (!self.validateTmdb(tmdbVal)) {
                 tmdbError.hidden = false;
-                self.revealField(document.getElementById('txtTMDb'));
-                document.getElementById('txtTMDb').focus();
+                self.revealField(byId('txtTMDb'));
+                byId('txtTMDb').focus();
                 return;
             }
             tmdbError.hidden = true;
@@ -1867,7 +1885,7 @@ function createConfigPage() {
 
             // The form is novalidate (DR-018): the browser's own check stops a Save without a word when the
             // field it refuses sits in a hidden tab or a folded card, so the page brings it into view first.
-            var invalidField = self.revealInvalidField(document.querySelector('.juxConfigForm'));
+            var invalidField = self.revealInvalidField(view.querySelector('.juxConfigForm'));
             if (invalidField) {
                 invalidField.reportValidity();
                 return;
@@ -1876,7 +1894,7 @@ function createConfigPage() {
             // Validate: admin sections must have a value, Rewards sections a ceremony or a category.
             var hasValueError = false;
             var firstErrorField = null;
-            var list = document.getElementById('juxWidgetList');
+            var list = byId('juxWidgetList');
             self.state.sortedWidgets.forEach(function (w, i) {
                 var error = self.requiredFieldError(w, i);
                 if (!error) {
@@ -1915,10 +1933,10 @@ function createConfigPage() {
                 self.renderWidgets();
                 self.state.sortedWidgets.forEach(function (w, i) {
                     var error = self.requiredFieldError(w, i);
-                    var err = error ? document.getElementById(error.errorId) : null;
+                    var err = error ? byId(error.errorId) : null;
                     if (err) { err.style.display = ''; }
                 });
-                var firstField = document.getElementById(firstErrorField);
+                var firstField = byId(firstErrorField);
                 if (firstField) {
                     self.revealField(firstField);
                     firstField.focus();
@@ -1927,7 +1945,7 @@ function createConfigPage() {
             }
 
             // A Save the server refuses (400 from validation, 500) used to fail in the console only (R11).
-            var saveError = document.getElementById('juxSaveError');
+            var saveError = byId('juxSaveError');
             if (saveError) { saveError.hidden = true; }
             Dashboard.showLoadingMsg();
 
@@ -1940,7 +1958,7 @@ function createConfigPage() {
                     // instead of what was loaded at the start of this page view.
                     self.state.config = config;
                     self.takeBaseline(config, true);
-                    document.getElementById('juxDraftNotice').hidden = true;
+                    byId('juxDraftNotice').hidden = true;
                     return result;
                 });
             }).then(function (result) {
@@ -1956,9 +1974,9 @@ function createConfigPage() {
         init: function () {
             var self = this;
             if (!this._submitBound) {
-                addCheckboxOutlines(document.querySelector('.juxConfigForm'));
+                addCheckboxOutlines(view.querySelector('.juxConfigForm'));
 
-                var form = document.querySelector('.juxConfigForm');
+                var form = view.querySelector('.juxConfigForm');
                 form.addEventListener('submit', function (e) {
                     self.saveConfig(e);
                 });
@@ -1976,12 +1994,12 @@ function createConfigPage() {
                         e.returnValue = '';
                     }
                 });
-                document.getElementById('juxBtnDiscardDraft').addEventListener('click', function () {
+                byId('juxBtnDiscardDraft').addEventListener('click', function () {
                     self.discardDraft();
                 });
 
                 // WAI-ARIA Tabs: the arrows, Home and End move between tabs and open them (ADM-01.a).
-                var tablist = document.querySelector('.jux-admin-tabs');
+                var tablist = view.querySelector('.jux-admin-tabs');
                 tablist.addEventListener('click', function (e) {
                     var tab = e.target.closest('[role="tab"]');
                     if (tab) { self.selectTab(tab.getAttribute('data-tab')); }
@@ -1994,11 +2012,11 @@ function createConfigPage() {
                     self.selectTab(ADMIN_TABS[(next + ADMIN_TABS.length) % ADMIN_TABS.length], true);
                 });
 
-                var addBtn = document.getElementById('juxBtnAddWidget');
+                var addBtn = byId('juxBtnAddWidget');
                 if (addBtn) {
                     addBtn.addEventListener('click', function () {
-                        var sel = document.getElementById('juxAddWidgetType');
-                        var errEl = document.getElementById('juxAddWidgetError');
+                        var sel = byId('juxAddWidgetType');
+                        var errEl = byId('juxAddWidgetError');
                         var widgetType = sel ? sel.value : '';
                         if (!widgetType) {
                             if (errEl) { errEl.hidden = false; }
@@ -2017,16 +2035,16 @@ function createConfigPage() {
                         self._expandedRows.add(self.state.sortedWidgets[self.state.sortedWidgets.length - 1]);
                         self.populateAddSelect();
                         self.renderWidgets();
-                        var added = document.querySelector('.jux-admin-widget-card[data-index="' + (self.state.sortedWidgets.length - 1) + '"]');
+                        var added = view.querySelector('.jux-admin-widget-card[data-index="' + (self.state.sortedWidgets.length - 1) + '"]');
                         if (added && added.scrollIntoView) { added.scrollIntoView({ block: 'center' }); }
                     });
                 }
 
                 // The TMDb key is masked like a password; the eye button shows it for checking.
-                var showTmdbBtn = document.getElementById('juxBtnShowTmdb');
+                var showTmdbBtn = byId('juxBtnShowTmdb');
                 if (showTmdbBtn) {
                     var syncShowTmdb = function () {
-                        var shown = document.getElementById('txtTMDb').type === 'text';
+                        var shown = byId('txtTMDb').type === 'text';
                         var label = self.t(shown ? 'admin.apikeys.tmdb.hide' : 'admin.apikeys.tmdb.show');
                         showTmdbBtn.setAttribute('aria-pressed', shown ? 'true' : 'false');
                         showTmdbBtn.setAttribute('aria-label', label);
@@ -2034,14 +2052,14 @@ function createConfigPage() {
                         showTmdbBtn.querySelector('.material-icons').textContent = shown ? 'visibility_off' : 'visibility';
                     };
                     showTmdbBtn.addEventListener('click', function () {
-                        var input = document.getElementById('txtTMDb');
+                        var input = byId('txtTMDb');
                         input.type = input.type === 'password' ? 'text' : 'password';
                         syncShowTmdb();
                     });
                     self._syncShowTmdb = syncShowTmdb;
                 }
 
-                document.getElementById('juxBtnRefreshTmdb').addEventListener('click', function () {
+                byId('juxBtnRefreshTmdb').addEventListener('click', function () {
                     self.refreshTmdb();
                 });
 
@@ -2054,7 +2072,7 @@ function createConfigPage() {
 }
 
 export default function (view) {
-    var page = createConfigPage();
+    var page = createConfigPage(view);
     view.addEventListener('viewshow', function () {
         page.init();
     });

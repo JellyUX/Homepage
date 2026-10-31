@@ -277,6 +277,32 @@ describe('configuration page controller (F-33)', () => {
         return view.querySelector('.jux-admin-widget-card[data-index="' + index + '"]');
     }
 
+    // A-13: a second URL of the admin page gives a second view of it while the first stays hidden in the
+    // document with the same ids; each view fills its own fields and keeps datalist ids of its own.
+    it('A-13: fills the view it was shown in, beside a hidden earlier view of the page', async () => {
+        createController(view);
+        view.dispatchEvent(new Event('viewshow'));
+        await settle();
+        view.classList.add('hide');
+        const second = document.adoptNode(new DOMParser().parseFromString(CONFIG_HTML, 'text/html').getElementById('juxHomepageConfigPage'));
+        document.body.appendChild(second);
+        try {
+            createController(second);
+            second.dispatchEvent(new Event('viewshow'));
+            await settle();
+
+            expect(second.querySelectorAll('.jux-admin-widget-card')).toHaveLength(config.Widgets.length);
+            expect(view.querySelectorAll('.jux-admin-widget-card')).toHaveLength(config.Widgets.length);
+            const lists = (root) => [...root.querySelectorAll('input[list]')].map((input) => input.getAttribute('list'));
+            expect(lists(second).length).toBeGreaterThan(0);
+            expect(lists(second).filter((id) => lists(view).includes(id))).toEqual([]);
+            lists(second).forEach((id) => expect(second.querySelector('datalist[id="' + id + '"]')).not.toBeNull());
+        } finally {
+            second.dispatchEvent(new Event('viewbeforehide'));
+            second.remove();
+        }
+    });
+
     it('keeps each row with its own value when two admin rows of different types are swapped', async () => {
         createController(view);
         view.dispatchEvent(new Event('viewshow'));

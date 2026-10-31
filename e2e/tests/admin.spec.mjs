@@ -140,3 +140,37 @@ test('FIAB-02.a: Save shows an invalid field hidden in another tab or a folded c
         await pluginConfiguration(token, saved);
     }
 });
+
+// A-13: a second URL of the admin page (here with a query the router keeps) makes jellyfin-web build a second
+// view while the first stays hidden in the document. The page must fill and save the view on screen, not the
+// first one, whose element ids it shares.
+test('A-13: a second URL of the admin page fills and saves its own view', async ({ page }) => {
+    const token = await adminToken();
+    const saved = await pluginConfiguration(token);
+    const errors = watchJuxErrors(page);
+    try {
+        await login(page, env.admin);
+        await page.goto(`${env.serverUrl}/web/#/configurationpage?name=JellyUX%20Homepage`);
+        await expect(page.locator('#juxHomepageConfigPage:visible .jux-admin-widget-card')).toHaveCount(saved.Widgets.length);
+
+        await page.goto(`${env.serverUrl}/web/#/configurationpage?name=JellyUX%20Homepage&tab=sections`);
+        await expect(page.locator('#juxHomepageConfigPage')).toHaveCount(2);
+        const pageRoot = page.locator('#juxHomepageConfigPage:visible');
+        await expect(pageRoot).toHaveCount(1);
+        await expect(pageRoot.locator('.jux-admin-widget-card')).toHaveCount(saved.Widgets.length);
+
+        // Turn the first section off in the view on screen and save from it.
+        await pageRoot.locator('#juxTab_sections').click();
+        const first = pageRoot.locator('.jux-admin-widget-card').first();
+        const toggle = first.locator('.jux-admin-enabled');
+        const wasEnabled = await toggle.isChecked();
+        await toggle.setChecked(!wasEnabled, { force: true });
+        await pageRoot.locator('.jux-admin-actions .button-submit').click();
+        const firstType = saved.Widgets.slice().sort((a, b) => a.Order - b.Order)[0].WidgetType;
+        await expect.poll(async () => (await pluginConfiguration(token)).Widgets.find((w) => w.WidgetType === firstType).Enabled)
+            .toBe(!wasEnabled);
+        expect(errors).toEqual([]);
+    } finally {
+        await pluginConfiguration(token, saved);
+    }
+});
