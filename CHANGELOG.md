@@ -1,3 +1,13 @@
+## [2.17.4](https://github.com/JellyUX/Homepage/compare/v2.17.3...v2.17.4) (2026-10-31)
+
+### Bug Fixes
+
+* **collections:** read collection members on Jellyfin 12.3 and later ([490bc8e](https://github.com/JellyUX/Homepage/commit/490bc8e3f8a21f28b90a38208e7fe5becb0be4de))
+* **tmdb:** keep a video with an empty version link as the primary on Jellyfin 12 ([8461219](https://github.com/JellyUX/Homepage/commit/84612195e07133185ddeab14d8e67937fd9fc831))
+* **tmdb:** tell alternate versions apart on Jellyfin 12 ([e4e0c56](https://github.com/JellyUX/Homepage/commit/e4e0c56c9361da4e9e2f047bc23ad1ef03d6b7c2)), closes [#if](https://github.com/JellyUX/Homepage/issues/if)
+* **widgets:** report a mismatched build from the layout probe and through wrapped exceptions ([5701efb](https://github.com/JellyUX/Homepage/commit/5701efbf1191917369f1aa55a5ad65aa6d601085))
+* **widgets:** tell the administrator when a section fails on a mismatched Jellyfin ([52d1f72](https://github.com/JellyUX/Homepage/commit/52d1f725d85a62c11708ed634004e464d8af15b4))
+
 ## [2.17.3](https://github.com/JellyUX/Homepage/compare/v2.17.2...v2.17.3) (2026-10-31)
 
 ### Bug Fixes
