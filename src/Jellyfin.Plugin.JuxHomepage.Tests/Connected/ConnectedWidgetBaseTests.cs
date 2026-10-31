@@ -134,14 +134,11 @@ public sealed class ConnectedWidgetBaseTests
 
         IReadOnlyList<BaseItem>? capturedItems = null;
         var dtoServiceMock = new Mock<IDtoService>();
-        dtoServiceMock
-            .Setup(m => m.GetBaseItemDtos(
-                It.IsAny<IReadOnlyList<BaseItem>>(),
-                It.IsAny<DtoOptions>(),
-                It.IsAny<User>(),
-                It.IsAny<BaseItem>()))
-            .Callback<IReadOnlyList<BaseItem>, DtoOptions, User, BaseItem>((items, _, _, _) => capturedItems = items)
-            .Returns([]);
+        dtoServiceMock.StubBaseItemDtos((items, _) =>
+        {
+            capturedItems = items;
+            return [];
+        });
 
         var cachedMovies = new List<TMDbMovie>
         {
@@ -187,10 +184,11 @@ public sealed class ConnectedWidgetBaseTests
         IReadOnlyList<BaseItem>? capturedItems = null;
         DtoOptions? capturedOptions = null;
         var dtoServiceMock = new Mock<IDtoService>();
-        dtoServiceMock
-            .Setup(m => m.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
-            .Callback<IReadOnlyList<BaseItem>, DtoOptions, User, BaseItem>((items, options, _, _) => (capturedItems, capturedOptions) = (items, options))
-            .Returns([]);
+        dtoServiceMock.StubBaseItemDtos((items, options) =>
+        {
+            (capturedItems, capturedOptions) = (items, options);
+            return [];
+        });
         var widget = BuildWidget(
             [.. owned.Select((m, i) => new TMDbMovie { Id = i + 1, Title = m.Name, LibraryItemId = m.Id })],
             userManagerMock, libraryManagerMock, dtoServiceMock);
@@ -221,14 +219,11 @@ public sealed class ConnectedWidgetBaseTests
 
         IReadOnlyList<BaseItem>? capturedItems = null;
         var dtoServiceMock = new Mock<IDtoService>();
-        dtoServiceMock
-            .Setup(m => m.GetBaseItemDtos(
-                It.IsAny<IReadOnlyList<BaseItem>>(),
-                It.IsAny<DtoOptions>(),
-                It.IsAny<User>(),
-                It.IsAny<BaseItem>()))
-            .Callback<IReadOnlyList<BaseItem>, DtoOptions, User, BaseItem>((items, _, _, _) => capturedItems = items)
-            .Returns([]);
+        dtoServiceMock.StubBaseItemDtos((items, _) =>
+        {
+            capturedItems = items;
+            return [];
+        });
 
         var loggerMock = new Mock<ILogger<TrendingMoviesWidget>>();
         var widget = BuildWidget(
@@ -285,14 +280,11 @@ public sealed class ConnectedWidgetBaseTests
 
         IReadOnlyList<BaseItem>? capturedItems = null;
         var dtoServiceMock = new Mock<IDtoService>();
-        dtoServiceMock
-            .Setup(m => m.GetBaseItemDtos(
-                It.IsAny<IReadOnlyList<BaseItem>>(),
-                It.IsAny<DtoOptions>(),
-                It.IsAny<User>(),
-                It.IsAny<BaseItem>()))
-            .Callback<IReadOnlyList<BaseItem>, DtoOptions, User, BaseItem>((items, _, _, _) => capturedItems = items)
-            .Returns([]);
+        dtoServiceMock.StubBaseItemDtos((items, _) =>
+        {
+            capturedItems = items;
+            return [];
+        });
 
         var cachedMovies = ids.Select((id, i) => new TMDbMovie { Id = i, Title = "M" + i, LibraryItemId = id }).ToList();
         var widget = BuildWidget(cachedMovies, userManagerMock, libraryManagerMock, dtoServiceMock);
@@ -321,14 +313,11 @@ public sealed class ConnectedWidgetBaseTests
 
         IReadOnlyList<BaseItem>? capturedItems = null;
         var dtoServiceMock = new Mock<IDtoService>();
-        dtoServiceMock
-            .Setup(m => m.GetBaseItemDtos(
-                It.IsAny<IReadOnlyList<BaseItem>>(),
-                It.IsAny<DtoOptions>(),
-                It.IsAny<User>(),
-                It.IsAny<BaseItem>()))
-            .Callback<IReadOnlyList<BaseItem>, DtoOptions, User, BaseItem>((items, _, _, _) => capturedItems = items)
-            .Returns([]);
+        dtoServiceMock.StubBaseItemDtos((items, _) =>
+        {
+            capturedItems = items;
+            return [];
+        });
 
         var cachedMovies = new List<TMDbMovie>
         {

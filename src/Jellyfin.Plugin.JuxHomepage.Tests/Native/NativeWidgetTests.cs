@@ -322,8 +322,7 @@ public sealed class NativeWidgetTests
                 new Tuple<BaseItem, List<BaseItem>>(series, [lone])
             ]);
         var dtos = new Mock<IDtoService>();
-        dtos.Setup(m => m.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
-            .Returns<IReadOnlyList<BaseItem>, DtoOptions, User, BaseItem>((items, _, _, _) => items.Select(i => new BaseItemDto { Id = i.Id }).ToList());
+        dtos.StubBaseItemDtos((items, _) => items.Select(i => new BaseItemDto { Id = i.Id }).ToList());
         var widget = new RecentlyAddedShowsWidget(TestMocks.UserManagerReturning(user).Object, new Mock<ILibraryManager>().Object, dtos.Object, views.Object);
 
         var result = await widget.GetItemsAsync(new WidgetPayload { UserId = user.Id, Limit = 4 }, CancellationToken.None);
@@ -348,8 +347,7 @@ public sealed class NativeWidgetTests
             .Callback<LatestItemsQuery, DtoOptions>((q, _) => seen = q)
             .Returns(bulk.Concat(others).Select(e => new Tuple<BaseItem, List<BaseItem>>(null!, [e])).ToList());
         var dtos = new Mock<IDtoService>();
-        dtos.Setup(m => m.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
-            .Returns<IReadOnlyList<BaseItem>, DtoOptions, User, BaseItem>((items, _, _, _) => items.Select(i => new BaseItemDto { Id = i.Id }).ToList());
+        dtos.StubBaseItemDtos((items, _) => items.Select(i => new BaseItemDto { Id = i.Id }).ToList());
         var widget = new RecentlyAddedEpisodesWidget(TestMocks.UserManagerReturning(user).Object, new Mock<ILibraryManager>().Object, dtos.Object, views.Object);
 
         var result = await widget.GetItemsAsync(new WidgetPayload { UserId = user.Id, Limit = 6 }, CancellationToken.None);

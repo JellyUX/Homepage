@@ -60,10 +60,7 @@ public sealed class SeriesProgressViewServiceTests
             .Returns([seriesA, seriesB]);
 
         var dtoServiceMock = new Mock<IDtoService>();
-        dtoServiceMock
-            .Setup(m => m.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
-            .Returns((IReadOnlyList<BaseItem> items, DtoOptions _, User _, BaseItem? _) =>
-                items.Select(i => new BaseItemDto { Id = i.Id, Name = i.Name }).ToList());
+        dtoServiceMock.StubBaseItemDtos((items, _) => items.Select(i => new BaseItemDto { Id = i.Id, Name = i.Name }).ToList());
 
         var service = new SeriesProgressViewService(
             cacheMock.Object,
@@ -99,10 +96,7 @@ public sealed class SeriesProgressViewServiceTests
         var libraryManagerMock = new Mock<ILibraryManager>();
         libraryManagerMock.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([ongoing, finished]);
         var dtoServiceMock = new Mock<IDtoService>();
-        dtoServiceMock
-            .Setup(m => m.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
-            .Returns((IReadOnlyList<BaseItem> items, DtoOptions _, User _, BaseItem? _) =>
-                items.Select(i => new BaseItemDto { Id = i.Id, Name = i.Name }).ToList());
+        dtoServiceMock.StubBaseItemDtos((items, _) => items.Select(i => new BaseItemDto { Id = i.Id, Name = i.Name }).ToList());
         var service = new SeriesProgressViewService(
             cacheMock.Object,
             userManagerMock.Object,
@@ -139,10 +133,7 @@ public sealed class SeriesProgressViewServiceTests
         libraryManagerMock.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([seriesA, seriesZ]);
 
         var dtoServiceMock = new Mock<IDtoService>();
-        dtoServiceMock
-            .Setup(m => m.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
-            .Returns((IReadOnlyList<BaseItem> items, DtoOptions _, User _, BaseItem? _) =>
-                items.Select(i => new BaseItemDto { Id = i.Id, Name = i.Name }).ToList());
+        dtoServiceMock.StubBaseItemDtos((items, _) => items.Select(i => new BaseItemDto { Id = i.Id, Name = i.Name }).ToList());
 
         var service = new SeriesProgressViewService(
             cacheMock.Object,
@@ -210,10 +201,7 @@ public sealed class SeriesProgressViewServiceTests
         libraryManagerMock.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([allowed, hidden]);
 
         var dtoServiceMock = new Mock<IDtoService>();
-        dtoServiceMock
-            .Setup(m => m.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
-            .Returns((IReadOnlyList<BaseItem> items, DtoOptions _, User _, BaseItem? _) =>
-                items.Select(i => new BaseItemDto { Id = i.Id, Name = i.Name }).ToList());
+        dtoServiceMock.StubBaseItemDtos((items, _) => items.Select(i => new BaseItemDto { Id = i.Id, Name = i.Name }).ToList());
 
         var service = new SeriesProgressViewService(
             cacheMock.Object,

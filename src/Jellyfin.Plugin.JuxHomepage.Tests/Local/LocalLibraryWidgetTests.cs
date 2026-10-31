@@ -34,9 +34,7 @@ public sealed class LocalLibraryWidgetTests
             .Returns(new QueryResult<BaseItem>([new Movie { Name = "A" }]));
 
         var dtoServiceMock = new Mock<IDtoService>();
-        dtoServiceMock
-            .Setup(s => s.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
-            .Returns<IReadOnlyList<BaseItem>, DtoOptions, User, BaseItem>((src, _, _, _) => src.Select(i => new BaseItemDto { Name = i.Name }).ToList());
+        dtoServiceMock.StubBaseItemDtos((src, _) => src.Select(i => new BaseItemDto { Name = i.Name }).ToList());
 
         return (userManagerMock, libraryManagerMock, dtoServiceMock);
     }

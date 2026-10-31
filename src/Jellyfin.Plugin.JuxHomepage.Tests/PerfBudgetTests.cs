@@ -325,13 +325,7 @@ public sealed class PerfBudgetTests : IDisposable
 
     private static void SetUpDtoMappingEachItem(Mock<IDtoService> mock)
     {
-        mock.Setup(m => m.GetBaseItemDtos(
-                It.IsAny<IReadOnlyList<BaseItem>>(),
-                It.IsAny<DtoOptions>(),
-                It.IsAny<User>(),
-                It.IsAny<BaseItem>()))
-            .Returns((IReadOnlyList<BaseItem> items, DtoOptions _, User _, BaseItem _) =>
-                [.. items.Select(i => new BaseItemDto { Id = i.Id, Name = i.Name })]);
+        mock.StubBaseItemDtos((items, _) => [.. items.Select(i => new BaseItemDto { Id = i.Id, Name = i.Name })]);
         mock.Setup(m => m.GetBaseItemDto(
                 It.IsAny<BaseItem>(),
                 It.IsAny<DtoOptions>(),

@@ -56,10 +56,7 @@ public sealed class MovieHistoryViewServiceTests
         libraryManagerMock.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([movieA, movieB]);
 
         var dtoServiceMock = new Mock<IDtoService>();
-        dtoServiceMock
-            .Setup(m => m.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
-            .Returns((IReadOnlyList<BaseItem> items, DtoOptions _, User _, BaseItem? _) =>
-                items.Select(i => new BaseItemDto { Id = i.Id, Name = i.Name }).ToList());
+        dtoServiceMock.StubBaseItemDtos((items, _) => items.Select(i => new BaseItemDto { Id = i.Id, Name = i.Name }).ToList());
 
         var service = new MovieHistoryViewService(
             cacheMock.Object,
@@ -98,10 +95,7 @@ public sealed class MovieHistoryViewServiceTests
         libraryManagerMock.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([movieA, movieZ]);
 
         var dtoServiceMock = new Mock<IDtoService>();
-        dtoServiceMock
-            .Setup(m => m.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
-            .Returns((IReadOnlyList<BaseItem> items, DtoOptions _, User _, BaseItem? _) =>
-                items.Select(i => new BaseItemDto { Id = i.Id, Name = i.Name }).ToList());
+        dtoServiceMock.StubBaseItemDtos((items, _) => items.Select(i => new BaseItemDto { Id = i.Id, Name = i.Name }).ToList());
 
         var service = new MovieHistoryViewService(
             cacheMock.Object,
@@ -139,10 +133,7 @@ public sealed class MovieHistoryViewServiceTests
         libraryManagerMock.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([amelie, brazil]);
 
         var dtoServiceMock = new Mock<IDtoService>();
-        dtoServiceMock
-            .Setup(m => m.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
-            .Returns((IReadOnlyList<BaseItem> items, DtoOptions _, User _, BaseItem? _) =>
-                items.Select(i => new BaseItemDto { Id = i.Id, Name = i.Name }).ToList());
+        dtoServiceMock.StubBaseItemDtos((items, _) => items.Select(i => new BaseItemDto { Id = i.Id, Name = i.Name }).ToList());
 
         var service = new MovieHistoryViewService(
             cacheMock.Object,
@@ -205,10 +196,7 @@ public sealed class MovieHistoryViewServiceTests
         libraryManagerMock.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([allowed, hidden]);
 
         var dtoServiceMock = new Mock<IDtoService>();
-        dtoServiceMock
-            .Setup(m => m.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
-            .Returns((IReadOnlyList<BaseItem> items, DtoOptions _, User _, BaseItem? _) =>
-                items.Select(i => new BaseItemDto { Id = i.Id, Name = i.Name }).ToList());
+        dtoServiceMock.StubBaseItemDtos((items, _) => items.Select(i => new BaseItemDto { Id = i.Id, Name = i.Name }).ToList());
 
         var service = new MovieHistoryViewService(
             cacheMock.Object,

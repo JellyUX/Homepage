@@ -185,8 +185,7 @@ public sealed class WidgetItemFetcherTests
     private static Mock<IDtoService> DtoService()
     {
         var dtos = new Mock<IDtoService>();
-        dtos.Setup(m => m.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
-            .Returns<IReadOnlyList<BaseItem>, DtoOptions, User, BaseItem>((items, _, _, _) => items.Select(i => new BaseItemDto { Id = i.Id }).ToList());
+        dtos.StubBaseItemDtos((items, _) => items.Select(i => new BaseItemDto { Id = i.Id }).ToList());
         return dtos;
     }
 

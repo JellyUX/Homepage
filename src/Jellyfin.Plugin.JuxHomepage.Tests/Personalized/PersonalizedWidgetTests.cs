@@ -208,13 +208,7 @@ public sealed class PersonalizedWidgetTests
             .Returns(new QueryResult<BaseItem>([]));
 
         var dtoServiceMock = new Mock<IDtoService>();
-        dtoServiceMock
-            .Setup(m => m.GetBaseItemDtos(
-                It.IsAny<IReadOnlyList<BaseItem>>(),
-                It.IsAny<DtoOptions>(),
-                It.IsAny<User>(),
-                It.IsAny<BaseItem>()))
-            .Returns([]);
+        dtoServiceMock.StubBaseItemDtos((_, _) => []);
 
         var widget = BuildWidget(
             BuildScoringService(user, []),
@@ -247,13 +241,7 @@ public sealed class PersonalizedWidgetTests
             .Returns(new QueryResult<BaseItem>([]));
 
         var dtoServiceMock = new Mock<IDtoService>();
-        dtoServiceMock
-            .Setup(m => m.GetBaseItemDtos(
-                It.IsAny<IReadOnlyList<BaseItem>>(),
-                It.IsAny<DtoOptions>(),
-                It.IsAny<User>(),
-                It.IsAny<BaseItem>()))
-            .Returns([]);
+        dtoServiceMock.StubBaseItemDtos((_, _) => []);
 
         var widget = BuildWidget(
             BuildScoringService(user, []),
@@ -361,13 +349,7 @@ public sealed class PersonalizedWidgetTests
             .Returns(new QueryResult<BaseItem>([]));
 
         var dtoServiceMock = new Mock<IDtoService>();
-        dtoServiceMock
-            .Setup(m => m.GetBaseItemDtos(
-                It.IsAny<IReadOnlyList<BaseItem>>(),
-                It.IsAny<DtoOptions>(),
-                It.IsAny<User>(),
-                It.IsAny<BaseItem>()))
-            .Returns([]);
+        dtoServiceMock.StubBaseItemDtos((_, _) => []);
 
         var widget = new FavoriteActorWidget(
             userManagerMock.Object,
@@ -493,13 +475,7 @@ public sealed class PersonalizedWidgetTests
             .Returns(new QueryResult<BaseItem>([]));
 
         var dtoServiceMock = new Mock<IDtoService>();
-        dtoServiceMock
-            .Setup(m => m.GetBaseItemDtos(
-                It.IsAny<IReadOnlyList<BaseItem>>(),
-                It.IsAny<DtoOptions>(),
-                It.IsAny<User>(),
-                It.IsAny<BaseItem>()))
-            .Returns([]);
+        dtoServiceMock.StubBaseItemDtos((_, _) => []);
 
         var widget = new BecauseYouWatchedWidget(
             userManagerMock.Object,
@@ -542,10 +518,11 @@ public sealed class PersonalizedWidgetTests
             .Returns(new QueryResult<BaseItem>([Candidate("Bare", false), Candidate("Lit", true)]));
         IReadOnlyList<BaseItem>? projected = null;
         var dtoServiceMock = new Mock<IDtoService>();
-        dtoServiceMock
-            .Setup(m => m.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
-            .Callback<IReadOnlyList<BaseItem>, DtoOptions, User, BaseItem>((items, _, _, _) => projected = items)
-            .Returns([]);
+        dtoServiceMock.StubBaseItemDtos((items, _) =>
+        {
+            projected = items;
+            return [];
+        });
         var widget = new BecauseYouWatchedWidget(userManagerMock.Object, libraryManagerMock.Object, dtoServiceMock.Object, BuildScoringService(user, []), TestLocalization);
 
         var result = await widget.GetItemsAsync(
@@ -573,13 +550,7 @@ public sealed class PersonalizedWidgetTests
             .Returns(new QueryResult<BaseItem>([]));
 
         var dtoServiceMock = new Mock<IDtoService>();
-        dtoServiceMock
-            .Setup(m => m.GetBaseItemDtos(
-                It.IsAny<IReadOnlyList<BaseItem>>(),
-                It.IsAny<DtoOptions>(),
-                It.IsAny<User>(),
-                It.IsAny<BaseItem>()))
-            .Returns([]);
+        dtoServiceMock.StubBaseItemDtos((_, _) => []);
 
         var widget = new BecauseYouWatchedWidget(
             userManagerMock.Object,
@@ -614,13 +585,7 @@ public sealed class PersonalizedWidgetTests
             .Returns(new QueryResult<BaseItem>([]));
 
         var dtoServiceMock = new Mock<IDtoService>();
-        dtoServiceMock
-            .Setup(m => m.GetBaseItemDtos(
-                It.IsAny<IReadOnlyList<BaseItem>>(),
-                It.IsAny<DtoOptions>(),
-                It.IsAny<User>(),
-                It.IsAny<BaseItem>()))
-            .Returns([]);
+        dtoServiceMock.StubBaseItemDtos((_, _) => []);
 
         var widget = new BecauseYouWatchedWidget(
             userManagerMock.Object,

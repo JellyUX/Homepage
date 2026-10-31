@@ -5,6 +5,7 @@ using Jellyfin.Database.Implementations.Entities;
 using MediaBrowser.Controller.Dto;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
+using MediaBrowser.Model.Dto;
 using Moq;
 
 namespace Jellyfin.Plugin.JuxHomepage.Tests;
@@ -39,13 +40,38 @@ internal static class TestMocks
     internal static Mock<IDtoService> DtoServiceReturningEmpty()
     {
         var mock = new Mock<IDtoService>();
+        mock.StubBaseItemDtos((_, _) => []);
+        return mock;
+    }
+
+    /// <summary>
+    /// Sets up GetBaseItemDtos for any arguments to return <paramref name="project"/> applied to the
+    /// items and options. Jellyfin 12 adds a fifth parameter (<c>bool skipVisibilityCheck</c>), and a
+    /// Moq setup must match the arity of the compiled signature, so this is the one place that knows
+    /// both shapes.
+    /// </summary>
+    /// <param name="mock">The IDtoService mock to set up.</param>
+    /// <param name="project">Builds the returned DTOs from the items and options passed in.</param>
+    internal static void StubBaseItemDtos(
+        this Mock<IDtoService> mock,
+        Func<IReadOnlyList<BaseItem>, DtoOptions, IReadOnlyList<BaseItemDto>> project)
+    {
+#if JELLYFIN_12
+        mock.Setup(m => m.GetBaseItemDtos(
+                It.IsAny<IReadOnlyList<BaseItem>>(),
+                It.IsAny<DtoOptions>(),
+                It.IsAny<User>(),
+                It.IsAny<BaseItem>(),
+                It.IsAny<bool>()))
+            .Returns((IReadOnlyList<BaseItem> items, DtoOptions options, User _, BaseItem _, bool _) => project(items, options));
+#else
         mock.Setup(m => m.GetBaseItemDtos(
                 It.IsAny<IReadOnlyList<BaseItem>>(),
                 It.IsAny<DtoOptions>(),
                 It.IsAny<User>(),
                 It.IsAny<BaseItem>()))
-            .Returns([]);
-        return mock;
+            .Returns((IReadOnlyList<BaseItem> items, DtoOptions options, User _, BaseItem _) => project(items, options));
+#endif
     }
 
     /// <summary>

@@ -49,13 +49,7 @@ public sealed class WatchlistServiceTests
             .Returns(new QueryResult<BaseItem>([movie]));
 
         var dtoServiceMock = new Mock<IDtoService>();
-        dtoServiceMock
-            .Setup(m => m.GetBaseItemDtos(
-                It.IsAny<IReadOnlyList<BaseItem>>(),
-                It.IsAny<DtoOptions>(),
-                It.IsAny<User>(),
-                It.IsAny<BaseItem>()))
-            .Returns([new BaseItemDto { Name = "Liked Movie" }]);
+        dtoServiceMock.StubBaseItemDtos((_, _) => [new BaseItemDto { Name = "Liked Movie" }]);
 
         var service = new WatchlistService(userManagerMock.Object, libraryManagerMock.Object, dtoServiceMock.Object);
 
@@ -87,9 +81,7 @@ public sealed class WatchlistServiceTests
             .Returns(new QueryResult<BaseItem>([]));
 
         var dtoServiceMock = new Mock<IDtoService>();
-        dtoServiceMock
-            .Setup(m => m.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
-            .Returns([]);
+        dtoServiceMock.StubBaseItemDtos((_, _) => []);
 
         var service = new WatchlistService(userManagerMock.Object, libraryManagerMock.Object, dtoServiceMock.Object);
 
@@ -144,9 +136,7 @@ public sealed class WatchlistServiceTests
             .Returns(new QueryResult<BaseItem>([]));
 
         var dtoServiceMock = new Mock<IDtoService>();
-        dtoServiceMock
-            .Setup(m => m.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
-            .Returns([]);
+        dtoServiceMock.StubBaseItemDtos((_, _) => []);
 
         var service = new WatchlistService(userManagerMock.Object, libraryManagerMock.Object, dtoServiceMock.Object);
 
@@ -176,9 +166,7 @@ public sealed class WatchlistServiceTests
             .Returns(new QueryResult<BaseItem>([]));
 
         var dtoServiceMock = new Mock<IDtoService>();
-        dtoServiceMock
-            .Setup(m => m.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
-            .Returns([]);
+        dtoServiceMock.StubBaseItemDtos((_, _) => []);
 
         var service = new WatchlistService(userManagerMock.Object, libraryManagerMock.Object, dtoServiceMock.Object);
 

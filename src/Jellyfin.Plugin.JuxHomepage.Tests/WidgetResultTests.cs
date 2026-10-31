@@ -20,12 +20,11 @@ public sealed class WidgetResultTests
     {
         var calls = 0;
         var dto = new Mock<IDtoService>();
-        dto.Setup(d => d.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
-            .Returns((IReadOnlyList<BaseItem> items, DtoOptions _, User _, BaseItem _) =>
-            {
-                calls++;
-                return [.. items.Select(i => new BaseItemDto { Id = i.Id })];
-            });
+        dto.StubBaseItemDtos((items, _) =>
+        {
+            calls++;
+            return [.. items.Select(i => new BaseItemDto { Id = i.Id })];
+        });
         BaseItem[] page = [new Movie { Id = Guid.NewGuid() }, new Movie { Id = Guid.NewGuid() }];
 
         var result = WidgetResult.Project(dto.Object, page, new DtoOptions(), TestMocks.DefaultUser(), totalRecordCount: 9);

@@ -340,14 +340,7 @@ public sealed class WidgetLayoutResolverTests
             .Returns(new QueryResult<BaseItem>([new Movie { Id = Guid.NewGuid(), Name = "Result" }]));
 
         var dtoServiceMock = new Mock<IDtoService>();
-        dtoServiceMock
-            .Setup(m => m.GetBaseItemDtos(
-                It.IsAny<IReadOnlyList<BaseItem>>(),
-                It.IsAny<DtoOptions>(),
-                It.IsAny<User>(),
-                It.IsAny<BaseItem>()))
-            .Returns((IReadOnlyList<BaseItem> items, DtoOptions _, User _, BaseItem _) =>
-                items.Select(i => new BaseItemDto { Id = i.Id }).ToList());
+        dtoServiceMock.StubBaseItemDtos((items, _) => items.Select(i => new BaseItemDto { Id = i.Id }).ToList());
 
         var scoringService = new ScoringService(
             userManagerMock.Object,
@@ -494,8 +487,7 @@ public sealed class WidgetLayoutResolverTests
         library.Setup(m => m.GetItemsResult(It.IsAny<InternalItemsQuery>()))
             .Returns(new QueryResult<BaseItem>([Movie("A", false), Movie("B", true), Movie("C", false), Movie("D", true)]));
         var dtos = new Mock<IDtoService>();
-        dtos.Setup(s => s.GetBaseItemDtos(It.IsAny<IReadOnlyList<BaseItem>>(), It.IsAny<DtoOptions>(), It.IsAny<User>(), It.IsAny<BaseItem>()))
-            .Returns<IReadOnlyList<BaseItem>, DtoOptions, User, BaseItem>((items, _, _, _) => items.Select(i => new BaseItemDto { Name = i.Name }).ToList());
+        dtos.StubBaseItemDtos((items, _) => items.Select(i => new BaseItemDto { Name = i.Name }).ToList());
         var registry = new WidgetRegistry();
         registry.Register(new TopRatedWidget(users.Object, library.Object, dtos.Object, new ManualTimeProvider()));
         var resolver = BuildResolver(registry,

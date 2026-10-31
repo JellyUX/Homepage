@@ -30,14 +30,7 @@ public sealed class SeasonalWidgetTests
             .Returns(new QueryResult<BaseItem>(items ?? []));
 
         var dtoServiceMock = new Mock<IDtoService>();
-        dtoServiceMock
-            .Setup(s => s.GetBaseItemDtos(
-                It.IsAny<IReadOnlyList<BaseItem>>(),
-                It.IsAny<DtoOptions>(),
-                It.IsAny<User>(),
-                It.IsAny<BaseItem>()))
-            .Returns<IReadOnlyList<BaseItem>, DtoOptions, User, BaseItem>(
-                (src, _, _, _) => src.Select(i => new BaseItemDto { Id = i.Id, Name = i.Name }).ToList());
+        dtoServiceMock.StubBaseItemDtos((src, _) => src.Select(i => new BaseItemDto { Id = i.Id, Name = i.Name }).ToList());
 
         return new SeasonalWidget(userManagerMock.Object, libraryManagerMock.Object, dtoServiceMock.Object, timeProvider);
     }
