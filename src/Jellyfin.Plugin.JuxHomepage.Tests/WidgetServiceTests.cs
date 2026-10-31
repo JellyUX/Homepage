@@ -1,7 +1,9 @@
+using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.Localization;
 using Jellyfin.Plugin.JuxHomepage.Widgets;
 using Jellyfin.Plugin.JuxHomepage.Widgets.Personalized;
+using MediaBrowser.Model.Activity;
 using MediaBrowser.Model.Dto;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -344,6 +346,59 @@ public sealed class WidgetServiceTests : IDisposable
             startIndex: 0, limit: 20, CancellationToken.None);
 
         Assert.Same(WidgetResult.Empty, result);
+    }
+
+    [Fact]
+    public async Task GetWidgetItems_BinaryMismatch_TellsTheAdministratorOncePerWidgetType()
+    {
+        // COMPAT-01.a: a 10.11 build on a Jellyfin 12 server fails every section with a
+        // MissingMethodException, answered as an empty section; the dashboard activity log says why.
+        var activity = new Mock<IActivityManager>();
+        var logged = new List<ActivityLog>();
+        activity.Setup(a => a.CreateAsync(It.IsAny<ActivityLog>()))
+            .Callback<ActivityLog>(logged.Add)
+            .Returns(Task.CompletedTask);
+        var mismatch = MakeWidget("mismatch", totalRecordCount: 1);
+        Mock.Get(mismatch)
+            .Setup(w => w.GetItemsAsync(It.IsAny<WidgetPayload>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new MissingMethodException("IDtoService", "GetBaseItemDtos"));
+        var failing = MakeWidget("failing", totalRecordCount: 1);
+        Mock.Get(failing)
+            .Setup(w => w.GetItemsAsync(It.IsAny<WidgetPayload>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("data"));
+        var service = BuildService(registeredWidgets: [mismatch, failing], globalWidgets: [], activityManager: activity.Object);
+
+        foreach (var widgetType in new[] { "mismatch", "mismatch", "failing" })
+        {
+            var result = await service.GetWidgetItems(
+                Guid.NewGuid(), widgetType, additionalData: null, sectionKey: null,
+                startIndex: 0, limit: 20, CancellationToken.None);
+            Assert.Same(WidgetResult.Empty, result);
+        }
+
+        var entry = Assert.Single(logged);
+        Assert.Contains("mismatch", entry.Name, StringComparison.Ordinal);
+        Assert.Equal(Microsoft.Extensions.Logging.LogLevel.Error, entry.LogSeverity);
+        Assert.Contains(nameof(MissingMethodException), entry.ShortOverview, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetWidgetItems_ActivityLogFails_StillAnswersEmpty()
+    {
+        var activity = new Mock<IActivityManager>();
+        activity.Setup(a => a.CreateAsync(It.IsAny<ActivityLog>())).ThrowsAsync(new InvalidOperationException("db"));
+        var mismatch = MakeWidget("mismatch", totalRecordCount: 1);
+        Mock.Get(mismatch)
+            .Setup(w => w.GetItemsAsync(It.IsAny<WidgetPayload>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new TypeLoadException("gone"));
+        var service = BuildService(registeredWidgets: [mismatch], globalWidgets: [], activityManager: activity.Object);
+
+        var result = await service.GetWidgetItems(
+            Guid.NewGuid(), "mismatch", additionalData: null, sectionKey: null,
+            startIndex: 0, limit: 20, CancellationToken.None);
+
+        Assert.Same(WidgetResult.Empty, result);
+        activity.Verify(a => a.CreateAsync(It.IsAny<ActivityLog>()), Times.Once);
     }
 
     [Fact]
@@ -832,7 +887,8 @@ public sealed class WidgetServiceTests : IDisposable
         ILocalizationService? localizationService = null,
         IPersonalizationState? personalizationState = null,
         SessionCache? sessionCache = null,
-        CacheConfig? cache = null)
+        CacheConfig? cache = null,
+        IActivityManager? activityManager = null)
     {
         var registry = new WidgetRegistry();
         foreach (var w in registeredWidgets)
@@ -863,7 +919,8 @@ public sealed class WidgetServiceTests : IDisposable
             () => config,
             NullLogger<WidgetService>.Instance,
             personalizationState,
-            sectionResults);
+            sectionResults,
+            activityManager: activityManager);
     }
 
     private static IWidget MakeWidget(string widgetType, int totalRecordCount)
