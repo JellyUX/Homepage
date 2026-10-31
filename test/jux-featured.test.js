@@ -244,6 +244,22 @@ describe('KTW-01.c motion and accessibility', () => {
         expect(active()).toBe('0');
     });
 
+    // R11 (phase 06): the user's pause outlives a refresh too, or the banner rotates again (WCAG 2.2.2).
+    it('keeps the user’s pause across a refresh of its section', () => {
+        render(items(5));
+        const label = () => container.querySelector('.jux-featured-toggle').getAttribute('aria-label');
+        const playing = label();
+        container.querySelector('.jux-featured-toggle').click();
+        const paused = label();
+        expect(paused).not.toBe(playing);
+
+        container.innerHTML = html(items(5), { DisplayName: 'Top Rated' });
+        attach(container, apiClient);
+        expect(label()).toBe(paused);
+        vi.advanceTimersByTime(60000);
+        expect(active()).toBe('0');
+    });
+
     it('moves with the arrow keys and the strip, hides and inerts the other slides', () => {
         render(items(5));
         const banner = container.querySelector('.jux-featured');

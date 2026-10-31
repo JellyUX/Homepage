@@ -448,10 +448,11 @@
 
     // Arms the banner the container just rendered; a container showing cards or an error is left alone.
     // A section refreshed by its data-monitor renders the banner again: it stays on the item shown while
-    // that item is still in the list.
+    // that item is still in the list, and paused if the user paused it.
     function attach(container, apiClient) {
         var previous = container._juxFeatured;
         var shownId = previous && previous.slides[previous.index] && previous.slides[previous.index].dataset.id;
+        var userPaused = !!(previous && previous.userPaused);
         destroy(container);
         _sweep();
         var root = container.querySelector('.jux-featured');
@@ -537,7 +538,7 @@
         state.index = Math.max(shown, 0);
         _render(state);
         // Never rotates on its own under prefers-reduced-motion (KTW-01.c, D-03): paused until asked.
-        _setPaused(state, _reducedMotion());
+        _setPaused(state, userPaused || _reducedMotion());
         return state;
     }
 
