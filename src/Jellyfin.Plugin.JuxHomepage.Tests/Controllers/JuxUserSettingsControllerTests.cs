@@ -102,7 +102,7 @@ public sealed class JuxUserSettingsControllerTests
         var widgetService = new WidgetService(new WidgetRegistry(), new SessionCache(), resolver, configuration, NullLogger<WidgetService>.Instance);
         var service = new UserSettingsService(_store.Object, localization, widgetService, configuration);
 
-        return new JuxUserSettingsController(service, TestCaller.AuthContext(caller).Object)
+        return new JuxUserSettingsController(service, new RequestUserResolver(TestCaller.AuthContext(caller).Object))
         {
             ControllerContext = new ControllerContext
             {

@@ -1,5 +1,6 @@
 using System.Net;
 using Jellyfin.Plugin.JuxHomepage.Configuration;
+using Jellyfin.Plugin.JuxHomepage.Controllers;
 using Jellyfin.Plugin.JuxHomepage.Inject;
 using Jellyfin.Plugin.JuxHomepage.IO;
 using Jellyfin.Plugin.JuxHomepage.Library;
@@ -101,6 +102,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<ScoringService>();
         serviceCollection.AddSingleton<WidgetItemFetcher>();
         serviceCollection.AddSingleton<UserSettingsService>();
+        serviceCollection.AddTransient<IRequestUserResolver, RequestUserResolver>();
         serviceCollection.AddSingleton<WidgetLayoutResolver>();
         // WidgetService takes the personalization state as an optional parameter: built by type
         // alone, it would get null, and a layout built while a user's first scoring still runs

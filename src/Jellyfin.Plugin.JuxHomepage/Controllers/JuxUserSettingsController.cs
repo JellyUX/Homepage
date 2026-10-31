@@ -1,5 +1,4 @@
 using Jellyfin.Plugin.JuxHomepage.Configuration;
-using MediaBrowser.Controller.Net;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -17,17 +16,17 @@ namespace Jellyfin.Plugin.JuxHomepage.Controllers;
 public class JuxUserSettingsController : ControllerBase
 {
     private readonly UserSettingsService _userSettings;
-    private readonly IAuthorizationContext _authContext;
+    private readonly IRequestUserResolver _requestUsers;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="JuxUserSettingsController"/> class.
     /// </summary>
     /// <param name="userSettings">Reads and saves the user's settings.</param>
-    /// <param name="authContext">Jellyfin authorization context, used by the IDOR guard.</param>
-    public JuxUserSettingsController(UserSettingsService userSettings, IAuthorizationContext authContext)
+    /// <param name="requestUsers">Resolves whose settings the request reads, the IDOR guard.</param>
+    public JuxUserSettingsController(UserSettingsService userSettings, IRequestUserResolver requestUsers)
     {
         _userSettings = userSettings;
-        _authContext = authContext;
+        _requestUsers = requestUsers;
     }
 
     /// <summary>Returns the user's JellyUX settings.</summary>
@@ -71,9 +70,6 @@ public class JuxUserSettingsController : ControllerBase
             : StatusCode(StatusCodes.Status500InternalServerError);
     }
 
-    private async Task<Guid?> ResolveUserIdAsync(Guid requestedUserId)
-    {
-        var caller = await RequestCaller.ResolveAsync(HttpContext, _authContext).ConfigureAwait(false);
-        return UserAccessGuard.ResolveUserId(requestedUserId, caller.UserId, caller.IsApiKey, User.IsInRole("Administrator"));
-    }
+    private async Task<Guid?> ResolveUserIdAsync(Guid requestedUserId) =>
+        (await _requestUsers.ResolveAsync(HttpContext, requestedUserId).ConfigureAwait(false)).UserId;
 }

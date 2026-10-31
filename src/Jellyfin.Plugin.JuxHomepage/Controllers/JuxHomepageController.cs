@@ -54,7 +54,7 @@ public class JuxHomepageController : ControllerBase
     private readonly IMovieHistoryViewService _movieHistoryViewService;
     private readonly IStatisticsService _statisticsService;
     private readonly ICollectionsIndexCacheService _collectionsIndexCacheService;
-    private readonly IAuthorizationContext _authContext;
+    private readonly IRequestUserResolver _requestUsers;
     private readonly HomeLanguageMemory _homeLanguages;
     private readonly ILogger<JuxHomepageController> _logger;
     private readonly TimeProvider _timeProvider;
@@ -75,7 +75,7 @@ public class JuxHomepageController : ControllerBase
     /// <param name="movieHistoryViewService">Movie History view service.</param>
     /// <param name="statisticsService">Watch-history statistics service.</param>
     /// <param name="collectionsIndexCacheService">Collections reverse index cache service.</param>
-    /// <param name="authContext">Jellyfin request authorization context.</param>
+    /// <param name="requestUsers">Resolves who sent a request and whose data it reads.</param>
     /// <param name="homeLanguages">Remembers the language of each user's last home screen (DEC-P07-10).</param>
     /// <param name="logger">Logger.</param>
     /// <param name="timeProvider">Clock of the admin lookups' deadline; defaults to <see cref="TimeProvider.System"/>.</param>
@@ -93,7 +93,7 @@ public class JuxHomepageController : ControllerBase
         IMovieHistoryViewService movieHistoryViewService,
         IStatisticsService statisticsService,
         ICollectionsIndexCacheService collectionsIndexCacheService,
-        IAuthorizationContext authContext,
+        IRequestUserResolver requestUsers,
         HomeLanguageMemory homeLanguages,
         ILogger<JuxHomepageController> logger,
         TimeProvider? timeProvider = null)
@@ -111,7 +111,7 @@ public class JuxHomepageController : ControllerBase
         _movieHistoryViewService = movieHistoryViewService;
         _statisticsService = statisticsService;
         _collectionsIndexCacheService = collectionsIndexCacheService;
-        _authContext = authContext;
+        _requestUsers = requestUsers;
         _homeLanguages = homeLanguages;
         _logger = logger;
         _timeProvider = timeProvider ?? TimeProvider.System;
@@ -280,7 +280,7 @@ public class JuxHomepageController : ControllerBase
         [FromQuery] string? lang = null,
         CancellationToken cancellationToken = default)
     {
-        var (resolvedUserId, isCaller) = await ResolveRequestUserAsync(userId).ConfigureAwait(false);
+        var (resolvedUserId, isCaller) = await _requestUsers.ResolveAsync(HttpContext, userId).ConfigureAwait(false);
         if (resolvedUserId is null)
         {
             return StatusCode(StatusCodes.Status403Forbidden);
@@ -590,7 +590,7 @@ public class JuxHomepageController : ControllerBase
 
         // A server API key is not tied to a user and keeps the global answer; any user session only
         // sees collections (and items) its own library access and parental rules allow.
-        var caller = await RequestCaller.ResolveAsync(HttpContext, _authContext).ConfigureAwait(false);
+        var caller = await _requestUsers.ResolveCallerAsync(HttpContext).ConfigureAwait(false);
         if (caller.IsApiKey)
         {
             return Ok(_collectionsIndexCacheService.GetCollectionsFor(itemId));
@@ -925,32 +925,9 @@ public class JuxHomepageController : ControllerBase
     // Private helpers
     // -------------------------------------------------------------------------
 
-    /// <summary>
-    /// Resolves whose data the request reads (see <see cref="UserAccessGuard.ResolveUserId"/>): a
-    /// regular user always reads their own data, whatever userId the query string carries, and is
-    /// refused when it names someone else (IDOR); administrators may name any user.
-    /// </summary>
-    /// <param name="requestedUserId">The userId from the query string, or <see cref="Guid.Empty"/>.</param>
-    /// <returns>The user to read, or null when the request must be refused.</returns>
+    // Whose data the request reads, or null when it must be refused (IDOR, IRequestUserResolver.ResolveAsync).
     private async Task<Guid?> ResolveRequestUserIdAsync(Guid requestedUserId) =>
-        (await ResolveRequestUserAsync(requestedUserId).ConfigureAwait(false)).UserId;
-
-    /// <summary>
-    /// <see cref="ResolveRequestUserIdAsync"/>, and whether the caller reads their own data rather than
-    /// an administrator or an API key reading someone else's.
-    /// </summary>
-    /// <param name="requestedUserId">The userId from the query string, or <see cref="Guid.Empty"/>.</param>
-    /// <returns>The user to read, or null when the request must be refused, and whether it is the caller.</returns>
-    private async Task<(Guid? UserId, bool IsCaller)> ResolveRequestUserAsync(Guid requestedUserId)
-    {
-        var caller = await RequestCaller.ResolveAsync(HttpContext, _authContext).ConfigureAwait(false);
-        var userId = UserAccessGuard.ResolveUserId(
-            requestedUserId,
-            caller.UserId,
-            caller.IsApiKey,
-            User.IsInRole("Administrator"));
-        return (userId, !caller.IsApiKey && userId == caller.UserId);
-    }
+        (await _requestUsers.ResolveAsync(HttpContext, requestedUserId).ConfigureAwait(false)).UserId;
 
     private static void SetCacheHeaders(HttpRequest request, HttpResponse response)
     {

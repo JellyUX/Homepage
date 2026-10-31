@@ -840,7 +840,7 @@ public sealed class JuxHomepageControllerTests
             (movieHistoryViewServiceMock ?? new Mock<IMovieHistoryViewService>()).Object,
             (statisticsServiceMock ?? new Mock<IStatisticsService>()).Object,
             (collectionsIndexCacheServiceMock ?? new Mock<ICollectionsIndexCacheService>()).Object,
-            (authContextMock ?? new Mock<IAuthorizationContext>()).Object,
+            new RequestUserResolver((authContextMock ?? new Mock<IAuthorizationContext>()).Object),
             new HomeLanguageMemory(userConfigStore ?? Mock.Of<IUserConfigurationStore>()),
             logger ?? NullLogger<JuxHomepageController>.Instance,
             timeProvider);
