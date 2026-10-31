@@ -1215,7 +1215,7 @@ function createConfigPage() {
 
             // Search-as-you-type on the value fields: the admin value picker, then the Discover and
             // Rewards fields, proxied server-side (config.js/browsers cannot set the User-Agent header
-            // Wikidata's 2026 access policy requires -- see JuxHomepageController.SearchRewardsCeremony).
+            // Wikidata's 2026 access policy requires -- see JuxHomepageAdminController.SearchRewardsCeremony).
             list.querySelectorAll('[data-is-admin="1"]').forEach(function (card) {
                 var w = self.state.sortedWidgets[parseInt(card.getAttribute('data-index'), 10)];
                 var inputEl = card.querySelector('.jux-admin-widget-value');
