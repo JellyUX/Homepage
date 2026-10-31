@@ -211,13 +211,18 @@ describe('findBannedFonts', () => {
 
 describe('checkTargetAbi', () => {
     const manifest = (versions) => JSON.stringify([{ versions }]);
+    const lines = [
+        { name: '10.11', sdk: '10.11.9', framework: 'net9.0', targetAbi: '10.11.9.0' },
+        { name: '12', sdk: '12.0.0', framework: 'net10.0', targetAbi: '12.0.0.0' }
+    ];
     const ok = {
-        buildYaml: 'targetAbi: "10.11.9.0"\n',
-        manifest: manifest([{ version: '2.3.0.0', targetAbi: '10.11.0.0' }, { version: '2.4.0.0', targetAbi: '10.11.9.0' }]),
-        csproj: `<JellyfinVersion Condition="'$(JellyfinVersion)' == ''">10.11.9</JellyfinVersion>`
+        buildYaml: 'targetAbi: "10.11.9.0"\nframework: "net9.0"\n',
+        manifest: manifest([{ version: '2.3.0.0', targetAbi: '10.11.0.0' }, { version: '2.4.0.0', targetAbi: '10.11.9.0' }, { version: '2.18.0.12', targetAbi: '12.0.0.0' }]),
+        csproj: `<JellyfinVersion Condition="'$(JellyfinVersion)' == ''">10.11.9</JellyfinVersion>`,
+        lines
     };
 
-    it('passes when build.yaml, the manifest and the SDK version agree', () => {
+    it('passes when the lines, build.yaml, the manifest and the SDK version agree', () => {
         expect(checkTargetAbi(ok)).toEqual([]);
     });
 
@@ -228,22 +233,30 @@ describe('checkTargetAbi', () => {
 
     it('fails when the plugin compiles against a newer SDK than targetAbi', () => {
         expect(checkTargetAbi({ ...ok, csproj: `<JellyfinVersion Condition="'$(JellyfinVersion)' == ''">10.11.10</JellyfinVersion>` })).toHaveLength(1);
+        expect(checkTargetAbi({ ...ok, lines: [lines[0], { ...lines[1], sdk: '12.4.0' }] })).toEqual([
+            'Jellyfin line 12 compiles against 12.4.0 but declares targetAbi 12.0.0.0.'
+        ]);
     });
 
-    // checkTargetAbi, the minimum ABI and the drift job assume one Jellyfin line. The Jellyfin 12 line
-    // breaks this test on purpose: each of these checks then needs a value per line (PROC-05, COMPAT-03).
-    it('holds while the repository builds a single Jellyfin line (PROC-05)', () => {
+    it('fails when build.yaml is not the default line or a line names the wrong framework', () => {
+        expect(checkTargetAbi({ ...ok, buildYaml: 'targetAbi: "12.0.0.0"\nframework: "net10.0"\n' })).toHaveLength(2);
+        expect(checkTargetAbi({ ...ok, lines: [lines[0], { ...lines[1], framework: 'net9.0' }] })).toHaveLength(1);
+        expect(checkTargetAbi({ ...ok, lines: [] })).toHaveLength(1);
+    });
+
+    // One line per Jellyfin binary (D-01): build.yaml and the .csproj default describe the first line, and
+    // the .csproj picks the framework of each line from its SDK version.
+    it('holds for the Jellyfin lines of the repository (D-01.a)', () => {
         const buildYaml = readFileSync('build.yaml', 'utf8');
         const csproj = readFileSync('src/Jellyfin.Plugin.JuxHomepage/Jellyfin.Plugin.JuxHomepage.csproj', 'utf8');
-        const ci = readFileSync('.github/workflows/ci.yml', 'utf8');
-        const driftJob = /\n {2}drift:[\s\S]*?(?=\r?\n {2}[\w-]+:|$)/.exec(ci)[0];
+        const repoLines = JSON.parse(readFileSync('ci/jellyfin-lines.json', 'utf8')).lines;
 
+        expect(repoLines.map((line) => line.name)).toEqual(['10.11', '12']);
         expect(buildYaml.match(/^targetAbi:/gm)).toHaveLength(1);
-        expect(buildYaml.match(/^framework:/gm)).toHaveLength(1);
         expect(csproj.match(/<JellyfinVersion Condition=/g)).toHaveLength(1);
-        expect(csproj.match(/<TargetFrameworks?>/g)).toHaveLength(1);
-        expect(new Set(driftJob.match(/jellyfin\/jellyfin:[\d.]+/g))).toHaveProperty('size', 1);
-        expect(checkTargetAbi({ buildYaml, manifest: readFileSync('manifest.json', 'utf8'), csproj })).toEqual([]);
+        expect(csproj).toContain(`<TargetFramework Condition="$(JellyfinVersion.StartsWith('10.'))">net9.0</TargetFramework>`);
+        expect(csproj).toContain(`<TargetFramework Condition="!$(JellyfinVersion.StartsWith('10.'))">net10.0</TargetFramework>`);
+        expect(checkTargetAbi({ buildYaml, manifest: readFileSync('manifest.json', 'utf8'), csproj, lines: repoLines })).toEqual([]);
     });
 });
 

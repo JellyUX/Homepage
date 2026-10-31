@@ -1,7 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyVersion>0.1.0.0</AssemblyVersion>
@@ -13,10 +12,14 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
-    <!-- SDK the plugin compiles against: the declared minimum (build.yaml targetAbi). A build
-         against a newer SDK references its assembly versions and fails to load on an older server.
-         CI also builds against the newest validated server: -p:JellyfinVersion=10.11.11 -->
+    <!-- SDK the plugin compiles against: the declared minimum of a Jellyfin line (ci/jellyfin-lines.json).
+         A build against a newer SDK references its assembly versions and fails to load on an older server.
+         The default is the 10.11 line; -p:JellyfinVersion=12.0.0 builds the Jellyfin 12 line, which runs
+         on .NET 10. CI also builds each line against its newest validated server. -->
     <JellyfinVersion Condition="'$(JellyfinVersion)' == ''">10.11.9</JellyfinVersion>
+    <TargetFramework Condition="$(JellyfinVersion.StartsWith('10.'))">net9.0</TargetFramework>
+    <TargetFramework Condition="!$(JellyfinVersion.StartsWith('10.'))">net10.0</TargetFramework>
+    <DefineConstants Condition="!$(JellyfinVersion.StartsWith('10.'))">$(DefineConstants);JELLYFIN_12</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>

@@ -1,7 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <!-- Follows the Jellyfin line of the plugin project (-p:JellyfinVersion, ci/jellyfin-lines.json). -->
+    <JellyfinVersion Condition="'$(JellyfinVersion)' == ''">10.11.9</JellyfinVersion>
+    <TargetFramework Condition="$(JellyfinVersion.StartsWith('10.'))">net9.0</TargetFramework>
+    <TargetFramework Condition="!$(JellyfinVersion.StartsWith('10.'))">net10.0</TargetFramework>
+    <DefineConstants Condition="!$(JellyfinVersion.StartsWith('10.'))">$(DefineConstants);JELLYFIN_12</DefineConstants>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>

@@ -41,6 +41,7 @@
 !ci/todo-reference-budget.json
 !ci/complexity-budget.json
 !ci/decision-surfaces.json
+!ci/jellyfin-lines.json
 !e2e/
 !e2e/setup.mjs
 !e2e/helpers.mjs

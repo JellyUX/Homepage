@@ -1,0 +1,7 @@
+{
+    "description": "The Jellyfin lines the plugin is built for, one binary each (D-01). sdk is the declared minimum the plugin compiles against (Jellyfin.Controller/Model/Extensions packages), targetAbi the minimum the manifest declares (sdk + '.0': a build against a newer SDK fails to load on an older server), framework the target framework the .csproj picks for that sdk, newest the newest validated server, versionSuffix the 4th version component of the line's release (X.Y.Z.<suffix>, D-02). The first line is the default build (build.yaml, the .csproj default JellyfinVersion). Read by ci/static-checks.mjs and by the release.",
+    "lines": [
+        { "name": "10.11", "sdk": "10.11.9", "framework": "net9.0", "targetAbi": "10.11.9.0", "newest": "10.11.11", "versionSuffix": "10" },
+        { "name": "12", "sdk": "12.0.0", "framework": "net10.0", "targetAbi": "12.0.0.0", "newest": "12.4.0", "versionSuffix": "12" }
+    ]
+}

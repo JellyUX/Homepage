@@ -14,7 +14,9 @@ const EM_DASH = String.fromCharCode(0x2014);
 const BANNED_FONTS = ['Inter', 'Poppins', 'Manrope', 'Outfit', 'Plus Jakarta Sans', 'Space Grotesk'];
 const COMMIT_TYPES = ['feat', 'fix', 'refactor', 'style', 'docs', 'chore', 'test', 'revert'];
 const WEB_DIR = 'src/Jellyfin.Plugin.JuxHomepage/Web/';
-const MIN_ABI = '10.11.9.0';
+// The Jellyfin lines the plugin is built for (D-01); the first is the default build.
+export const JELLYFIN_LINES = 'ci/jellyfin-lines.json';
+// The first release calling IUserManager.GetUsers(), which needs targetAbi 10.11.9.0.
 const FIRST_VERSION_REQUIRING_MIN_ABI = '2.4.0.0';
 const BINARY_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.ico', '.webp', '.dll', '.pdb', '.zip', '.mkv', '.woff', '.woff2']);
 export const BASELINE_PATH = 'ci/duplication-baseline.json';
@@ -322,34 +324,53 @@ function compareVersions(a, b) {
 }
 
 /**
- * Checks that build.yaml, manifest.json and the SDK the plugin compiles against agree.
- * @param {{buildYaml: string, manifest: string, csproj: string}} files
+ * Checks that the Jellyfin lines (ci/jellyfin-lines.json), build.yaml, manifest.json and the SDK the plugin
+ * compiles against agree. build.yaml and the .csproj default describe the first line, the default build.
+ * @param {{buildYaml: string, manifest: string, csproj: string, lines: {name: string, sdk: string, framework: string, targetAbi: string}[]}} files
  * @returns {string[]} Error messages.
  */
-export function checkTargetAbi({ buildYaml, manifest, csproj }) {
+export function checkTargetAbi({ buildYaml, manifest, csproj, lines }) {
     const errors = [];
+    const [defaultLine] = lines;
+    if (!defaultLine) {
+        return [`${JELLYFIN_LINES} lists no Jellyfin line.`];
+    }
+    // A build against a newer SDK than targetAbi does not load on the servers targetAbi admits.
+    for (const line of lines) {
+        if (compareVersions(`${line.sdk}.0`, line.targetAbi) !== 0) {
+            errors.push(`Jellyfin line ${line.name} compiles against ${line.sdk} but declares targetAbi ${line.targetAbi}.`);
+        }
+        const framework = line.sdk.startsWith('10.') ? 'net9.0' : 'net10.0';
+        if (line.framework !== framework) {
+            errors.push(`Jellyfin line ${line.name} declares ${line.framework}, the .csproj builds ${line.sdk} as ${framework}.`);
+        }
+    }
+
     const abi = /^targetAbi:\s*"([0-9.]+)"/m.exec(buildYaml)?.[1];
     if (!abi) {
-        return ['build.yaml has no targetAbi line.'];
+        errors.push('build.yaml has no targetAbi line.');
+    } else if (compareVersions(abi, defaultLine.targetAbi) !== 0) {
+        errors.push(`build.yaml targetAbi ${abi} is not the targetAbi ${defaultLine.targetAbi} of the default Jellyfin line ${defaultLine.name}.`);
     }
-    if (compareVersions(abi, MIN_ABI) < 0) {
-        errors.push(`build.yaml targetAbi ${abi} is below the required minimum ${MIN_ABI}.`);
+    const framework = /^framework:\s*"([^"]+)"/m.exec(buildYaml)?.[1];
+    if (framework !== defaultLine.framework) {
+        errors.push(`build.yaml framework ${framework} is not the framework ${defaultLine.framework} of the default Jellyfin line ${defaultLine.name}.`);
     }
 
+    const minAbi = lines.map((line) => line.targetAbi).sort(compareVersions)[0];
     const offending = JSON.parse(manifest)[0].versions
         .filter((v) => compareVersions(v.version, FIRST_VERSION_REQUIRING_MIN_ABI) >= 0)
-        .filter((v) => compareVersions(v.targetAbi, MIN_ABI) < 0)
+        .filter((v) => compareVersions(v.targetAbi, minAbi) < 0)
         .map((v) => v.version);
     if (offending.length > 0) {
-        errors.push(`manifest.json versions below targetAbi ${MIN_ABI}: ${offending.join(', ')}.`);
+        errors.push(`manifest.json versions below targetAbi ${minAbi}: ${offending.join(', ')}.`);
     }
 
-    // A build against a newer SDK than targetAbi does not load on the servers targetAbi admits.
     const sdk = /<JellyfinVersion Condition="[^"]*">([0-9.]+)</.exec(csproj)?.[1];
     if (!sdk) {
         errors.push('The plugin .csproj has no default JellyfinVersion.');
-    } else if (compareVersions(sdk, abi) !== 0) {
-        errors.push(`The plugin compiles against Jellyfin ${sdk}, but build.yaml declares targetAbi ${abi}.`);
+    } else if (sdk !== defaultLine.sdk) {
+        errors.push(`The plugin .csproj compiles against Jellyfin ${sdk} by default, the default Jellyfin line ${defaultLine.name} against ${defaultLine.sdk}.`);
     }
     return errors;
 }
@@ -762,7 +783,8 @@ function main() {
     checkTargetAbi({
         buildYaml: readFileSync('build.yaml', 'utf8'),
         manifest: readFileSync('manifest.json', 'utf8'),
-        csproj: readFileSync('src/Jellyfin.Plugin.JuxHomepage/Jellyfin.Plugin.JuxHomepage.csproj', 'utf8')
+        csproj: readFileSync('src/Jellyfin.Plugin.JuxHomepage/Jellyfin.Plugin.JuxHomepage.csproj', 'utf8'),
+        lines: JSON.parse(readFileSync(JELLYFIN_LINES, 'utf8')).lines
     }).forEach((message) => errors.push({ file: 'build.yaml', message }));
 
     const rangeArg = process.argv.indexOf('--commits');
