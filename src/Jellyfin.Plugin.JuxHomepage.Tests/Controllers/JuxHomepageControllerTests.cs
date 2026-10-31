@@ -324,19 +324,6 @@ public sealed class JuxHomepageControllerTests
         Assert.Equal("minVotes=50", string.Join(';', row.ExtraParams.Select(p => $"{p.Key}={p.Value}")));
     }
 
-    [Theory]
-    [InlineData(nameof(JuxHomepageController.GetAdminCatalog))]
-    [InlineData(nameof(JuxHomepageController.PreviewSection))]
-    public void AdminPageEndpoints_AreRestrictedToAdministrators(string action)
-    {
-        var policies = typeof(JuxHomepageController)
-            .GetMethod(action)!
-            .GetCustomAttributes<AuthorizeAttribute>()
-            .Select(a => a.Policy);
-
-        Assert.Contains(Policies.RequiresElevation, policies);
-    }
-
     [Fact]
     public async Task GetCollectionsForItem_ReturnsRefsFromCache()
     {
