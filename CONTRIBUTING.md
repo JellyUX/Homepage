@@ -125,7 +125,10 @@ A comment that defers work names the registry id that tracks it; the id prefixes
 the registry id pattern of `ci/static-checks.mjs`. The CI coverage summary (`ci/coverage-summary.mjs`)
 details the risky C# areas and scripts. A new finding category, or a new area at risk, enters these
 lists in the commit that introduces it. Versioned files do not point to the unversioned roadmap files:
-the remaining references are counted in `ci/todo-reference-budget.json`, which only goes down.
+the remaining references are counted in `ci/todo-reference-budget.json`, which only goes down. The
+longest function and the highest cyclomatic complexity of each web script are held by
+`ci/complexity-budget.json` the same way: a split lowers them in its commit, a rise needs a `Budget:`
+trailer.
 
 **Manual test procedure**:
 1. Run `.\docker\scripts\deploy-plugin.ps1` to deploy the latest build.

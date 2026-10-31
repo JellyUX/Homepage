@@ -39,6 +39,7 @@
 !ci/plugin-package.mjs
 !ci/dead-code-allowlist.json
 !ci/todo-reference-budget.json
+!ci/complexity-budget.json
 !ci/decision-surfaces.json
 !e2e/
 !e2e/setup.mjs

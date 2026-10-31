@@ -7,6 +7,8 @@ import {
     findUntrackedMarkers,
     countTodoReferences,
     checkTodoReferences,
+    measureComplexity,
+    checkComplexity,
     checkTargetAbi,
     checkCommit,
     decisionSurfaceHits,
@@ -156,6 +158,43 @@ describe('roadmap references (PROC-07.d)', () => {
             `${v5}: 0 references in versioned files, 1 in ci/todo-reference-budget.json: lower the budget to 0 in this commit.`
         ]);
         expect(checkTodoReferences({ [v4]: 2, [v5]: 1, [v6]: 1 }, budget)).toHaveLength(1);
+    });
+});
+
+describe('complexity ratchet (QUAL-01.c)', () => {
+    it('measures the longest function and the highest cyclomatic complexity, nested functions apart', () => {
+        const code = [
+            'export function outer(a, b) {',
+            '    if (a && b) { return 1; }',
+            '    var inner = function (c) {',
+            '        for (var i = 0; i < c; i++) { if (i ? a : b) { return i; } }',
+            '        return c ?? 0;',
+            '    };',
+            '    return inner(a) || 2;',
+            '}',
+            'function tiny() { return 1; }'
+        ].join('\n');
+        // outer: 1 + if + && + || = 4 over 8 lines; inner: 1 + for + if + ?: + ?? = 5 over 4 lines.
+        expect(measureComplexity(code)).toEqual({ maxComplexity: 5, maxFunctionLines: 8 });
+    });
+
+    it('parses a classic script as well as a module', () => {
+        expect(measureComplexity('(function () {\n    var x = 1;\n    if (x) { x = 2; }\n    return x;\n})();'))
+            .toEqual({ maxComplexity: 2, maxFunctionLines: 5 });
+    });
+
+    it('fails on a rise, on a drop the budget does not record and on a file missing from either side', () => {
+        const budget = { maxComplexity: { 'a.js': 10, 'b.js': 5 }, maxFunctionLines: { 'a.js': 100, 'b.js': 50 } };
+        const ok = { 'a.js': { maxComplexity: 10, maxFunctionLines: 100 }, 'b.js': { maxComplexity: 5, maxFunctionLines: 50 } };
+        expect(checkComplexity(ok, budget)).toEqual([]);
+        expect(checkComplexity({ ...ok, 'a.js': { maxComplexity: 11, maxFunctionLines: 90 } }, budget)).toEqual([
+            'a.js: maxComplexity 11, 10 allowed by ci/complexity-budget.json: split the function, or raise the budget with a Budget: trailer.',
+            'a.js: maxFunctionLines 90, 100 in ci/complexity-budget.json: lower the budget to 90 in this commit.'
+        ]);
+        expect(checkComplexity({ 'a.js': ok['a.js'], 'c.js': { maxComplexity: 1, maxFunctionLines: 3 } }, budget)).toEqual([
+            'b.js: listed in ci/complexity-budget.json but not measured: remove it in this commit.',
+            'c.js: measured but not listed in ci/complexity-budget.json: add maxComplexity 1 and maxFunctionLines 3.'
+        ]);
     });
 });
 

@@ -1,10 +1,11 @@
 // Static checks for the project rules (TODO_V4.md rule G2): em dashes, color literals, banned fonts,
-// targetAbi coherence, commit messages and code duplication. Run from the repository root:
+// targetAbi coherence, commit messages, code duplication and the complexity of the web scripts. Run from the repository root:
 //   node ci/static-checks.mjs [--commits <git range>]
 // Errors fail the run; warnings are reported only. Both are printed as GitHub annotations.
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,8 +20,9 @@ const BINARY_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.ico', '.we
 export const BASELINE_PATH = 'ci/duplication-baseline.json';
 // Ratcheted budgets (TODO_V5 rule R3): a value may only rise in a commit carrying a "Budget:" trailer.
 export const TODO_REFERENCE_BUDGET = 'ci/todo-reference-budget.json';
+export const COMPLEXITY_BUDGET = 'ci/complexity-budget.json';
 const DECISION_SURFACES = 'ci/decision-surfaces.json';
-export const BUDGET_FILES = ['ci/perf-budget.json', 'ci/asset-budget.json', 'ci/duplication-baseline.json', 'ci/dead-code-allowlist.json', TODO_REFERENCE_BUDGET];
+export const BUDGET_FILES = ['ci/perf-budget.json', 'ci/asset-budget.json', 'ci/duplication-baseline.json', 'ci/dead-code-allowlist.json', TODO_REFERENCE_BUDGET, COMPLEXITY_BUDGET];
 // A reference from versioned code to an unversioned roadmap file (TODO_V<n>.md, TODO_V<n>/), PROC-07.d.
 const TODO_REFERENCE = /(?<!\w)TODO_V(\d+)\b/g;
 
@@ -207,6 +209,94 @@ export function checkTodoReferences(counts, budget) {
             ? [`${prefix}: ${count} references in versioned files, ${allowed} in ${TODO_REFERENCE_BUDGET}: lower the budget to ${count} in this commit.`]
             : [];
     });
+}
+
+const FUNCTION_NODES = new Set(['FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression', 'ObjectMethod', 'ClassMethod']);
+const BRANCH_NODES = new Set(['IfStatement', 'ForStatement', 'ForInStatement', 'ForOfStatement', 'WhileStatement', 'DoWhileStatement', 'CatchClause', 'ConditionalExpression', 'LogicalExpression']);
+// The template the server fills in before serving it: not valid JavaScript as stored.
+const COMPLEXITY_EXCLUDED = new Set(['jux-loadsections-inject.js']);
+const AST_SKIPPED_KEYS = new Set(['loc', 'start', 'end', 'leadingComments', 'trailingComments', 'innerComments']);
+
+/**
+ * Measures a web script: the line count of its longest function and the highest cyclomatic complexity of
+ * one function (1 + if, loops, catch, ?:, case, &&, ||, ??), each function counted without the functions
+ * nested in it. Functions of 3 lines or less are left out (callbacks, accessors).
+ * @param {string} code
+ * @returns {{maxComplexity: number, maxFunctionLines: number}}
+ */
+export function measureComplexity(code) {
+    const { parse } = createRequire(import.meta.url)('@babel/parser');
+    const functions = [];
+    const stack = [];
+    const walk = (node) => {
+        if (!node || typeof node.type !== 'string') {
+            return;
+        }
+        const isFunction = FUNCTION_NODES.has(node.type);
+        if (isFunction) {
+            const measured = { lines: node.loc.end.line - node.loc.start.line + 1, complexity: 1 };
+            functions.push(measured);
+            stack.push(measured);
+        } else if (stack.length > 0 && (BRANCH_NODES.has(node.type) || (node.type === 'SwitchCase' && node.test))) {
+            stack[stack.length - 1].complexity++;
+        }
+        for (const [key, value] of Object.entries(node)) {
+            if (AST_SKIPPED_KEYS.has(key)) {
+                continue;
+            }
+            (Array.isArray(value) ? value : [value]).forEach(walk);
+        }
+        if (isFunction) {
+            stack.pop();
+        }
+    };
+    walk(parse(code, { sourceType: 'unambiguous' }).program);
+    const counted = functions.filter((f) => f.lines > 3);
+    return {
+        maxComplexity: Math.max(0, ...counted.map((f) => f.complexity)),
+        maxFunctionLines: Math.max(0, ...counted.map((f) => f.lines))
+    };
+}
+
+/**
+ * Compares each web script's measures with the complexity budget: a rise fails (split the function, or
+ * raise the budget with a Budget: trailer), and so does a drop the budget does not record, a script the
+ * budget does not list and a listed script that is gone.
+ * @param {Record<string, {maxComplexity: number, maxFunctionLines: number}>} measures
+ * @param {{maxComplexity: Record<string, number>, maxFunctionLines: Record<string, number>}} budget
+ * @returns {string[]} Errors.
+ */
+export function checkComplexity(measures, budget) {
+    const listed = new Set([...Object.keys(budget.maxComplexity), ...Object.keys(budget.maxFunctionLines)]);
+    const files = [...new Set([...Object.keys(measures), ...listed])].sort();
+    return files.flatMap((file) => {
+        const measured = measures[file];
+        if (!measured) {
+            return [`${file}: listed in ${COMPLEXITY_BUDGET} but not measured: remove it in this commit.`];
+        }
+        if (!listed.has(file)) {
+            return [`${file}: measured but not listed in ${COMPLEXITY_BUDGET}: add maxComplexity ${measured.maxComplexity} and maxFunctionLines ${measured.maxFunctionLines}.`];
+        }
+        return ['maxComplexity', 'maxFunctionLines'].flatMap((measure) => {
+            const value = measured[measure];
+            const allowed = budget[measure][file];
+            if (value > allowed) {
+                return [`${file}: ${measure} ${value}, ${allowed} allowed by ${COMPLEXITY_BUDGET}: split the function, or raise the budget with a Budget: trailer.`];
+            }
+            return value < allowed ? [`${file}: ${measure} ${value}, ${allowed} in ${COMPLEXITY_BUDGET}: lower the budget to ${value} in this commit.`] : [];
+        });
+    });
+}
+
+/**
+ * Measures every web script the complexity budget covers.
+ * @returns {Record<string, {maxComplexity: number, maxFunctionLines: number}>}
+ */
+export function currentComplexity() {
+    return Object.fromEntries(readdirSync(WEB_DIR)
+        .filter((f) => f.endsWith('.js') && !COMPLEXITY_EXCLUDED.has(f))
+        .sort()
+        .map((f) => [f, measureComplexity(readFileSync(WEB_DIR + f, 'utf8'))]));
 }
 
 /**
@@ -665,6 +755,9 @@ function main() {
 
     checkTodoReferences(countTodoReferences(texts), JSON.parse(readFileSync(TODO_REFERENCE_BUDGET, 'utf8')))
         .forEach((message) => errors.push({ file: TODO_REFERENCE_BUDGET, message }));
+
+    checkComplexity(currentComplexity(), JSON.parse(readFileSync(COMPLEXITY_BUDGET, 'utf8')))
+        .forEach((message) => errors.push({ file: COMPLEXITY_BUDGET, message }));
 
     checkTargetAbi({
         buildYaml: readFileSync('build.yaml', 'utf8'),
