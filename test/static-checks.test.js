@@ -380,6 +380,10 @@ describe('decision surfaces (D-11)', () => {
         expect(checkDecisionTrailer({ ...commit, hits: [], mode: 'error' })).toEqual({ errors: [], warnings: [] });
     });
 
+    it('blocks a push once calibrated: mode is "error" (D-11, V13)', () => {
+        expect(JSON.parse(readFileSync('ci/decision-surfaces.json', 'utf8')).mode).toBe('error');
+    });
+
     it('concerns 15 to 40 commits of v2.14.0..v2.17.1, the calibration of MB-23 (D-11.b)', () => {
         const concerned = replayDecisionSurfaces('v2.14.0..v2.17.1', surfaces);
         expect(concerned.length).toBeGreaterThanOrEqual(15);

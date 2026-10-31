@@ -213,7 +213,7 @@ Each change goes through these steps, in order:
    build and pass Vitest on its own (the `commits` CI job, which gates the release); HEAD alone runs
    the xUnit, E2E and drift suites. A `feat:`, `fix:` or `refactor:` commit that adds lines on a surface of `ci/decision-surfaces.json` (cache, concurrency, route, dependency, target,
    schema tier, budget table) carries a `Decision: DR-nnn` trailer naming its decision record, or
-   `Decision: none - <reason>`; the static job warns without one (`mode` in that file).
+   `Decision: none - <reason>`; the static job fails without one (`mode: "error"` in that file).
 
 ## Definition of Done
 

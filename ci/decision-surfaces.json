@@ -1,6 +1,6 @@
 {
-    "description": "Code surfaces where a feat, fix or refactor commit makes a non-trivial choice (cache, concurrency, API contract, dependency, target, schema, budget table), read by ci/static-checks.mjs --commits (D-11). A commit that adds a line on one carries a 'Decision: DR-nnn' trailer naming its decision record, or 'Decision: none - <reason>'. A surface matches a file path (file) and, when given, an added line (line), both regular expressions. Calibrated by replaying the rule on v2.14.0..v2.17.1: 25 of 210 commits (test/static-checks.test.js keeps it between 15 and 40). mode is 'warning' while the list is calibrated, 'error' once it blocks.",
-    "mode": "warning",
+    "description": "Code surfaces where a feat, fix or refactor commit makes a non-trivial choice (cache, concurrency, API contract, dependency, target, schema, budget table), read by ci/static-checks.mjs --commits (D-11). A commit that adds a line on one carries a 'Decision: DR-nnn' trailer naming its decision record, or 'Decision: none - <reason>'. A surface matches a file path (file) and, when given, an added line (line), both regular expressions. Calibrated by replaying the rule on v2.14.0..v2.17.1: 25 of 210 commits (test/static-checks.test.js keeps it between 15 and 40). mode is 'error': a push with such a commit fails the static job (warning from V6 phase 02 to 07, blocking since phase 08; phases 06-07 had 1 concerned commit of 24, below the 15-40 band, kept as the calibration).",
+    "mode": "error",
     "surfaces": [
         { "name": "Caching/**", "file": "^src/Jellyfin\\.Plugin\\.JuxHomepage/Caching/" },
         { "name": "Widgets/Service/**", "file": "^src/Jellyfin\\.Plugin\\.JuxHomepage/Widgets/Service/" },
