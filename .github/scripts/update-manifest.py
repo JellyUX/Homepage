@@ -26,10 +26,19 @@ def get_repo_https_url() -> str:
     return url
 
 
-def find_zips(artifacts_dir: str, version: str) -> list[str]:
-    zips = sorted(f for f in os.listdir(artifacts_dir) if re.fullmatch(rf"[\w-]+_{re.escape(version)}\.\d+\.zip", f))
-    if not zips:
-        print(f"ERROR: no {version}.<line> zip found in {artifacts_dir}/", file=sys.stderr)
+def line_suffixes() -> list[str]:
+    with open("ci/jellyfin-lines.json", encoding="utf-8") as f:
+        return [line["versionSuffix"] for line in json.load(f)["lines"]]
+
+
+def find_zips(artifacts_dir: str, version: str, suffixes: list[str]) -> list[str]:
+    """One archive per Jellyfin line, X.Y.Z.<versionSuffix>: any other zip (a leftover X.Y.Z.0) is refused."""
+    present = set(os.listdir(artifacts_dir))
+    zips = [f"jellyux-homepage_{version}.{suffix}.zip" for suffix in suffixes]
+    missing = [z for z in zips if z not in present]
+    extra = sorted(f for f in present if f.endswith(".zip") and f not in zips)
+    if missing or extra:
+        print(f"ERROR: {artifacts_dir}/ must hold exactly {', '.join(zips)}; missing {missing}, extra {extra}", file=sys.stderr)
         sys.exit(1)
     return zips
 
@@ -63,7 +72,7 @@ def main() -> None:
     tag = f"v{version}"             # e.g. "v2.18.0"
     artifacts_dir = "./artifacts"
 
-    filenames = find_zips(artifacts_dir, version)
+    filenames = find_zips(artifacts_dir, version, line_suffixes())
     versions_4parts = {zip_version(f) for f in filenames}  # e.g. {"2.18.0.10", "2.18.0.12"}
     repo_url = get_repo_https_url()
     for filename in filenames:

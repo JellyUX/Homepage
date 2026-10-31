@@ -152,6 +152,8 @@ function build(version) {
     } finally {
         writeFileSync(BUILD_YAML, template);
         writeFileSync(CSPROJ, csproj);
+        // The last line's restore assets would break a later --no-restore build of the default line.
+        OBJ_DIRS.forEach((dir) => rmSync(dir, { recursive: true, force: true }));
     }
     console.log(`sha256=${digests.join(' ')}`);
 }
