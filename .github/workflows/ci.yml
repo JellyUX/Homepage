@@ -137,7 +137,13 @@ jobs:
               npm ci --no-audit --no-fund >/dev/null
               LOCK=$(git rev-parse "$SHA:package-lock.json")
             fi
-            if dotnet build --configuration Release && dotnet build --configuration Release -p:JellyfinVersion=12.0.0 && npx vitest run; then
+            # The Jellyfin 12 line is held from the commit whose own CI tests it (its build-test-12 job): an
+            # earlier commit could not build it (the line and its red-first fixes came before).
+            BUILD_12="true"
+            if git show "$SHA:.github/workflows/ci.yml" | grep -q '^  build-test-12:'; then
+              BUILD_12="dotnet build --configuration Release -p:JellyfinVersion=12.0.0"
+            fi
+            if dotnet build --configuration Release && $BUILD_12 && npx vitest run; then
               echo "::endgroup::"
             else
               echo "::endgroup::"
