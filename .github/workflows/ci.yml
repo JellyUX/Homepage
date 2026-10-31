@@ -190,9 +190,12 @@ jobs:
           # The release version is read from the v* tags and the commits since the last one.
           fetch-depth: 0
 
+      # One archive per Jellyfin line (ci/jellyfin-lines.json): .NET 9 for 10.11, .NET 10 for 12.
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
-          dotnet-version: 9.0.x
+          dotnet-version: |
+            9.0.x
+            10.0.x
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
@@ -206,7 +209,8 @@ jobs:
         run: npm ci
 
       # The version semantic-release gives this commit, or the last one when nothing is released: the
-      # E2E installs this archive and the release job publishes it as is (CONTRIBUTING.md "Change Checklist").
+      # E2E installs the 10.11 archive and the release job publishes both as they are (CONTRIBUTING.md
+      # "Change Checklist").
       - name: Compute the release version
         id: version
         run: |
@@ -217,19 +221,15 @@ jobs:
       - name: Install JPRM
         run: pip install jprm
 
-      - name: Build the jprm archive
+      # jellyux-homepage_X.Y.Z.10.zip and _X.Y.Z.12.zip (D-02); the output lists "<zip>=<sha256>" per zip.
+      - name: Build the jprm archives
         id: archive
         run: |
           mkdir -p artifacts
-          python3 .github/scripts/set-plugin-version.py ${{ steps.version.outputs.version }}
-          jprm plugin build . --version=${{ steps.version.outputs.version }}.0 --output=./artifacts
-          ZIPS=$(ls artifacts/*.zip)
-          if [ "$(echo "$ZIPS" | wc -l)" != 1 ]; then
-            echo "::error::jprm is expected to build one zip, found: $ZIPS"
-            exit 1
-          fi
-          sha256sum "$ZIPS"
-          echo "sha256=$(sha256sum "$ZIPS" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+          node ci/plugin-package.mjs build ${{ steps.version.outputs.version }} > archive.txt
+          cat archive.txt
+          cat archive.txt >> "$GITHUB_OUTPUT"
+          sha256sum artifacts/*.zip
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -255,8 +255,9 @@ jobs:
           name: plugin-zip
           path: plugin-zip
 
+      # The 10.11 line's archive (X.Y.Z.10); the Jellyfin 12 archive has no E2E leg yet.
       - name: Show the installed archive
-        run: sha256sum plugin-zip/*.zip
+        run: sha256sum plugin-zip/*.10.zip
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -286,7 +287,7 @@ jobs:
           fi
 
       - name: Start the Jellyfin bench
-        run: node e2e/setup.mjs up --image jellyfin/jellyfin:${{ matrix.jellyfin }} --plugin-zip "$(ls plugin-zip/*.zip)"
+        run: node e2e/setup.mjs up --image jellyfin/jellyfin:${{ matrix.jellyfin }} --plugin-zip "$(ls plugin-zip/*.10.zip)"
 
       - name: Run the browser tests
         run: npx playwright test -c e2e --project root --project mobile

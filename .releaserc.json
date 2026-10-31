@@ -47,7 +47,8 @@
       "@semantic-release/github",
       {
         "assets": [
-          { "path": "./artifacts/*.zip", "label": "JellyUX Homepage plugin" }
+          { "path": "./artifacts/*.10.zip", "label": "JellyUX Homepage for Jellyfin 10.11" },
+          { "path": "./artifacts/*.12.zip", "label": "JellyUX Homepage for Jellyfin 12" }
         ]
       }
     ],

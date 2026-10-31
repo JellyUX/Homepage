@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Called by semantic-release prepareCmd, before `jprm plugin build`. Patches the compiled assembly's
+Called by `node ci/plugin-package.mjs build`, before `jprm plugin build` of each Jellyfin line. Patches the compiled assembly's
 own AssemblyVersion/FileVersion/Version to match the release version.
 
 Without this, the .csproj's hardcoded "0.1.0.0" ships in every release's DLL regardless of the
@@ -13,7 +13,8 @@ changed, every release's JS/CSS was served from browser cache indefinitely (up t
 timing -- confirmed live on jellyux-test (TODO_V3.md Phase 7 manual testing) as the root cause of
 several "the fix isn't working" reports that were actually stale cached JS.
 
-Usage: python3 .github/scripts/set-plugin-version.py <semver>  (e.g. "2.5.3")
+Usage: python3 .github/scripts/set-plugin-version.py <version>  (e.g. "2.18.0.10": the release
+version and the Jellyfin line as 4th component, ci/jellyfin-lines.json versionSuffix)
 """
 import re
 import sys
@@ -23,10 +24,13 @@ CSPROJ_PATH = "src/Jellyfin.Plugin.JuxHomepage/Jellyfin.Plugin.JuxHomepage.cspro
 
 def main() -> None:
     if len(sys.argv) < 2:
-        print("Usage: set-plugin-version.py <semver>", file=sys.stderr)
+        print("Usage: set-plugin-version.py <version>", file=sys.stderr)
         sys.exit(1)
 
-    version_4parts = f"{sys.argv[1]}.0"  # e.g. "2.5.3.0"
+    version_4parts = sys.argv[1]  # e.g. "2.18.0.10"
+    if not re.fullmatch(r"\d+\.\d+\.\d+\.\d+", version_4parts):
+        print(f"ERROR: expected a 4-part version, got {version_4parts}", file=sys.stderr)
+        sys.exit(1)
 
     with open(CSPROJ_PATH, encoding="utf-8") as f:
         content = f.read()

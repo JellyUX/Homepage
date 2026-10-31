@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """
 Called by semantic-release prepareCmd after @semantic-release/changelog updates CHANGELOG.md.
-Runs jprm repo add, then injects the release notes into manifest.json.
-Usage: python3 .github/scripts/update-manifest.py <semver>  (e.g. "0.2.0")
+Runs jprm repo add for the archive of each Jellyfin line (jellyux-homepage_<semver>.<line>.zip,
+ci/plugin-package.mjs build), then injects the release notes into each of their manifest.json entries.
+jprm keeps both entries: their versions differ by the 4th component (D-02).
+Usage: python3 .github/scripts/update-manifest.py <semver>  (e.g. "2.18.0")
 """
 import json
 import os
@@ -24,12 +26,16 @@ def get_repo_https_url() -> str:
     return url
 
 
-def find_zip(artifacts_dir: str) -> str:
-    zips = sorted(f for f in os.listdir(artifacts_dir) if f.endswith(".zip"))
+def find_zips(artifacts_dir: str, version: str) -> list[str]:
+    zips = sorted(f for f in os.listdir(artifacts_dir) if re.fullmatch(rf"[\w-]+_{re.escape(version)}\.\d+\.zip", f))
     if not zips:
-        print(f"ERROR: no zip found in {artifacts_dir}/", file=sys.stderr)
+        print(f"ERROR: no {version}.<line> zip found in {artifacts_dir}/", file=sys.stderr)
         sys.exit(1)
-    return zips[-1]
+    return zips
+
+
+def zip_version(filename: str) -> str:
+    return filename.rsplit("_", 1)[1][: -len(".zip")]
 
 
 def extract_changelog_section(version: str) -> str:
@@ -53,21 +59,21 @@ def main() -> None:
         print("Usage: update-manifest.py <semver>", file=sys.stderr)
         sys.exit(1)
 
-    version = sys.argv[1]           # e.g. "0.2.0"
-    tag = f"v{version}"             # e.g. "v0.2.0"
-    version_4parts = f"{version}.0" # e.g. "0.2.0.0"
+    version = sys.argv[1]           # e.g. "2.18.0"
+    tag = f"v{version}"             # e.g. "v2.18.0"
     artifacts_dir = "./artifacts"
 
-    filename = find_zip(artifacts_dir)
+    filenames = find_zips(artifacts_dir, version)
+    versions_4parts = {zip_version(f) for f in filenames}  # e.g. {"2.18.0.10", "2.18.0.12"}
     repo_url = get_repo_https_url()
-    plugin_url = f"{repo_url}/releases/download/{tag}/{filename}"
-
-    subprocess.run(
-        ["jprm", "repo", "add",
-         f"--plugin-url={plugin_url}",
-         "./", f"{artifacts_dir}/{filename}"],
-        check=True,
-    )
+    for filename in filenames:
+        plugin_url = f"{repo_url}/releases/download/{tag}/{filename}"
+        subprocess.run(
+            ["jprm", "repo", "add",
+             f"--plugin-url={plugin_url}",
+             "./", f"{artifacts_dir}/{filename}"],
+            check=True,
+        )
 
     release_notes = extract_changelog_section(version)
     if not release_notes:
@@ -76,23 +82,24 @@ def main() -> None:
     with open("manifest.json", encoding="utf-8") as f:
         manifest = json.load(f)
 
-    patched = False
+    patched = set()
     for plugin in manifest:
         for v in plugin.get("versions", []):
-            if v["version"] == version_4parts:
+            if v["version"] in versions_4parts:
                 v["changelog"] = release_notes
-                patched = True
-                break
+                patched.add(v["version"])
 
-    if not patched:
-        print(f"WARNING: {version_4parts} not found in manifest.json", file=sys.stderr)
+    for missing in sorted(versions_4parts - patched):
+        print(f"ERROR: {missing} not found in manifest.json", file=sys.stderr)
+    if patched != versions_4parts:
+        sys.exit(1)
 
     with open("manifest.json", "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=4, ensure_ascii=False)
         f.write("\n")
 
     chars = len(release_notes)
-    print(f"manifest.json updated: {version_4parts}, changelog {chars} chars")
+    print(f"manifest.json updated: {', '.join(sorted(versions_4parts))}, changelog {chars} chars")
 
 
 if __name__ == "__main__":

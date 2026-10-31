@@ -206,7 +206,9 @@ Each change goes through these steps, in order:
    A..B` replays another range). A push runs the CI only: when its commits call for a release
    (`feat:`, `fix:`, `perf:`, a revert or a breaking change: `.releaserc.json` and the commit analyzer
    defaults), the `release` job waits for an approval of the `release` environment, given once the
-   bench run passed, then publishes the jprm archive the E2E installed (`ci/plugin-package.mjs`). Approve
+   bench run passed, then publishes the two jprm archives the CI built and tested, one per Jellyfin line of
+   `ci/jellyfin-lines.json`: `X.Y.Z.10` (10.11, the one the E2E installs) and `X.Y.Z.12` (Jellyfin 12), same
+   semver, one manifest entry each (`ci/plugin-package.mjs`). Approve
    the newest run: an older one publishes nothing (semantic-release skips a commit behind `main`), its
    commits ship with the newer run. After a release,
    `git pull --rebase` the `chore(release)` commit before the next push. Each commit of a push must
