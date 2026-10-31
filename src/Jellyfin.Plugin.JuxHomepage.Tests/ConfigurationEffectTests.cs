@@ -216,7 +216,7 @@ public sealed class ConfigurationEffectTests
             var declaring = new[] { "Configuration/PluginConfiguration.cs", "Configuration/CacheConfig.cs", "Configuration/ModulesConfig.cs", "Widgets/Core/WidgetConfig.cs", "Configuration/UserConfiguration.cs" };
 
             var readers = files.Where(f => !f.Path.StartsWith("Configuration/", StringComparison.Ordinal)
-                && f.Path != "Plugin.cs" && f.Path != "Web/config.js" && !declaring.Contains(f.Path));
+                && f.Path != "Plugin.cs" && !IsAdminPageScript(f.Path) && !declaring.Contains(f.Path));
             var writers = files.Where(f => f.Path != "Plugin.cs" && !declaring.Contains(f.Path));
 
             var testsDir = Path.Combine(root, "src", "Jellyfin.Plugin.JuxHomepage.Tests");
@@ -254,6 +254,10 @@ public sealed class ConfigurationEffectTests
             var dataset = Regex.Replace(attribute["data-".Length..], "-([a-z])", m => m.Groups[1].Value.ToUpperInvariant());
             return Regex.IsMatch(code, $@"\[{Regex.Escape(attribute)}\b|(?:get|has)Attribute\('{Regex.Escape(attribute)}'\)|dataset\.{dataset}\b(?!\s*=(?!=))");
         }
+
+        // The admin page (config.js and its config-*.js modules) shows and saves every setting: it is not a reader.
+        private static bool IsAdminPageScript(string path) =>
+            Regex.IsMatch(path, @"^Web/config(-[a-z]+)?\.js$");
 
         private static string DatasetAttribute(string key) => "data-" + Regex.Replace(key, "[A-Z]", m => "-" + m.Value.ToLowerInvariant());
 

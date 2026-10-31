@@ -225,6 +225,7 @@ public sealed class JuxHomepageControllerTests
     [InlineData(SpliceFragment)]
     [InlineData("config.html")]
     [InlineData("config.js")]
+    [InlineData("config-editors.js")]
     [InlineData("config.css")]
     [InlineData("jux-native-selectors.json")]
     [InlineData("en.json")]

@@ -97,17 +97,18 @@ function scriptTokens() {
 }
 
 /**
- * Native tokens of the admin page (config.js, config.html, config.css), which styles itself with the
+ * Native tokens of the admin page (config.js and its config-*.js modules, config.html, config.css), which styles itself with the
  * dashboard's own classes (annex A "Inventaire natif"). The ids and attributes the page writes itself
  * (id="...", data-i18n, role) are its own, not Jellyfin's.
  */
 export function adminPageTokens() {
     const read = (file) => readFileSync(path.join(WEB_DIR, file), 'utf8');
-    const markup = read('config.html') + read('config.js');
+    const scripts = readdirSync(WEB_DIR).filter((f) => /^config.*\.js$/.test(f)).map(read).join('\n');
+    const markup = read('config.html') + scripts;
     const ownIds = new Set([...markup.matchAll(/\bid="([\w-]+)/g)].map((m) => `id:${m[1]}`));
     const ownAttributes = new Set([...markup.matchAll(/\s([a-z][\w-]*)="/g)].map((m) => `attribute:${m[1]}`));
     const tokens = new Set([
-        ...extractNativeTokens(read('config.js')),
+        ...extractNativeTokens(scripts),
         ...extractNativeTokens(read('config.html')),
         ...extractCssNativeClasses(read('config.css'))
     ]);

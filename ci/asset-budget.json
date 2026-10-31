@@ -18,9 +18,10 @@
         "jux-series-flatten.js": 2827,
         "jux-collections.js": 4330,
         "jux-breadcrumb.js": 4103,
+        "config-editors.js": 5013,
         "config.css": 2895,
         "config.html": 3035,
-        "config.js": 26459,
+        "config.js": 22329,
         "jux-loadsections-inject.js": 964
     }
 }

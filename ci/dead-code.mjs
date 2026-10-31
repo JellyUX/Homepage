@@ -250,7 +250,7 @@ export function jsUnused(scripts, production, parse) {
                     (Array.isArray(value) ? value : [value]).forEach(walk);
                 }
             }
-        })(parse(code, !file.endsWith('config.js')).program);
+        })(parse(code, !/(^|\/)config(-[a-z]+)?\.js$/.test(file)).program);
         for (const [name, line] of names) {
             const exportEntries = (code.match(new RegExp(`\\b${escape(name)}\\s*:\\s*${escape(name)}\\b`, 'g')) ?? []).length;
             if (wordCount(name, production) - 1 - exportEntries * 2 <= 0) {

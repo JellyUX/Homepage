@@ -93,6 +93,13 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
     /// </summary>
     internal const string ConfigStylesheetPageName = "juxhomepageconfigcss";
 
+    /// <summary>
+    /// The modules of the configuration page, <c>Web/config-{part}.js</c>, each served as the plugin page
+    /// <c>juxhomepageconfig{part}js</c> that config.js imports as <c>./configurationpage?name=...</c>: like
+    /// config.js, without cache headers, so a module never lags behind the page after an update (DR-019).
+    /// </summary>
+    internal static readonly string[] ConfigModuleParts = ["editors"];
+
     /// <inheritdoc/>
     public override Guid Id => Guid.Parse("3adf1f1f-1541-4e47-b9e3-34d2d2968af6");
 
@@ -118,6 +125,15 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
             Name = ConfigControllerPageName,
             EmbeddedResourcePath = $"{GetType().Namespace}.Web.config.js"
         };
+
+        foreach (var part in ConfigModuleParts)
+        {
+            yield return new PluginPageInfo
+            {
+                Name = $"juxhomepageconfig{part}js",
+                EmbeddedResourcePath = $"{GetType().Namespace}.Web.config-{part}.js"
+            };
+        }
 
         yield return new PluginPageInfo
         {
