@@ -25,7 +25,8 @@ A modular home screen engine for Jellyfin that replaces the default home page wi
   part: `X.Y.Z.10` for 10.11 (.NET 9), `X.Y.Z.12` for Jellyfin 12 (.NET 10). The catalog offers each
   server the build made for it. A copy installed by hand on an older server, or a 10.11 build on a
   Jellyfin 12 server, does not work: Jellyfin marks the first *NotSupported* and may delete it at the
-  next restart; the second leaves every section empty and adds an entry to the dashboard activity log.
+  next restart; the second leaves the JellyUX sections empty, and the dashboard activity log names each
+  section that failed for this reason once JellyUX has tried to read it.
 - **Jellyfin 12, current limit**: the JellyUX home sections and tabs do not show yet; the home page stays
   the native one until the client part is ported to the Jellyfin 12 web client.
 - **[File Transformation plugin](https://github.com/IAmParadox27/jellyfin-plugin-file-transformation)** 3.0 or later, the build for your Jellyfin version (required - JellyUX uses it to inject its scripts into the Jellyfin web client; from 3.0 the transformed `index.html` is revalidated on every load, so a change to the module switches applies at the next page reload)
