@@ -283,8 +283,9 @@ describe('configuration page controller (F-33)', () => {
         createController(view);
         view.dispatchEvent(new Event('viewshow'));
         await settle();
+        view.dispatchEvent(new Event('viewbeforehide'));
         view.classList.add('hide');
-        const second = document.adoptNode(new DOMParser().parseFromString(CONFIG_HTML, 'text/html').getElementById('juxHomepageConfigPage'));
+        const second =document.adoptNode(new DOMParser().parseFromString(CONFIG_HTML, 'text/html').getElementById('juxHomepageConfigPage'));
         document.body.appendChild(second);
         try {
             createController(second);
@@ -297,6 +298,19 @@ describe('configuration page controller (F-33)', () => {
             expect(lists(second).length).toBeGreaterThan(0);
             expect(lists(second).filter((id) => lists(view).includes(id))).toEqual([]);
             lists(second).forEach((id) => expect(second.querySelector('datalist[id="' + id + '"]')).not.toBeNull());
+            // Every id the browser resolves in the whole document (for=, aria-controls, aria-labelledby) names
+            // an element of the view on screen, never one of the hidden view.
+            const refs = [...second.querySelectorAll('[for], [aria-controls], [aria-labelledby]')]
+                .flatMap((el) => ['for', 'aria-controls', 'aria-labelledby'].map((a) => el.getAttribute(a)).filter(Boolean));
+            expect(refs.length).toBeGreaterThan(10);
+            refs.forEach((id) => expect(second.contains(document.getElementById(id)), id).toBe(true));
+
+            // Shown again, the first view takes its ids back.
+            second.dispatchEvent(new Event('viewbeforehide'));
+            view.classList.remove('hide');
+            view.dispatchEvent(new Event('viewshow'));
+            await settle();
+            expect(view.contains(document.getElementById('numSessionTtl'))).toBe(true);
         } finally {
             second.dispatchEvent(new Event('viewbeforehide'));
             second.remove();

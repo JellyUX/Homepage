@@ -89,8 +89,21 @@ var configPageCount = 0;
 function createConfigPage(view) {
     // The element of this page's own view: jellyfin-web keeps an earlier view of the same page hidden in the
     // document when the admin page opens under a second URL (A-13), with the same element ids.
+    // While the view is hidden its ids are parked (parkIds), and still found here.
     function byId(id) {
-        return view.querySelector('[id="' + id + '"]');
+        return view.querySelector('[id="' + id + '"], [data-jux-parked-id="' + id + '"]');
+    }
+
+    // A hidden view moves its element ids to data-jux-parked-id and takes them back when shown again: only
+    // the view on screen holds the ids the browser resolves in the whole document (for=, aria-controls,
+    // aria-labelledby, list=), so they name its own elements (A-13). The page element keeps its id.
+    function parkIds(park) {
+        var from = park ? 'id' : 'data-jux-parked-id';
+        var to = park ? 'data-jux-parked-id' : 'id';
+        view.querySelectorAll('[' + from + ']').forEach(function (el) {
+            el.setAttribute(to, el.getAttribute(from));
+            el.removeAttribute(from);
+        });
     }
 
     return Object.assign({
@@ -98,6 +111,7 @@ function createConfigPage(view) {
         _submitBound: false,
         // Tells this page's datalists apart from those of a hidden earlier view of the page (A-13).
         _listKey: String(++configPageCount),
+        parkIds: parkIds,
         // Cache of available values per widgetType, loaded on demand.
         _valuesCache: {},
         // Widget rows the admin unfolded; every other row shows as a one-line summary. Rows are
@@ -380,7 +394,7 @@ function createConfigPage(view) {
             if (!self._baseline) { return []; }
             var changed = changedTabs(self._baseline, tabSnapshot(self.formConfig(self._loaded, readRows)));
             ADMIN_TABS.forEach(function (tab) {
-                view.querySelector('#juxTab_' + tab + ' .jux-admin-tab-dirty').hidden = changed.indexOf(tab) === -1;
+                byId('juxTab_' + tab).querySelector('.jux-admin-tab-dirty').hidden = changed.indexOf(tab) === -1;
             });
             byId('juxUnsaved').hidden = !changed.length;
             self._changedTabs = changed;
@@ -444,7 +458,7 @@ function createConfigPage(view) {
                 var position = Array.prototype.indexOf.call(card.querySelectorAll('input, select, textarea'), field);
                 this._expandedRows.add(this.state.sortedWidgets[index]);
                 this.renderWidgets();
-                card = view.querySelector('#juxWidgetList .jux-admin-widget-card[data-index="' + index + '"]');
+                card = byId('juxWidgetList').querySelector('.jux-admin-widget-card[data-index="' + index + '"]');
                 field = (field.id && byId(field.id)) ||
                     card.querySelectorAll('input, select, textarea')[position];
             }
@@ -590,7 +604,7 @@ function createConfigPage(view) {
                 if (!self.isSeasonal(w.WidgetType)) { return; }
                 var startVal = self.getExtraParam(w, 'startDate');
                 var endVal = self.getExtraParam(w, 'endDate');
-                var errEl = list ? list.querySelector('#seasonalDateError_' + i) : null;
+                var errEl = list ? byId('seasonalDateError_' + i) : null;
                 var valid = seasonalDatePattern.test(startVal) && seasonalDatePattern.test(endVal);
                 if (errEl) { errEl.style.display = valid ? 'none' : ''; }
             });
@@ -694,9 +708,11 @@ function createConfigPage(view) {
 export default function (view) {
     var page = createConfigPage(view);
     view.addEventListener('viewshow', function () {
+        page.parkIds(false);
         page.init();
     });
     view.addEventListener('viewbeforehide', function () {
         page.leave();
+        page.parkIds(true);
     });
 }

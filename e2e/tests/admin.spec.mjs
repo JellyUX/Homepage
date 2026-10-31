@@ -158,6 +158,14 @@ test('A-13: a second URL of the admin page fills and saves its own view', async 
         const pageRoot = page.locator('#juxHomepageConfigPage:visible');
         await expect(pageRoot).toHaveCount(1);
         await expect(pageRoot.locator('.jux-admin-widget-card')).toHaveCount(saved.Widgets.length);
+        // The ids the browser resolves in the whole document name the view on screen: its labels, tabs and
+        // panels are tied to its own fields.
+        expect(await page.evaluate(() => {
+            const root = [...document.querySelectorAll('#juxHomepageConfigPage')].find((v) => v.offsetParent !== null);
+            return [...root.querySelectorAll('[for], [aria-controls], [aria-labelledby]')]
+                .flatMap((el) => ['for', 'aria-controls', 'aria-labelledby'].map((a) => el.getAttribute(a)).filter(Boolean))
+                .filter((id) => !root.contains(document.getElementById(id)));
+        })).toEqual([]);
 
         // Turn the first section off in the view on screen and save from it.
         await pageRoot.locator('#juxTab_sections').click();
