@@ -221,8 +221,32 @@
     var _observer = null;
     var _pending = false;
 
+    // A user who turns JellyUX off keeps the Modern header for the whole session: the entries and the panes
+    // JellyUX added go, and the native pane of the address comes back (R11).
+    function _removeAll() {
+        Array.prototype.forEach.call(document.querySelectorAll('.jux-modern-tab'), function (link) {
+            var item = link.closest('li');
+            (item && item.querySelector('.jux-modern-tab') === link ? item : link).remove();
+        });
+        var list = _drawerList();
+        if (list) {
+            list.classList.remove('jux-modern-tab-open');
+        }
+        var panes = document.querySelectorAll('[data-jux-client]');
+        var view = panes.length > 0 ? panes[0].parentNode : null;
+        if (view) {
+            _showPane(view, null);
+        }
+        Array.prototype.forEach.call(panes, function (pane) { pane.remove(); });
+        _shown = { index: null, pane: null };
+    }
+
     function sync() {
-        if (!isModern() || !window.JuxCore || window.JuxCore.isOffForUser()) {
+        if (!isModern() || !window.JuxCore) {
+            return;
+        }
+        if (window.JuxCore.isOffForUser()) {
+            _removeAll();
             return;
         }
         var bar = _bar();

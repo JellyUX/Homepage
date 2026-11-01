@@ -106,6 +106,26 @@ describe('header entries', () => {
     });
 });
 
+// R11: the Modern header lives through the whole session, so the entries a user who turns JellyUX off
+// was given must go, with the panes, and the native pane of the address comes back.
+describe('JellyUX turned off for the user', () => {
+    it('takes back the entries and the panes it added, and gives the native home back', () => {
+        renderModern({ drawer: true });
+        window.location.hash = '#/home?tab=3';
+        modern().sync();
+        expect(entries()).toHaveLength(6);
+
+        vi.spyOn(window.JuxCore, 'isOffForUser').mockReturnValue(true);
+        window.location.hash = '#/home';
+        modern().sync();
+
+        expect(document.querySelectorAll('.jux-modern-tab, [data-jux-tab], [data-jux-client]')).toHaveLength(0);
+        expect([...document.querySelector('ul.MuiList-root').children].map((li) => li.textContent)).toEqual(['Home', 'Favorites']);
+        expect(document.querySelector('ul.MuiList-root').classList.contains('jux-modern-tab-open')).toBe(false);
+        expect(active()).toEqual(['homeTab']);
+    });
+});
+
 describe('panes', () => {
     it('creates the three panes after #favoritesTab, marked as made by the client', () => {
         renderModern();
