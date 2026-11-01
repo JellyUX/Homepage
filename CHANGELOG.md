@@ -1,3 +1,15 @@
+## [2.17.5](https://github.com/JellyUX/Homepage/compare/v2.17.4...v2.17.5) (2026-11-01)
+
+### Bug Fixes
+
+* **admin:** warn of the deletion of a disabled plugin only on Jellyfin 10.11 ([2b8b5ae](https://github.com/JellyUX/Homepage/commit/2b8b5ae90223267bbc08b71533662f7d27b71058)), closes [jellyfin/jellyfin#17521](https://github.com/jellyfin/jellyfin/issues/17521)
+* **collections:** leave Included In to the native collections section of Jellyfin 12 ([956ad76](https://github.com/JellyUX/Homepage/commit/956ad767e8cedda8189def3c337725a96ce335d2)), closes [#collectionsCollapsible](https://github.com/JellyUX/Homepage/issues/collectionsCollapsible)
+* **collections:** place Included In in the secondary container when detailPageContent is gone ([d1a2151](https://github.com/JellyUX/Homepage/commit/d1a215152f3b8f0b9816eb211d265b36a1789355))
+* **home:** expect the JellyUX tab panes only on a page that loaded the home-html chunk ([c46d66d](https://github.com/JellyUX/Homepage/commit/c46d66d2c5424dcc262bc75d7605cc2512ab9214))
+* **home:** see the home-html chunk even when the resource timing buffer is full ([b6757a4](https://github.com/JellyUX/Homepage/commit/b6757a4876d9226d7307a310ecc62f06fb7235d8))
+* **inject:** read cardBuilder through the access the Jellyfin 12 home chunk uses ([69da0b1](https://github.com/JellyUX/Homepage/commit/69da0b1e73b7d218b2949448d24fd71323043a80))
+* **inject:** splice the cardBuilder access only when the module proves it ([77cad9a](https://github.com/JellyUX/Homepage/commit/77cad9aaf5df2b37d15c712faf9408fb2aebd47e))
+
 ## [2.17.4](https://github.com/JellyUX/Homepage/compare/v2.17.3...v2.17.4) (2026-10-31)
 
 ### Bug Fixes
