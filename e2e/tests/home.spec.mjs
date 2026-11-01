@@ -203,6 +203,17 @@ test('the History tab reads the series progress only when its Series sub-tab ope
     await expect(page).toHaveURL(/[?&]sub=series/);
 });
 
+test('an old link to the Statistics tab (tab 5) opens Statistics (FEAT-03.b)', async ({ page }) => {
+    test.skip(JELLYFIN_12, NO_MODERN_TABS);
+    await login(page, env.admin);
+    await page.locator('#jux-tabbtn-statistics').waitFor();
+
+    await page.evaluate(() => { location.hash = '#/home?tab=5'; });
+
+    await expect(page).toHaveURL(/#\/home\?tab=4$/);
+    await expect(page.locator('#jux-tab-statistics .jux-stat-card').first()).toBeVisible();
+});
+
 test('the JellyUX tabs arrive with the native ones and the tab bar stays still (F-42)', async ({ page }) => {
     test.skip(JELLYFIN_12, NO_MODERN_TABS);
     await login(page, env.admin);

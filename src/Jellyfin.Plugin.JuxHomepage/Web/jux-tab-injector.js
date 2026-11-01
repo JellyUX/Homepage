@@ -25,7 +25,22 @@ if (typeof window.juxTabInjector === 'undefined') {
         ],
 
         init: function () {
+            var target = this.retiredTabTarget(window.location.hash);
+            if (target) {
+                window.location.replace(target);
+                return;
+            }
             this.waitForUI();
+        },
+
+        // FEAT-03.b: Progress became a sub-tab of History, so Statistics moved from tab 5 to tab 4. The
+        // address of an old link to tab 5, or null when the address names a live tab (3 and 4 still do,
+        // so they are kept).
+        retiredTabTarget: function (hash) {
+            if (!/^#\/home(\.html)?\?/.test(hash || '') || !/[?&]tab=5(&|$)/.test(hash)) {
+                return null;
+            }
+            return hash.replace(/([?&])tab=5(?=&|$)/, '$1tab=4');
         },
 
         // One poller at a time, every 200 ms for at most 10 s (Annexe.a: init runs at load and on every

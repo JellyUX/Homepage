@@ -244,6 +244,31 @@ describe('waitForUI', () => {
     });
 });
 
+// FEAT-03.b: Progress became a sub-tab of History, so Statistics moved from tab 5 to tab 4. An old link
+// to tab 5 opens Statistics; tab 3 and 4 already name a live tab (History, Statistics).
+describe('retired tab address', () => {
+    it.each([
+        ['#/home?tab=5', '#/home?tab=4'],
+        ['#/home.html?tab=5', '#/home.html?tab=4'],
+        ['#/home?serverId=s&tab=5&x=1', '#/home?serverId=s&tab=4&x=1']
+    ])('sends %s to %s', (hash, expected) => {
+        expect(injector().retiredTabTarget(hash)).toBe(expected);
+    });
+
+    it.each(['#/home', '#/home?tab=3', '#/home?tab=4', '#/home?tab=50', '#/movies?tab=5'])('leaves %s alone', (hash) => {
+        expect(injector().retiredTabTarget(hash)).toBeNull();
+    });
+
+    it('replaces the address of an old Statistics link when the home page opens', () => {
+        window.location.hash = '#/home?tab=5';
+        renderHomePage();
+
+        injector().init();
+
+        expect(window.location.hash).toBe('#/home?tab=4');
+    });
+});
+
 describe('navigation re-arming', () => {
     it('re-injects into the tab bar rebuilt for a new view, as soon as the view is shown (F-42)', () => {
         renderHomePage();
