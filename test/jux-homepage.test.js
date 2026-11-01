@@ -304,6 +304,9 @@ function fakeWindow({ storage = new Map(), noStorage = false, resources = [], pa
     };
 }
 
+// The resource entry of the Legacy home template; the Modern home of Jellyfin 12 never loads it (D-13).
+const LEGACY_HOME = [{ name: 'http://h/web/home-html.abc.chunk.js', transferSize: 1800 }];
+
 function renderHomeView({ sections = 0, juxPanes = true } = {}) {
     const items = '<div class="verticalSection"></div>'.repeat(sections);
     document.body.innerHTML = '<div class="page homePage" id="indexPage">'
@@ -345,7 +348,14 @@ describe('_chunkState', () => {
     it('is stale when the Tabs module is on and the home view has no JellyUX pane', () => {
         renderHomeView({ juxPanes: false });
 
-        expect(_chunkState(fakeWindow({ patched: true, tabs: true }), document)).toBe('stale');
+        expect(_chunkState(fakeWindow({ patched: true, tabs: true, resources: LEGACY_HOME }), document)).toBe('stale');
+    });
+
+    it('expects no JellyUX pane when the page never loaded the home-html chunk (Jellyfin 12 Modern, D-13)', () => {
+        renderHomeView({ sections: 3, juxPanes: false });
+        const resources = [{ name: 'http://h/web/hometab.abc.chunk.js', transferSize: 900 }];
+
+        expect(_chunkState(fakeWindow({ patched: true, tabs: true, resources }), document)).toBe('ok');
     });
 
     it('ignores the missing JellyUX panes when the Tabs module is off', () => {
@@ -484,7 +494,7 @@ describe('_armChunkGuard', () => {
     });
 
     it('does not reload for missing JellyUX tabs when the server has no tab anchor (FIAB-04)', async () => {
-        const win = fakeWindow({ patched: true, tabs: true, server: { LoadSections: 'Patched', TabsAnchor: false } });
+        const win = fakeWindow({ patched: true, tabs: true, resources: LEGACY_HOME, server: { LoadSections: 'Patched', TabsAnchor: false } });
         renderHomeView({ sections: 2, juxPanes: false });
 
         _armChunkGuard(win, document);
@@ -519,6 +529,29 @@ describe('_armChunkGuard', () => {
         expect(document.getElementById('jux-chunk-notice')).toBeNull();
         expect(errorSpy).toHaveBeenCalled();
         errorSpy.mockRestore();
+    });
+
+    it('Modern home (no home-html chunk) neither reloads nor blames a cache (D-13)', async () => {
+        const resources = [{ name: 'http://h/web/home.abc.chunk.js', transferSize: 0 }, { name: 'http://h/web/hometab.abc.chunk.js', transferSize: 0 }];
+        const win = fakeWindow({ patched: true, tabs: true, resources });
+        renderHomeView({ sections: 2, juxPanes: false });
+
+        _armChunkGuard(win, document);
+        await vi.advanceTimersByTimeAsync(5000);
+
+        expect(win.location.reload).not.toHaveBeenCalled();
+        expect(win.ApiClient.getJSON).not.toHaveBeenCalled();
+        expect(document.getElementById('jux-chunk-notice')).toBeNull();
+    });
+
+    it('Legacy home without panes still reloads once (D-13)', async () => {
+        const win = fakeWindow({ patched: true, tabs: true, resources: LEGACY_HOME });
+        renderHomeView({ sections: 2, juxPanes: false });
+
+        _armChunkGuard(win, document);
+        await vi.advanceTimersByTimeAsync(5000);
+
+        expect(win.location.reload).toHaveBeenCalledTimes(1);
     });
 
     it('waits for the home page, then stops after its first decision', async () => {

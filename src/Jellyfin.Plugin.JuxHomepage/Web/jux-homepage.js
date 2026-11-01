@@ -639,7 +639,7 @@
             return null;
         }
 
-        if (win.juxTabInjector && !doc.getElementById('jux-tab-watchlist')) {
+        if (_tabsMissing(win, doc)) {
             return 'stale';
         }
 
@@ -651,6 +651,22 @@
         return sections && sections.children.length > 0 ? 'stale' : null;
     }
 
+    function _resourceEntries(win) {
+        return win.performance && win.performance.getEntriesByType
+            ? win.performance.getEntriesByType('resource')
+            : [];
+    }
+
+    // The JellyUX panes are owed only by a page that loaded the home-html template: the Modern home of
+    // Jellyfin 12 never asks for it, so its missing panes say nothing of a cache (D-13). With no entry
+    // (resource buffer full) nothing is concluded about the tabs.
+    function _tabsMissing(win, doc) {
+        if (!win.juxTabInjector || doc.getElementById('jux-tab-watchlist')) {
+            return false;
+        }
+        return _resourceEntries(win).some(function (entry) { return /\/home-html\.[^/?]+\.chunk\.js(\?|$)/.test(entry.name); });
+    }
+
     function _readSession(win, key) {
         try {
             return win.sessionStorage.getItem(key);
@@ -660,10 +676,7 @@
     }
 
     function _cachedChunkUrls(win) {
-        var entries = win.performance && win.performance.getEntriesByType
-            ? win.performance.getEntriesByType('resource')
-            : [];
-        return entries
+        return _resourceEntries(win)
             .filter(function (entry) { return /\.chunk\.js(\?|$)/.test(entry.name) && entry.transferSize === 0; })
             .map(function (entry) { return entry.name; });
     }
@@ -740,7 +753,7 @@
     // Returns what was done: 'drift' (the server did not patch what is missing, message shown),
     // 'unknown' (no answer, nothing done) or the outcome of _repairStaleChunks.
     function _handleStaleChunks(win, doc) {
-        var tabsMissing = !!win.juxTabInjector && !doc.getElementById('jux-tab-watchlist');
+        var tabsMissing = _tabsMissing(win, doc);
         return _serverPatchStatus(win).then(function (status) {
             // Unknown: the server could not read the chunk, which says nothing of a Jellyfin Web change.
             var unchecked = tabsMissing ? status && status.TabsAnchor == null : status && status.LoadSections === 'Unknown';
