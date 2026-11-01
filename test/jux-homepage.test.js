@@ -358,6 +358,24 @@ describe('_chunkState', () => {
         expect(_chunkState(fakeWindow({ patched: true, tabs: true, resources }), document)).toBe('ok');
     });
 
+    // D-13.c: jux-tab-modern.js creates the panes on the client (data-jux-client); a page that loaded the
+    // home-html template owes the panes the server splices, so a client pane proves no patch.
+    it('is stale when a home-html page holds only panes made by the client', () => {
+        renderHomeView({ juxPanes: false });
+        document.getElementById('favoritesTab').insertAdjacentHTML('afterend',
+            '<div class="tabContent" id="jux-tab-watchlist" data-jux-client></div>');
+
+        expect(_chunkState(fakeWindow({ patched: true, tabs: true, resources: LEGACY_HOME }), document)).toBe('stale');
+    });
+
+    it('accepts the panes made by the client on the Modern home (no home-html chunk, D-13.c)', () => {
+        renderHomeView({ sections: 3, juxPanes: false });
+        document.getElementById('favoritesTab').insertAdjacentHTML('afterend',
+            '<div class="tabContent" id="jux-tab-watchlist" data-jux-client></div>');
+
+        expect(_chunkState(fakeWindow({ patched: true, tabs: true }), document)).toBe('ok');
+    });
+
     it('ignores the missing JellyUX panes when the Tabs module is off', () => {
         renderHomeView({ sections: 3, juxPanes: false });
 

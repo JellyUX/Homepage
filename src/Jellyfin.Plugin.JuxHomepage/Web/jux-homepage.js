@@ -675,10 +675,10 @@
         }
     }
 
-    // The JellyUX panes are owed only by a page that loaded the home-html template: the Modern home of
-    // Jellyfin 12 never asks for it, so its missing panes say nothing of a cache (D-13).
+    // Only a page that loaded the home-html template owes the panes the server splices (the Modern home of
+    // Jellyfin 12 never does, D-13); a pane jux-tab-modern.js made (data-jux-client) proves no patch.
     function _tabsMissing(win, doc) {
-        if (!win.juxTabInjector || doc.getElementById('jux-tab-watchlist')) {
+        if (!win.juxTabInjector || doc.querySelector('#jux-tab-watchlist:not([data-jux-client])')) {
             return false;
         }
         return _homeHtmlSeen.get(win) === true || _resourceEntries(win).some(_isHomeHtml);
