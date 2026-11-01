@@ -725,6 +725,26 @@
     opacity: 0.5;
 }
 
+/* Jellyfin 12 Modern layout: the trail lies under the MUI header bar at every width (COMPAT-09). */
+.jux-breadcrumb.jux-breadcrumb-under {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    flex-wrap: nowrap;
+    overflow: hidden;
+    white-space: nowrap;
+    padding-top: 0.3em;
+    padding-bottom: 0.3em;
+    background: rgb(var(--jf-palette-common-backgroundChannel, 0 0 0) / 0.6);
+}
+
+.jux-breadcrumb-under .jux-breadcrumb-current {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 /* Narrow screens: the header buttons need the whole bar, the trail goes under it (A-10). */
 @media (max-width: 50em) {
     /* The native header's paint containment would clip the trail below it (class set by jux-breadcrumb.js

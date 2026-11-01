@@ -29,9 +29,9 @@ A modular home screen engine for Jellyfin that replaces the default home page wi
   section that failed for this reason once JellyUX has tried to read it.
 - **Jellyfin 12, current limits**: the JellyUX home sections show, and the detail page keeps the
   collections section Jellyfin 12 has of its own instead of adding the JellyUX one. The tabs (Watchlist,
-  History, Statistics) show in both layouts (see [Moving to Jellyfin 12](#moving-to-jellyfin-12)). Not
-  ported yet: the breadcrumb and the infinite scroll of the movie library do not work, and going back to
-  the home page loads its sections again.
+  History, Statistics) show in both layouts (see [Moving to Jellyfin 12](#moving-to-jellyfin-12)), and the
+  breadcrumb of a detail page lies under the top bar of the Modern layout. Not ported yet: the infinite
+  scroll of the movie library does not work, and going back to the home page loads its sections again.
 - **[File Transformation plugin](https://github.com/IAmParadox27/jellyfin-plugin-file-transformation)** 3.0 or later, the build for your Jellyfin version (required - JellyUX uses it to inject its scripts into the Jellyfin web client; from 3.0 the transformed `index.html` is revalidated on every load, so a change to the module switches applies at the next page reload)
 
 ---

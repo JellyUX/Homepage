@@ -290,6 +290,75 @@ describe('breadcrumb on a detail page reopened from the home page (FIAB-09)', ()
     });
 });
 
+// COMPAT-09: the Modern layout of Jellyfin 12 keeps .skinHeader in the document under a hidden parent;
+// its header is the MUI bar, and the trail goes there, under the bar.
+describe('breadcrumb in the Jellyfin 12 Modern layout (COMPAT-09)', () => {
+    const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+    const MODERN = '<header class="MuiAppBar-root"><div class="MuiToolbar-root"></div></header>' +
+        '<div style="display:none"><div class="skinHeader"><div class="headerLeft"></div></div></div>';
+
+    afterEach(() => {
+        location.hash = '';
+        delete window.ApiClient;
+        document.body.innerHTML = '';
+    });
+
+    function api() {
+        window.ApiClient = {
+            getCurrentUserId: () => 'u1',
+            getUrl: (path) => path,
+            getItem: vi.fn().mockResolvedValue({ Id: 'bc21', Name: 'Alder Creek', Type: 'Movie' }),
+            getAncestorItems: vi.fn().mockResolvedValue([{ Type: 'CollectionFolder', Id: 'lib1', Name: 'Movies' }]),
+            getJSON: vi.fn().mockResolvedValue([])
+        };
+    }
+
+    it('puts the trail under the MUI header bar, not in the hidden legacy header', async () => {
+        document.body.innerHTML = MODERN;
+        api();
+
+        location.hash = '#/details?id=bc21';
+        _tryRenderBreadcrumb();
+        await flush();
+        await flush();
+
+        const trail = document.querySelector('.jux-breadcrumb');
+        expect(trail.parentElement.tagName).toBe('HEADER');
+        expect(trail.classList.contains('jux-breadcrumb-under')).toBe(true);
+        expect(trail.classList.contains('padded-left') && trail.classList.contains('padded-right')).toBe(true);
+        expect(trail.style.display).toBe('');
+        expect(trail.textContent).toContain('Alder Creek');
+        expect(document.querySelector('.skinHeader .jux-breadcrumb')).toBeNull();
+    });
+
+    it('moves a trail made in the legacy header before the MUI bar was rendered', async () => {
+        document.body.innerHTML = '<div class="skinHeader"><div class="headerLeft"><nav class="jux-breadcrumb" style="display:none"></nav></div></div>';
+        api();
+        document.body.insertAdjacentHTML('afterbegin', '<header class="MuiAppBar-root"></header>');
+
+        location.hash = '#/details?id=bc21';
+        _tryRenderBreadcrumb();
+        await flush();
+        await flush();
+
+        expect(document.querySelectorAll('.jux-breadcrumb')).toHaveLength(1);
+        expect(document.querySelector('header .jux-breadcrumb.jux-breadcrumb-under')).not.toBeNull();
+    });
+
+    it('stays in the legacy header, without the under-bar class, when there is no MUI bar', async () => {
+        document.body.innerHTML = '<div class="skinHeader"><div class="headerLeft"></div></div>';
+        api();
+
+        location.hash = '#/details?id=bc21';
+        _tryRenderBreadcrumb();
+        await flush();
+
+        const trail = document.querySelector('.jux-breadcrumb');
+        expect(trail.parentElement.className).toBe('headerLeft');
+        expect(trail.className).toBe('jux-breadcrumb');
+    });
+});
+
 describe('breadcrumb for a user who turned JellyUX off (H-09)', () => {
     afterEach(() => {
         location.hash = '';

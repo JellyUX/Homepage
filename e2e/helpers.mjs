@@ -13,7 +13,6 @@ export const NO_MODERN_TABS = 'Jellyfin 12 Modern home: the JellyUX tabs are not
 export const ON_12 = {
     homeReturn: 'Jellyfin 12 Modern home: coming back to it renders the home sections again',
     library: 'Jellyfin 12 library page: no #moviesTab, the infinite scroll of the movie list is not hooked',
-    breadcrumb: 'Jellyfin 12 header: the JellyUX breadcrumb does not show',
     narrowButtons: 'Jellyfin 12 at 390 px with touch: no native scroll buttons on the JellyUX sections',
     narrowFallback: 'Jellyfin 12 at 390 px with touch: the last card of a featured fallback row is not reached'
 };

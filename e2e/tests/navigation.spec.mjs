@@ -1,6 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { env, JELLYFIN_12, ON_12, login, apiGet, trackJuxRequests, isPainted } from '../helpers.mjs';
 
+// The header buttons the trail must leave uncovered: the right side of the legacy header, and every
+// button and link of the toolbar of the Jellyfin 12 Modern MUI header (COMPAT-09; the trail is a child of
+// the header, not of its toolbar).
+const HEADER_BUTTONS = '.skinHeader .headerRight > *, header.MuiAppBar-root .MuiToolbar-root button, header.MuiAppBar-root .MuiToolbar-root a';
+
 async function go(page, hash) {
     await page.evaluate((h) => { location.hash = h; }, hash);
 }
@@ -24,7 +29,6 @@ test('a library shorter than one page stops querying once it is complete (FIAB-0
 });
 
 test('the breadcrumb shows again on a detail page reopened from the home page (FIAB-09)', async ({ page }) => {
-    test.skip(JELLYFIN_12, ON_12.breadcrumb);
     await login(page, env.admin);
     await page.locator('.jux-widget-section').first().waitFor();
     const movies = await apiGet(env.admin, `/Items?recursive=true&includeItemTypes=Movie&userId=${env.admin.id}`);
@@ -41,21 +45,20 @@ test('the breadcrumb shows again on a detail page reopened from the home page (F
 });
 
 test('the breadcrumb leaves the header buttons uncovered, at every width (A-10)', async ({ page }) => {
-    test.skip(JELLYFIN_12, ON_12.breadcrumb);
     await login(page, env.admin);
     await page.locator('.jux-widget-section').first().waitFor();
     const movies = await apiGet(env.admin, `/Items?recursive=true&includeItemTypes=Movie&userId=${env.admin.id}`);
     await go(page, `#/details?id=${movies.Items[0].Id}`);
     await expect(page.locator('.jux-breadcrumb')).toBeVisible();
 
-    const covered = await page.evaluate(() => {
+    const covered = await page.evaluate((buttons) => {
         const trail = document.querySelector('.jux-breadcrumb').getBoundingClientRect();
-        return [...document.querySelectorAll('.skinHeader .headerRight > *')]
+        return [...document.querySelectorAll(buttons)]
             .filter((button) => button.offsetParent !== null)
             .map((button) => ({ name: button.className, box: button.getBoundingClientRect() }))
             .filter(({ box }) => box.left < trail.right && trail.left < box.right && box.top < trail.bottom && trail.top < box.bottom)
             .map(({ name }) => name);
-    });
+    }, HEADER_BUTTONS);
     // Painted, not only laid out: the native header's paint containment once clipped it.
     expect({ painted: await isPainted(page.locator('.jux-breadcrumb')), covered }).toEqual({ painted: true, covered: [] });
 });
@@ -63,7 +66,6 @@ test('the breadcrumb leaves the header buttons uncovered, at every width (A-10)'
 // BKL-51: between 800 and 900 px the trail sits in the header bar beside its buttons; a very long title
 // must neither cover them nor be clipped. The item's answer is given a long name.
 test('the breadcrumb of a very long title leaves the header buttons uncovered at 820 px (BKL-51)', async ({ page }) => {
-    test.skip(JELLYFIN_12, ON_12.breadcrumb);
     await page.setViewportSize({ width: 820, height: 1000 });
     await login(page, env.admin);
     await page.locator('.jux-widget-section').first().waitFor();
@@ -78,14 +80,14 @@ test('the breadcrumb of a very long title leaves the header buttons uncovered at
     await go(page, `#/details?id=${id}`);
     await expect(page.locator('.jux-breadcrumb .jux-breadcrumb-current')).toContainText('Extraordinarily');
 
-    const covered = await page.evaluate(() => {
+    const covered = await page.evaluate((buttons) => {
         const trail = document.querySelector('.jux-breadcrumb').getBoundingClientRect();
-        return [...document.querySelectorAll('.skinHeader .headerRight > *')]
+        return [...document.querySelectorAll(buttons)]
             .filter((button) => button.offsetParent !== null)
             .map((button) => ({ name: button.className, box: button.getBoundingClientRect() }))
             .filter(({ box }) => box.left < trail.right && trail.left < box.right && box.top < trail.bottom && trail.top < box.bottom)
             .map(({ name }) => name);
-    });
+    }, HEADER_BUTTONS);
     expect({ painted: await isPainted(page.locator('.jux-breadcrumb')), covered }).toEqual({ painted: true, covered: [] });
     expect(await page.evaluate(() => window.scrollX)).toBe(0);
 });

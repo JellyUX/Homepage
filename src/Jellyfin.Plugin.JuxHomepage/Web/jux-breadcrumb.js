@@ -188,21 +188,34 @@
         });
     }
 
-    function _findOrCreateContainer() {
-        var existing = document.querySelector('.jux-breadcrumb');
-        if (existing) {
-            return existing;
-        }
+    // The header the trail lives in: the MUI bar of the Jellyfin 12 Modern layout, which keeps the
+    // legacy .skinHeader in the document under a hidden parent (COMPAT-09), else the legacy header.
+    function _host() {
+        return document.querySelector('header.MuiAppBar-root') || document.querySelector('.skinHeader .headerLeft');
+    }
 
-        var headerLeft = document.querySelector('.skinHeader .headerLeft');
-        if (!headerLeft) {
+    function _findOrCreateContainer() {
+        var host = _host();
+        if (!host) {
             return null;
         }
 
-        var nav = document.createElement('nav');
-        nav.className = 'jux-breadcrumb';
-        nav.style.display = 'none';
-        headerLeft.appendChild(nav);
+        var nav = document.querySelector('.jux-breadcrumb');
+        if (!nav) {
+            nav = document.createElement('nav');
+            nav.className = 'jux-breadcrumb';
+            nav.style.display = 'none';
+        }
+        // A trail made in the legacy header before the MUI bar was rendered moves there; under the MUI
+        // bar it lies below it at every width, as under the legacy header on a narrow screen (A-10).
+        if (nav.parentNode !== host) {
+            host.appendChild(nav);
+        }
+        // Under the MUI bar the trail takes the side padding of the bar and of the page (padded-left/right).
+        var underBar = host.tagName === 'HEADER';
+        nav.classList.toggle('jux-breadcrumb-under', underBar);
+        nav.classList.toggle('padded-left', underBar);
+        nav.classList.toggle('padded-right', underBar);
         return nav;
     }
 
