@@ -86,8 +86,8 @@ describe('_currentDetailItemId', () => {
 describe('detail page requests (F-09)', () => {
     const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
-    function setUpDetailPage(itemId, item, refs) {
-        document.body.innerHTML = '<div class="libraryPage"><div class="detailPageContent"></div></div>';
+    function setUpDetailPage(itemId, item, refs, content = '<div class="detailPageContent"></div>') {
+        document.body.innerHTML = '<div class="libraryPage">' + content + '</div>';
         location.hash = '#/details?id=' + itemId;
         // JellyUX is known to be on for the user, as after the first answer of a session.
         window.sessionStorage.setItem('jux-user-off:user1', '0');
@@ -206,6 +206,17 @@ describe('detail page requests (F-09)', () => {
         expect(document.querySelectorAll('.jux-collections-section')).toHaveLength(1);
         expect(document.querySelector('.libraryPage').dataset.juxCollectionsPending).toBeUndefined();
     });
+
+    it('places Included In in the secondary container when the page has neither More Like This nor detailPageContent (Jellyfin 12, COMPAT-02.c)', async () => {
+        setUpDetailPage('aa07', { Type: 'Movie' }, [{ CollectionId: 'boxset1' }], '<div class="detailPageSecondaryContainer"></div>');
+        window.JellyfinAPI = { cardBuilder: { getCardsHtml: () => '' }, getPortraitShape: () => 'portrait' };
+        _syncObserver();
+        await flush();
+        await flush();
+
+        expect(document.querySelector('.detailPageSecondaryContainer > .jux-collections-section')).not.toBeNull();
+    });
+
 });
 
 // BKL-39: a re-sort the server never answers fails after the request delay and keeps the cards shown.

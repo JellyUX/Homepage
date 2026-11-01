@@ -173,14 +173,14 @@
                 });
                 window.JuxCore.observeCardImages(itemsContainer);
 
+                // Before More Like This; without it, at the end of the page body: .detailPageContent on
+                // Jellyfin 10.11, gone from 12.3, where .detailPageSecondaryContainer holds the sections.
                 var similar = activePage.querySelector('#similarCollapsible');
+                var container = activePage.querySelector('.detailPageContent') || activePage.querySelector('.detailPageSecondaryContainer');
                 if (similar) {
                     similar.parentNode.insertBefore(section, similar);
-                } else {
-                    var detailPageContent = activePage.querySelector('.detailPageContent');
-                    if (detailPageContent) {
-                        detailPageContent.appendChild(section);
-                    }
+                } else if (container) {
+                    container.appendChild(section);
                 }
             });
         }).catch(function (err) {
