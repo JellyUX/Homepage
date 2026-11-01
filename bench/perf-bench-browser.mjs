@@ -347,7 +347,9 @@ export async function launch() {
 /**
  * A browser on a profile folder of its own, kept between launches: closing it and launching it again on the
  * same folder is a browser restarted with its profile, IndexedDB included (the persisted query cache of the
- * Jellyfin 12 home, COMPAT-04 "warm persisted"). With storageState (first launch), the signed-in state is set.
+ * Jellyfin 12 home, COMPAT-04 "warm persisted"). With storageState (first launch), the signed-in state is set
+ * on a server page that does not run the web client: on 10.11, the client loading on /web/ writes its own empty
+ * credentials over the ones set, and the home then opens on the login page.
  */
 export async function launchPersisted(dir, ctx, storageState = null) {
     const context = await chromium.launchPersistentContext(dir, { headless: true, timeout: 60000, locale: 'en-US', ...ctx });
@@ -356,7 +358,7 @@ export async function launchPersisted(dir, ctx, storageState = null) {
         await context.addCookies(state.cookies || []);
         const page = await context.newPage();
         for (const origin of state.origins || []) {
-            await page.goto(`${origin.origin}/web/`);
+            await page.goto(`${origin.origin}/System/Info/Public`);
             await page.evaluate((items) => { items.forEach(({ name, value }) => localStorage.setItem(name, value)); }, origin.localStorage || []);
         }
         await page.close();
