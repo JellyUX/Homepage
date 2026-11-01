@@ -222,7 +222,9 @@ test('an old link to the Statistics tab (tab 5) opens Statistics (FEAT-03.b)', a
     await page.evaluate(() => { location.hash = '#/home?tab=5'; });
 
     await expect(page).toHaveURL(/#\/home\?tab=4$/);
-    await expect(page.locator('#jux-tab-statistics .jux-stat-card').first()).toBeVisible();
+    // Jellyfin 10.11 loads a new home view for the new address and keeps the old one hidden, panes included
+    // (E2-04): the visible pane is the one that counts.
+    await expect(page.locator('#jux-tab-statistics:visible .jux-stat-card').first()).toBeVisible();
 });
 
 // Jellyfin 12 Modern layout: the entries arrive with the native header links, after them, so Favorites

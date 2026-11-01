@@ -276,6 +276,13 @@
         }
     }
 
+    // The element of id in the home view on screen. Jellyfin keeps up to 3 views in the document: 10.11 loads
+    // a new home view for a new address (#/home?tab=4) and keeps the old one hidden, JellyUX panes included
+    // (E2-04), so the first element of the id can be the hidden one. Else the first element of the id.
+    function homePane(id) {
+        return document.querySelector('.homePage:not(.hide) [id="' + id + '"]') || document.getElementById(id);
+    }
+
     function isOffForUser() {
         var userId = _currentUserId();
         return !!userId && _userState(userId) === '1';
@@ -497,6 +504,7 @@
         onDomMutation: onDomMutation,
         runInFlight: runInFlight,
         isOffForUser: isOffForUser,
+        homePane: homePane,
         setUserEnabled: setUserEnabled,
         reportUserStateRequest: reportUserStateRequest,
         provideUserState: provideUserState,

@@ -138,8 +138,21 @@ if (typeof window.juxTabInjector === 'undefined') {
             });
 
             _watchActiveTabButton(tabsSlider);
+            _openAddressedTab(tabsSlider);
         }
     };
+
+    // The Legacy home opens no JellyUX tab from its address (#/home?tab=4 after the tab 5 redirect, or a
+    // bookmark): the tab it names is opened the way a user does, by its button (FEAT-03.b), when the view
+    // mounts (createTabs) and when the address changes on the home page already shown (hashchange). A
+    // tab already open is left as it is.
+    function _openAddressedTab(tabsSlider) {
+        var match = /^#\/home(?:\.html)?\?(?:[^#]*&)?tab=(\d+)(?:&|$)/.exec(window.location.hash);
+        var button = match && tabsSlider && tabsSlider.querySelector('[id^="jux-tabbtn-"][data-index="' + match[1] + '"]');
+        if (button && !button.classList.contains('emby-tab-button-active')) {
+            button.click();
+        }
+    }
 
     // The home route with the Legacy tab bar. The Modern layout of Jellyfin 12 hides that bar:
     // jux-tab-modern.js puts the tabs in its header instead (D-13).
@@ -178,12 +191,12 @@ if (typeof window.juxTabInjector === 'undefined') {
     }
 
     function _paneIndex(paneId) {
-        var pane = document.getElementById(paneId);
+        var pane = window.JuxCore.homePane(paneId);
         return pane ? _viewPanes(pane).indexOf(pane) : -1;
     }
 
     function _activatePane(paneId) {
-        var target = document.getElementById(paneId);
+        var target = window.JuxCore.homePane(paneId);
         if (!target) {
             return;
         }
@@ -233,6 +246,10 @@ if (typeof window.juxTabInjector === 'undefined') {
         var target = window.juxTabInjector.retiredTabTarget(window.location.hash);
         if (target) {
             window.location.replace(target);
+            return;
+        }
+        if (_legacyHome(window.location.hash)) {
+            _openAddressedTab(document.querySelector('.emby-tabs-slider'));
         }
     });
 }

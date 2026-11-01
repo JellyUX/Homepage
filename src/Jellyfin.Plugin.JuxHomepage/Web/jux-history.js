@@ -224,7 +224,7 @@
     }
 
     function openTab() {
-        var pane = document.getElementById('jux-tab-history');
+        var pane = window.JuxCore.homePane('jux-tab-history');
         var root = pane && pane.querySelector('.sections');
         if (!root) { return; }
         root.innerHTML = _buildTabHtml(window.JuxCore.resolveLang());

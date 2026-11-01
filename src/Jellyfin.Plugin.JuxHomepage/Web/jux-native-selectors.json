@@ -147,6 +147,7 @@
   "attributes": [
     "data-action",
     "data-id",
+    "data-index",
     "data-src",
     "href",
     "id",

@@ -99,7 +99,7 @@
             },
 
             render: function () {
-                var pane = document.getElementById(paneId);
+                var pane = window.JuxCore.homePane(paneId);
                 var sections = pane && pane.querySelector('.sections');
                 var userId = window.ApiClient && window.ApiClient.getCurrentUserId();
                 if (!sections || !userId) {

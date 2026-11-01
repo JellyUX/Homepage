@@ -27,7 +27,7 @@
 
         render: function () {
             var self = this;
-            var pane = document.getElementById('jux-tab-statistics');
+            var pane = window.JuxCore.homePane('jux-tab-statistics');
             if (!pane) {
                 return;
             }

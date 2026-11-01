@@ -5,6 +5,29 @@ import juxCore from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-core.js';
 
 const { escHtml, cssUrl, iconName, cached, getItem, getIncludedIn, observeCardImages, errorHtml, showError } = juxCore;
 
+// E2-04: Jellyfin 10.11 keeps a hidden home view, with its own JellyUX panes, when a new address loads
+// another one (#/home?tab=4); a tab must fill the pane of the view on screen.
+describe('homePane', () => {
+    afterEach(() => {
+        document.body.innerHTML = '';
+    });
+
+    it('finds the pane of the home view on screen, not the one of a hidden view before it', () => {
+        document.body.innerHTML =
+            '<div class="page homePage hide"><div id="jux-tab-statistics" data-view="old"></div></div>' +
+            '<div class="page homePage"><div id="jux-tab-statistics" data-view="shown"></div></div>';
+
+        expect(window.JuxCore.homePane('jux-tab-statistics').dataset.view).toBe('shown');
+    });
+
+    it('falls back to the first element of the id outside a home view', () => {
+        document.body.innerHTML = '<div id="jux-tab-history-movies" data-view="only"></div>';
+
+        expect(window.JuxCore.homePane('jux-tab-history-movies').dataset.view).toBe('only');
+        expect(window.JuxCore.homePane('missing')).toBeNull();
+    });
+});
+
 describe('escHtml (F-35)', () => {
     it('escapes ampersands, angle brackets, double quotes and apostrophes', () => {
         expect(escHtml('<b>Tom & "Jerry"</b>')).toBe('&lt;b&gt;Tom &amp; &quot;Jerry&quot;&lt;/b&gt;');

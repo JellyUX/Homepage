@@ -140,6 +140,70 @@ describe('createTabs', () => {
     });
 });
 
+// FEAT-03.b: the Legacy home opens no JellyUX tab from its address (#/home?tab=4 after the tab 5 redirect,
+// or any bookmark): the tab script opens it the way a user does, by its button, once the buttons are in.
+describe('tab named by the address', () => {
+    // The native tab bar marks the button it was clicked on as the active one.
+    const nativeSelect = (event) => {
+        const button = event.target.closest('.emby-tab-button');
+        if (button) {
+            button.classList.add('emby-tab-button-active');
+        }
+    };
+
+    beforeEach(() => {
+        document.addEventListener('click', nativeSelect);
+    });
+
+    afterEach(() => {
+        document.removeEventListener('click', nativeSelect);
+    });
+
+    it('opens the JellyUX tab the address names, once, through its button', () => {
+        window.location.hash = '#/home?tab=4';
+        renderHomePage();
+        const clicks = [];
+        const record = (event) => clicks.push(event.target.closest('button') && event.target.closest('button').id);
+        document.addEventListener('click', record);
+
+        injector().createTabs();
+        injector().createTabs();
+        vi.advanceTimersByTime(50);
+        document.removeEventListener('click', record);
+
+        expect(clicks).toEqual(['jux-tabbtn-statistics']);
+        expect(activePaneIds()).toEqual(['jux-tab-statistics']);
+    });
+
+    it('opens the tab an address change names on the home page already shown, unless it is open', () => {
+        window.location.hash = '#/home';
+        renderHomePage();
+        injector().createTabs();
+        const clicks = [];
+        const record = (event) => clicks.push(event.target.closest('button').id);
+        document.addEventListener('click', record);
+
+        window.location.hash = '#/home?tab=4';
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+        vi.advanceTimersByTime(50);
+        document.removeEventListener('click', record);
+
+        expect(clicks).toEqual(['jux-tabbtn-statistics']);
+        expect(activePaneIds()).toEqual(['jux-tab-statistics']);
+    });
+
+    it.each(['#/home', '#/home?tab=1', '#/home?tab=9'])('opens no JellyUX tab for %s', (hash) => {
+        window.location.hash = hash;
+        renderHomePage();
+
+        injector().createTabs();
+        vi.advanceTimersByTime(50);
+
+        expect(activePaneIndexes()).toEqual(['0']);
+    });
+});
+
 describe('pane activation', () => {
     it.each(EXPECTED_TABS)('clicking $id activates only the pane at DOM position $index', ({ id, index }) => {
         renderHomePage();
@@ -181,6 +245,23 @@ describe('pane activation', () => {
         await Promise.resolve();
 
         expect(activePaneIds()).toEqual(['jux-tab-statistics']);
+    });
+
+    it('opens the pane of the home view on screen, not the one of a hidden home view before it (E2-04)', () => {
+        renderHomePage();
+        // One parse, the hidden view first: jsdom's getElementById returns the element inserted first, a
+        // browser the first in the document.
+        document.body.innerHTML = '<div class="page homePage hide" id="oldIndexPage">' +
+            ['homeTab', 'favoritesTab', 'jux-tab-watchlist', 'jux-tab-history', 'jux-tab-statistics']
+                .map((id, i) => `<div class="tabContent pageTabContent${i === 0 ? ' is-active' : ''}" id="${id}" data-index="${i}"></div>`).join('') +
+            '</div>' + document.body.innerHTML;
+        injector().createTabs();
+
+        document.getElementById('jux-tabbtn-statistics').click();
+        vi.advanceTimersByTime(50);
+
+        expect([...document.querySelectorAll('#indexPage .tabContent.is-active')].map((p) => p.id)).toEqual(['jux-tab-statistics']);
+        expect([...document.querySelectorAll('#oldIndexPage .tabContent.is-active')].map((p) => p.id)).toEqual(['homeTab']);
     });
 
     it('ignores class changes on the native buttons', async () => {
