@@ -96,6 +96,16 @@
     // "Included In" -- item detail page (Movie/Series only)
     // -------------------------------------------------------------------------
 
+    // Whether this page needs no JellyUX Included In section: already checked, already shown, or listed
+    // by Jellyfin 12 itself, whose detail template always holds #collectionsCollapsible (hidden while
+    // empty): JellyUX adds neither a second section nor its request there (COMPAT-07).
+    function _includedInSettled(activePage, itemId) {
+        if (activePage.querySelector('#collectionsCollapsible')) {
+            activePage.dataset.juxCollectionsChecked = itemId;
+        }
+        return activePage.dataset.juxCollectionsChecked === itemId || !!activePage.querySelector('.jux-collections-section');
+    }
+
     function _tryIncludedIn() {
         var itemId = window.JuxCore.currentDetailItemId();
         if (!itemId) {
@@ -107,8 +117,7 @@
             return;
         }
 
-        if (activePage.dataset.juxCollectionsChecked === itemId ||
-            activePage.querySelector('.jux-collections-section')) {
+        if (_includedInSettled(activePage, itemId)) {
             return;
         }
 

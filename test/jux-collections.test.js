@@ -217,6 +217,16 @@ describe('detail page requests (F-09)', () => {
         expect(document.querySelector('.detailPageSecondaryContainer > .jux-collections-section')).not.toBeNull();
     });
 
+    it('leaves Included In to the native collections section of Jellyfin 12, without asking for it (COMPAT-07)', async () => {
+        const api = setUpDetailPage('aa08', { Type: 'Movie' }, [{ CollectionId: 'boxset1' }],
+            '<div class="detailPageSecondaryContainer"><div id="collectionsCollapsible" class="verticalSection hide"></div></div>');
+        window.JellyfinAPI = { cardBuilder: { getCardsHtml: () => '' }, getPortraitShape: () => 'portrait' };
+        _syncObserver();
+        await mutateTenTimes();
+
+        expect(api.getJSON).not.toHaveBeenCalled();
+        expect(document.querySelector('.jux-collections-section')).toBeNull();
+    });
 });
 
 // BKL-39: a re-sort the server never answers fails after the request delay and keeps the cards shown.

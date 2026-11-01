@@ -136,6 +136,7 @@
   ],
   "ids": [
     "childrenCollapsible",
+    "collectionsCollapsible",
     "indexPage",
     "listChildrenCollapsible",
     "moviesTab",
