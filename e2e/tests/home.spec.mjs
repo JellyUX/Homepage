@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { env, JELLYFIN_12, NO_MODERN_TABS, ON_12, NATIVE_SECTIONS, TABS, login, loadedSections, apiGet, watchJuxErrors, trackJuxRequests, isPainted } from '../helpers.mjs';
+import { env, JELLYFIN_12, NO_MODERN_TABS, NATIVE_SECTIONS, TABS, login, loadedSections, apiGet, watchJuxErrors, trackJuxRequests, isPainted } from '../helpers.mjs';
 
 // The native sections the client reads straight from Jellyfin (NATIVE_ROUTES in jux-homepage.js); every
 // other section, native ones included, is read through JuxHomepage/Section/{type}.
@@ -151,10 +151,17 @@ test('a fresh install renders the seven native sections, each with cards (F-25)'
 });
 
 test('a long section title wraps left of the native scroll buttons at 390 px (KTW-04)', async ({ page }) => {
-    test.skip(JELLYFIN_12 && test.info().project.name === 'mobile', ON_12.narrowButtons);
-    // Run at 390 px by both projects: the scroll buttons show with a mouse and with touch.
+    // Run at 390 px by both projects: the scroll buttons show with a mouse, and with touch on Jellyfin
+    // 10.11. Jellyfin 12 shows none in its touch layout, on its own sections too (COMPAT-12): the JellyUX
+    // sections follow it there, and their titles have nothing to wrap around.
     await page.setViewportSize({ width: 390, height: 844 });
     await login(page, env.admin);
+    if (JELLYFIN_12 && test.info().project.name === 'mobile') {
+        await page.locator('.jux-widget-section .sectionTitle').first().waitFor();
+        expect(await page.locator('.jux-widget-section .emby-scrollbuttons').count()).toBe(0);
+        expect(await isPainted(page.locator('.jux-widget-section .sectionTitle').first())).toBe(true);
+        return;
+    }
     await page.locator('.jux-widget-section .emby-scrollbuttons').first().waitFor();
     await page.locator('.jux-widget-section .sectionTitle').first()
         .evaluate((title) => { title.textContent = 'Because you watched House of the Dragon'; });

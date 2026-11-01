@@ -8,13 +8,6 @@ export const env = JSON.parse(readFileSync(new URL('./.work/env.json', import.me
 export const JELLYFIN_12 = /:12(\.|$)/.test(env.image);
 export const NO_MODERN_TABS = 'Jellyfin 12 Modern home: the JellyUX tabs are not in its header yet';
 
-// What the first Jellyfin 12.4 run found outside the tabs (V6 phase 09): skipped on 12 with the cause each
-// one showed, until the client is ported there.
-export const ON_12 = {
-    narrowButtons: 'Jellyfin 12 at 390 px with touch: no native scroll buttons on the JellyUX sections',
-    narrowFallback: 'Jellyfin 12 at 390 px with touch: the last card of a featured fallback row is not reached'
-};
-
 // The seven native widgets a fresh install seeds (NativeWidgetDefaults), in layout order.
 export const NATIVE_SECTIONS = [
     'jux-native-continue-watching',
@@ -157,6 +150,21 @@ export function trackJuxRequests(page) {
             return requests.slice(from).map((r) => `${r.method} ${r.url}`).filter((key) => seen.has(key) || !seen.add(key));
         }
     };
+}
+
+/**
+ * A finger swiping a row sideways, as touch events (touchStart, moves every frame, touchEnd): the
+ * synthesized scroll gesture of the DevTools protocol moves no row at all on Jellyfin 12, native rows
+ * included, while touch events scroll both lines like a real finger (COMPAT-12).
+ */
+export async function touchSwipe(cdp, page, { x, y, distance }) {
+    const steps = 12;
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y }] });
+    for (let i = 1; i <= steps; i++) {
+        await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x + Math.round(distance * i / steps), y }] });
+        await page.waitForTimeout(16);
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 }
 
 /** Collects JellyUX console errors and failed JellyUX asset requests for a page. */

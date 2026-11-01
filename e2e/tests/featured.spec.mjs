@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { env, JELLYFIN_12, ON_12, login, watchJuxErrors, adminToken, pluginConfiguration, isPainted } from '../helpers.mjs';
+import { env, JELLYFIN_12, login, watchJuxErrors, adminToken, pluginConfiguration, isPainted, touchSwipe } from '../helpers.mjs';
 
 // KTW-01: a featured section, alone on the home page so its place does not depend on the others. The
 // configuration is restored after each test. The bench movies with a backdrop are listed in env.json.
@@ -108,7 +108,6 @@ test('KTW-01.a: a featured section with fewer than 3 backdrops shows its cards i
 // row, the arrow on a desktop and a finger swipe on a phone, and the page never moves sideways: the native
 // body clips it (D-12.d: painted and reachable).
 test('FIAB-01.a: the cards of a featured fallback wider than the screen are all reachable', async ({ page }, testInfo) => {
-    test.skip(JELLYFIN_12 && testInfo.project.name === 'mobile', ON_12.narrowFallback);
     await withOnlyRow(featured('jux.admin.genre', 'value', 'Comedy'), async () => {
         await login(page, env.admin);
 
@@ -126,9 +125,8 @@ test('FIAB-01.a: the cards of a featured fallback wider than the screen are all 
         const row = await cards.first().boundingBox();
         for (let step = 0; step < 12 && !(await lastInView()); step++) {
             if (cdp) {
-                await cdp.send('Input.synthesizeScrollGesture', {
-                    x: Math.round(width / 2), y: Math.round(row.y + row.height / 2), xDistance: -300, gestureSourceType: 'touch'
-                });
+                await touchSwipe(cdp, page, { x: Math.round(width * 0.75), y: Math.round(row.y + row.height / 2), distance: -240 });
+                await page.waitForTimeout(400);
             } else {
                 await page.locator('.jux-featured-host .emby-scrollbuttons-button:has(.chevron_right)').click({ timeout: 5000 });
                 await page.waitForTimeout(400);
