@@ -10,7 +10,7 @@ namespace Jellyfin.Plugin.JuxHomepage.Tests.Inject;
 public sealed class PatchStatusTests
 {
     private const string FragmentTemplate = "/*{{cardbuilder}}{{this_hook}}*/";
-    private const string PatchableChunk = "var u=r(1);var n={A:function(){return u.default}};,loadSections:function(){},other:2";
+    private const string PatchableChunk = "var u=r(1);var n={A:function(){return u.default.getCardsHtml()}};,loadSections:function(){},other:2";
     private const string DriftedChunk = "someExpression.without.a.var.decl,loadSections:function(){},other:2";
 
     [Fact]

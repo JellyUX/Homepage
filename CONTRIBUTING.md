@@ -238,8 +238,9 @@ A change is done when:
 
 JellyUX splices its home sections into a minified Jellyfin Web chunk. The splice reads the cardBuilder
 module the way the chunk does: the single `X.Y.getCardsHtml` access of the module that defines
-`,loadSections:` (`u.default` on 10.11, `p.Ay` on 12.3 and 12.4), detected at patch time, with
-`FallbackCardBuilderAccess` in `Inject/TransformationPatches.cs` when the module reads none. Every native class,
+`,loadSections:` (`u.default` on 10.11, `p.Ay` on 12.3 and 12.4), detected at patch time by
+`CardBuilderAccess` in `Inject/TransformationPatches.cs`; without exactly one such access, bound to a
+webpack require in that module, the home page stays native. Every native class,
 id, attribute and custom element the client scripts use is listed in `Web/jux-native-selectors.json`,
 with the element a document-level class is set on (`carriers`: `layout-tv` on `<html>`) and the attribute
 values a selector matches on (`attributeValues`: `[data-id="resume"]` of the action sheet).
@@ -268,8 +269,8 @@ Any Jellyfin Web build can rename them, so run this procedure after every Jellyf
    and in `GET JuxHomepage/PatchStatus`, which must answer `{"LoadSections":"Patched","TabsAnchor":true}`.
 4. **cardBuilder access not found**: in the chunk found in step 3, find the webpack module that defines
    `,loadSections:` and how it reads the cardBuilder module. The splice needs one access read as
-   `X.Y.getCardsHtml` with `X` bound in that module (`,X=r(id)`); two different accesses, or an unbound
-   `X`, give `HookNotFound`. Adapt `CardBuilderAccess` in `Inject/TransformationPatches.cs` to the new
+   `X.Y.getCardsHtml` with `X` bound in that module to a webpack require (`,X=r(id)`); no access, two
+   different ones, or an `X` bound otherwise, give `HookNotFound`. Adapt `CardBuilderAccess` in `Inject/TransformationPatches.cs` to the new
    shape, with a `TransformationPatchesTests` case cut from the new chunk.
 5. **Missing native token, moved carrier or attribute value**: adapt the script that uses it, then
    `Web/jux-native-selectors.json` (`test/native-selectors.test.js` fails until both agree). Raise the E2E matrix, the `drift` and

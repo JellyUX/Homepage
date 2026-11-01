@@ -22,7 +22,7 @@ public sealed class TransformationPatchesTests
     [Fact]
     public void TryPatchLoadSections_ValidChunkWithHook_SplicesFragmentAndReplacesTokens()
     {
-        const string raw = "var u=r(1);var n={A:function(){return u.default}};,loadSections:function(){},other:2";
+        const string raw = "var u=r(1);var n={A:function(){return u.default.getCardsHtml()}};,loadSections:function(){},other:2";
 
         var (content, outcome) = TransformationPatches.TryPatchLoadSections(raw, FragmentTemplate);
 
@@ -118,6 +118,32 @@ public sealed class TransformationPatchesTests
 
         Assert.Equal(LoadSectionsOutcome.HookNotFound, outcome);
         Assert.Equal(raw, content);
+    }
+
+    [Theory]
+    // No X.Y.getCardsHtml read at all: nothing proves which binding is cardBuilder, even a bound u read as u.default.
+    [InlineData("5:(e,t,r)=>{var u=r(1);function h(){return u.default.render()}var B={a:1,loadSections:function(){}}}")]
+    // The detected object is a parameter with a default value, not a module binding to a webpack require.
+    [InlineData("5:(e,t,r)=>{var n=r(4);function h(t,q=0){return q.Ay.getCardsHtml()}var B={a:1,loadSections:function(){}}}")]
+    // The detected object is only compared, never bound.
+    [InlineData("5:(e,t,r)=>{var n=r(4),k=n,q==k;function h(){return q.Ay.getCardsHtml()}var B={a:1,loadSections:function(){}}}")]
+    public void TryPatchLoadSections_NoCardBuilderBindingProven_ReturnsHookNotFoundAndContentUnchanged(string raw)
+    {
+        var (content, outcome) = TransformationPatches.TryPatchLoadSections(raw, FragmentTemplate);
+
+        Assert.Equal(LoadSectionsOutcome.HookNotFound, outcome);
+        Assert.Equal(raw, content);
+    }
+
+    [Fact]
+    public void TryPatchLoadSections_MangledExportEndingWithDollar_SplicesThatAccess()
+    {
+        const string raw = "5:(e,t,r)=>{var n=r(4),p=r(24468);function h(){return p.A$.getCardsHtml()}var B={a:1,loadSections:function(){}}}";
+
+        var (content, outcome) = TransformationPatches.TryPatchLoadSections(raw, FragmentTemplate);
+
+        Assert.Equal(LoadSectionsOutcome.Patched, outcome);
+        Assert.Contains(",loadSections:/*p.A$B*/,originalLoadSections:", content, StringComparison.Ordinal);
     }
 
     [Fact]

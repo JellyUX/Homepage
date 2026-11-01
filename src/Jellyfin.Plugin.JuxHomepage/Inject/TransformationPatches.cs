@@ -59,11 +59,6 @@ internal sealed record ClientAsset(
 /// </summary>
 public static class TransformationPatches
 {
-    // How the module that defines ",loadSections:" reads the cardBuilder default export when it reads
-    // getCardsHtml through no X.Y access (DR-024): u.default on Jellyfin 10.11.9 to 10.11.11
-    // (56213.*.chunk.js). Jellyfin 12.3 and 12.4 read it as p.Ay (65126.*.chunk.js), found by detection.
-    private const string FallbackCardBuilderAccess = "u.default";
-
     private static readonly Regex LastVarRegex =
         new Regex(@"var\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=", RegexOptions.Compiled);
 
@@ -327,28 +322,25 @@ public static class TransformationPatches
 
     /// <summary>
     /// Returns how the loadSections module reads the cardBuilder default export (DR-024): the single
-    /// X.Y access it reads getCardsHtml through, or <see cref="FallbackCardBuilderAccess"/> when it
-    /// reads none. The object must be bound in that module, or the splice would read an unrelated
-    /// variable; two different accesses cannot be told apart.
+    /// X.Y access it reads getCardsHtml through, X being bound in that module to a webpack require
+    /// (",X=r(24468)"). Anything else, no access, two different ones or an X that is a parameter or a
+    /// comparison, proves nothing: the patch then reports HookNotFound and the home page stays native.
     /// </summary>
     /// <param name="module">The source of the module that defines ",loadSections:".</param>
     /// <returns>The access, such as "u.default" or "p.Ay", or null when none can be trusted.</returns>
     private static string? CardBuilderAccess(string module)
     {
         var accesses = CardBuilderAccessRegex.Matches(module)
-            .Select(m => m.Groups[1].Value + "." + m.Groups[2].Value)
-            .Distinct(StringComparer.Ordinal)
+            .Select(m => (Name: m.Groups[1].Value, Access: m.Groups[1].Value + "." + m.Groups[2].Value))
+            .Distinct()
             .ToList();
-        if (accesses.Count > 1)
+        if (accesses.Count != 1)
         {
             return null;
         }
 
-        var access = accesses.Count == 1 ? accesses[0] : FallbackCardBuilderAccess;
-        var name = access[..access.IndexOf('.', StringComparison.Ordinal)];
-        var bound = Regex.IsMatch(module, $@"(?:\bvar\s+|,){Regex.Escape(name)}\s*=");
-        var read = Regex.IsMatch(module, $@"(?<![\w$.]){Regex.Escape(access)}\b");
-        return bound && read ? access : null;
+        var (name, access) = accesses[0];
+        return Regex.IsMatch(module, $@"(?:\bvar\s+|,){Regex.Escape(name)}\s*=\s*[\w$]+\(\d+\)") ? access : null;
     }
 
     /// <summary>
