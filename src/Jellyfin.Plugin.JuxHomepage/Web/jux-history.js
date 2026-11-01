@@ -236,16 +236,28 @@
         _openSub(root, _subOf(window.location.hash), false);
     }
 
-    // Opens the History tab on one sub-tab through its tab button, the way a user does (the "See
-    // progress" button of the Statistics tab opens Series).
-    function showSub(sub) {
-        var button = document.getElementById('jux-tabbtn-history');
-        if (!button) { return; }
-        _setAddressSub(sub);
-        button.click();
+    function _modernEntry() {
+        return document.querySelector('.jux-modern-tab[data-jux-tab="3"]');
     }
 
-    window.juxHistoryTab = { open: openTab, show: showSub };
+    // Whether a History tab entry is on screen: the Legacy tab button, or the Modern header entry.
+    function available() {
+        return !!(document.getElementById('jux-tabbtn-history') || _modernEntry());
+    }
+
+    // Opens the History tab on one sub-tab the way a user does, through its tab button (Legacy) or its
+    // address (Modern, jux-tab-modern.js) (the "See progress" button of the Statistics tab opens Series).
+    function showSub(sub) {
+        var button = document.getElementById('jux-tabbtn-history');
+        if (button) {
+            _setAddressSub(sub);
+            button.click();
+        } else if (_modernEntry()) {
+            window.location.hash = '#/home?tab=3&sub=' + sub;
+        }
+    }
+
+    window.juxHistoryTab = { open: openTab, show: showSub, available: available };
 
     document.addEventListener('click', function (event) {
         if (event.target.closest('#jux-tabbtn-history')) {

@@ -109,7 +109,7 @@
                 '</li>';
         });
         html += '</ol>';
-        if (document.getElementById('jux-tabbtn-history') && window.juxHistoryTab) {
+        if (window.juxHistoryTab && window.juxHistoryTab.available()) {
             html += '<button type="button" class="jux-sort-button jux-top-series-more">' +
                 '<span class="jux-sort-button-label">' + esc(t.seeProgress) + '</span>' +
                 '<span class="material-icons chevron_right" aria-hidden="true"></span></button>';

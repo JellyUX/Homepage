@@ -101,6 +101,7 @@ public static class TransformationPatches
         new("jux-user-settings.js", IsStylesheet: false, Module: null),
         new("jux-ui.js", IsStylesheet: false, Module: null, IsJuxUi: true),
         new("jux-tab-injector.js", IsStylesheet: false, Module: m => m.Tabs),
+        new("jux-tab-modern.js", IsStylesheet: false, Module: m => m.Tabs),
         new("jux-watchlist.js", IsStylesheet: false, Module: m => m.Tabs, UsesJuxUi: true),
         new("jux-card-hooks.js", IsStylesheet: false, Module: m => m.CardEnhancements),
         new("jux-progress.js", IsStylesheet: false, Module: m => m.Tabs, UsesJuxUi: true),

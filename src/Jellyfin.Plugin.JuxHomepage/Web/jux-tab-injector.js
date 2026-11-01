@@ -51,8 +51,7 @@ if (typeof window.juxTabInjector === 'undefined') {
 
         waitForUI: function () {
             var self = this;
-            var hash = window.location.hash;
-            if (hash !== '' && hash !== '#/home' && hash !== '#/home.html' && hash.indexOf('#/home?') !== 0 && hash.indexOf('#/home.html?') !== 0) {
+            if (!_legacyHome(window.location.hash)) {
                 return;
             }
 
@@ -141,6 +140,15 @@ if (typeof window.juxTabInjector === 'undefined') {
             _watchActiveTabButton(tabsSlider);
         }
     };
+
+    // The home route with the Legacy tab bar. The Modern layout of Jellyfin 12 hides that bar:
+    // jux-tab-modern.js puts the tabs in its header instead (D-13).
+    function _legacyHome(hash) {
+        if (window.juxTabModern && window.juxTabModern.isModern()) {
+            return false;
+        }
+        return hash === '' || hash === '#/home' || hash === '#/home.html' || hash.indexOf('#/home?') === 0 || hash.indexOf('#/home.html?') === 0;
+    }
 
     function _label(className, text) {
         var span = document.createElement('span');

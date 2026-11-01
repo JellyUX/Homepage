@@ -244,7 +244,7 @@ public sealed class TransformationPatchesTests
         // <BaseUrl>/JuxHomepage/; an absolute "/JuxHomepage/" ignores BaseUrl and receives the web
         // client's HTML fallback instead of the asset.
         Assert.DoesNotContain("\"/JuxHomepage/", html, StringComparison.Ordinal);
-        Assert.Equal(17, html.Split("\"../JuxHomepage/").Length - 1);
+        Assert.Equal(18, html.Split("\"../JuxHomepage/").Length - 1);
     }
 
     [Fact]
@@ -262,7 +262,7 @@ public sealed class TransformationPatchesTests
 
     private static readonly string[] AllAssetsInOrder =
     [
-        "jux-homepage.css", "jux-ui.css", "jux-i18n.js", "jux-core.js", "jux-homepage.js", "jux-featured.js", "jux-user-settings.js", "jux-ui.js", "jux-tab-injector.js",
+        "jux-homepage.css", "jux-ui.css", "jux-i18n.js", "jux-core.js", "jux-homepage.js", "jux-featured.js", "jux-user-settings.js", "jux-ui.js", "jux-tab-injector.js", "jux-tab-modern.js",
         "jux-watchlist.js", "jux-card-hooks.js", "jux-progress.js", "jux-history.js", "jux-statistics.js",
         "jux-series-flatten.js", "jux-collections.js", "jux-breadcrumb.js",
     ];

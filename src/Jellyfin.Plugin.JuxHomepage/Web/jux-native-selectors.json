@@ -104,6 +104,7 @@
     "padded-right",
     "padded-top-focusscale",
     "page",
+    "pageTabContent",
     "paging",
     "paper-icon-button-light",
     "pause",
@@ -135,6 +136,7 @@
   ],
   "ids": [
     "childrenCollapsible",
+    "favoritesTab",
     "indexPage",
     "listChildrenCollapsible",
     "moviesTab",
@@ -146,6 +148,7 @@
     "data-action",
     "data-id",
     "data-src",
+    "href",
     "id",
     "name"
   ],
@@ -201,6 +204,24 @@
           "attribute": "data-action",
           "value": "menu",
           "evidence": "Menu=\"menu\""
+        }
+      ],
+      "classes": [
+        "Mui-selected",
+        "MuiDrawer-paper"
+      ],
+      "composedClasses": [
+        {
+          "class": "MuiAppBar-root",
+          "evidence": "\"MuiAppBar\",[\"root\""
+        },
+        {
+          "class": "MuiList-root",
+          "evidence": "\"MuiList\",[\"root\""
+        },
+        {
+          "class": "MuiStack-root",
+          "evidence": "name:\"MuiStack\",slot:\"Root\""
         }
       ]
     }

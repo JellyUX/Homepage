@@ -70,10 +70,11 @@ describe('_buildTopSeriesHtml (F-55)', () => {
     });
 
     it('offers "See progress" only when the History tab exists (FEAT-03)', () => {
-        window.juxHistoryTab = { show: () => {} };
+        let available = false;
+        window.juxHistoryTab = { show: () => {}, available: () => available };
         expect(juxStatistics._buildTopSeriesHtml({ TopSeries: top }, 'en', 'srv')).not.toContain('jux-top-series-more');
 
-        document.body.innerHTML = '<button id="jux-tabbtn-history"></button>';
+        available = true;
         expect(juxStatistics._buildTopSeriesHtml({ TopSeries: top }, 'en', 'srv')).toContain('See progress');
         delete window.juxHistoryTab;
     });

@@ -214,6 +214,19 @@ describe('History tab (FEAT-03)', () => {
         expect(routes()).toEqual(['JuxHomepage/SeriesProgress/Items']);
     });
 
+    it('is available through the Legacy tab button or the Modern header entry, and opens Series by the address in Modern', () => {
+        renderHome('#/home');
+        expect(window.juxHistoryTab.available()).toBe(true);
+
+        document.body.innerHTML = '<a class="jux-modern-tab" data-jux-tab="3" href="#/home?tab=3"></a>';
+        expect(window.juxHistoryTab.available()).toBe(true);
+        window.juxHistoryTab.show('series');
+        expect(window.location.hash).toBe('#/home?tab=3&sub=series');
+
+        document.body.innerHTML = '';
+        expect(window.juxHistoryTab.available()).toBe(false);
+    });
+
     it.each([
         ['#/home', 'movies'],
         ['#/home?sub=series', 'series'],
