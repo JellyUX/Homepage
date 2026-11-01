@@ -260,7 +260,8 @@ jobs:
             line: '10'
           - jellyfin: '10.11.11'
             line: '10'
-          - jellyfin: '12.4'
+          # Jellyfin 12 images have no patch tag: the dated tag pins the 12.4 build (12.4 floats).
+          - jellyfin: '12.4.20261026-211555'
             line: '12'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -353,7 +354,8 @@ jobs:
           - image: '10.11.11'
             sdk: '10.11.9'
             dotnet: 9.0.x
-          - image: '12.4'
+          # The dated tag of the 12.4 build: Jellyfin 12 images have no patch tag and 12.4 floats.
+          - image: '12.4.20261026-211555'
             sdk: '12.0.0'
             dotnet: 10.0.x
     steps:

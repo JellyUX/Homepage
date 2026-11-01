@@ -308,7 +308,9 @@ describe('checkTargetAbi', () => {
         for (const line of JSON.parse(readFileSync('ci/jellyfin-lines.json', 'utf8')).lines) {
             expect(job('build-newest-abi')).toContain(`jellyfin: '${line.newest}'`);
             expect(job('drift')).toContain(`sdk: '${line.sdk}'`);
-            expect(job('drift')).toContain(`image: '${line.newest.replace(/\.0$/, '')}'`);
+            // The image of the newest server, or its dated tag (Jellyfin 12 images have no patch tag).
+            const image = line.newest.replace(/\.0$/, '').replace(/\./g, '\\.');
+            expect(job('drift')).toMatch(new RegExp(`image: '${image}(\\.\\d{8}-\\d{6})?'`));
         }
         expect(job('build-test-12')).toContain('-p:JellyfinVersion=12.0.0');
         expect(job('commits')).toContain('-p:JellyfinVersion=12.0.0');

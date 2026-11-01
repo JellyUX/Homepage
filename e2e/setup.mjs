@@ -144,7 +144,9 @@ function unzip(buffer, dest) {
 }
 
 async function installFileTransformation(serverVersion, pluginsDir) {
-    const source = FILE_TRANSFORMATION[serverVersion];
+    // A Jellyfin 12 image tag is <major>.<minor> or <major>.<minor>.<build date>, without a patch number.
+    const source = FILE_TRANSFORMATION[serverVersion]
+        ?? (serverVersion.startsWith('12.') ? FILE_TRANSFORMATION[serverVersion.split('.').slice(0, 2).join('.')] : undefined);
     if (!source) {
         throw new Error(`No pinned File Transformation build for Jellyfin ${serverVersion}.`);
     }
