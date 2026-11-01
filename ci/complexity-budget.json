@@ -32,14 +32,14 @@
         "jux-core.js": 519,
         "jux-featured.js": 558,
         "jux-history.js": 268,
-        "jux-homepage.js": 854,
+        "jux-homepage.js": 915,
         "jux-progress.js": 296,
         "jux-series-flatten.js": 157,
         "jux-statistics.js": 131,
         "jux-tab-injector.js": 63,
         "jux-tab-modern.js": 283,
         "jux-ui.js": 595,
-        "jux-user-settings.js": 178,
+        "jux-user-settings.js": 183,
         "jux-watchlist.js": 45
     }
 }

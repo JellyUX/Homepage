@@ -82,6 +82,10 @@ describe('JellyUX block of Preferences > Home (F-36)', () => {
         home.className = 'sections';
         document.body.appendChild(home);
         const rebuild = vi.fn();
+        // The home kept in memory for the way back (COMPAT-11) is dropped before the rebuild reads it.
+        const order = [];
+        rebuild.mockImplementation(() => order.push('rebuild'));
+        window.JUXHomepage = { forget: vi.fn(() => order.push('forget')) };
         home.addEventListener('settingschange', rebuild);
         window.ApiClient = { getUrl: (route) => route, getCurrentUserId: () => 'u1', ajax: () => Promise.resolve() };
         _render(form, settings, 'u1', english());
@@ -90,6 +94,8 @@ describe('JellyUX block of Preferences > Home (F-36)', () => {
         await new Promise((r) => setTimeout(r, 0));
 
         expect(rebuild).toHaveBeenCalledTimes(1);
+        expect(order).toEqual(['forget', 'rebuild']);
+        delete window.JUXHomepage;
     });
 
     // BKL-40: the switch read from the server is what the other pages follow, not only the one saved here.

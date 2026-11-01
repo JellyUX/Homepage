@@ -32,7 +32,8 @@ A modular home screen engine for Jellyfin that replaces the default home page wi
   History, Statistics) show in both layouts (see [Moving to Jellyfin 12](#moving-to-jellyfin-12)), and the
   breadcrumb of a detail page lies under the top bar of the Modern layout. The movie and series lists of
   a library keep the page buttons of Jellyfin 12: the JellyUX infinite scroll stays a Jellyfin 10.11
-  feature. Not ported yet: going back to the home page loads its sections again.
+  feature. Coming back to the home page, Jellyfin 12 builds it anew: JellyUX paints the sections it read
+  in the last 5 minutes again, and reads only Continue Watching, Next Up and the watchlist.
 - **[File Transformation plugin](https://github.com/IAmParadox27/jellyfin-plugin-file-transformation)** 3.0 or later, the build for your Jellyfin version (required - JellyUX uses it to inject its scripts into the Jellyfin web client; from 3.0 the transformed `index.html` is revalidated on every load, so a change to the module switches applies at the next page reload)
 
 ---

@@ -24,8 +24,39 @@
             }
 
             return _renderHome(self, elem, apiClient, user, userSettings);
+        },
+
+        // Drops the home kept in memory, so the next loadSections reads the server (a saved setting).
+        forget: function () {
+            _memory = null;
         }
     };
+
+    // -------------------------------------------------------------------------
+    // Home kept in memory (COMPAT-11, DR-026)
+    // -------------------------------------------------------------------------
+
+    // The Modern home of Jellyfin 12 is a React route: leaving it unmounts the view, coming back mounts a
+    // new one and calls loadSections again (Jellyfin 10.11 kept the view, with no request on the way back;
+    // native 12 answers from its own query cache). The Sections pages and the rows read in the last 5 min
+    // for the same user and language are kept here and painted again with no request, each row once per
+    // mount: a later refresh of a row (retry, playback event) reads the server. The playback rows and the
+    // watchlist, which the page just left can change, are never painted from here (V17).
+    var MEMORY_MS = 5 * 60 * 1000;
+    var LIVE_ROWS = ['jux.native.continue-watching', 'jux.native.next-up', 'jux.native.watchlist'];
+    var _memory = null;
+
+    function _memoryOf(userId, lang) {
+        var fresh = _memory && _memory.userId === userId && _memory.lang === lang && Date.now() - _memory.at < MEMORY_MS;
+        if (!fresh) {
+            _memory = { userId: userId, lang: lang, at: Date.now(), pages: {}, rows: {} };
+        }
+        return _memory;
+    }
+
+    function _rowKey(descriptor) {
+        return descriptor.SectionKey || descriptor.WidgetType + '|' + (descriptor.AdditionalData || '');
+    }
 
     // -------------------------------------------------------------------------
     // Fallback
@@ -137,13 +168,17 @@
     // A page that has not answered within 15 s fails like any other (FIAB-08): page 0 then hands the
     // home screen back to Jellyfin instead of leaving the placeholders up for good.
     function _loadPage(elem, apiClient, userId, userSettings, page, onFirstPageFailure) {
-        return window.JuxCore.fetchWithTimeout(apiClient,
-            apiClient.getUrl('JuxHomepage/Sections', {
-                userId: userId,
-                page: page,
-                lang: document.documentElement.lang || 'en'
-            })
-        ).then(function (response) {
+        var lang = document.documentElement.lang || 'en';
+        var memory = _memoryOf(userId, lang);
+        var kept = memory.pages[page];
+        var request = kept
+            ? Promise.resolve(kept)
+            : window.JuxCore.fetchWithTimeout(apiClient,
+                apiClient.getUrl('JuxHomepage/Sections', { userId: userId, page: page, lang: lang }));
+        return request.then(function (response) {
+            if (response && response.Enabled !== false) {
+                memory.pages[page] = response;
+            }
             _clearSkeleton(elem);
             // The plugin was disabled after this page loaded: the layout comes back empty with
             // Enabled = false, and the first page hands the home screen back to Jellyfin.
@@ -164,7 +199,7 @@
             // A descriptor that throws loses its own section only (FIAB-08), never the whole page.
             var tasks = descriptors.map(function (descriptor) {
                 try {
-                    return _buildSection(elem, apiClient, userId, userSettings, descriptor);
+                    return _buildSection(elem, apiClient, userId, userSettings, descriptor, memory);
                 } catch (err) {
                     console.error('[JellyUX] Section build failed (' + (descriptor && descriptor.WidgetType) + '):', err);
                     return null;
@@ -195,7 +230,7 @@
     // Section DOM building
     // -------------------------------------------------------------------------
 
-    function _buildSection(elem, apiClient, userId, userSettings, descriptor) {
+    function _buildSection(elem, apiClient, userId, userSettings, descriptor, memory) {
         var api = window.JellyfinAPI;
         var sectionEl = document.createElement('div');
         sectionEl.className =
@@ -259,7 +294,7 @@
             : false;
 
         var cardsHtml = _makeGetItemsHtml(descriptor, shapeFn, useEpisodeImages);
-        itemsContainer.fetchData = _guardFetchData(_makeFetchData(apiClient, userId, descriptor), descriptor);
+        itemsContainer.fetchData = _guardFetchData(_keptFetchData(_makeFetchData(apiClient, userId, descriptor), descriptor, memory), descriptor);
         itemsContainer.getItemsHtml = _guardGetItemsHtml(cardsHtml);
         itemsContainer.parentContainer = sectionEl;
         itemsContainer.addEventListener('click', _onSectionRetry);
@@ -365,6 +400,30 @@
                     limit: descriptor.MaxItems || 20
                 })
             );
+        };
+    }
+
+    // The first read of a row in this mount paints the row kept in memory, if any; every read keeps
+    // what the server answered. Live rows (LIVE_ROWS) always read the server.
+    function _keptFetchData(fetchData, descriptor, memory) {
+        if (!memory) {
+            return fetchData;
+        }
+        var key = _rowKey(descriptor);
+        var live = LIVE_ROWS.indexOf(descriptor.WidgetType) >= 0;
+        var kept = live ? null : memory.rows[key];
+        return function () {
+            if (kept) {
+                var result = kept;
+                kept = null;
+                return Promise.resolve(result);
+            }
+            return fetchData().then(function (result) {
+                if (!live) {
+                    memory.rows[key] = result;
+                }
+                return result;
+            });
         };
     }
 
@@ -847,6 +906,8 @@
             _renderHome: _renderHome,
             _skeletonHtml: _skeletonHtml,
             _makeFetchData: _makeFetchData,
+            _keptFetchData: _keptFetchData,
+            _loadPage: _loadPage,
             _guardFetchData: _guardFetchData,
             _guardGetItemsHtml: _guardGetItemsHtml,
             _chunkState: _chunkState,

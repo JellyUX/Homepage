@@ -178,7 +178,12 @@
     // Jellyfin keeps the home view once rendered and only refreshes its rows on the way back, so the
     // saved choice would show after a page reload only (8096, 2026-10-13: no Sections request on
     // return). The home tab rebuilds its sections on "settingschange" (hometab chunk, 10.11.10).
+    // The home kept in memory for the way back (COMPAT-11) is dropped first, or it would paint the
+    // layout of before the change.
     function _refreshHome() {
+        if (window.JUXHomepage && typeof window.JUXHomepage.forget === 'function') {
+            window.JUXHomepage.forget();
+        }
         Array.prototype.forEach.call(document.querySelectorAll('.sections'), function (sections) {
             sections.dispatchEvent(new CustomEvent('settingschange'));
         });

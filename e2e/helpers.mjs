@@ -11,7 +11,6 @@ export const NO_MODERN_TABS = 'Jellyfin 12 Modern home: the JellyUX tabs are not
 // What the first Jellyfin 12.4 run found outside the tabs (V6 phase 09): skipped on 12 with the cause each
 // one showed, until the client is ported there.
 export const ON_12 = {
-    homeReturn: 'Jellyfin 12 Modern home: coming back to it renders the home sections again',
     narrowButtons: 'Jellyfin 12 at 390 px with touch: no native scroll buttons on the JellyUX sections',
     narrowFallback: 'Jellyfin 12 at 390 px with touch: the last card of a featured fallback row is not reached'
 };

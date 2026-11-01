@@ -2,7 +2,12 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import juxHomepage from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-homepage.js';
 
-const { _seeAllTarget, _fallback, _isHomePage, _hasMorePages, _setupLazyLoader, _chunkState, _repairStaleChunks, _armChunkGuard, _guardFetchData, _guardGetItemsHtml, _renderHome } = juxHomepage;
+const { _seeAllTarget, _fallback, _isHomePage, _hasMorePages, _setupLazyLoader, _chunkState, _repairStaleChunks, _armChunkGuard, _guardFetchData, _guardGetItemsHtml, _renderHome, _keptFetchData, _loadPage } = juxHomepage;
+
+// Each test starts with no home kept in memory (COMPAT-11).
+beforeEach(() => {
+    window.JUXHomepage.forget();
+});
 
 describe('_seeAllTarget (F-56)', () => {
     const replies = {
@@ -973,5 +978,111 @@ describe('sections loaded near the viewport (PERF-09)', () => {
         const rows = await renderThreeSections();
 
         expect(HTMLDivElement.prototype.resume.mock.contexts).toEqual(rows);
+    });
+});
+
+// COMPAT-11 (DR-026): the Modern home of Jellyfin 12 mounts a new view on every way back; the Sections
+// pages and the rows read in the last 5 min are painted again with no request, except the live rows.
+describe('home kept in memory for the way back (COMPAT-11)', () => {
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+    const descriptors = [
+        { WidgetType: 'jux.native.continue-watching', DisplayName: 'Continue' },
+        { WidgetType: 'jux.native.watchlist', DisplayName: 'Watchlist', SectionKey: 'jux.native.watchlist#1' },
+        { WidgetType: 'jux.genre', DisplayName: 'Comedy', AdditionalData: 'Comedy' }
+    ];
+
+    function client(sections = descriptors) {
+        return {
+            getCurrentUserId: () => 'u1',
+            getUrl: (route) => route,
+            getJSON: vi.fn((route) => Promise.resolve(route === 'JuxHomepage/Sections'
+                ? { Sections: sections, HasMore: false, Enabled: true }
+                : { Items: [{ Id: route }] }))
+        };
+    }
+
+    const routes = (api) => api.getJSON.mock.calls.map((call) => call[0]);
+
+    async function mount(api) {
+        const elem = document.createElement('div');
+        await _loadPage(elem, api, 'u1', {}, 0);
+        const containers = [...elem.querySelectorAll('.jux-items-container')];
+        const rows = await Promise.all(containers.map((c) => c.fetchData()));
+        return { elem, containers, rows };
+    }
+
+    beforeEach(() => {
+        document.documentElement.lang = 'en';
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it('paints the layout and the kept rows again with no request, and reads the live rows', async () => {
+        const first = client();
+        await mount(first);
+        expect(routes(first)).toEqual([
+            'JuxHomepage/Sections', 'UserItems/Resume', 'JuxHomepage/Section/jux.native.watchlist', 'JuxHomepage/Section/jux.genre'
+        ]);
+
+        const back = client();
+        const { elem, rows } = await mount(back);
+
+        expect(routes(back)).toEqual(['UserItems/Resume', 'JuxHomepage/Section/jux.native.watchlist']);
+        expect(elem.querySelectorAll('.jux-widget-section')).toHaveLength(3);
+        expect(rows[2]).toEqual({ Items: [{ Id: 'JuxHomepage/Section/jux.genre' }] });
+    });
+
+    it('paints a kept row once per mount: a later refresh of the row reads the server', async () => {
+        await mount(client());
+        const back = client();
+        const { containers } = await mount(back);
+
+        await containers[2].fetchData();
+
+        expect(routes(back).filter((r) => r === 'JuxHomepage/Section/jux.genre')).toHaveLength(1);
+    });
+
+    it.each([
+        ['after 5 min', () => { vi.useFakeTimers({ now: Date.now() + 5 * 60 * 1000 + 1 }); }],
+        ['for another language', () => { document.documentElement.lang = 'fr'; }],
+        ['after a saved setting', () => { window.JUXHomepage.forget(); }]
+    ])('reads everything again %s', async (name, change) => {
+        await mount(client());
+        change();
+        const back = client();
+
+        await mount(back);
+
+        expect(routes(back)).toContain('JuxHomepage/Sections');
+        expect(routes(back)).toContain('JuxHomepage/Section/jux.genre');
+    });
+
+    it('reads everything again for another user', async () => {
+        await mount(client());
+        const other = client();
+        other.getCurrentUserId = () => 'u2';
+        const elem = document.createElement('div');
+
+        await _loadPage(elem, other, 'u2', {}, 0);
+
+        expect(routes(other)).toEqual(['JuxHomepage/Sections']);
+    });
+
+    it('keeps no page of a disabled plugin and no failed row', async () => {
+        const off = { getCurrentUserId: () => 'u1', getUrl: (route) => route, getJSON: vi.fn(() => Promise.resolve({ Sections: [], Enabled: false })) };
+        await _loadPage(document.createElement('div'), off, 'u1', {}, 0, () => {});
+        const failing = vi.fn(() => Promise.reject(new Error('down')));
+        const memory = { rows: {} };
+        const fetchRow = _keptFetchData(failing, descriptors[2], memory);
+        await fetchRow().catch(() => {});
+        await settle();
+
+        const back = client();
+        await mount(back);
+
+        expect(routes(back)[0]).toBe('JuxHomepage/Sections');
+        expect(memory.rows).toEqual({});
     });
 });

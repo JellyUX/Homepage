@@ -88,7 +88,6 @@ test('an unscrolled home page fetches only the rows within one screen below the 
 });
 
 test('coming back to the home page within the app issues no JellyUX or home section request (PROC-03.a, A-08)', async ({ page }) => {
-    test.skip(JELLYFIN_12, ON_12.homeReturn);
     const requests = trackJuxRequests(page);
     await login(page, env.admin);
     await loadedSections(page);
@@ -103,7 +102,15 @@ test('coming back to the home page within the app issues no JellyUX or home sect
     // The library page visited on the way sends its own native first-page query (Users/{id}/Items,
     // StartIndex=0), which can arrive after the mark: library queries are left out here, the infinite
     // scroll is budgeted by navigation.spec.mjs (FIAB-01).
-    expect(requests.since(before).filter((r) => r.kind !== 'library')).toEqual([]);
+    // Jellyfin 12 mounts a new home view on the way back: JellyUX paints the layout and the rows it read
+    // in the last 5 min again with no request, and reads the live rows only, once each (COMPAT-11,
+    // DR-026: Continue Watching and Next Up for V17, the watchlist the page left could change).
+    const live = JELLYFIN_12
+        ? ['GET /JuxHomepage/Section/jux.native.watchlist', 'GET /Shows/NextUp', 'GET /UserItems/Resume']
+        : [];
+    const seen = requests.since(before).filter((r) => r.kind !== 'library');
+    expect(seen.map((r) => `${r.method} ${r.path}`).sort()).toEqual(live);
+    expect(requests.duplicates(before)).toEqual([]);
 });
 
 test('an open detail page issues no JellyUX request once loaded, for 30 s (PROC-03.a)', async ({ page }) => {
