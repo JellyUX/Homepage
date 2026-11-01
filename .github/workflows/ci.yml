@@ -253,8 +253,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The declared minimum (build.yaml targetAbi) and the newest validated server.
-        jellyfin: ['10.11.9', '10.11.11']
+        # 10.11: the declared minimum (build.yaml targetAbi) and the newest validated server; 12: the newest
+        # validated server only (ci/jellyfin-lines.json), each with the archive of its line (X.Y.Z.<line>).
+        include:
+          - jellyfin: '10.11.9'
+            line: '10'
+          - jellyfin: '10.11.11'
+            line: '10'
+          - jellyfin: '12.4'
+            line: '12'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -264,9 +271,9 @@ jobs:
           name: plugin-zip
           path: plugin-zip
 
-      # The 10.11 line's archive (X.Y.Z.10); the Jellyfin 12 archive has no E2E leg yet.
+      # The archive of the leg's Jellyfin line (X.Y.Z.10 or X.Y.Z.12).
       - name: Show the installed archive
-        run: sha256sum plugin-zip/*.10.zip
+        run: sha256sum plugin-zip/*.${{ matrix.line }}.zip
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -296,7 +303,7 @@ jobs:
           fi
 
       - name: Start the Jellyfin bench
-        run: node e2e/setup.mjs up --image jellyfin/jellyfin:${{ matrix.jellyfin }} --plugin-zip "$(ls plugin-zip/*.10.zip)"
+        run: node e2e/setup.mjs up --image jellyfin/jellyfin:${{ matrix.jellyfin }} --plugin-zip "$(ls plugin-zip/*.${{ matrix.line }}.zip)"
 
       - name: Run the browser tests
         run: npx playwright test -c e2e --project root --project mobile
@@ -312,6 +319,14 @@ jobs:
 
       - name: Run the configuration upgrade browser test
         run: npx playwright test -c e2e --project legacy-config
+
+      # A build made for another Jellyfin line loads, then fails each section with MissingMethodException,
+      # which the API turns into an empty section (COMPAT-01): the suite above would not always see it.
+      - name: Check the Jellyfin log for binary mismatches
+        run: |
+          count=$(docker logs jux-e2e 2>&1 | grep -c 'MissingMethodException' || true)
+          echo "MissingMethodException lines: $count"
+          test "$count" -eq 0
 
       - name: Dump the Jellyfin log
         if: failure()
