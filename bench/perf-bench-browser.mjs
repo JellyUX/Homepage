@@ -27,11 +27,11 @@ const KT_CDN = /^https:\/\/cdn\.jsdelivr\.net\/gh\/ranaldsgift\/KefinTweaks@[^/]
 // Low-end profile network: 150 ms latency, 1.6 Mbit/s down, 750 kbit/s up, both x0.9 as DevTools does.
 export const LOWEND_NETWORK = { offline: false, latency: 150, downloadThroughput: Math.round(1.6e6 * 0.9 / 8), uploadThroughput: Math.round(750e3 * 0.9 / 8) };
 export const LOWEND_CPU_RATE = 4;
+// The three JellyUX tabs since FEAT-03 (Progress is the Series sub-tab of History, which opens on Movies).
 export const TABS = [
     { index: 2, id: 'jux-tab-watchlist', name: 'watchlist' },
-    { index: 3, id: 'jux-tab-progress', name: 'progress' },
-    { index: 4, id: 'jux-tab-history', name: 'history' },
-    { index: 5, id: 'jux-tab-statistics', name: 'statistics' }
+    { index: 3, id: 'jux-tab-history', name: 'history' },
+    { index: 4, id: 'jux-tab-statistics', name: 'statistics' }
 ];
 
 // Runs before every document: long tasks, long animation frames (script attribution), and a
@@ -312,13 +312,16 @@ export async function measurePage(context, { lowend = false, doBack = true, doTa
             if (process.env.PERF_DEBUG) { console.error(new Date().toISOString(), 'tab', tab.name); }
             const res = await page.evaluate(({ index, id, timeout }) => new Promise((resolve) => {
                 const t0 = performance.now();
-                const btn = document.querySelector(`.emby-tab-button[data-index="${index}"]`);
+                // The tab bar button (Jellyfin 10.11, Legacy layout), else the entry of the Jellyfin 12 Modern header.
+                const btn = document.querySelector(`.emby-tab-button[data-index="${index}"]`) ||
+                    document.querySelector(`.jux-modern-tab[data-jux-tab="${index}"]`);
                 if (!btn) { resolve({ error: 'no tab button' }); return; }
                 btn.click();
                 let firstCard = null;
                 const check = () => {
                     const now = performance.now() - t0;
-                    const pane = document.getElementById(id);
+                    // The pane of the home view on screen: a hidden home view keeps its own (E2-04).
+                    const pane = document.querySelector(`.homePage:not(.hide) [id="${id}"]`) || document.getElementById(id);
                     const visible = pane && pane.offsetParent !== null && pane.getBoundingClientRect().height > 0;
                     if (visible && firstCard === null && pane.querySelector('.card, .jux-stat-card')) { firstCard = now; }
                     const loaded = visible && !pane.querySelector('[data-jux-loading]') && !!pane.querySelector('.card, .jux-empty-state, .jux-stat-card');
