@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { env, TABS, login } from '../helpers.mjs';
+import { env, JELLYFIN_12, NO_MODERN_TABS, TABS, login } from '../helpers.mjs';
 
 // TODO_V4.md 5.2 (F-40): under an outage a tab or a home section says it failed and offers a retry,
 // never "empty", and no promise rejection is left unhandled. The outage is simulated by aborting
@@ -27,6 +27,7 @@ async function watchRejections(page) {
 const juxApi = (url) => url.pathname.includes('/JuxHomepage/') && !/\.(js|css)$/.test(url.pathname);
 
 test('every JellyUX tab shows an error with a retry when the server stops answering (F-40)', async ({ page }) => {
+    test.skip(JELLYFIN_12, NO_MODERN_TABS);
     await watchRejections(page);
     await login(page, env.admin);
     await page.locator('.jux-widget-section').first().waitFor();

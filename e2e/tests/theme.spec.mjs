@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { env, TABS, login } from '../helpers.mjs';
+import { env, JELLYFIN_12, NO_MODERN_TABS, TABS, login } from '../helpers.mjs';
 
 // TODO_V4.md 7.2 (F-45): in the native light theme, the outlined JellyUX components keep a visible
 // edge: the border (or the unwatched progress chunk, or the spinner track) reaches a contrast of at
@@ -59,6 +59,7 @@ function edgeContrasts(pane) {
 }
 
 test('the outlined JellyUX components stay visible in the light theme (F-45)', async ({ page }) => {
+    test.skip(JELLYFIN_12, NO_MODERN_TABS);
     await login(page, env.admin);
     await setTheme(page, 'light');
     await page.reload();

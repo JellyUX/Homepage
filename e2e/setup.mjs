@@ -17,10 +17,21 @@ import { inflateRawSync } from 'node:zlib';
 const CONTAINER = 'jux-e2e';
 const WORK = path.resolve('e2e/.work');
 const ENV_FILE = path.join(WORK, 'env.json');
-const PLUGIN_DLL = path.resolve('src/Jellyfin.Plugin.JuxHomepage/bin/Release/net9.0/Jellyfin.Plugin.JuxHomepage.dll');
+// The local Release build of each Jellyfin line (net9.0 for 10.11, net10.0 for 12, ci/jellyfin-lines.json).
+const pluginDll = (serverVersion) => path.resolve(
+    `src/Jellyfin.Plugin.JuxHomepage/bin/Release/${serverVersion.startsWith('12') ? 'net10.0' : 'net9.0'}/Jellyfin.Plugin.JuxHomepage.dll`);
 
-// File Transformation 3.0.0.0, the build matching each supported server version.
+// File Transformation, the build matching each supported server version: 3.0.0.0 on 10.11, 3.0.3.0 on 12
+// (the first release with a 12.3 and a 12.4 build).
 const FILE_TRANSFORMATION = {
+    '12.4': {
+        url: 'https://github.com/IAmParadox27/jellyfin-plugin-file-transformation/releases/download/3.0.3.0/Release-12.4.0.zip',
+        sha256: 'c608b2ccf802a2cd5fa48632565488a3f0d3ac52cbb51a9ea0c1b8849f8819e9'
+    },
+    '12.3': {
+        url: 'https://github.com/IAmParadox27/jellyfin-plugin-file-transformation/releases/download/3.0.3.0/Release-12.3.0.zip',
+        sha256: 'f872c2cf5cac1f645d74b38611d5c9533ca367747be66deadfe4835b02342e02'
+    },
     '10.11.11': {
         url: 'https://github.com/IAmParadox27/jellyfin-plugin-file-transformation/releases/download/3.0.0.0/Release-10.11.11.zip',
         sha256: '53c6355627bef47fdea2e1237e0087fbdab065889137f7aacb5470899fed1937'
@@ -146,7 +157,8 @@ async function installFileTransformation(serverVersion, pluginsDir) {
     if (digest !== source.sha256) {
         throw new Error(`File Transformation checksum mismatch: ${digest}`);
     }
-    const dir = path.join(pluginsDir, 'File Transformation_3.0.0.0');
+    const version = source.url.match(/download\/([\d.]+)\//)[1];
+    const dir = path.join(pluginsDir, `File Transformation_${version}`);
     mkdirSync(dir, { recursive: true });
     unzip(zip, dir);
 }
@@ -209,8 +221,9 @@ async function up() {
     if (pluginZip && !existsSync(pluginZip)) {
         throw new Error(`Plugin archive not found: ${pluginZip}.`);
     }
-    if (!pluginZip && !existsSync(PLUGIN_DLL)) {
-        throw new Error(`Build the plugin first (dotnet build -c Release): ${PLUGIN_DLL} is missing.`);
+    const dll = pluginDll(serverVersion);
+    if (!pluginZip && !existsSync(dll)) {
+        throw new Error(`Build the plugin first (dotnet build -c Release, -p:JellyfinVersion=12.0.0 for Jellyfin 12): ${dll} is missing.`);
     }
 
     down();
@@ -220,7 +233,7 @@ async function up() {
     if (pluginZip) {
         unzip(readFileSync(pluginZip), juxDir);
     } else {
-        copyFileSync(PLUGIN_DLL, path.join(juxDir, path.basename(PLUGIN_DLL)));
+        copyFileSync(dll, path.join(juxDir, path.basename(dll)));
     }
     await installFileTransformation(serverVersion, pluginsDir);
     writeLibrary(image);

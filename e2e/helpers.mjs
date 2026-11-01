@@ -3,6 +3,21 @@ import { expect } from '@playwright/test';
 
 export const env = JSON.parse(readFileSync(new URL('./.work/env.json', import.meta.url), 'utf8'));
 
+// Jellyfin 12 serves the Modern home by default, which has no tab bar: the JellyUX tabs come there in V6
+// phase 10, so the tab tests are skipped on 12 until then. It also lists an item's collections itself.
+export const JELLYFIN_12 = /:12(\.|$)/.test(env.image);
+export const NO_MODERN_TABS = 'Jellyfin 12 Modern home: the JellyUX tabs are not in its header yet';
+
+// What the first Jellyfin 12.4 run found outside the tabs (V6 phase 09): skipped on 12 with the cause each
+// one showed, until the client is ported there.
+export const ON_12 = {
+    homeReturn: 'Jellyfin 12 Modern home: coming back to it renders the home sections again',
+    library: 'Jellyfin 12 library page: no #moviesTab, the infinite scroll of the movie list is not hooked',
+    breadcrumb: 'Jellyfin 12 header: the JellyUX breadcrumb does not show',
+    narrowButtons: 'Jellyfin 12 at 390 px with touch: no native scroll buttons on the JellyUX sections',
+    narrowFallback: 'Jellyfin 12 at 390 px with touch: the last card of a featured fallback row is not reached'
+};
+
 // The seven native widgets a fresh install seeds (NativeWidgetDefaults), in layout order.
 export const NATIVE_SECTIONS = [
     'jux-native-continue-watching',

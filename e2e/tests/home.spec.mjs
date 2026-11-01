@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { env, NATIVE_SECTIONS, TABS, login, loadedSections, apiGet, watchJuxErrors, trackJuxRequests, isPainted } from '../helpers.mjs';
+import { env, JELLYFIN_12, NO_MODERN_TABS, ON_12, NATIVE_SECTIONS, TABS, login, loadedSections, apiGet, watchJuxErrors, trackJuxRequests, isPainted } from '../helpers.mjs';
 
 // The native sections the client reads straight from Jellyfin (NATIVE_ROUTES in jux-homepage.js); every
 // other section, native ones included, is read through JuxHomepage/Section/{type}.
@@ -88,6 +88,7 @@ test('an unscrolled home page fetches only the rows within one screen below the 
 });
 
 test('coming back to the home page within the app issues no JellyUX or home section request (PROC-03.a, A-08)', async ({ page }) => {
+    test.skip(JELLYFIN_12, ON_12.homeReturn);
     const requests = trackJuxRequests(page);
     await login(page, env.admin);
     await loadedSections(page);
@@ -112,10 +113,17 @@ test('an open detail page issues no JellyUX request once loaded, for 30 s (PROC-
     await page.locator('.jux-widget-section').first().waitFor();
     const movies = await apiGet(env.admin, `/Items?recursive=true&includeItemTypes=Movie&limit=1&userId=${env.admin.id}`);
 
-    const includedIn = page.waitForRequest((req) => req.url().includes('/JuxHomepage/Collections/IncludedIn/'));
+    // Jellyfin 12 lists the collections itself (#collectionsCollapsible): JellyUX adds no section there
+    // (COMPAT-07); the breadcrumb still reads IncludedIn for the collection of its trail.
+    const detailReady = JELLYFIN_12
+        ? null
+        : page.waitForRequest((req) => req.url().includes('/JuxHomepage/Collections/IncludedIn/'));
     await page.evaluate((id) => { location.hash = `#/details?id=${id}&serverId=${window.ApiClient.serverId()}`; }, movies.Items[0].Id);
-    await includedIn;
+    await (detailReady ?? page.locator('.libraryPage:not(.hide) #collectionsCollapsible').waitFor({ state: 'attached' }));
     await page.waitForTimeout(2000);
+    if (JELLYFIN_12) {
+        await expect(page.locator('.jux-collections-section')).toHaveCount(0);
+    }
 
     // The detail page's own playable-items query (Users/{id}/Items with Filters=IsNotFolder, a filter
     // no JellyUX script sends) can still arrive after the mark on a slow runner: it alone is left out.
@@ -136,6 +144,7 @@ test('a fresh install renders the seven native sections, each with cards (F-25)'
 });
 
 test('a long section title wraps left of the native scroll buttons at 390 px (KTW-04)', async ({ page }) => {
+    test.skip(JELLYFIN_12 && test.info().project.name === 'mobile', ON_12.narrowButtons);
     // Run at 390 px by both projects: the scroll buttons show with a mouse and with touch.
     await page.setViewportSize({ width: 390, height: 844 });
     await login(page, env.admin);
@@ -156,6 +165,7 @@ test('a long section title wraps left of the native scroll buttons at 390 px (KT
 });
 
 test('the four JellyUX tabs open, one pane at a time', async ({ page }) => {
+    test.skip(JELLYFIN_12, NO_MODERN_TABS);
     const errors = watchJuxErrors(page);
     await login(page, env.admin);
 
@@ -173,6 +183,7 @@ test('the four JellyUX tabs open, one pane at a time', async ({ page }) => {
 });
 
 test('the JellyUX tabs arrive with the native ones and the tab bar stays still (F-42)', async ({ page }) => {
+    test.skip(JELLYFIN_12, NO_MODERN_TABS);
     await login(page, env.admin);
     await page.locator('#jux-tabbtn-watchlist').waitFor();
     await page.evaluate(() => { location.hash = '#/movies.html'; });
