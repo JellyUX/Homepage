@@ -259,6 +259,14 @@ describe('retired tab address', () => {
         expect(injector().retiredTabTarget(hash)).toBeNull();
     });
 
+    it('replaces the address of an old Statistics link followed in the app, with no view shown (Modern home)', async () => {
+        window.location.hash = '#/home';
+        window.location.hash = '#/home?tab=5';
+        window.dispatchEvent(new HashChangeEvent('hashchange'));
+
+        expect(window.location.hash).toBe('#/home?tab=4');
+    });
+
     it('replaces the address of an old Statistics link when the home page opens', () => {
         window.location.hash = '#/home?tab=5';
         renderHomePage();

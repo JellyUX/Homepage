@@ -226,4 +226,13 @@ if (typeof window.juxTabInjector === 'undefined') {
     // the centered bar never shifts under the pointer (TODO_V4.md 7.5, F-42: a fixed 800 ms delay
     // moved the Home button by 217 px). waitForUI still polls if the bar is not rendered yet.
     document.addEventListener('viewshow', function () { window.juxTabInjector.init(); });
+
+    // The Modern home of Jellyfin 12 sends no viewshow when only its address changes: an old link to tab 5
+    // followed in the app is caught here (FEAT-03.b).
+    window.addEventListener('hashchange', function () {
+        var target = window.juxTabInjector.retiredTabTarget(window.location.hash);
+        if (target) {
+            window.location.replace(target);
+        }
+    });
 }
