@@ -1,6 +1,6 @@
 'use strict';
 
-// JellyUX shared UI helpers for the internal tabs (Watchlist/Progress/History/Statistics).
+// JellyUX shared UI helpers for the internal tabs (Watchlist/History/Statistics).
 // TODO_V3.md Phase 6 bis. Centralizes what a fresh-eyes audit of Sources/KefinTweaks-main found
 // missing from our own jux-watchlist.js/jux-progress.js/jux-history.js/jux-statistics.js: an empty
 // state with an icon (not just plain text), a loading indicator, a visual progress bar, a styled
@@ -58,7 +58,7 @@
     // List tab (TODO_V4.md 5.1, F-35)
     // -------------------------------------------------------------------------
 
-    // One card-grid tab of the home page (Watchlist, Progress, History): delegated click on its tab
+    // One card-grid list of the home page (Watchlist, and the Movies and Series sub-tabs of History): delegated click on its tab
     // button, a title with sort and filter buttons, then the rows of one JellyUX endpoint rendered
     // by Jellyfin's cardBuilder. config:
     //   id          'watchlist' -> #jux-tabbtn-watchlist, #jux-tab-watchlist, .jux-watchlist-items
@@ -74,14 +74,23 @@
     //   decorate    function (container, rows, t) called after the cards are rendered (optional)
     //   header      function (container, lang) filling a block between the title and the controls
     //               (optional)
+    //   paneId      id of the element holding the list's .sections (default 'jux-tab-' + id); a
+    //               sub-tab of the History tab names its own sub-pane
+    //   button      false when no tab button of its own opens the list (a sub-tab: its owner calls
+    //               render)
+    //   title       false to leave out the list title (the owner tab shows one)
     function createListTab(config) {
         var filters = config.filters || [];
         var itemOf = config.itemOf || function (row) { return row; };
+        var paneId = config.paneId || 'jux-tab-' + config.id;
 
         var tab = {
             state: config.state,
 
             init: function () {
+                if (config.button === false) {
+                    return;
+                }
                 document.addEventListener('click', function (event) {
                     if (event.target.closest('#jux-tabbtn-' + config.id)) {
                         tab.render();
@@ -90,7 +99,7 @@
             },
 
             render: function () {
-                var pane = document.getElementById('jux-tab-' + config.id);
+                var pane = document.getElementById(paneId);
                 var sections = pane && pane.querySelector('.sections');
                 var userId = window.ApiClient && window.ApiClient.getCurrentUserId();
                 if (!sections || !userId) {
@@ -196,7 +205,7 @@
 
             buildShellHtml: function (lang, state) {
                 var t = window.JuxCore.labels(config.labels, lang);
-                var html = '<h2 class="sectionTitle sectionTitle-cards jux-section-title-container padded-left padded-right">' + window.JuxCore.escHtml(t.title) + '</h2>' +
+                var html = (config.title === false ? '' : '<h2 class="sectionTitle sectionTitle-cards jux-section-title-container padded-left padded-right">' + window.JuxCore.escHtml(t.title) + '</h2>') +
                     (config.header ? '<div class="jux-list-header jux-statistics-tiles padded-left padded-right"></div>' : '') +
                     '<div class="jux-view-controls padded-left padded-right">' +
                     _listButtonHtml('jux-' + config.id + '-sort-btn', 'sort', labelFor(config.sortOptions(t), state.sortBy));

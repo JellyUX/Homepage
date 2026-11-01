@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import juxHistory from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-history.js';
+import '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-progress.js';
 
 const { _sortOptions, _buildShellHtml } = juxHistory;
 
@@ -11,10 +12,10 @@ describe('_sortOptions', () => {
 });
 
 describe('_buildShellHtml', () => {
-    it('renders the section title and the sort button with the current label', () => {
+    it('renders the sort button with the current label, under the title of the History tab', () => {
         const html = _buildShellHtml('en', { sortBy: 'SortName', sortOrder: 'Ascending' });
 
-        expect(html).toContain('History');
+        expect(html).not.toContain('sectionTitle');
         expect(html).toContain('id="jux-history-sort-btn"');
         expect(html).toContain('>Name<');
     });
@@ -22,7 +23,6 @@ describe('_buildShellHtml', () => {
     it('renders localized labels for French', () => {
         const html = _buildShellHtml('fr', { sortBy: 'LastPlayed', sortOrder: 'Descending' });
 
-        expect(html).toContain('Historique');
         expect(html).toContain('Dernier vu');
     });
 });
@@ -130,5 +130,106 @@ describe('watch date and tiles (F-58)', () => {
         await settle();
 
         expect(parent.children).toHaveLength(0);
+    });
+});
+
+// FEAT-03: Movies (this file) and Series (jux-progress.js) are two sub-tabs of one History tab.
+describe('History tab (FEAT-03)', () => {
+    const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+    const routes = () => window.ApiClient.getJSON.mock.calls.map((call) => call[0].split('?')[0]);
+    const selected = () => [...document.querySelectorAll('.jux-subtab[aria-selected="true"]')].map((b) => b.dataset.sub);
+    const shown = () => [...document.querySelectorAll('.jux-subpane:not([hidden])')].map((p) => p.id);
+
+    function renderHome(hash) {
+        window.location.hash = hash;
+        document.documentElement.lang = 'en';
+        document.body.innerHTML = '<div class="tabContent" id="jux-tab-history"><div class="sections"></div></div>' +
+            '<div class="emby-tabs-slider"><button id="jux-tabbtn-history"></button></div>';
+        window.ApiClient = {
+            getCurrentUserId: () => 'u1',
+            getUrl: (route, query) => route + '?' + new URLSearchParams(query).toString(),
+            getJSON: vi.fn(() => Promise.resolve({ Items: [], TotalRecordCount: 0 }))
+        };
+    }
+
+    afterEach(() => {
+        delete window.ApiClient;
+        document.body.innerHTML = '';
+        window.location.hash = '';
+    });
+
+    it('opens on Movies and reads no series progress until Series is opened (FEAT-03.b)', async () => {
+        renderHome('#/home');
+
+        document.getElementById('jux-tabbtn-history').click();
+        await settle();
+
+        expect(document.querySelector('#jux-tab-history h2').textContent).toBe('History');
+        expect([...document.querySelectorAll('.jux-subtab')].map((b) => b.textContent)).toEqual(['Movies', 'Series']);
+        expect(selected()).toEqual(['movies']);
+        expect(shown()).toEqual(['jux-tab-history-movies']);
+        expect(routes()).toContain('JuxHomepage/MovieHistory/Items');
+        expect(routes()).not.toContain('JuxHomepage/SeriesProgress/Items');
+
+        document.getElementById('jux-subtab-series').click();
+        await settle();
+
+        expect(selected()).toEqual(['series']);
+        expect(shown()).toEqual(['jux-tab-history-series']);
+        expect(routes()).toContain('JuxHomepage/SeriesProgress/Items');
+        expect(window.location.hash).toBe('#/home?sub=series');
+    });
+
+    it('opens the sub-tab named by the address', async () => {
+        renderHome('#/home?tab=3&sub=series');
+
+        juxHistory.openTab();
+        await settle();
+
+        expect(selected()).toEqual(['series']);
+        expect(routes()).toEqual(['JuxHomepage/SeriesProgress/Items']);
+    });
+
+    it('moves between the sub-tabs with the arrow keys', async () => {
+        renderHome('#/home');
+        juxHistory.openTab();
+
+        document.getElementById('jux-subtab-movies').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+        await settle();
+
+        expect(selected()).toEqual(['series']);
+        expect(document.activeElement.id).toBe('jux-subtab-series');
+        expect(document.getElementById('jux-subtab-series').tabIndex).toBe(0);
+        expect(document.getElementById('jux-subtab-movies').tabIndex).toBe(-1);
+    });
+
+    it('opens Series through the History tab button for "See progress" of Statistics', async () => {
+        renderHome('#/home?tab=4');
+
+        juxHistory.showSub('series');
+        await settle();
+
+        expect(window.location.hash).toBe('#/home?tab=4&sub=series');
+        expect(selected()).toEqual(['series']);
+        expect(routes()).toEqual(['JuxHomepage/SeriesProgress/Items']);
+    });
+
+    it.each([
+        ['#/home', 'movies'],
+        ['#/home?sub=series', 'series'],
+        ['#/home?tab=3&sub=series&x=1', 'series'],
+        ['#/home?sub=bogus', 'movies'],
+        ['#/home?subtitle=series', 'movies']
+    ])('reads the sub-tab of %s as %s', (hash, sub) => {
+        expect(juxHistory._subOf(hash)).toBe(sub);
+    });
+
+    it.each([
+        ['#/home', '#/home?sub=series'],
+        ['#/home?tab=3', '#/home?tab=3&sub=series'],
+        ['#/home?sub=movies&tab=3', '#/home?tab=3&sub=series'],
+        ['#/home?tab=3&sub=movies', '#/home?tab=3&sub=series']
+    ])('sets the sub-tab of %s', (hash, expected) => {
+        expect(juxHistory._withSub(hash, 'series')).toBe(expected);
     });
 });

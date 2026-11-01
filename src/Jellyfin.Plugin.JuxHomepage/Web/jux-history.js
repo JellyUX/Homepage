@@ -1,6 +1,6 @@
 'use strict';
 
-// JellyUX Movie History tab rendering.
+// JellyUX History tab: the Movies list, and the two sub-tabs Movies | Series (FEAT-03).
 // TODO_V3.md Phase 6.2, visually reworked in Phase 6 bis to use the shared window.JuxUI helpers
 // (Web/jux-ui.js) instead of a bare <select> and inline styles: a native-look sort dialog, a loading
 // spinner, and an icon-based empty state.
@@ -133,6 +133,9 @@
         endpoint: 'JuxHomepage/MovieHistory/Items',
         logName: 'Movie History',
         labels: 'history',
+        paneId: 'jux-tab-history-movies',
+        button: false,
+        title: false,
         state: { sortBy: 'LastPlayed', sortOrder: 'Descending' },
         sortOptions: _sortOptions,
         emptyIcon: 'movie',
@@ -140,7 +143,115 @@
         header: _renderTiles
     });
 
-    window.juxHistory.init();
+    // -------------------------------------------------------------------------
+    // History tab (FEAT-03): the Movies list above and the Series progress of jux-progress.js, as two
+    // sub-tabs of one home tab. A sub-tab reads its list only when it is opened; the one shown is kept
+    // in the address (&sub=movies|series), Movies by default.
+    // -------------------------------------------------------------------------
+
+    var SUBS = ['movies', 'series'];
+
+    function _subOf(hash) {
+        var match = /[?&]sub=(movies|series)(?:&|$)/.exec(hash || '');
+        return match ? match[1] : SUBS[0];
+    }
+
+    // The address with its sub-tab set, other parameters kept.
+    function _withSub(hash, sub) {
+        var bare = (hash || '').replace(/([?&])sub=[^&]*(&|$)/, function (m, lead, tail) { return tail ? lead : ''; });
+        return bare + (bare.indexOf('?') < 0 ? '?' : '&') + 'sub=' + sub;
+    }
+
+    function _listOf(sub) {
+        return sub === 'series' ? window.juxProgress : window.juxHistory;
+    }
+
+    function _buildTabHtml(lang) {
+        var t = window.JuxCore.labels('history', lang);
+        var names = { movies: t.subMovies, series: t.subSeries };
+        var html = '<h2 class="sectionTitle sectionTitle-cards jux-section-title-container padded-left padded-right">' +
+            window.JuxCore.escHtml(window.JuxCore.t('client.tabs.history')) + '</h2>' +
+            '<div class="jux-subtabs padded-left padded-right" role="tablist">';
+        SUBS.forEach(function (sub) {
+            html += '<button type="button" role="tab" class="jux-subtab" id="jux-subtab-' + sub + '" data-sub="' + sub + '"' +
+                ' aria-controls="jux-tab-history-' + sub + '" aria-selected="false" tabindex="-1">' +
+                window.JuxCore.escHtml(names[sub]) + '</button>';
+        });
+        html += '</div>';
+        SUBS.forEach(function (sub) {
+            html += '<div class="jux-subpane" id="jux-tab-history-' + sub + '" role="tabpanel" aria-labelledby="jux-subtab-' + sub + '" hidden>' +
+                '<div class="sections"></div></div>';
+        });
+        return html;
+    }
+
+    function _selectSub(root, sub) {
+        Array.prototype.forEach.call(root.querySelectorAll('.jux-subtab'), function (button) {
+            var on = button.getAttribute('data-sub') === sub;
+            button.setAttribute('aria-selected', on ? 'true' : 'false');
+            button.tabIndex = on ? 0 : -1;
+        });
+        Array.prototype.forEach.call(root.querySelectorAll('.jux-subpane'), function (pane) {
+            pane.hidden = pane.id !== 'jux-tab-history-' + sub;
+        });
+    }
+
+    function _setAddressSub(sub) {
+        if (window.history && window.history.replaceState) {
+            window.history.replaceState(window.history.state, '', _withSub(window.location.hash, sub));
+        }
+    }
+
+    function _openSub(root, sub, inAddress) {
+        _selectSub(root, sub);
+        if (inAddress) {
+            _setAddressSub(sub);
+        }
+        var list = _listOf(sub);
+        if (list) {
+            list.render();
+        }
+    }
+
+    // Left and right arrows move between the two sub-tabs, as in a native tab list.
+    function _onSubKey(root, event) {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') { return; }
+        var buttons = Array.prototype.slice.call(root.querySelectorAll('.jux-subtab'));
+        var next = buttons[(buttons.indexOf(event.target) + 1) % buttons.length];
+        event.preventDefault();
+        next.focus();
+        _openSub(root, next.getAttribute('data-sub'), true);
+    }
+
+    function openTab() {
+        var pane = document.getElementById('jux-tab-history');
+        var root = pane && pane.querySelector('.sections');
+        if (!root) { return; }
+        root.innerHTML = _buildTabHtml(window.JuxCore.resolveLang());
+        root.querySelector('.jux-subtabs').addEventListener('click', function (event) {
+            var button = event.target.closest('.jux-subtab');
+            if (button) { _openSub(root, button.getAttribute('data-sub'), true); }
+        });
+        root.querySelector('.jux-subtabs').addEventListener('keydown', function (event) { _onSubKey(root, event); });
+        _openSub(root, _subOf(window.location.hash), false);
+    }
+
+    // Opens the History tab on one sub-tab through its tab button, the way a user does (the "See
+    // progress" button of the Statistics tab opens Series).
+    function showSub(sub) {
+        var button = document.getElementById('jux-tabbtn-history');
+        if (!button) { return; }
+        _setAddressSub(sub);
+        button.click();
+    }
+
+    window.juxHistoryTab = { open: openTab, show: showSub };
+
+    document.addEventListener('click', function (event) {
+        if (event.target.closest('#jux-tabbtn-history')) {
+            openTab();
+        }
+    });
 
     // Guarded UMD-lite export (same convention as jux-watchlist.js), so Vitest can exercise the pure
     // functions directly without a real browser/DOM.
@@ -150,7 +261,11 @@
             _buildShellHtml: window.juxHistory.buildShellHtml,
             _decorateCards: _decorateCards,
             _formatWatchedDate: _formatWatchedDate,
-            _renderTiles: _renderTiles
+            _renderTiles: _renderTiles,
+            _subOf: _subOf,
+            _withSub: _withSub,
+            openTab: openTab,
+            showSub: showSub
         };
     }
 })();

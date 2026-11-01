@@ -69,13 +69,18 @@ test('the outlined JellyUX components stay visible in the light theme (F-45)', a
     const seen = new Set();
     for (const tab of TABS) {
         await page.locator(`.emby-tab-button[data-index="${tab.index}"]`).click();
-        const pane = page.locator(`#${tab.id}`);
-        await pane.locator('.jux-sort-button, .jux-stat-card').first().waitFor();
-        await page.waitForTimeout(500);
-        const contrasts = await edgeContrasts(pane);
-        for (const [name, value] of Object.entries(contrasts)) {
-            seen.add(name);
-            expect(value, `${tab.id} ${name}`).toBeGreaterThanOrEqual(MIN_EDGE_CONTRAST);
+        for (const sub of tab.subs || [null]) {
+            if (sub) {
+                await page.locator(`#jux-subtab-${sub}`).click();
+            }
+            const pane = page.locator(sub ? `#${tab.id}-${sub}` : `#${tab.id}`);
+            await pane.locator('.jux-sort-button, .jux-stat-card').first().waitFor();
+            await page.waitForTimeout(500);
+            const contrasts = await edgeContrasts(pane);
+            for (const [name, value] of Object.entries(contrasts)) {
+                seen.add(name);
+                expect(value, `${tab.id} ${sub || ''} ${name}`).toBeGreaterThanOrEqual(MIN_EDGE_CONTRAST);
+            }
         }
     }
     expect([...seen].sort()).toEqual(['progressChunk', 'sortButton', 'spinnerTrack', 'statCard']);

@@ -11,10 +11,10 @@ describe('_sortOptions', () => {
 });
 
 describe('_buildShellHtml', () => {
-    it('renders the section title and the sort button with the current label', () => {
+    it('renders the sort button with the current label, under the title of the History tab', () => {
         const html = _buildShellHtml('en', { sortBy: 'SortName', sortOrder: 'Ascending' });
 
-        expect(html).toContain('Progress');
+        expect(html).not.toContain('sectionTitle');
         expect(html).toContain('id="jux-progress-sort-btn"');
         expect(html).toContain('>Name<');
     });
@@ -22,7 +22,6 @@ describe('_buildShellHtml', () => {
     it('renders localized labels for French', () => {
         const html = _buildShellHtml('fr', { sortBy: 'LastPlayed', sortOrder: 'Descending' });
 
-        expect(html).toContain('Progression');
         expect(html).toContain('Dernier vu');
     });
 });

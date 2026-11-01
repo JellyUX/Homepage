@@ -80,7 +80,8 @@
     }
 
     // The most watched series (TODO_V4.md 8.5, F-55), ranked by the server: each row links to the
-    // series, and "See progress" opens the Progress tab, which lists every series in progress.
+    // series, and "See progress" opens the Series sub-tab of the History tab, which lists every series in
+    // progress (FEAT-03).
     function _buildTopSeriesHtml(stats, lang, serverId) {
         var rows = (stats && stats.TopSeries) || [];
         if (rows.length === 0) {
@@ -108,7 +109,7 @@
                 '</li>';
         });
         html += '</ol>';
-        if (document.getElementById('jux-tabbtn-progress')) {
+        if (document.getElementById('jux-tabbtn-history') && window.juxHistoryTab) {
             html += '<button type="button" class="jux-sort-button jux-top-series-more">' +
                 '<span class="jux-sort-button-label">' + esc(t.seeProgress) + '</span>' +
                 '<span class="material-icons chevron_right" aria-hidden="true"></span></button>';
@@ -117,9 +118,8 @@
     }
 
     function _openProgressTab() {
-        var tabButton = document.getElementById('jux-tabbtn-progress');
-        if (tabButton) {
-            tabButton.click();
+        if (window.juxHistoryTab) {
+            window.juxHistoryTab.show('series');
         }
     }
 

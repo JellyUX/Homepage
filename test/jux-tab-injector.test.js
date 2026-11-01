@@ -7,13 +7,12 @@ const SCRIPT = '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-tab-injector.js';
 
 const EXPECTED_TABS = [
     { id: 'jux-tabbtn-watchlist', index: '2', en: 'Watchlist', fr: 'Watchlist' },
-    { id: 'jux-tabbtn-progress', index: '3', en: 'Progress', fr: 'Progression' },
-    { id: 'jux-tabbtn-history', index: '4', en: 'History', fr: 'Historique' },
-    { id: 'jux-tabbtn-statistics', index: '5', en: 'Statistics', fr: 'Statistiques' }
+    { id: 'jux-tabbtn-history', index: '3', en: 'History', fr: 'Historique' },
+    { id: 'jux-tabbtn-statistics', index: '4', en: 'Statistics', fr: 'Statistiques' }
 ];
 
 // The home page as Jellyfin renders it: the native Home/Favorites buttons in the header, then the
-// home view (#indexPage) holding the 6 panes in DOM order (2 native, 4 spliced server-side by
+// home view (#indexPage) holding the 5 panes in DOM order (2 native, 3 spliced server-side by
 // TransformationPatches.HomeHtmlChunk). thirdPartyTab inserts another plugin's button and pane
 // before the JellyUX ones; cachedViewBefore keeps another view with its own .tabContent panes
 // earlier in the document, as Jellyfin does for up to 3 views.
@@ -29,7 +28,7 @@ function renderHomePage({ withSlider = true, thirdPartyTab = false, cachedViewBe
         .map((i) => `<div class="tabContent pageTabContent${i === 0 ? ' is-active' : ''}" data-index="${i}"></div>`)
         .join('');
     const other = thirdPartyTab ? '<div class="tabContent pageTabContent" id="other-tab"></div>' : '';
-    const jux = ['watchlist', 'progress', 'history', 'statistics']
+    const jux = ['watchlist', 'history', 'statistics']
         .map((name, i) => `<div class="tabContent pageTabContent" id="jux-tab-${name}" data-index="${i + 2}"></div>`)
         .join('');
     const cached = cachedViewBefore
@@ -67,13 +66,13 @@ afterEach(() => {
 });
 
 describe('createTabs', () => {
-    it('appends the 4 JellyUX buttons after the native tabs, with data-index 2..5', () => {
+    it('appends the 3 JellyUX buttons after the native tabs, with data-index 2..4', () => {
         renderHomePage();
 
         injector().createTabs();
 
         const buttons = [...document.querySelectorAll('.emby-tabs-slider button')];
-        expect(buttons.map((b) => b.getAttribute('data-index'))).toEqual(['0', '1', '2', '3', '4', '5']);
+        expect(buttons.map((b) => b.getAttribute('data-index'))).toEqual(['0', '1', '2', '3', '4']);
         expect(juxButtons().map((b) => b.id)).toEqual(EXPECTED_TABS.map((t) => t.id));
         juxButtons().forEach((button) => {
             expect(button.className).toBe('emby-tab-button emby-button');
@@ -113,7 +112,7 @@ describe('createTabs', () => {
         injector().createTabs();
         injector().createTabs();
 
-        expect(juxButtons()).toHaveLength(4);
+        expect(juxButtons()).toHaveLength(3);
     });
 
     it('numbers each button after the real position of its pane when another tab comes first', () => {
@@ -121,7 +120,7 @@ describe('createTabs', () => {
 
         injector().createTabs();
 
-        expect(juxButtons().map((b) => b.getAttribute('data-index'))).toEqual(['3', '4', '5', '6']);
+        expect(juxButtons().map((b) => b.getAttribute('data-index'))).toEqual(['3', '4', '5']);
     });
 
     it('creates no button for a pane missing from the home view', () => {
@@ -130,7 +129,7 @@ describe('createTabs', () => {
 
         injector().createTabs();
 
-        expect(juxButtons().map((b) => b.id)).toEqual(['jux-tabbtn-watchlist', 'jux-tabbtn-progress', 'jux-tabbtn-statistics']);
+        expect(juxButtons().map((b) => b.id)).toEqual(['jux-tabbtn-watchlist', 'jux-tabbtn-statistics']);
     });
 
     it('does nothing when the tab bar is absent', () => {
@@ -161,7 +160,7 @@ describe('pane activation', () => {
         document.getElementById('jux-tabbtn-history').classList.add('emby-tab-button-active');
         await Promise.resolve();
 
-        expect(activePaneIndexes()).toEqual(['4']);
+        expect(activePaneIndexes()).toEqual(['3']);
     });
 
     it('opens its own pane when another plugin tab sits before the JellyUX tabs', () => {
@@ -178,10 +177,10 @@ describe('pane activation', () => {
         renderHomePage({ cachedViewBefore: true });
         injector().createTabs();
 
-        document.getElementById('jux-tabbtn-progress').classList.add('emby-tab-button-active');
+        document.getElementById('jux-tabbtn-statistics').classList.add('emby-tab-button-active');
         await Promise.resolve();
 
-        expect(activePaneIds()).toEqual(['jux-tab-progress']);
+        expect(activePaneIds()).toEqual(['jux-tab-statistics']);
     });
 
     it('ignores class changes on the native buttons', async () => {
@@ -204,7 +203,7 @@ describe('waitForUI', () => {
 
             injector().waitForUI();
 
-            expect(juxButtons()).toHaveLength(4);
+            expect(juxButtons()).toHaveLength(3);
         }
     );
 
@@ -228,7 +227,7 @@ describe('waitForUI', () => {
 
         vi.advanceTimersByTime(200);
 
-        expect(juxButtons()).toHaveLength(4);
+        expect(juxButtons()).toHaveLength(3);
     });
 
     it('keeps one poller however often it is started, and stops after 10 s without a tab bar (Annexe.a)', () => {
@@ -253,7 +252,7 @@ describe('navigation re-arming', () => {
         renderHomePage();
         document.getElementById('indexPage').dispatchEvent(new CustomEvent('viewshow', { bubbles: true }));
 
-        expect(juxButtons()).toHaveLength(4);
+        expect(juxButtons()).toHaveLength(3);
     });
 
     it('leaves the History API untouched', () => {

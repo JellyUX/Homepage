@@ -75,7 +75,7 @@
   "admin.modules.title": "Modules",
   "admin.modules.help": "Un module désactivé n'est pas chargé du tout. Les changements s'appliquent après un rechargement de la page.",
   "admin.modules.tabs.label": "Onglets de l'accueil",
-  "admin.modules.tabs.help": "Onglets Watchlist, Progression, Historique et Statistiques sur l'accueil.",
+  "admin.modules.tabs.help": "Onglets Watchlist, Historique et Statistiques sur l'accueil.",
   "admin.modules.cards.label": "Bouton watchlist des cartes et défilement infini",
   "admin.modules.cards.help": "Bouton watchlist sur les cartes de films et de séries, et défilement infini sur les pages de bibliothèque.",
   "admin.modules.seriesflatten.label": "Séries à une saison",
@@ -266,6 +266,8 @@
   "client.history.watchedOn": "Vu le {date}",
   "client.history.moviesWatched": "Films vus",
   "client.history.moviesThisMonth": "Ce mois-ci",
+  "client.history.subMovies": "Films",
+  "client.history.subSeries": "Séries",
 
   "client.progress.title": "Progression",
   "client.progress.empty": "Aucune série en cours",
@@ -318,7 +320,6 @@
   "client.list.ascending": "Croissant",
 
   "client.tabs.watchlist": "Watchlist",
-  "client.tabs.progress": "Progression",
   "client.tabs.history": "Historique",
   "client.tabs.statistics": "Statistiques",
   "client.tabs.statisticsShort": "Stats",

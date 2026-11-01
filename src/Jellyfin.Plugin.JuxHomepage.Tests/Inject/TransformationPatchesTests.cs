@@ -202,7 +202,7 @@ public sealed class TransformationPatchesTests
     private const string HomeHtmlAnchor = "id=\"favoritesTab\" data-index=\"1\"> <div class=\"sections\"></div> </div>";
 
     [Fact]
-    public void TryPatchHomeHtmlChunk_AnchorPresent_SplicesFourTabPanesInOrderRightAfterAnchor()
+    public void TryPatchHomeHtmlChunk_AnchorPresent_SplicesThreeTabPanesInOrderRightAfterAnchor()
     {
         var raw = $"<div class=\"tabContent pageTabContent\" id=\"homeTab\" data-index=\"0\"> <div class=\"sections\"></div> </div> <div class=\"tabContent pageTabContent\" {HomeHtmlAnchor} </div>";
 
@@ -210,18 +210,18 @@ public sealed class TransformationPatchesTests
 
         Assert.Equal(HomeHtmlOutcome.Patched, outcome);
 
-        // The 4 panes must appear in this exact order (DOM position drives the native tab-switch
+        // The 3 panes must appear in this exact order (DOM position drives the native tab-switch
         // visibility toggle, see TransformationPatches.cs comments), each with the matching
-        // data-index (2..5) immediately following the native anchor.
+        // data-index (2..4) immediately following the native anchor. Progress is a sub-tab of
+        // History since FEAT-03: no pane of its own.
         var watchlistIndex = content.IndexOf("id=\"jux-tab-watchlist\" data-index=\"2\"", StringComparison.Ordinal);
-        var progressIndex = content.IndexOf("id=\"jux-tab-progress\" data-index=\"3\"", StringComparison.Ordinal);
-        var historyIndex = content.IndexOf("id=\"jux-tab-history\" data-index=\"4\"", StringComparison.Ordinal);
-        var statisticsIndex = content.IndexOf("id=\"jux-tab-statistics\" data-index=\"5\"", StringComparison.Ordinal);
+        var historyIndex = content.IndexOf("id=\"jux-tab-history\" data-index=\"3\"", StringComparison.Ordinal);
+        var statisticsIndex = content.IndexOf("id=\"jux-tab-statistics\" data-index=\"4\"", StringComparison.Ordinal);
 
         Assert.True(watchlistIndex >= 0);
-        Assert.True(watchlistIndex < progressIndex);
-        Assert.True(progressIndex < historyIndex);
+        Assert.True(watchlistIndex < historyIndex);
         Assert.True(historyIndex < statisticsIndex);
+        Assert.DoesNotContain("jux-tab-progress", content, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -420,7 +420,7 @@ public sealed class TransformationPatchesTests
         var patched = TransformationPatches.HomeHtmlChunk(new PatchRequestPayload { Contents = "a" + HomeHtmlAnchor + "b" });
 
         Assert.StartsWith("a" + HomeHtmlAnchor + " <div class=\"tabContent pageTabContent\" id=\"jux-tab-watchlist\" data-index=\"2\">", patched, StringComparison.Ordinal);
-        Assert.EndsWith("id=\"jux-tab-statistics\" data-index=\"5\"> <div class=\"sections\"></div> </div>b", patched, StringComparison.Ordinal);
+        Assert.EndsWith("id=\"jux-tab-statistics\" data-index=\"4\"> <div class=\"sections\"></div> </div>b", patched, StringComparison.Ordinal);
     }
 
     [Theory]

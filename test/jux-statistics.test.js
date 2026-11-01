@@ -69,11 +69,13 @@ describe('_buildTopSeriesHtml (F-55)', () => {
         expect(rows[1].querySelector('.jux-progress-bar')).not.toBeNull();
     });
 
-    it('opens the Progress tab from "See progress" only when that tab exists', () => {
+    it('offers "See progress" only when the History tab exists (FEAT-03)', () => {
+        window.juxHistoryTab = { show: () => {} };
         expect(juxStatistics._buildTopSeriesHtml({ TopSeries: top }, 'en', 'srv')).not.toContain('jux-top-series-more');
 
-        document.body.innerHTML = '<button id="jux-tabbtn-progress"></button>';
+        document.body.innerHTML = '<button id="jux-tabbtn-history"></button>';
         expect(juxStatistics._buildTopSeriesHtml({ TopSeries: top }, 'en', 'srv')).toContain('See progress');
+        delete window.juxHistoryTab;
     });
 
     it('leaves the block out when no series is watched', () => {

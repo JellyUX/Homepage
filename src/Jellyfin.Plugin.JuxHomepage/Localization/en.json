@@ -75,7 +75,7 @@
   "admin.modules.title": "Modules",
   "admin.modules.help": "A disabled module is not loaded at all. Changes apply after a page reload.",
   "admin.modules.tabs.label": "Home tabs",
-  "admin.modules.tabs.help": "Watchlist, Progress, History and Statistics tabs on the home screen.",
+  "admin.modules.tabs.help": "Watchlist, History and Statistics tabs on the home screen.",
   "admin.modules.cards.label": "Card watchlist button and infinite scroll",
   "admin.modules.cards.help": "Watchlist button on movie and series cards, and infinite scrolling on library pages.",
   "admin.modules.seriesflatten.label": "Single-season series",
@@ -266,6 +266,8 @@
   "client.history.watchedOn": "Watched {date}",
   "client.history.moviesWatched": "Movies watched",
   "client.history.moviesThisMonth": "This month",
+  "client.history.subMovies": "Movies",
+  "client.history.subSeries": "Series",
 
   "client.progress.title": "Progress",
   "client.progress.empty": "No series in progress",
@@ -318,7 +320,6 @@
   "client.list.ascending": "Ascending",
 
   "client.tabs.watchlist": "Watchlist",
-  "client.tabs.progress": "Progress",
   "client.tabs.history": "History",
   "client.tabs.statistics": "Statistics",
   "client.tabs.statisticsShort": "Stats",

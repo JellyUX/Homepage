@@ -1,4 +1,4 @@
-// Injects the 4 JellyUX tab buttons (Watchlist/Progress/History/Statistics) into the home page's
+// Injects the 3 JellyUX tab buttons (Watchlist/History/Statistics) into the home page's
 // native tab bar (.emby-tabs-slider), so they sit alongside the built-in "Home"/"Favorites" tabs.
 //
 // TODO_V3.md Phase 4.1. Modeled directly on the jellyfin-plugin-custom-tabs approach (verified
@@ -20,7 +20,6 @@ if (typeof window.juxTabInjector === 'undefined') {
         // button was ever created. Bug found by live DOM inspection on jellyux-test.
         tabs: [
             { buttonId: 'jux-tabbtn-watchlist', paneId: 'jux-tab-watchlist', label: 'client.tabs.watchlist' },
-            { buttonId: 'jux-tabbtn-progress', paneId: 'jux-tab-progress', label: 'client.tabs.progress' },
             { buttonId: 'jux-tabbtn-history', paneId: 'jux-tab-history', label: 'client.tabs.history' },
             { buttonId: 'jux-tabbtn-statistics', paneId: 'jux-tab-statistics', label: 'client.tabs.statistics', shortLabel: 'client.tabs.statisticsShort' }
         ],

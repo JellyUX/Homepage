@@ -1,6 +1,6 @@
 'use strict';
 
-// JellyUX Series Progress tab rendering.
+// JellyUX Series Progress list: the Series sub-tab of the History tab (jux-history.js, FEAT-03).
 // TODO_V3.md Phase 6.1, visually reworked in Phase 6 bis to use the shared window.JuxUI helpers
 // (Web/jux-ui.js) instead of a bare <select>/text-only progress and inline styles: a native-look
 // sort dialog, a loading spinner, an icon-based empty state, and a real visual progress bar per card
@@ -282,6 +282,10 @@
         endpoint: 'JuxHomepage/SeriesProgress/Items',
         logName: 'Series Progress',
         labels: 'progress',
+        // The Series sub-tab of the History tab, opened by jux-history.js (FEAT-03).
+        paneId: 'jux-tab-history-series',
+        button: false,
+        title: false,
         state: { sortBy: 'LastPlayed', sortOrder: 'Descending' },
         sortOptions: _sortOptions,
         emptyIcon: 'movie_filter',

@@ -83,7 +83,7 @@ public static class TransformationPatches
     // visibility by DOM position within the full .tabContent list (not by data-index attribute
     // matching alone -- confirmed by reading the compiled home.js tab-switch handler), so
     // jux-tab-injector.js numbers each button after the real position of its pane in this list.
-    private static readonly string[] HomeTabIds = ["jux-tab-watchlist", "jux-tab-progress", "jux-tab-history", "jux-tab-statistics"];
+    private static readonly string[] HomeTabIds = ["jux-tab-watchlist", "jux-tab-history", "jux-tab-statistics"];
 
     // Every client asset index.html can reference, in document order: deferred scripts execute in
     // this order, so jux-i18n.js and jux-core.js come first (every script reads window.JuxCore, whose

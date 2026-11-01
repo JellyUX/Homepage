@@ -164,7 +164,7 @@ test('a long section title wraps left of the native scroll buttons at 390 px (KT
     expect(await isPainted(page.locator('.jux-widget-section .sectionTitle').first())).toBe(true);
 });
 
-test('the four JellyUX tabs open, one pane at a time', async ({ page }) => {
+test('the three JellyUX tabs open, one pane at a time', async ({ page }) => {
     test.skip(JELLYFIN_12, NO_MODERN_TABS);
     const errors = watchJuxErrors(page);
     await login(page, env.admin);
@@ -180,6 +180,27 @@ test('the four JellyUX tabs open, one pane at a time', async ({ page }) => {
         }
     }
     expect(errors).toEqual([]);
+});
+
+// FEAT-03.b: History opens on its Movies sub-tab; the Series progress is read only once its sub-tab is
+// opened, and the sub-tab shown is kept in the address.
+test('the History tab reads the series progress only when its Series sub-tab opens (FEAT-03.b)', async ({ page }) => {
+    test.skip(JELLYFIN_12, NO_MODERN_TABS);
+    const requests = trackJuxRequests(page);
+    await login(page, env.admin);
+    const history = TABS.find((tab) => tab.subs);
+
+    await page.locator(`.emby-tab-button[data-index="${history.index}"]`).click();
+    await expect(page.locator('#jux-subtab-movies')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator(`#${history.id}-movies .jux-sort-button`)).toBeVisible();
+    await page.waitForTimeout(1000);
+    expect(requests.count(/\/JuxHomepage\/SeriesProgress\/Items$/i)).toBe(0);
+
+    await page.locator('#jux-subtab-series').click();
+    await expect(page.locator(`#${history.id}-series .jux-sort-button`)).toBeVisible();
+    await expect.poll(() => requests.count(/\/JuxHomepage\/SeriesProgress\/Items$/i)).toBe(1);
+    await expect(page.locator(`#${history.id}-movies`)).toBeHidden();
+    await expect(page).toHaveURL(/[?&]sub=series/);
 });
 
 test('the JellyUX tabs arrive with the native ones and the tab bar stays still (F-42)', async ({ page }) => {

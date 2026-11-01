@@ -31,9 +31,8 @@ export const NATIVE_SECTIONS = [
 
 export const TABS = [
     { index: 2, id: 'jux-tab-watchlist' },
-    { index: 3, id: 'jux-tab-progress' },
-    { index: 4, id: 'jux-tab-history' },
-    { index: 5, id: 'jux-tab-statistics' }
+    { index: 3, id: 'jux-tab-history', subs: ['movies', 'series'] },
+    { index: 4, id: 'jux-tab-statistics' }
 ];
 
 const AUTH = 'MediaBrowser Client="jux-e2e", Device="ci", DeviceId="jux-e2e-api", Version="1.0.0"';
