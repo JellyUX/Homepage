@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { env, JELLYFIN_12, ON_12, login, apiGet, trackJuxRequests, isPainted } from '../helpers.mjs';
+import { env, JELLYFIN_12, login, apiGet, trackJuxRequests, isPainted } from '../helpers.mjs';
 
 // The header buttons the trail must leave uncovered: the right side of the legacy header, and every
 // button and link of the toolbar of the Jellyfin 12 Modern MUI header (COMPAT-09; the trail is a child of
@@ -11,15 +11,16 @@ async function go(page, hash) {
 }
 
 test('a library shorter than one page stops querying once it is complete (FIAB-01)', async ({ page }) => {
-    test.skip(JELLYFIN_12, ON_12.library);
     // The bench library holds 12 movies, all on the first native page: once the list is shown, the
-    // infinite scroll has nothing left to read.
+    // infinite scroll has nothing left to read. Jellyfin 12 lists them in a React view with its own page
+    // buttons, no #moviesTab, which JellyUX leaves to its native paging (COMPAT-10).
     const requests = trackJuxRequests(page);
     await login(page, env.admin);
     await page.locator('.jux-widget-jux-native-recently-added-movies .sectionTitleContainer a').click();
     await expect(page).toHaveURL(/collectionType=movies/);
     await page.evaluate(() => { location.hash = location.hash.replace('tab=1', 'tab=0'); });
-    await expect(page.locator('.libraryPage:not(.hide) #moviesTab .card')).toHaveCount(env.movies.length);
+    const list = JELLYFIN_12 ? '.libraryPage:not(.hide) .itemsContainer.vertical-wrap' : '.libraryPage:not(.hide) #moviesTab';
+    await expect(page.locator(`${list} .card`)).toHaveCount(env.movies.length);
     await page.waitForTimeout(2000);
 
     const listed = requests.mark();

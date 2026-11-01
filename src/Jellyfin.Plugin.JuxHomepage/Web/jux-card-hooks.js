@@ -557,6 +557,9 @@
         // than the real visible tab -- cards and the scroll sentinel were then appended to a node the
         // user could never see, while native pagination (in the real, untouched tab) stayed visible.
         // Confirmed live: exactly one #moviesTab exists inside .libraryPage:not(.hide) at any time.
+        // Jellyfin 12 has no such pane: its item list is a React view with native page buttons, which
+        // JellyUX leaves as it is (COMPAT-10, test "leaves the paged React list of a Jellyfin 12 library
+        // alone").
         if (!activePage) { return null; }
         var moviesTab = activePage.querySelector('#moviesTab.is-active');
         if (moviesTab) { return { tab: moviesTab, mediaType: 'movies', includeItemTypes: 'Movie' }; }

@@ -312,10 +312,12 @@ describe('library infinite scroll, end of the list (FIAB-01)', () => {
     // The user scrolling the sentinel back into view (the last one observed).
     let reachSentinel = () => {};
 
-    async function setUpLibrary(getJSON) {
+    const LEGACY_LIBRARY = '<div class="libraryPage"><div id="moviesTab" class="pageTabContent is-active">' +
+        '<div class="itemsContainer">' + '<div class="card"></div>'.repeat(4) + '</div><div class="paging"></div></div></div>';
+
+    async function setUpLibrary(getJSON, markup = LEGACY_LIBRARY) {
         localStorage.clear();
-        document.body.innerHTML = '<div class="libraryPage"><div id="moviesTab" class="pageTabContent is-active">' +
-            '<div class="itemsContainer">' + '<div class="card"></div>'.repeat(4) + '</div><div class="paging"></div></div></div>';
+        document.body.innerHTML = markup;
         // The sentinel is always in view: a list that re-arms queries again at once.
         window.IntersectionObserver = class {
             constructor(callback) { this.callback = callback; }
@@ -404,6 +406,19 @@ describe('library infinite scroll, end of the list (FIAB-01)', () => {
 
         expect(calls.slice(-3)).toEqual(['4', '104', '204']);
         expect(getJSON.mock.calls.length).toBe(calls.length);
+        expect(document.querySelectorAll('.jux-infinite-sentinel')).toHaveLength(0);
+    });
+
+    // COMPAT-10: the item list of a Jellyfin 12 library is a React view with its own page buttons, the
+    // cards straight in the page, no #moviesTab pane: JellyUX leaves it to its native paging.
+    it('leaves the paged React list of a Jellyfin 12 library alone: no sentinel, no query', async () => {
+        const getJSON = vi.fn().mockResolvedValue({ Items: [], TotalRecordCount: 4 });
+        await setUpLibrary(getJSON, '<div id="moviesPage" class="page libraryPage"><div class="padded-bottom-page">' +
+            '<div class="itemsContainer vertical-wrap">' + '<div class="card"></div>'.repeat(4) + '</div></div></div>');
+
+        await mutate(5);
+
+        expect(getJSON).not.toHaveBeenCalled();
         expect(document.querySelectorAll('.jux-infinite-sentinel')).toHaveLength(0);
     });
 
