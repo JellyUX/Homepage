@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { env, JELLYFIN_12, NO_MODERN_TABS, TABS, login } from '../helpers.mjs';
+import { env, TABS, login, openTab } from '../helpers.mjs';
 
 // TODO_V4.md 5.2 (F-40): under an outage a tab or a home section says it failed and offers a retry,
 // never "empty", and no promise rejection is left unhandled. The outage is simulated by aborting
@@ -16,7 +16,13 @@ async function watchRejections(page) {
         window.__juxRejections = [];
         window.addEventListener('unhandledrejection', (event) => {
             const reason = String(event.reason && (event.reason.stack || event.reason));
-            if (!reason.startsWith("Error: Cannot find module './'")) {
+            // The native tabs controller choking on a JellyUX tab index, a native rejection with no effect:
+            // Jellyfin 10.11 finds no tab module for it, the hidden legacy tab bar of the Jellyfin 12 Modern
+            // home has no button at that index when the address names it (D-13, DR-025).
+            const nativeTabIndex = reason.startsWith("Error: Cannot find module './'") ||
+                (reason.startsWith("TypeError: Cannot read properties of undefined (reading 'classList')") &&
+                    reason.includes('parentWithClass') && reason.includes('selectedIndex'));
+            if (!nativeTabIndex) {
                 window.__juxRejections.push(reason);
             }
         });
@@ -27,14 +33,13 @@ async function watchRejections(page) {
 const juxApi = (url) => url.pathname.includes('/JuxHomepage/') && !/\.(js|css)$/.test(url.pathname);
 
 test('every JellyUX tab shows an error with a retry when the server stops answering (F-40)', async ({ page }) => {
-    test.skip(JELLYFIN_12, NO_MODERN_TABS);
     await watchRejections(page);
     await login(page, env.admin);
     await page.locator('.jux-widget-section').first().waitFor();
 
     await page.route(juxApi, (route) => route.abort('connectionrefused'));
     for (const tab of TABS) {
-        await page.locator(`.emby-tab-button[data-index="${tab.index}"]`).click();
+        await openTab(page, tab);
         const pane = page.locator(`#${tab.id}`);
         await expect(pane.locator('.jux-error-state')).toBeVisible();
         await expect(pane.locator('.jux-error-retry')).toBeVisible();

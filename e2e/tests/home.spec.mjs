@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { env, JELLYFIN_12, NO_MODERN_TABS, NATIVE_SECTIONS, TABS, login, loadedSections, apiGet, watchJuxErrors, trackJuxRequests, isPainted } from '../helpers.mjs';
+import { env, JELLYFIN_12, NATIVE_SECTIONS, TABS, login, loadedSections, apiGet, watchJuxErrors, trackJuxRequests, isPainted, openTab } from '../helpers.mjs';
 
 // The native sections the client reads straight from Jellyfin (NATIVE_ROUTES in jux-homepage.js); every
 // other section, native ones included, is read through JuxHomepage/Section/{type}.
@@ -179,12 +179,11 @@ test('a long section title wraps left of the native scroll buttons at 390 px (KT
 });
 
 test('the three JellyUX tabs open, one pane at a time', async ({ page }) => {
-    test.skip(JELLYFIN_12, NO_MODERN_TABS);
     const errors = watchJuxErrors(page);
     await login(page, env.admin);
 
     for (const tab of TABS) {
-        await page.locator(`.emby-tab-button[data-index="${tab.index}"]`).click();
+        await openTab(page, tab);
         const pane = page.locator(`#${tab.id}`);
         await expect(pane).toBeVisible();
         await expect(pane).toHaveClass(/is-active/);
@@ -199,12 +198,11 @@ test('the three JellyUX tabs open, one pane at a time', async ({ page }) => {
 // FEAT-03.b: History opens on its Movies sub-tab; the Series progress is read only once its sub-tab is
 // opened, and the sub-tab shown is kept in the address.
 test('the History tab reads the series progress only when its Series sub-tab opens (FEAT-03.b)', async ({ page }) => {
-    test.skip(JELLYFIN_12, NO_MODERN_TABS);
     const requests = trackJuxRequests(page);
     await login(page, env.admin);
     const history = TABS.find((tab) => tab.subs);
 
-    await page.locator(`.emby-tab-button[data-index="${history.index}"]`).click();
+    await openTab(page, history);
     await expect(page.locator('#jux-subtab-movies')).toHaveAttribute('aria-selected', 'true');
     await expect(page.locator(`#${history.id}-movies .jux-sort-button`)).toBeVisible();
     await page.waitForTimeout(1000);
@@ -218,9 +216,8 @@ test('the History tab reads the series progress only when its Series sub-tab ope
 });
 
 test('an old link to the Statistics tab (tab 5) opens Statistics (FEAT-03.b)', async ({ page }) => {
-    test.skip(JELLYFIN_12, NO_MODERN_TABS);
     await login(page, env.admin);
-    await page.locator('#jux-tabbtn-statistics').waitFor();
+    await page.locator('#jux-tab-statistics').waitFor({ state: 'attached' });
 
     await page.evaluate(() => { location.hash = '#/home?tab=5'; });
 
@@ -228,8 +225,39 @@ test('an old link to the Statistics tab (tab 5) opens Statistics (FEAT-03.b)', a
     await expect(page.locator('#jux-tab-statistics .jux-stat-card').first()).toBeVisible();
 });
 
+// Jellyfin 12 Modern layout: the entries arrive with the native header links, after them, so Favorites
+// never moves. Polled every frame from a reload, by a script that runs before the page's own (D-13).
+test('the JellyUX entries arrive with the native header links and the bar stays still (F-42, Jellyfin 12)', async ({ page }) => {
+    test.skip(!JELLYFIN_12, 'Jellyfin 10.11 has no Modern header: the tab bar case below covers it');
+    test.skip(test.info().project.name === 'mobile', 'no header links at 390 px in the Modern layout: the tabs are in the menu drawer');
+    await login(page, env.admin);
+    await page.locator('.jux-modern-tab').first().waitFor();
+    await page.addInitScript(() => {
+        const t0 = performance.now();
+        const out = window.__f42 = { native: null, jux: null, favoritesX: [] };
+        const tick = () => {
+            const t = performance.now() - t0;
+            const favorites = document.querySelector('header.MuiAppBar-root a[href="#/home?tab=1"]');
+            if (favorites && out.native === null) { out.native = t; }
+            if (document.querySelector('.jux-modern-tab') && out.jux === null) { out.jux = t; }
+            if (favorites) { out.favoritesX.push(Math.round(favorites.getBoundingClientRect().x)); }
+            if (t < 6000) { requestAnimationFrame(tick); }
+        };
+        requestAnimationFrame(tick);
+    });
+
+    await page.reload();
+    await page.waitForTimeout(6500);
+    const run = await page.evaluate(() => window.__f42);
+
+    expect(run.native).not.toBeNull();
+    expect(run.jux).not.toBeNull();
+    expect(run.jux - run.native).toBeLessThan(100);
+    expect(new Set(run.favoritesX).size).toBe(1);
+});
+
 test('the JellyUX tabs arrive with the native ones and the tab bar stays still (F-42)', async ({ page }) => {
-    test.skip(JELLYFIN_12, NO_MODERN_TABS);
+    test.skip(JELLYFIN_12, 'Jellyfin 12 Modern layout: no tab bar, the header case above covers it');
     await login(page, env.admin);
     await page.locator('#jux-tabbtn-watchlist').waitFor();
     await page.evaluate(() => { location.hash = '#/movies.html'; });

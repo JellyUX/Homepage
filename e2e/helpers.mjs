@@ -3,10 +3,9 @@ import { expect } from '@playwright/test';
 
 export const env = JSON.parse(readFileSync(new URL('./.work/env.json', import.meta.url), 'utf8'));
 
-// Jellyfin 12 serves the Modern home by default, which has no tab bar: the JellyUX tabs come there in V6
-// phase 10, so the tab tests are skipped on 12 until then. It also lists an item's collections itself.
+// Jellyfin 12 serves the Modern home by default: the JellyUX tabs are entries of its header (openTab). It
+// also lists an item's collections itself.
 export const JELLYFIN_12 = /:12(\.|$)/.test(env.image);
-export const NO_MODERN_TABS = 'Jellyfin 12 Modern home: the JellyUX tabs are not in its header yet';
 
 // The seven native widgets a fresh install seeds (NativeWidgetDefaults), in layout order.
 export const NATIVE_SECTIONS = [
@@ -24,6 +23,24 @@ export const TABS = [
     { index: 3, id: 'jux-tab-history', subs: ['movies', 'series'] },
     { index: 4, id: 'jux-tab-statistics' }
 ];
+
+/**
+ * Opens a JellyUX home tab the way a user does: its button in the tab bar on Jellyfin 10.11, its entry in
+ * the header of the Jellyfin 12 Modern layout, in the menu drawer on a narrow screen (D-13).
+ */
+export async function openTab(page, tab) {
+    if (!JELLYFIN_12) {
+        await page.locator(`.emby-tab-button[data-index="${tab.index}"]`).click();
+        return;
+    }
+    await page.locator('header.MuiAppBar-root').waitFor();
+    const wide = (await page.locator('header.MuiAppBar-root .MuiStack-root').count()) > 0;
+    if (!wide) {
+        await page.locator('header.MuiAppBar-root button[aria-label]').first().click();
+    }
+    const scope = wide ? 'header.MuiAppBar-root .MuiStack-root' : '.MuiDrawer-paper';
+    await page.locator(`${scope} .jux-modern-tab[data-jux-tab="${tab.index}"]`).click();
+}
 
 const AUTH = 'MediaBrowser Client="jux-e2e", Device="ci", DeviceId="jux-e2e-api", Version="1.0.0"';
 
