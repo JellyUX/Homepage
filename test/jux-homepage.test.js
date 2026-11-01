@@ -56,6 +56,14 @@ describe('_seeAllTarget (F-56)', () => {
         tab.remove();
     });
 
+    // R11: the Modern layout of Jellyfin 12 has no tab button; its Watchlist entry is #/home?tab=2.
+    it('opens the Watchlist tab by its address in the Jellyfin 12 Modern layout', async () => {
+        window.juxTabModern = { isModern: () => true };
+
+        await expect(target('watchlist').resolve()).resolves.toBe('#/home?tab=2');
+        delete window.juxTabModern;
+    });
+
     it('gives no link without a value, for a year or for an unknown route', () => {
         expect(target('genre', null)).toBeNull();
         expect(target('year', '2020')).toBeNull();

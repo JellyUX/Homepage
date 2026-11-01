@@ -650,12 +650,15 @@
                 return library('tvshows', 'tv');
             case 'watchlist':
                 return {
+                    // The Legacy tab button, else the address of the Modern header entry (Jellyfin 12, D-13).
                     resolve: function () {
                         var tab = document.getElementById('jux-tabbtn-watchlist');
                         if (tab) {
                             tab.click();
+                            return Promise.resolve(null);
                         }
-                        return Promise.resolve(null);
+                        var modern = window.juxTabModern && window.juxTabModern.isModern();
+                        return Promise.resolve(modern ? '#/home?tab=2' : null);
                     }
                 };
             default:

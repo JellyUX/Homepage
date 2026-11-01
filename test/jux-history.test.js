@@ -144,7 +144,7 @@ describe('History tab (FEAT-03)', () => {
         window.location.hash = hash;
         document.documentElement.lang = 'en';
         document.body.innerHTML = '<div class="tabContent" id="jux-tab-history"><div class="sections"></div></div>' +
-            '<div class="emby-tabs-slider"><button id="jux-tabbtn-history"></button></div>';
+            '<div class="emby-tabs-slider"><button id="jux-tabbtn-history" data-index="3"></button></div>';
         window.ApiClient = {
             getCurrentUserId: () => 'u1',
             getUrl: (route, query) => route + '?' + new URLSearchParams(query).toString(),
@@ -209,7 +209,8 @@ describe('History tab (FEAT-03)', () => {
         juxHistory.showSub('series');
         await settle();
 
-        expect(window.location.hash).toBe('#/home?tab=4&sub=series');
+        // R11: the address names the History tab, so a reload or a link opens History, not Statistics.
+        expect(window.location.hash).toBe('#/home?tab=3&sub=series');
         expect(selected()).toEqual(['series']);
         expect(routes()).toEqual(['JuxHomepage/SeriesProgress/Items']);
     });
@@ -218,13 +219,16 @@ describe('History tab (FEAT-03)', () => {
         renderHome('#/home');
         expect(window.juxHistoryTab.available()).toBe(true);
 
-        document.body.innerHTML = '<a class="jux-modern-tab" data-jux-tab="3" href="#/home?tab=3"></a>';
+        // R11: in the Modern layout the entry may sit in a menu drawer not rendered yet (narrow screen).
+        document.body.innerHTML = '';
+        window.juxTabModern = { isModern: () => true };
         expect(window.juxHistoryTab.available()).toBe(true);
         window.juxHistoryTab.show('series');
         expect(window.location.hash).toBe('#/home?tab=3&sub=series');
 
-        document.body.innerHTML = '';
+        window.juxTabModern.isModern = () => false;
         expect(window.juxHistoryTab.available()).toBe(false);
+        delete window.juxTabModern;
     });
 
     it.each([
@@ -241,7 +245,9 @@ describe('History tab (FEAT-03)', () => {
         ['#/home', '#/home?sub=series'],
         ['#/home?tab=3', '#/home?tab=3&sub=series'],
         ['#/home?sub=movies&tab=3', '#/home?tab=3&sub=series'],
-        ['#/home?tab=3&sub=movies', '#/home?tab=3&sub=series']
+        ['#/home?tab=3&sub=movies', '#/home?tab=3&sub=series'],
+        ['', '#/home?sub=series'],
+        ['#/', '#/home?sub=series']
     ])('sets the sub-tab of %s', (hash, expected) => {
         expect(juxHistory._withSub(hash, 'series')).toBe(expected);
     });

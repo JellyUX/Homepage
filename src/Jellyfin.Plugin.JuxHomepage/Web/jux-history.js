@@ -156,9 +156,10 @@
         return match ? match[1] : SUBS[0];
     }
 
-    // The address with its sub-tab set, other parameters kept.
+    // The address with its sub-tab set, other parameters kept; an empty address is the home page.
     function _withSub(hash, sub) {
-        var bare = (hash || '').replace(/([?&])sub=[^&]*(&|$)/, function (m, lead, tail) { return tail ? lead : ''; });
+        var home = !hash || hash === '#' || hash === '#/' ? '#/home' : hash;
+        var bare = home.replace(/([?&])sub=[^&]*(&|$)/, function (m, lead, tail) { return tail ? lead : ''; });
         return bare + (bare.indexOf('?') < 0 ? '?' : '&') + 'sub=' + sub;
     }
 
@@ -236,23 +237,29 @@
         _openSub(root, _subOf(window.location.hash), false);
     }
 
-    function _modernEntry() {
-        return document.querySelector('.jux-modern-tab[data-jux-tab="3"]');
+    // The Modern layout of Jellyfin 12 (jux-tab-modern.js), whose History entry may sit in a menu drawer
+    // not rendered yet on a narrow screen: the layout says the tab is there, not a visible entry.
+    function _modern() {
+        return !!(window.juxTabModern && window.juxTabModern.isModern());
     }
 
-    // Whether a History tab entry is on screen: the Legacy tab button, or the Modern header entry.
+    // Whether the History tab can be opened: the Legacy tab button, or the Modern layout.
     function available() {
-        return !!(document.getElementById('jux-tabbtn-history') || _modernEntry());
+        return !!document.getElementById('jux-tabbtn-history') || _modern();
     }
 
     // Opens the History tab on one sub-tab the way a user does, through its tab button (Legacy) or its
-    // address (Modern, jux-tab-modern.js) (the "See progress" button of the Statistics tab opens Series).
+    // address (Modern) (the "See progress" button of the Statistics tab opens Series). The address names
+    // the History tab, so a reload or a shared link opens it again (R11).
     function showSub(sub) {
         var button = document.getElementById('jux-tabbtn-history');
         if (button) {
-            _setAddressSub(sub);
+            var tab = button.getAttribute('data-index');
+            if (window.history && window.history.replaceState) {
+                window.history.replaceState(window.history.state, '', _withSub('#/home' + (tab ? '?tab=' + tab : ''), sub));
+            }
             button.click();
-        } else if (_modernEntry()) {
+        } else if (_modern()) {
             window.location.hash = '#/home?tab=3&sub=' + sub;
         }
     }
