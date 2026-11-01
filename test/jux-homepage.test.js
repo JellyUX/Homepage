@@ -554,6 +554,21 @@ describe('_armChunkGuard', () => {
         expect(win.location.reload).toHaveBeenCalledTimes(1);
     });
 
+    it('Legacy home whose home-html entry missed a full resource buffer still reloads once (D-13, R11)', async () => {
+        const win = fakeWindow({ patched: true, tabs: true, resources: [] });
+        let observed = null;
+        win.PerformanceObserver = function (callback) {
+            this.observe = () => { observed = callback; };
+        };
+        renderHomeView({ sections: 2, juxPanes: false });
+
+        _armChunkGuard(win, document);
+        observed({ getEntries: () => LEGACY_HOME });
+        await vi.advanceTimersByTimeAsync(5000);
+
+        expect(win.location.reload).toHaveBeenCalledTimes(1);
+    });
+
     it('waits for the home page, then stops after its first decision', async () => {
         const win = fakeWindow();
         document.body.innerHTML = '<div class="page" id="moviesPage"></div>';

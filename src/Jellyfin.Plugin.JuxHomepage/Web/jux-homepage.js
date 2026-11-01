@@ -657,14 +657,31 @@
             : [];
     }
 
+    var HOME_HTML_CHUNK = /\/home-html\.[^/?]+\.chunk\.js(\?|$)/;
+    var _homeHtmlSeen = new WeakMap();
+
+    function _isHomeHtml(entry) {
+        return HOME_HTML_CHUNK.test(entry.name);
+    }
+
+    // An observer still receives the entries the resource timing buffer (250 by default) no longer keeps.
+    function _watchHomeHtml(win) {
+        try {
+            new win.PerformanceObserver(function (list) {
+                if (list.getEntries().some(_isHomeHtml)) { _homeHtmlSeen.set(win, true); }
+            }).observe({ type: 'resource', buffered: true });
+        } catch (e) {
+            // No observer: the buffered entries alone are read.
+        }
+    }
+
     // The JellyUX panes are owed only by a page that loaded the home-html template: the Modern home of
-    // Jellyfin 12 never asks for it, so its missing panes say nothing of a cache (D-13). With no entry
-    // (resource buffer full) nothing is concluded about the tabs.
+    // Jellyfin 12 never asks for it, so its missing panes say nothing of a cache (D-13).
     function _tabsMissing(win, doc) {
         if (!win.juxTabInjector || doc.getElementById('jux-tab-watchlist')) {
             return false;
         }
-        return _resourceEntries(win).some(function (entry) { return /\/home-html\.[^/?]+\.chunk\.js(\?|$)/.test(entry.name); });
+        return _homeHtmlSeen.get(win) === true || _resourceEntries(win).some(_isHomeHtml);
     }
 
     function _readSession(win, key) {
@@ -813,6 +830,7 @@
             }
         }
 
+        _watchHomeHtml(win);
         doc.addEventListener('viewshow', start);
         start();
     }
