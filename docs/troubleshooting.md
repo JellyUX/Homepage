@@ -128,7 +128,9 @@ JellyUX Homepage.
 
 This applies to File Transformation too: once deleted, nothing injects JellyUX into the web client
 and the home page is native. The JellyUX admin page warns in its banner while JellyUX or File
-Transformation is disabled, before the restart: enable it again before restarting.
+Transformation is disabled, before the restart: enable it again before restarting. On Jellyfin 12,
+which keeps a disabled plugin, the banner only warns about File Transformation: after the restart,
+JellyUX shows nothing until File Transformation is enabled again.
 
 To turn JellyUX off, uncheck **Enable JellyUX Homepage** on its configuration page instead. If the
 plugin is already gone, reinstall it from the plugin catalog: its settings are kept, as the

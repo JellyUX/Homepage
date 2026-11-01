@@ -27,8 +27,11 @@ A modular home screen engine for Jellyfin that replaces the default home page wi
   Jellyfin 12 server, does not work: Jellyfin marks the first *NotSupported* and may delete it at the
   next restart; the second leaves the JellyUX sections empty, and the dashboard activity log names each
   section that failed for this reason once JellyUX has tried to read it.
-- **Jellyfin 12, current limit**: the JellyUX home sections and tabs do not show yet; the home page stays
-  the native one until the client part is ported to the Jellyfin 12 web client.
+- **Jellyfin 12, current limits**: the JellyUX home sections show, and the detail page keeps the
+  collections section Jellyfin 12 has of its own instead of adding the JellyUX one. Not ported yet: the
+  tabs (Watchlist, Progress, History, Statistics) show only in the Legacy layout (see
+  [Moving to Jellyfin 12](#moving-to-jellyfin-12)); the breadcrumb and the infinite scroll of the movie
+  library do not work, and going back to the home page loads its sections again.
 - **[File Transformation plugin](https://github.com/IAmParadox27/jellyfin-plugin-file-transformation)** 3.0 or later, the build for your Jellyfin version (required - JellyUX uses it to inject its scripts into the Jellyfin web client; from 3.0 the transformed `index.html` is revalidated on every load, so a change to the module switches applies at the next page reload)
 
 ---
@@ -43,6 +46,17 @@ A modular home screen engine for Jellyfin that replaces the default home page wi
 3. Go to **Administration > Plugins > Catalog**, find **JellyUX Homepage** and install it
 4. Restart Jellyfin
 5. Go to **Administration > Plugins > JellyUX Homepage** to configure your widgets
+
+### Moving to Jellyfin 12
+
+1. Back up the Jellyfin configuration folder before upgrading the server.
+2. Upgrade the server. At its first start, Jellyfin 12 migrates the library and removes every item whose
+   media file is gone from the disk: check the item counts of your libraries afterwards.
+3. In **Administration > Plugins**, update JellyUX Homepage: the catalog offers the Jellyfin 12 build
+   (`X.Y.Z.12`). Update File Transformation to 3.0 or later, the build for your Jellyfin version, then
+   restart Jellyfin. A 10.11 build left on Jellyfin 12 shows empty sections.
+4. The JellyUX tabs need the Legacy layout for now: in the user settings, **Display**, set
+   **Display mode** to **Desktop (Legacy)** or **Mobile (Legacy)**. The choice is kept per browser.
 
 ---
 
@@ -133,7 +147,9 @@ Uncheck **Enable JellyUX Homepage** at the top of the plugin's configuration pag
 screen comes back immediately. Never use **Disable** on the plugin in **Administration > Plugins**:
 on Jellyfin 10.11 a disabled plugin is deleted at the next restart (Jellyfin issue
 [#15897](https://github.com/jellyfin/jellyfin/issues/15897), fixed in 12.0 by
-[#17521](https://github.com/jellyfin/jellyfin/pull/17521) and not backported to 10.11).
+[#17521](https://github.com/jellyfin/jellyfin/pull/17521) and not backported to 10.11). On Jellyfin 12
+the plugin stays installed, but a disabled File Transformation still leaves JellyUX out of the web
+client after the restart.
 
 **Custom Tabs cannot be installed alongside JellyUX**
 

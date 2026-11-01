@@ -255,7 +255,10 @@ Any Jellyfin Web build can rename them, so run this procedure after every Jellyf
    workflow runs them every Monday on the newest 10.11 and 12 images: a red run there is the signal to
    start this procedure.
 2. **E2E suite**: `node e2e/setup.mjs up --image jellyfin/jellyfin:<version>`, then
-   `npx playwright test -c e2e`.
+   `npx playwright test -c e2e`. A Jellyfin 12 image takes the net10.0 build
+   (`dotnet build -c Release -p:JellyfinVersion=12.0.0`) and a File Transformation build pinned in
+   `e2e/setup.mjs` for that version; the tests of the parts not ported to the Jellyfin 12 client are
+   skipped there, each with its cause (`e2e/helpers.mjs`).
 3. **Server log**: bump the image in `docker/docker-compose.yml`, run
    `docker compose -f docker/docker-compose.yml up -d`, and read the log after the restart. It must show
    `Found loadSections chunk: {FileName}.`, then `Registered loadSections chunk transformation for
