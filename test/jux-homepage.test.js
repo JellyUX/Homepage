@@ -1059,6 +1059,29 @@ describe('home kept in memory for the way back (COMPAT-11)', () => {
         expect(routes(back)).toContain('JuxHomepage/Section/jux.genre');
     });
 
+    // R11: a row is read when it comes near the viewport, which can be long after the mount.
+    it('never paints a kept row older than 5 min when it is read, nor one dropped by a saved setting', async () => {
+        const t0 = Date.now();
+        await mount(client());
+        const later = client();
+        const elem = document.createElement('div');
+        await _loadPage(elem, later, 'u1', {}, 0);
+        const containers = [...elem.querySelectorAll('.jux-items-container')];
+
+        vi.useFakeTimers({ now: t0 + 5 * 60 * 1000 + 1 });
+        await containers[2].fetchData();
+        vi.useRealTimers();
+        expect(routes(later)).toContain('JuxHomepage/Section/jux.genre');
+
+        await mount(client());
+        const again = client();
+        const elem2 = document.createElement('div');
+        await _loadPage(elem2, again, 'u1', {}, 0);
+        window.JUXHomepage.forget();
+        await elem2.querySelectorAll('.jux-items-container')[2].fetchData();
+        expect(routes(again)).toContain('JuxHomepage/Section/jux.genre');
+    });
+
     it('reads everything again for another user', async () => {
         await mount(client());
         const other = client();

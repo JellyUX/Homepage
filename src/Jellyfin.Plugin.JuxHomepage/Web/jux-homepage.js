@@ -54,6 +54,12 @@
         return _memory;
     }
 
+    // Whether memory is still the home kept now and younger than MEMORY_MS: a row is read when it comes near
+    // the viewport, possibly long after the mount, and a saved setting drops the memory (forget).
+    function _isFresh(memory) {
+        return _memory === memory && Date.now() - memory.at < MEMORY_MS;
+    }
+
     function _rowKey(descriptor) {
         return descriptor.SectionKey || descriptor.WidgetType + '|' + (descriptor.AdditionalData || '');
     }
@@ -413,9 +419,9 @@
         var live = LIVE_ROWS.indexOf(descriptor.WidgetType) >= 0;
         var kept = live ? null : memory.rows[key];
         return function () {
-            if (kept) {
-                var result = kept;
-                kept = null;
+            var result = kept;
+            kept = null;
+            if (result && _isFresh(memory)) {
                 return Promise.resolve(result);
             }
             return fetchData().then(function (result) {
