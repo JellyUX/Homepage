@@ -2,6 +2,7 @@ using System.Text.Json;
 using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.IO;
 using MediaBrowser.Common.Plugins;
+using MediaBrowser.Controller;
 using MediaBrowser.Model.Plugins;
 
 namespace Jellyfin.Plugin.JuxHomepage.Inject;
@@ -35,6 +36,12 @@ public class CoexistenceWarnings
     /// <summary>Warning code: FileTransformation is disabled, same deletion risk, and nothing is injected after it (FIAB-06).</summary>
     public const string FileTransformationDisabled = "FileTransformationDisabled";
 
+    /// <summary>
+    /// Warning code: FileTransformation is disabled on Jellyfin 12, which keeps a disabled plugin: nothing is
+    /// injected after the next restart (BKL-64).
+    /// </summary>
+    public const string FileTransformationDisabledUntilRestart = "FileTransformationDisabledUntilRestart";
+
     /// <summary>Warning code: the loadSections chunk drifted, the home page is native (FIAB-04).</summary>
     public const string HomeHookNotFound = "HomeHookNotFound";
 
@@ -52,6 +59,9 @@ public class CoexistenceWarnings
     private static readonly Guid FileTransformationId = Guid.Parse("5e87cc92-571a-4d8d-8d98-d2d4147f9f90");
     private static readonly Version FileTransformationMinimum = new(3, 0);
 
+    // Jellyfin 12.0 stopped deleting a disabled plugin at the next restart (jellyfin/jellyfin#17521).
+    private static readonly Version KeepsDisabledPluginsFrom = new(12, 0);
+
     // Plugin.Id: JellyUX reads its own status, which stays loaded until the restart that deletes it.
     private static readonly Guid JellyUXId = Guid.Parse("3adf1f1f-1541-4e47-b9e3-34d2d2968af6");
 
@@ -64,6 +74,7 @@ public class CoexistenceWarnings
     private readonly PatchStatus _patchStatus;
     private readonly ConfigurationBackup _backup;
     private readonly IFileSystem _fileSystem;
+    private readonly IServerApplicationHost _applicationHost;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CoexistenceWarnings"/> class.
@@ -73,13 +84,15 @@ public class CoexistenceWarnings
     /// <param name="patchStatus">The patch state the startup dry run found.</param>
     /// <param name="backup">The saved copy of the configuration.</param>
     /// <param name="fileSystem">File system abstraction, to read a plugin's manifest on disk.</param>
-    public CoexistenceWarnings(FileTransformationDetector detector, IPluginManager pluginManager, PatchStatus patchStatus, ConfigurationBackup backup, IFileSystem fileSystem)
+    /// <param name="applicationHost">The server, whose version tells whether Disable deletes a plugin.</param>
+    public CoexistenceWarnings(FileTransformationDetector detector, IPluginManager pluginManager, PatchStatus patchStatus, ConfigurationBackup backup, IFileSystem fileSystem, IServerApplicationHost applicationHost)
     {
         _detector = detector;
         _pluginManager = pluginManager;
         _patchStatus = patchStatus;
         _backup = backup;
         _fileSystem = fileSystem;
+        _applicationHost = applicationHost;
     }
 
     /// <summary>
@@ -96,7 +109,7 @@ public class CoexistenceWarnings
             .Where(p => p.Manifest.Status == PluginStatus.Restart && ManifestOnDiskSaysDisabled(p.Path, _fileSystem))
             .Select(p => p.Id)
             .ToHashSet();
-        return Build(_detector.IsAvailable(), plugins, _patchStatus.LoadSections, _patchStatus.TabsAnchor, _backup.IsResetPending, disabledOnDisk, _detector.GetAssemblyVersion());
+        return Build(_detector.IsAvailable(), plugins, _patchStatus.LoadSections, _patchStatus.TabsAnchor, _backup.IsResetPending, disabledOnDisk, _detector.GetAssemblyVersion(), _applicationHost.ApplicationVersion);
     }
 
     /// <summary>
@@ -138,6 +151,10 @@ public class CoexistenceWarnings
     /// The loaded FileTransformation assembly's version, read when the plugin manager lists no FileTransformation
     /// under its id (DEC-P05-6); the manifest version, the one the dashboard shows, wins otherwise.
     /// </param>
+    /// <param name="serverVersion">
+    /// The Jellyfin server version, read at run time so that a 10.11 build loaded on Jellyfin 12 tells right
+    /// (BKL-64); null keeps the 10.11 warnings.
+    /// </param>
     /// <returns>The warning codes.</returns>
     public static IReadOnlyList<string> Build(
         bool fileTransformationAvailable,
@@ -146,7 +163,8 @@ public class CoexistenceWarnings
         bool? tabsAnchor,
         bool configurationReset,
         IReadOnlySet<Guid>? disabledOnDisk = null,
-        Version? fileTransformationAssemblyVersion = null)
+        Version? fileTransformationAssemblyVersion = null,
+        Version? serverVersion = null)
     {
         var installed = plugins.ToList();
         bool IsDisabled(LocalPlugin p) => p.Manifest.Status == PluginStatus.Disabled || disabledOnDisk?.Contains(p.Id) == true;
@@ -169,15 +187,17 @@ public class CoexistenceWarnings
         }
 
         // Only the status is read, not Jellyfin's name order (DEC-P05-7): the order is internal to
-        // DiscoverPlugins and the message says the deletion happens if an active plugin sorts after.
-        if (installed.Any(p => p.Id == JellyUXId && IsDisabled(p)))
+        // DiscoverPlugins and the message says the deletion happens if an active plugin sorts after. Jellyfin
+        // 12 keeps a disabled plugin: a disabled JellyUX is then what the administrator asked for.
+        var deletesDisabled = serverVersion is null || serverVersion < KeepsDisabledPluginsFrom;
+        if (deletesDisabled && installed.Any(p => p.Id == JellyUXId && IsDisabled(p)))
         {
             warnings.Add(JellyUXDisabled);
         }
 
         if (installed.Any(p => p.Id == FileTransformationId && IsDisabled(p)))
         {
-            warnings.Add(FileTransformationDisabled);
+            warnings.Add(deletesDisabled ? FileTransformationDisabled : FileTransformationDisabledUntilRestart);
         }
 
         if (loadSections == LoadSectionsPatchState.HookNotFound)

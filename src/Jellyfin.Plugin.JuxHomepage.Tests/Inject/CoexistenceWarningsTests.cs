@@ -47,6 +47,32 @@ public sealed class CoexistenceWarningsTests
         Assert.Empty(CoexistenceWarnings.Build(true, [plugin], LoadSectionsPatchState.Patched, true, false, new HashSet<Guid>()));
     }
 
+    // BKL-64: Jellyfin 12.0 no longer deletes a disabled plugin (jellyfin/jellyfin#17521), so on 12 a
+    // disabled JellyUX is no risk, and a disabled File Transformation only stops the injection after the
+    // restart. An unknown server version keeps the 10.11 warnings.
+    [Theory]
+    [InlineData("12.0.0", null)]
+    [InlineData("12.4.0", null)]
+    [InlineData("10.11.11", CoexistenceWarnings.JellyUXDisabled)]
+    [InlineData(null, CoexistenceWarnings.JellyUXDisabled)]
+    public void Build_JellyUXDisabled_WarnsOnlyWhereJellyfinDeletesADisabledPlugin(string? server, string? code)
+    {
+        var warnings = CoexistenceWarnings.Build(true, [Plugin(Guid.Parse("3adf1f1f-1541-4e47-b9e3-34d2d2968af6"), PluginStatus.Disabled, "3.0.0.0")], LoadSectionsPatchState.Patched, true, false, serverVersion: server is null ? null : Version.Parse(server));
+
+        Assert.Equal(code is null ? [] : [code], warnings);
+    }
+
+    [Theory]
+    [InlineData("12.0.0", CoexistenceWarnings.FileTransformationDisabledUntilRestart)]
+    [InlineData("10.11.11", CoexistenceWarnings.FileTransformationDisabled)]
+    [InlineData(null, CoexistenceWarnings.FileTransformationDisabled)]
+    public void Build_FileTransformationDisabled_WarnsOfTheDeletionOnlyWhereJellyfinDeletesIt(string? server, string code)
+    {
+        var warnings = CoexistenceWarnings.Build(true, [Plugin(FileTransformationId, PluginStatus.Disabled, "3.0.0.0")], LoadSectionsPatchState.Patched, true, false, serverVersion: server is null ? null : Version.Parse(server));
+
+        Assert.Equal([code], warnings);
+    }
+
     [Fact]
     public void Build_CustomTabsJustDisabled_DoesNotWarnThatItIsInstalled()
     {

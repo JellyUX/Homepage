@@ -50,6 +50,7 @@ public sealed class PluginServiceRegistratorTests : IDisposable
         _services.AddSingleton(Mock.Of<IHostApplicationLifetime>());
         _services.AddSingleton(Mock.Of<IServerConfigurationManager>());
         _services.AddSingleton(Mock.Of<IAuthorizationContext>());
+        _services.AddSingleton(Mock.Of<IServerApplicationHost>());
 
         new PluginServiceRegistrator().RegisterServices(_services, Mock.Of<IServerApplicationHost>());
         _provider = _services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
