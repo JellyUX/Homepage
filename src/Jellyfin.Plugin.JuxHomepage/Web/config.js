@@ -641,6 +641,10 @@ function createConfigPage(view) {
                     self.state.config = config;
                     self.takeBaseline(config, true);
                     byId('juxDraftNotice').hidden = true;
+                    // The home kept in memory in this tab for the way back (COMPAT-11) holds the old layout.
+                    if (window.JUXHomepage && typeof window.JUXHomepage.forget === 'function') {
+                        window.JUXHomepage.forget();
+                    }
                     return result;
                 });
             }).then(function (result) {

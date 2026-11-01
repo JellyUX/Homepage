@@ -331,8 +331,12 @@ describe('configuration page controller (F-33)', () => {
 
         window.ApiClient.updatePluginConfiguration = vi.fn(() => Promise.resolve({}));
         window.Dashboard.processPluginConfigurationUpdateResult = vi.fn();
+        // The home kept in memory in this tab (COMPAT-11) is dropped by the save: the next home reads the new layout.
+        window.JUXHomepage = { forget: vi.fn() };
         view.querySelector('.juxConfigForm').dispatchEvent(new Event('submit', { cancelable: true }));
         await settle();
+        expect(window.JUXHomepage.forget).toHaveBeenCalledTimes(1);
+        delete window.JUXHomepage;
 
         const saved = window.ApiClient.updatePluginConfiguration.mock.calls[0][1].Widgets;
         expect(saved.map((w) => [w.WidgetType, getExtraParam(w, 'value'), w.Order])).toEqual([
