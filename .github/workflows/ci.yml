@@ -321,12 +321,15 @@ jobs:
       - name: Run the configuration upgrade browser test
         run: npx playwright test -c e2e --project legacy-config
 
-      # A build made for another Jellyfin line loads, then fails each section with MissingMethodException,
-      # which the API turns into an empty section (COMPAT-01): the suite above would not always see it.
+      # A build made for another Jellyfin line loads, then fails each section with one of these
+      # exceptions (or fails to load against another MediaBrowser.* version), which the API turns into
+      # an empty section (COMPAT-01): the suite above would not always see it.
       - name: Check the Jellyfin log for binary mismatches
         run: |
-          count=$(docker logs jux-e2e 2>&1 | grep -c 'MissingMethodException' || true)
-          echo "MissingMethodException lines: $count"
+          pattern="MissingMethodException|MissingFieldException|TypeLoadException|Could not load file or assembly 'MediaBrowser\."
+          docker logs jux-e2e 2>&1 | grep -E "$pattern" || true
+          count=$(docker logs jux-e2e 2>&1 | grep -cE "$pattern" || true)
+          echo "Binary mismatch lines: $count"
           test "$count" -eq 0
 
       - name: Dump the Jellyfin log
