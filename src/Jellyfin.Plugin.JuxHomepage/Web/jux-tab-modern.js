@@ -9,8 +9,9 @@
 // - creates the three panes after #favoritesTab, as the server does for the Legacy layout, and makes
 //   the one the address names the active pane (the native home hides the panes that are not active);
 // - fills a pane each time its tab is opened, as a click on a Legacy tab button does.
-// React re-renders the header on navigation and drops what it does not own, so a MutationObserver puts
-// the entries back. The MUI classes are matched by their stable component names, never by the Emotion
+// React re-renders the header on navigation and drops what it does not own, so the shared body observer
+// (JuxCore.onDomMutation) puts the entries back; a pass that changes nothing adds nothing, so the pass its
+// own changes trigger is the last one. The MUI classes are matched by their stable component names, never by the Emotion
 // hashes (css-xxxx) that change with each jellyfin-web build; they are inventoried with the bundle
 // fragment that builds them (Web/jux-native-selectors.json, lines "12", composedClasses).
 (function () {
@@ -218,7 +219,7 @@
     // -------------------------------------------------------------------------
 
     var _shown = { index: null, pane: null };
-    var _observer = null;
+    var _subscribed = false;
     var _pending = false;
 
     // A user who turns JellyUX off keeps the Modern header for the whole session: the entries and the panes
@@ -266,9 +267,6 @@
             _showPane(view, index);
             _openShown(view, index);
         }
-        if (_observer) {
-            _observer.takeRecords();
-        }
     }
 
     // Fills a pane when its tab is opened, or when React replaced the pane of the tab on screen.
@@ -296,9 +294,9 @@
     }
 
     function init() {
-        if (!_observer && window.MutationObserver) {
-            _observer = new MutationObserver(_schedule);
-            _observer.observe(document.body, { childList: true, subtree: true });
+        if (!_subscribed && window.JuxCore && typeof window.JuxCore.onDomMutation === 'function') {
+            window.JuxCore.onDomMutation(_schedule);
+            _subscribed = true;
         }
         sync();
     }

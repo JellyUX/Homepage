@@ -16,7 +16,7 @@
         "jux-series-flatten.js": 8,
         "jux-statistics.js": 6,
         "jux-tab-injector.js": 7,
-        "jux-tab-modern.js": 9,
+        "jux-tab-modern.js": 8,
         "jux-ui.js": 10,
         "jux-user-settings.js": 8,
         "jux-watchlist.js": 4
@@ -37,7 +37,7 @@
         "jux-series-flatten.js": 157,
         "jux-statistics.js": 131,
         "jux-tab-injector.js": 64,
-        "jux-tab-modern.js": 307,
+        "jux-tab-modern.js": 304,
         "jux-ui.js": 595,
         "jux-user-settings.js": 183,
         "jux-watchlist.js": 45
