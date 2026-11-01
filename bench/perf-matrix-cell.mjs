@@ -4,6 +4,9 @@
 //               wait), then a cold page in a new browser context
 //   cold-boot : container restarted, page as soon as /health answers (desktop only)
 //   warm      : the same context reloads the home page; the first load warms the HTTP cache and is not counted
+//   warm-persisted (--warm-persisted N, desktop and phone): the browser is closed and launched again on its own
+//               profile folder before each page, IndexedDB kept (the persisted query cache of the Jellyfin 12 home,
+//               COMPAT-04); a first visit fills the profile and is not counted
 // Browsers: desktop (1920 x 1080), desktop-slow (same, CPU x4 and the low-end network), phone (390 x 844 at
 // DPR 3, CPU x4 and the low-end network). Raws in the perf-bench-cycle format, so perf-bench-summarize.mjs
 // reads them: perf-bench-browser-{std-desktop,lowend-desktop,lowend-mobile,boot-desktop}.json.
@@ -11,10 +14,10 @@
 //   node bench/perf-matrix-cell.mjs --browsers desktop,phone --colds 3 --boot-colds 3 --warm-desktop 20
 //        --warm-phone 10 --wait-s 100 [--min-uptime-s 120] [--banner]
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { rawDir, repoRoot, dockerStats, sleep, waitHealthy, CONTAINER } from './perf-bench-common.mjs';
-import { launch, ensureStorageState, storageStatePath, measurePage, validateTarget, CONTEXTS } from './perf-bench-browser.mjs';
+import { launch, launchPersisted, ensureStorageState, storageStatePath, measurePage, validateTarget, CONTEXTS } from './perf-bench-browser.mjs';
 import { startSeries, endSeries } from './bench-fingerprint.mjs';
 import { waitForLog, remainingUptimeMs } from './bench-docker.mjs';
 
@@ -23,6 +26,7 @@ const browsers = arg('browsers', 'desktop,desktop-slow,phone').split(',');
 const colds = Number(arg('colds', 3));
 const bootColds = Number(arg('boot-colds', 3));
 const warmCounts = { desktop: Number(arg('warm-desktop', 20)), 'desktop-slow': Number(arg('warm-desktop', 20)), phone: Number(arg('warm-phone', 10)) };
+const warmPersisted = Number(arg('warm-persisted', 0));
 const waitS = Number(arg('wait-s', 100));
 const minUptimeS = Number(arg('min-uptime-s', 0));
 const banner = process.argv.includes('--banner');
@@ -32,6 +36,9 @@ export const BROWSERS = {
     'desktop-slow': { file: 'lowend-desktop', ctx: CONTEXTS.desktop, lowend: true, timeoutMs: 300000 },
     phone: { file: 'lowend-mobile', ctx: CONTEXTS.mobile, lowend: true, timeoutMs: 300000 }
 };
+
+// The raw file of the warm-persisted pages of each browser it runs for.
+const PERSISTED = { desktop: 'persisted-desktop', phone: 'persisted-mobile' };
 
 const log = (...a) => console.log(new Date().toISOString(), path.basename(rawDir), ...a);
 const series = await startSeries({ label: 'perf-matrix-cell' });
@@ -104,6 +111,24 @@ try {
         raw(BROWSERS[b].file).cycles.push({ cycle: 'warm', memRest: dockerStats(), warm });
         log(b, 'warm', warm.length, 'pages');
         save();
+    }
+    for (const b of browsers.filter((x) => PERSISTED[x] && warmPersisted > 0)) {
+        const dir = path.join(scratch, `persisted-${b}`);
+        rmSync(dir, { recursive: true, force: true });
+        const options = { lowend: BROWSERS[b].lowend, timeoutMs: BROWSERS[b].timeoutMs, doTabs: false };
+        const first = await launchPersisted(dir, BROWSERS[b].ctx, state);
+        try { await measurePage(first, { ...options, doBack: false }); } finally { await first.close(); }
+        const warm = [];
+        for (let i = 1; i <= warmPersisted; i++) {
+            const ctx = await launchPersisted(dir, BROWSERS[b].ctx);
+            try {
+                warm.push(await measurePage(ctx, options));
+            } catch (e) { warm.push({ error: String(e.message || e).slice(0, 300) }); } finally { await ctx.close(); }
+        }
+        raw(PERSISTED[b]).cycles.push({ cycle: 'warm-persisted', memRest: dockerStats(), warm });
+        log(b, 'warm-persisted', warm.length, 'pages');
+        save();
+        rmSync(dir, { recursive: true, force: true });
     }
 } finally {
     await browser.close();

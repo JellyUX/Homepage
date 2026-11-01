@@ -80,7 +80,7 @@ export function summarizeSeries(dir) {
     const load = (name) => loadFrom(dir, name);
     const rows = [];
     const browserSets = [];
-    for (const [profile, viewport] of [['std', 'desktop'], ['std', 'mobile'], ['lowend', 'desktop'], ['lowend', 'mobile'], ['boot', 'desktop']]) {
+    for (const [profile, viewport] of [['std', 'desktop'], ['std', 'mobile'], ['lowend', 'desktop'], ['lowend', 'mobile'], ['boot', 'desktop'], ['persisted', 'desktop'], ['persisted', 'mobile']]) {
         const file = `perf-bench-browser-${profile}-${viewport}.json`;
         const data = load(file);
         if (!data) { continue; }

@@ -115,6 +115,9 @@ runs each configuration (a `pluginDirs` key) on each server profile, on a fresh 
 cell (`perf-matrix-cell.mjs`) measures cold pages after the warm-up, cold pages at `/health` (desktop) and
 warm reloads, for the desktop, desktop-slow (CPU x4, low-end network) and phone (390 px DPR 3, CPU x4,
 low-end network) browsers (`--browsers`, `--colds`, `--boot-colds`, `--warm-desktop`, `--warm-phone`).
+`--warm-persisted N` adds the warm persisted state (COMPAT-04) for the desktop and phone browsers: the browser is
+closed and launched again on its own profile folder before each of N pages, IndexedDB kept (the persisted query cache
+of the Jellyfin 12 home), after a first visit that is not counted; raws `perf-bench-browser-persisted-{desktop,mobile}.json`.
 `--min-uptime-s 120` holds every cold page after the warm-up until the server has run for 120 s (the PERF-12 cold
 state, started more than 2 min ago), the same age with and without Homepage; each raw records `startup.uptimeMs`. Raws
 go to `<out>/<config>-<profile>` (one series each, `native-<profile>` is the witness of the others) and each

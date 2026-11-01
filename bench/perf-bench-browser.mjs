@@ -344,6 +344,26 @@ export async function launch() {
     return chromium.launch({ headless: true, timeout: 60000 });
 }
 
+/**
+ * A browser on a profile folder of its own, kept between launches: closing it and launching it again on the
+ * same folder is a browser restarted with its profile, IndexedDB included (the persisted query cache of the
+ * Jellyfin 12 home, COMPAT-04 "warm persisted"). With storageState (first launch), the signed-in state is set.
+ */
+export async function launchPersisted(dir, ctx, storageState = null) {
+    const context = await chromium.launchPersistentContext(dir, { headless: true, timeout: 60000, locale: 'en-US', ...ctx });
+    if (storageState) {
+        const state = JSON.parse(readFileSync(storageState, 'utf8'));
+        await context.addCookies(state.cookies || []);
+        const page = await context.newPage();
+        for (const origin of state.origins || []) {
+            await page.goto(`${origin.origin}/web/`);
+            await page.evaluate((items) => { items.forEach(({ name, value }) => localStorage.setItem(name, value)); }, origin.localStorage || []);
+        }
+        await page.close();
+    }
+    return context;
+}
+
 if (process.argv[1] && process.argv[1].endsWith('perf-bench-browser.mjs')) {
     const scratch = process.env.PERF_SCRATCH || rawDir;
     const browser = await launch();
