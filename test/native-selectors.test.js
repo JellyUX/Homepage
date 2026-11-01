@@ -181,6 +181,16 @@ describe('Web/jux-native-selectors.json', () => {
         values.forEach((v) => expect(v.evidence).toContain(`"${v.value}"`));
     });
 
+    it('keys the tokens of one line by the line names of ci/jellyfin-lines.json, as the drift test reads them', () => {
+        const inventory = JSON.parse(readFileSync(INVENTORY, 'utf8'));
+        const names = JSON.parse(readFileSync('ci/jellyfin-lines.json', 'utf8')).lines.map((line) => line.name).sort();
+        const drift = readFileSync('src/Jellyfin.Plugin.JuxHomepage.Tests/Inject/JellyfinWebDriftTests.cs', 'utf8');
+        const driftLines = [...drift.matchAll(/const string Line = "([^"]+)";/g)].map((m) => m[1]).sort();
+
+        expect(Object.keys(inventory.lines).sort()).toEqual(names);
+        expect(driftLines).toEqual(names);
+    });
+
     it('names the element of every document-level class the scripts read, the splice fragment included (FIAB-05)', () => {
         const inventory = JSON.parse(readFileSync(INVENTORY, 'utf8'));
         const listed = new Set(inventory.carriers.map((c) => `${c.element}:${c.class}`));
