@@ -115,10 +115,16 @@ export function adminPageTokens() {
     return new Set([...tokens].filter((t) => !ownIds.has(t) && !ownAttributes.has(t)));
 }
 
+// The lists shared by every Jellyfin line, then those of each line (lines), which the drift test checks
+// against that line's bundle only: a script may read a token one line has and the other lacks.
+function inventoryLists(inventory, key) {
+    return [inventory[key] ?? [], ...Object.values(inventory.lines ?? {}).map((line) => line[key] ?? [])].flat();
+}
+
 function inventoryTokens() {
     const inventory = JSON.parse(readFileSync(INVENTORY, 'utf8'));
     const kinds = { classes: 'class', ids: 'id', attributes: 'attribute', elements: 'element' };
-    return new Set(Object.entries(kinds).flatMap(([key, kind]) => inventory[key].map((name) => `${kind}:${name}`)));
+    return new Set(Object.entries(kinds).flatMap(([key, kind]) => inventoryLists(inventory, key).map((name) => `${kind}:${name}`)));
 }
 
 describe('extractNativeTokens', () => {
@@ -165,13 +171,14 @@ describe('Web/jux-native-selectors.json', () => {
 
     it('lists every native attribute value the client scripts match on, with the bundle fragment that sets it (TODO_V5 closure criterion b)', () => {
         const inventory = JSON.parse(readFileSync(INVENTORY, 'utf8'));
-        const listed = new Set((inventory.attributeValues ?? []).map((v) => `${v.attribute}=${v.value}`));
+        const values = inventoryLists(inventory, 'attributeValues');
+        const listed = new Set(values.map((v) => `${v.attribute}=${v.value}`));
         const used = new Set();
         for (const file of readdirSync(WEB_DIR).filter((f) => /^jux-.*\.js$/.test(f))) {
             extractAttributeValues(readFileSync(path.join(WEB_DIR, file), 'utf8')).forEach((v) => used.add(v));
         }
         expect([...used].sort()).toEqual([...listed].sort());
-        (inventory.attributeValues ?? []).forEach((v) => expect(v.evidence).toContain(`"${v.value}"`));
+        values.forEach((v) => expect(v.evidence).toContain(`"${v.value}"`));
     });
 
     it('names the element of every document-level class the scripts read, the splice fragment included (FIAB-05)', () => {

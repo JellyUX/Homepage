@@ -250,8 +250,8 @@ Any Jellyfin Web build can rename them, so run this procedure after every Jellyf
    `dotnet test --filter "Category=RequiresDocker"` (`JellyfinWebDriftTests`: loadSections splice,
    home-html anchor, every token, carrier and attribute value of `Web/jux-native-selectors.json`), with
    `-p:JellyfinVersion=12.0.0` for a Jellyfin 12 image. The `drift` job runs them on the newest
-   validated server of each line (`ci/jellyfin-lines.json` `newest`); on Jellyfin 12 its filter leaves
-   out the three tests of the parts not ported yet (COMPAT-02). The `.github/workflows/drift-weekly.yml`
+   validated server of each line (`ci/jellyfin-lines.json` `newest`), each against the shared tokens
+   plus those of its own line (`lines` of `Web/jux-native-selectors.json`). The `.github/workflows/drift-weekly.yml`
    workflow runs them every Monday on the newest 10.11 and 12 images: a red run there is the signal to
    start this procedure.
 2. **E2E suite**: `node e2e/setup.mjs up --image jellyfin/jellyfin:<version>`, then

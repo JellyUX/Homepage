@@ -69,6 +69,28 @@ public sealed class JellyfinWebDriftTests
     private static JsonDocument Inventory() => JsonDocument.Parse(File.ReadAllText(
         Path.Combine(RepoPaths.Root(), "src", "Jellyfin.Plugin.JuxHomepage", "Web", "jux-native-selectors.json")));
 
+    // The Jellyfin line this build targets, as ci/jellyfin-lines.json names it: the drift job checks the
+    // bundle of the newest server of that line.
+#if JELLYFIN_12
+    private const string Line = "12";
+#else
+    private const string Line = "10.11";
+#endif
+
+    // The entries of one inventory list shared by every line, then those of this build's line only.
+    private static IEnumerable<JsonElement> Entries(JsonDocument inventory, string key)
+    {
+        IEnumerable<JsonElement> shared = inventory.RootElement.TryGetProperty(key, out var list)
+            ? list.EnumerateArray()
+            : Enumerable.Empty<JsonElement>();
+        IEnumerable<JsonElement> own = inventory.RootElement.TryGetProperty("lines", out var lines)
+            && lines.TryGetProperty(Line, out var line)
+            && line.TryGetProperty(key, out var lineList)
+                ? lineList.EnumerateArray()
+                : Enumerable.Empty<JsonElement>();
+        return shared.Concat(own);
+    }
+
     [Fact]
     public void EveryInventoriedNativeToken_AppearsInTheTargetBundle()
     {
@@ -81,7 +103,7 @@ public sealed class JellyfinWebDriftTests
             : Regex.IsMatch(bundle, $@"(?<![\w-]){Regex.Escape(token)}(?![\w-])");
 
         var missing = new[] { "classes", "ids", "attributes", "elements", "anchors" }
-            .SelectMany(key => inventory.RootElement.GetProperty(key).EnumerateArray().Select(t => (Key: key, Token: t.GetString()!)))
+            .SelectMany(key => Entries(inventory, key).Select(t => (Key: key, Token: t.GetString()!)))
             .Where(entry => !IsPresent(entry.Key, entry.Token))
             .Select(entry => $"{entry.Key}: {entry.Token}")
             .ToList();
@@ -97,7 +119,7 @@ public sealed class JellyfinWebDriftTests
         var bundle = Bundle();
         using var inventory = Inventory();
 
-        var missing = inventory.RootElement.GetProperty("attributeValues").EnumerateArray()
+        var missing = Entries(inventory, "attributeValues")
             .Select(v => (Attribute: v.GetProperty("attribute").GetString()!, Value: v.GetProperty("value").GetString()!, Evidence: v.GetProperty("evidence").GetString()!))
             .Where(v => !v.Evidence.Contains('"' + v.Value + '"', StringComparison.Ordinal)
                 || !bundle.Contains(v.Evidence, StringComparison.Ordinal))

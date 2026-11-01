@@ -338,13 +338,9 @@ jobs:
           - image: '10.11.11'
             sdk: '10.11.9'
             dotnet: 9.0.x
-            filter: Category=RequiresDocker
-          # COMPAT-02: the loadSections hook, .detailPageContent and the data-action=menu evidence are not
-          # ported to the Jellyfin 12 bundle yet; their three drift tests are left out until they are.
           - image: '12.4'
             sdk: '12.0.0'
             dotnet: 10.0.x
-            filter: Category=RequiresDocker&FullyQualifiedName!~LoadSectionsSplice_StillResolvesAgainstTheTargetBundle&FullyQualifiedName!~EveryInventoriedNativeToken_AppearsInTheTargetBundle&FullyQualifiedName!~EveryInventoriedAttributeValue_IsSetInTheTargetBundle
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -367,7 +363,7 @@ jobs:
           dotnet build --configuration Release --no-restore -p:JellyfinVersion=${{ matrix.sdk }}
 
       - name: Run the drift checks
-        run: dotnet test --no-build --configuration Release -p:JellyfinVersion=${{ matrix.sdk }} --filter "${{ matrix.filter }}"
+        run: dotnet test --no-build --configuration Release -p:JellyfinVersion=${{ matrix.sdk }} --filter "Category=RequiresDocker"
 
   release:
     name: Release

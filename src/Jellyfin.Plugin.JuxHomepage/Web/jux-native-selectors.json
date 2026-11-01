@@ -1,5 +1,5 @@
 {
-  "description": "Native Jellyfin web tokens the JellyUX client scripts read or write. Each must appear literally in the target web bundle (JellyfinWebDriftTests); test/native-selectors.test.js keeps the list in step with the scripts. attributeValues: an attribute value a selector matches on (action sheet entries take data-id from the item id), with the bundle fragment that sets it. carriers: the element a document-level class is set on (layout-tv on <html>, FIAB-05), with the bundle fragment that sets it there.",
+  "description": "Native Jellyfin web tokens the JellyUX client scripts read or write. Each must appear literally in the target web bundle (JellyfinWebDriftTests); test/native-selectors.test.js keeps the list in step with the scripts. attributeValues: an attribute value a selector matches on (action sheet entries take data-id from the item id), with the bundle fragment that sets it. carriers: the element a document-level class is set on (layout-tv on <html>, FIAB-05), with the bundle fragment that sets it there. lines: the tokens of one Jellyfin line only (ci/jellyfin-lines.json names), checked against that line's bundle alone: .detailPageContent is gone from 12.3, #collectionsCollapsible is new in 12, and the card menu's data-action=\"menu\" is written literally by 10.11 and as Menu=\"menu\" by 12.",
   "classes": [
     "actionSheetItemText",
     "actionsheetListItemBody",
@@ -42,7 +42,6 @@
     "collectionItemsContainer",
     "content-primary",
     "detailButton",
-    "detailPageContent",
     "detailPageSecondaryContainer",
     "detailVerticalSection",
     "dialog",
@@ -136,7 +135,6 @@
   ],
   "ids": [
     "childrenCollapsible",
-    "collectionsCollapsible",
     "indexPage",
     "listChildrenCollapsible",
     "moviesTab",
@@ -152,11 +150,6 @@
     "name"
   ],
   "attributeValues": [
-    {
-      "attribute": "data-action",
-      "value": "menu",
-      "evidence": "data-action=\"menu\""
-    },
     {
       "attribute": "data-id",
       "value": "play",
@@ -186,6 +179,32 @@
     ",loadSections:",
     "id=\"favoritesTab\" data-index=\"1\"> <div class=\"sections\"></div> </div>"
   ],
+  "lines": {
+    "10.11": {
+      "classes": [
+        "detailPageContent"
+      ],
+      "attributeValues": [
+        {
+          "attribute": "data-action",
+          "value": "menu",
+          "evidence": "data-action=\"menu\""
+        }
+      ]
+    },
+    "12": {
+      "ids": [
+        "collectionsCollapsible"
+      ],
+      "attributeValues": [
+        {
+          "attribute": "data-action",
+          "value": "menu",
+          "evidence": "Menu=\"menu\""
+        }
+      ]
+    }
+  },
   "carriers": [
     {
       "class": "layout-tv",
