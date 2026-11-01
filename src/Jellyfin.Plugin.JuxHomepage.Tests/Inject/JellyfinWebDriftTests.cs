@@ -129,6 +129,30 @@ public sealed class JellyfinWebDriftTests
         Assert.Empty(missing);
     }
 
+    // D-13: a MUI class (MuiAppBar-root) is built at run time from its component name and slot, never
+    // written whole in the bundle. Each one names the bundle fragment that builds it, which holds the
+    // quoted component name and slot ("MuiAppBar",["root" or name:"MuiStack",slot:"Root").
+    [Fact]
+    public void EveryInventoriedComposedClass_IsBuiltInTheTargetBundle()
+    {
+        var bundle = Bundle();
+        using var inventory = Inventory();
+
+        var missing = Entries(inventory, "composedClasses")
+            .Select(c => (Class: c.GetProperty("class").GetString()!, Evidence: c.GetProperty("evidence").GetString()!))
+            .Where(c =>
+            {
+                var parts = c.Class.Split('-', 2);
+                return !c.Evidence.Contains('"' + parts[0] + '"', StringComparison.Ordinal)
+                    || !c.Evidence.Contains('"' + parts[1] + '"', StringComparison.OrdinalIgnoreCase)
+                    || !bundle.Contains(c.Evidence, StringComparison.Ordinal);
+            })
+            .Select(c => $"{c.Class}: {c.Evidence}")
+            .ToList();
+
+        Assert.Empty(missing);
+    }
+
     // FIAB-05: a document-level class is read on the element Jellyfin sets it on ("layout-tv" on <html>,
     // not <body>). Each carrier names that element and the bundle fragment that sets the class there.
     [Fact]

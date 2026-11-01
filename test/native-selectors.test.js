@@ -51,7 +51,7 @@ export function extractAttributeValues(source) {
     const values = new Set();
     for (const m of src.matchAll(/\.(?:querySelector(?:All)?|closest|matches)\(\s*(['"])(.*?)\1/g)) {
         for (const v of m[2].matchAll(/\[([\w-]+)=["']?([\w-]+)["']?\]/g)) {
-            if (!/jux/i.test(v[2])) values.add(`${v[1]}=${v[2]}`);
+            if (!/jux/i.test(v[1]) && !/jux/i.test(v[2])) values.add(`${v[1]}=${v[2]}`);
         }
     }
     return values;
@@ -124,7 +124,10 @@ function inventoryLists(inventory, key) {
 function inventoryTokens() {
     const inventory = JSON.parse(readFileSync(INVENTORY, 'utf8'));
     const kinds = { classes: 'class', ids: 'id', attributes: 'attribute', elements: 'element' };
-    return new Set(Object.entries(kinds).flatMap(([key, kind]) => inventoryLists(inventory, key).map((name) => `${kind}:${name}`)));
+    return new Set([
+        ...Object.entries(kinds).flatMap(([key, kind]) => inventoryLists(inventory, key).map((name) => `${kind}:${name}`)),
+        ...inventoryLists(inventory, 'composedClasses').map((c) => `class:${c.class}`)
+    ]);
 }
 
 describe('extractNativeTokens', () => {
@@ -179,6 +182,17 @@ describe('Web/jux-native-selectors.json', () => {
         }
         expect([...used].sort()).toEqual([...listed].sort());
         values.forEach((v) => expect(v.evidence).toContain(`"${v.value}"`));
+    });
+
+    // A MUI class (MuiAppBar-root) is built at run time from its component name and slot, so it is not
+    // in the bundle literally: its entry names the fragment that builds it, which holds both (D-13).
+    it('proves every composed class by a bundle fragment naming its component and its slot', () => {
+        const inventory = JSON.parse(readFileSync(INVENTORY, 'utf8'));
+        inventoryLists(inventory, 'composedClasses').forEach((c) => {
+            const [component, slot] = c.class.split('-');
+            expect(c.evidence).toContain(`"${component}"`);
+            expect(c.evidence.toLowerCase()).toContain(`"${slot.toLowerCase()}"`);
+        });
     });
 
     it('keys the tokens of one line by the line names of ci/jellyfin-lines.json, as the drift test reads them', () => {
