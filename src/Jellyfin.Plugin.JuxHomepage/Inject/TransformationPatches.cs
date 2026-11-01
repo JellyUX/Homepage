@@ -59,13 +59,10 @@ internal sealed record ClientAsset(
 /// </summary>
 public static class TransformationPatches
 {
-    // Minified name of the cardBuilder module in the Jellyfin 10.11.10 home chunk (56213.*.chunk.js),
-    // read through its .default export. It is the only minified name the inject fragment depends on
-    // besides the module self-reference, which is resolved at patch time. Verified by extracting the
-    // web bundle from jellyfin/jellyfin:10.11.10 and inspecting the var declarations of the module
-    // that defines ",loadSections:"; 10.11.11 ships the same chunk file (same name and md5). Update it
-    // when targeting a new Jellyfin web release.
-    private const string HookCardBuilder = "u";
+    // How the module that defines ",loadSections:" reads the cardBuilder default export when it reads
+    // getCardsHtml through no X.Y access (DR-024): u.default on Jellyfin 10.11.9 to 10.11.11
+    // (56213.*.chunk.js). Jellyfin 12.3 and 12.4 read it as p.Ay (65126.*.chunk.js), found by detection.
+    private const string FallbackCardBuilderAccess = "u.default";
 
     private static readonly Regex LastVarRegex =
         new Regex(@"var\s+([a-zA-Z_$][a-zA-Z0-9_$]*)\s*=", RegexOptions.Compiled);
@@ -74,11 +71,10 @@ public static class TransformationPatches
     private static readonly Regex ModuleStartRegex =
         new Regex(@"(?<![\w$])\d+:(?:function\(\w+,\w+,\w+\)\{|\(\w+,\w+,\w+\)=>\{)", RegexOptions.Compiled);
 
-    private static readonly Regex CardBuilderDeclarationRegex =
-        new Regex($@"(?:\bvar\s+|,){Regex.Escape(HookCardBuilder)}\s*=", RegexOptions.Compiled);
-
-    private static readonly Regex CardBuilderReadRegex =
-        new Regex($@"(?<![\w$.]){Regex.Escape(HookCardBuilder)}\.default\b", RegexOptions.Compiled);
+    // The access the loadSections module reads getCardsHtml through: "u.default" on Jellyfin 10.11,
+    // "p.Ay" on 12.3 (the cardBuilder module gained named exports, so webpack mangles the default one).
+    private static readonly Regex CardBuilderAccessRegex =
+        new Regex(@"(?<![\w$.])([A-Za-z_$][\w$]*)\.([A-Za-z_$][\w$]*)\.getCardsHtml\b", RegexOptions.Compiled);
 
     private const string InjectResourceSuffix = "Web.jux-loadsections-inject.js";
 
@@ -315,20 +311,44 @@ public static class TransformationPatches
 
         var thisHook = matches[^1].Groups[1].Value.Trim();
 
-        // The fragment reads {{cardbuilder}}.default: the name must be bound, and read that way, in the
-        // module that defines loadSections, or the splice would reference an unrelated variable.
-        var module = LoadSectionsModule(raw);
-        if (!CardBuilderDeclarationRegex.IsMatch(module) || !CardBuilderReadRegex.IsMatch(module))
+        var cardBuilder = CardBuilderAccess(LoadSectionsModule(raw));
+        if (cardBuilder is null)
         {
             return (raw, LoadSectionsOutcome.HookNotFound);
         }
 
         var fragment = fragmentTemplate
-            .Replace("{{cardbuilder}}", HookCardBuilder, StringComparison.Ordinal)
+            .Replace("{{cardbuilder}}", cardBuilder, StringComparison.Ordinal)
             .Replace("{{this_hook}}", thisHook, StringComparison.Ordinal);
 
         var patched = raw.Replace(",loadSections:", $",loadSections:{fragment},originalLoadSections:", StringComparison.Ordinal);
         return (patched, LoadSectionsOutcome.Patched);
+    }
+
+    /// <summary>
+    /// Returns how the loadSections module reads the cardBuilder default export (DR-024): the single
+    /// X.Y access it reads getCardsHtml through, or <see cref="FallbackCardBuilderAccess"/> when it
+    /// reads none. The object must be bound in that module, or the splice would read an unrelated
+    /// variable; two different accesses cannot be told apart.
+    /// </summary>
+    /// <param name="module">The source of the module that defines ",loadSections:".</param>
+    /// <returns>The access, such as "u.default" or "p.Ay", or null when none can be trusted.</returns>
+    private static string? CardBuilderAccess(string module)
+    {
+        var accesses = CardBuilderAccessRegex.Matches(module)
+            .Select(m => m.Groups[1].Value + "." + m.Groups[2].Value)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        if (accesses.Count > 1)
+        {
+            return null;
+        }
+
+        var access = accesses.Count == 1 ? accesses[0] : FallbackCardBuilderAccess;
+        var name = access[..access.IndexOf('.', StringComparison.Ordinal)];
+        var bound = Regex.IsMatch(module, $@"(?:\bvar\s+|,){Regex.Escape(name)}\s*=");
+        var read = Regex.IsMatch(module, $@"(?<![\w$.]){Regex.Escape(access)}\b");
+        return bound && read ? access : null;
     }
 
     /// <summary>

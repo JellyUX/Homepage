@@ -352,7 +352,7 @@ jobs:
         with:
           dotnet-version: ${{ matrix.dotnet }}
 
-      # The bundle the HookCardBuilder constant and Web/jux-native-selectors.json are validated for.
+      # The bundle the loadSections splice and Web/jux-native-selectors.json are validated for.
       - name: Extract jellyfin-web from jellyfin/jellyfin:${{ matrix.image }}
         run: |
           docker create --name jf-drift-extract jellyfin/jellyfin:${{ matrix.image }}

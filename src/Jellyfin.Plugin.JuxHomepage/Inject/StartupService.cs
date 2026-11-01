@@ -294,7 +294,7 @@ public sealed class StartupService : IHostedService, IDisposable
         {
             logger.LogWarning(
                 "Chunk {FileName} contains ',loadSections:' but an expected minified token (module "
-                + "self-reference, cardBuilder binding or its .default read) is missing. Jellyfin Web may "
+                + "self-reference, or a single bound cardBuilder access read as X.Y.getCardsHtml) is missing. Jellyfin Web may "
                 + "have drifted; the home page will fall back to native rendering. "
                 + "See CONTRIBUTING.md 'Jellyfin Update Procedure'.",
                 fileName);

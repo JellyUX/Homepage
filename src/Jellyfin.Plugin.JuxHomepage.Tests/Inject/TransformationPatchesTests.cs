@@ -85,6 +85,51 @@ public sealed class TransformationPatchesTests
         Assert.Equal(LoadSectionsOutcome.Patched, outcome);
     }
 
+    // The Jellyfin 12.3 and 12.4 home chunk (65126.*.chunk.js): the cardBuilder module has named exports,
+    // so its default export is read through a mangled name, p.Ay, instead of u.default (COMPAT-02, DR-024).
+    private const string Jellyfin12LoadSectionsChunk = "1:function(e,t,r){var p=Object.create(null)},65126:(e,t,r)=>{var n=r(4),p=r(24468);function h(){return p.Ay.getCardsHtml()}function k(){return p.Ay.getCardsHtml()}var B={getDefaultSection:n,loadSections:function(e,t,r,a){}}}";
+
+    [Fact]
+    public void TryPatchLoadSections_Jellyfin12ChunkReadsCardBuilderThroughAMangledExport_SplicesThatAccess()
+    {
+        var (content, outcome) = TransformationPatches.TryPatchLoadSections(Jellyfin12LoadSectionsChunk, FragmentTemplate);
+
+        Assert.Equal(LoadSectionsOutcome.Patched, outcome);
+        Assert.Contains(",loadSections:/*p.AyB*/,originalLoadSections:", content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TryPatchLoadSections_Jellyfin10Chunk_SplicesTheDefaultExportAccess()
+    {
+        var (content, outcome) = TransformationPatches.TryPatchLoadSections(LoadSectionsChunk, FragmentTemplate);
+
+        Assert.Equal(LoadSectionsOutcome.Patched, outcome);
+        Assert.Contains(",loadSections:/*u.defaultx*/,originalLoadSections:", content, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    // Two different objects read getCardsHtml: which one is cardBuilder cannot be told.
+    [InlineData("5:(e,t,r)=>{var p=r(1),q=r(2);function h(){return p.Ay.getCardsHtml()+q.Ay.getCardsHtml()}var B={a:1,loadSections:function(){}}}")]
+    // The object read is not bound in the module defining loadSections.
+    [InlineData("1:(e,t,r)=>{var p=r(1)},5:(e,t,r)=>{var n=r(4);function h(){return p.Ay.getCardsHtml()}var B={a:1,loadSections:function(){}}}")]
+    public void TryPatchLoadSections_CardBuilderAccessAmbiguousOrUnbound_ReturnsHookNotFoundAndContentUnchanged(string raw)
+    {
+        var (content, outcome) = TransformationPatches.TryPatchLoadSections(raw, FragmentTemplate);
+
+        Assert.Equal(LoadSectionsOutcome.HookNotFound, outcome);
+        Assert.Equal(raw, content);
+    }
+
+    [Fact]
+    public void PatchLoadSections_RealFragmentOnAJellyfin12Chunk_ReadsCardBuilderThroughTheDetectedAccess()
+    {
+        var patched = TransformationPatches.PatchLoadSections(new PatchRequestPayload { Contents = Jellyfin12LoadSectionsChunk });
+
+        Assert.Contains("cardBuilder: p.Ay,", patched, StringComparison.Ordinal);
+        Assert.Contains("B.originalLoadSections.call(this, e, t, r, o)", patched, StringComparison.Ordinal);
+        Assert.DoesNotContain("{{", patched, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void CheckHomeHtmlChunks_AnchorPresent_ReturnsTrue()
     {
@@ -308,7 +353,7 @@ public sealed class TransformationPatchesTests
         Assert.StartsWith(LoadSectionsChunk[..marker], patched, StringComparison.Ordinal);
         Assert.EndsWith(",originalLoadSections:function(){}}}", patched, StringComparison.Ordinal);
         Assert.Contains("function(e, t, r, o, page)", patched, StringComparison.Ordinal);
-        Assert.Contains("cardBuilder: u.default", patched, StringComparison.Ordinal);
+        Assert.Contains("cardBuilder: u.default,", patched, StringComparison.Ordinal);
         // "x" is the last "var X=" before the marker: the module object holding loadSections.
         Assert.Contains("x.originalLoadSections.call(this, e, t, r, o)", patched, StringComparison.Ordinal);
         Assert.DoesNotContain("{{", patched, StringComparison.Ordinal);

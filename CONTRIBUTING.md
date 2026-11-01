@@ -236,8 +236,10 @@ A change is done when:
 
 ## Jellyfin Update Procedure
 
-JellyUX splices its home sections into a minified Jellyfin Web chunk. The splice depends on one
-hardcoded minified name, `HookCardBuilder` in `Inject/TransformationPatches.cs`, and every native class,
+JellyUX splices its home sections into a minified Jellyfin Web chunk. The splice reads the cardBuilder
+module the way the chunk does: the single `X.Y.getCardsHtml` access of the module that defines
+`,loadSections:` (`u.default` on 10.11, `p.Ay` on 12.3 and 12.4), detected at patch time, with
+`FallbackCardBuilderAccess` in `Inject/TransformationPatches.cs` when the module reads none. Every native class,
 id, attribute and custom element the client scripts use is listed in `Web/jux-native-selectors.json`,
 with the element a document-level class is set on (`carriers`: `layout-tv` on `<html>`) and the attribute
 values a selector matches on (`attributeValues`: `[data-id="resume"]` of the action sheet).
@@ -261,14 +263,16 @@ Any Jellyfin Web build can rename them, so run this procedure after every Jellyf
    means the home page or the tab panes fall back to native rendering: a degradation, not a crash. The
    same state is on the admin page banner (`HomeHookNotFound`, `HomeChunkMissing`, `TabsAnchorMissing`)
    and in `GET JuxHomepage/PatchStatus`, which must answer `{"LoadSections":"Patched","TabsAnchor":true}`.
-4. **Renamed cardBuilder module**: update `HookCardBuilder` in `Inject/TransformationPatches.cs`. In the
-   chunk found in step 3, find the webpack module that defines `,loadSections:` and the name it binds to
-   the cardBuilder module (`,X=r(id)`, read as `X.default.getCardsHtml`).
+4. **cardBuilder access not found**: in the chunk found in step 3, find the webpack module that defines
+   `,loadSections:` and how it reads the cardBuilder module. The splice needs one access read as
+   `X.Y.getCardsHtml` with `X` bound in that module (`,X=r(id)`); two different accesses, or an unbound
+   `X`, give `HookNotFound`. Adapt `CardBuilderAccess` in `Inject/TransformationPatches.cs` to the new
+   shape, with a `TransformationPatchesTests` case cut from the new chunk.
 5. **Missing native token, moved carrier or attribute value**: adapt the script that uses it, then
    `Web/jux-native-selectors.json` (`test/native-selectors.test.js` fails until both agree). Raise the E2E matrix, the `drift` and
    `build-newest-abi` jobs and the line's `newest` in `ci/jellyfin-lines.json` to the new validated version.
 6. **Home page**: if the JellyUX sections do not render, check the browser console (prefix `[JellyUX]`)
-   before suspecting the minified hook constants. A drifted chunk shows "Jellyfin Web has changed:
+   before suspecting the cardBuilder access. A drifted chunk shows "Jellyfin Web has changed:
    JellyUX went back to the native home screen" and never reloads the page; the cache message (CDN or
    proxy) only appears when `PatchStatus` says the server patched the chunk.
 

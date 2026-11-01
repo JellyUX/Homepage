@@ -4,7 +4,8 @@
 // It is NOT served as a web resource.
 //
 // Placeholder tokens are substituted at runtime with minified names from the Jellyfin web bundle:
-//   {{cardbuilder}}     -> the cardBuilder module, read through its .default export
+//   {{cardbuilder}}     -> the cardBuilder default export, as the module reads it (u.default on
+//                          Jellyfin 10.11, p.Ay on 12.3), detected at patch time (DR-024)
 //   {{this_hook}}       -> resolved dynamically from the last "var X=" before ,loadSections:
 // Everything else JellyUX needs is rebuilt here instead of being read from minified exports: the
 // card shapes mirror jellyfin-web's own helpers (an omitted argument means overflow), and
@@ -20,7 +21,7 @@ function(e, t, r, o, page) {
     try {
         if (!window.JellyfinAPI) {
             window.JellyfinAPI = {
-                cardBuilder: {{cardbuilder}}.default,
+                cardBuilder: {{cardbuilder}},
                 layoutManager: {
                     get tv() {
                         return document.documentElement.classList.contains('layout-tv');
