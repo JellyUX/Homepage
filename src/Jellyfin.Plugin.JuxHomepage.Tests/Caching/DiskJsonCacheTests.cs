@@ -28,6 +28,8 @@ public sealed class DiskJsonCacheTests : IDisposable
 
         public bool FileExists(string path) => _inner.FileExists(path);
 
+        public Stream OpenRead(string path) => _inner.OpenRead(path);
+
         public string ReadAllText(string path)
         {
             ReadAllTextCalls++;

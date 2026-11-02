@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text;
 using System.Text.RegularExpressions;
 using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.IO;
@@ -416,6 +417,34 @@ public static class TransformationPatches
     }
 
     /// <summary>
+    /// Returns whether <paramref name="stream"/> contains <paramref name="marker"/>, reading it through
+    /// <paramref name="buffer"/> and keeping the last <c>marker.Length - 1</c> bytes between two reads so a
+    /// marker split across them is still found. A minified chunk is one line: no line reader applies.
+    /// </summary>
+    /// <param name="stream">The stream to scan, read to its end at most.</param>
+    /// <param name="marker">The bytes to look for.</param>
+    /// <param name="buffer">The read buffer, longer than <paramref name="marker"/>; reused across calls.</param>
+    /// <returns>True when the marker occurs in the stream.</returns>
+    internal static bool StreamContains(Stream stream, ReadOnlySpan<byte> marker, byte[] buffer)
+    {
+        var kept = 0;
+        int read;
+        while ((read = stream.Read(buffer, kept, buffer.Length - kept)) > 0)
+        {
+            var filled = kept + read;
+            if (buffer.AsSpan(0, filled).IndexOf(marker) >= 0)
+            {
+                return true;
+            }
+
+            kept = Math.Min(marker.Length - 1, filled);
+            buffer.AsSpan(filled - kept, kept).CopyTo(buffer);
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Scans the web path for the minified chunk.js that defines Jellyfin's loadSections.
     /// </summary>
     /// <param name="webPath">Path to the Jellyfin web directory.</param>
@@ -430,13 +459,18 @@ public static class TransformationPatches
             return Array.Empty<string>();
         }
 
+        // Each chunk is streamed through one buffer: reading ~17 MB of chunks as UTF-16 strings allocated
+        // 68.5 MiB at every server start (PERF-06, MB-08).
+        var marker = Encoding.UTF8.GetBytes(",loadSections:");
+        var buffer = new byte[64 * 1024];
         var matches = fileSystem
             .GetFiles(webPath, "*.chunk.js", SearchOption.AllDirectories)
             .Where(f =>
             {
                 try
                 {
-                    return fileSystem.ReadAllText(f).Contains(",loadSections:", StringComparison.Ordinal);
+                    using var stream = fileSystem.OpenRead(f);
+                    return StreamContains(stream, marker, buffer);
                 }
                 catch (IOException ex)
                 {

@@ -12,6 +12,10 @@ public sealed class FileSystem : IFileSystem
     public string ReadAllText(string path) => File.ReadAllText(path);
 
     /// <inheritdoc/>
+    public Stream OpenRead(string path) =>
+        new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 1, FileOptions.SequentialScan);
+
+    /// <inheritdoc/>
     public void WriteAllText(string path, string contents) => File.WriteAllText(path, contents);
 
     /// <inheritdoc/>

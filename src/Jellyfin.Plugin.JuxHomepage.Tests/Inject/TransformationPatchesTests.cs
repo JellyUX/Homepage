@@ -445,11 +445,11 @@ public sealed class TransformationPatchesTests
         {
             if (content is null)
             {
-                fileSystem.Setup(f => f.ReadAllText(path)).Throws(new IOException("locked"));
+                fileSystem.Setup(f => f.OpenRead(path)).Throws(new IOException("locked"));
             }
             else
             {
-                fileSystem.Setup(f => f.ReadAllText(path)).Returns(content);
+                fileSystem.Setup(f => f.OpenRead(path)).Returns(() => new MemoryStream(System.Text.Encoding.UTF8.GetBytes(content)));
             }
         }
 
@@ -498,5 +498,51 @@ public sealed class TransformationPatchesTests
         var fileSystem = ChunkFileSystem(("/web/1.chunk.js", "var a=1"), ("/web/2.chunk.js", "loadSections"));
 
         Assert.Empty(TransformationPatches.FindLoadSectionsChunks("/web", fileSystem.Object, NullLogger.Instance));
+    }
+
+    // PERF-06: the marker is found wherever it falls against the read buffer, split across two reads included.
+    [Fact]
+    public void StreamContains_FindsTheMarkerAtEveryOffsetAcrossBufferBoundaries()
+    {
+        var marker = System.Text.Encoding.UTF8.GetBytes(",loadSections:");
+        var buffer = new byte[marker.Length + 3];
+        for (var offset = 0; offset < 3 * buffer.Length; offset++)
+        {
+            var bytes = System.Text.Encoding.UTF8.GetBytes(new string('x', offset) + ",loadSections:" + "yyyyyy");
+            Assert.True(TransformationPatches.StreamContains(new MemoryStream(bytes), marker, buffer), $"offset {offset}");
+        }
+
+        var almost = System.Text.Encoding.UTF8.GetBytes(new string('x', 40) + ",loadSections" + new string('x', 40) + "loadSections:");
+        Assert.False(TransformationPatches.StreamContains(new MemoryStream(almost), marker, buffer));
+    }
+
+    // PERF-06 (MB-08: 68.5 MiB allocated by the startup scan of 10.11.10): the chunks are read through one
+    // reused buffer, not as UTF-16 strings.
+    [Fact]
+    public void FindLoadSectionsChunks_AllocatesUnderOneMebibyte_OnSixteenMebibytesOfChunks()
+    {
+        var webPath = Path.Combine(Path.GetTempPath(), "jux-chunkscan-" + Guid.NewGuid());
+        Directory.CreateDirectory(webPath);
+        try
+        {
+            var filler = new string('x', 2 * 1024 * 1024);
+            for (var i = 0; i < 8; i++)
+            {
+                File.WriteAllText(Path.Combine(webPath, $"{i}.abc.chunk.js"), i == 5 ? filler + ",loadSections:x" : filler);
+            }
+
+            var fileSystem = new Jellyfin.Plugin.JuxHomepage.IO.FileSystem();
+            TransformationPatches.FindLoadSectionsChunks(webPath, fileSystem, NullLogger.Instance);
+            var before = GC.GetAllocatedBytesForCurrentThread();
+            var chunks = TransformationPatches.FindLoadSectionsChunks(webPath, fileSystem, NullLogger.Instance);
+            var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+            Assert.Equal([Path.Combine(webPath, "5.abc.chunk.js")], chunks);
+            Assert.True(allocated < 1024 * 1024, $"allocated {allocated} bytes");
+        }
+        finally
+        {
+            Directory.Delete(webPath, recursive: true);
+        }
     }
 }

@@ -25,6 +25,8 @@ internal sealed class FailingFileSystem : IFileSystem
         return _inner.FileExists(path);
     }
 
+    public Stream OpenRead(string path) => _inner.OpenRead(path);
+
     public string ReadAllText(string path)
     {
         Reads++;

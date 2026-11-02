@@ -161,6 +161,8 @@ public sealed class TMDbDailyRefreshTaskTests : IDisposable
 
         public string ReadAllText(string path) => _inner.ReadAllText(path);
 
+        public Stream OpenRead(string path) => _inner.OpenRead(path);
+
         public void WriteAllText(string path, string contents) => _inner.WriteAllText(path, contents);
 
         public void Move(string sourceFileName, string destFileName, bool overwrite)

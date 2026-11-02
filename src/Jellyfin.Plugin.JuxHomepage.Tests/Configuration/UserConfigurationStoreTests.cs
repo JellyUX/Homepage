@@ -234,6 +234,8 @@ public sealed class UserConfigurationStoreTests : IDisposable
             return _inner.FileExists(path);
         }
 
+        public Stream OpenRead(string path) => _inner.OpenRead(path);
+
         public string ReadAllText(string path)
         {
             Reads++;
@@ -272,6 +274,8 @@ public sealed class UserConfigurationStoreTests : IDisposable
         public ManualResetEventSlim ReleaseWrite { get; } = new(initialState: false);
 
         public bool FileExists(string path) => _inner.FileExists(path);
+
+        public Stream OpenRead(string path) => _inner.OpenRead(path);
 
         public string ReadAllText(string path) => _inner.ReadAllText(path);
 

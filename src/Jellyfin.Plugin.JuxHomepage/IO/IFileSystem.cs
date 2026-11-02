@@ -17,6 +17,11 @@ public interface IFileSystem
     /// <returns>The file contents.</returns>
     string ReadAllText(string path);
 
+    /// <summary>Opens a file for a sequential read, without buffering the whole file in memory.</summary>
+    /// <param name="path">The file path to read.</param>
+    /// <returns>A read-only stream over the file; the caller disposes it.</returns>
+    Stream OpenRead(string path);
+
     /// <summary>Writes text to a file, creating or overwriting it.</summary>
     /// <param name="path">The file path to write.</param>
     /// <param name="contents">The text to write.</param>
