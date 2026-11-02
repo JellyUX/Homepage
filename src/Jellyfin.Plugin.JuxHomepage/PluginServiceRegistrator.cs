@@ -35,6 +35,8 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<FileTransformationDetector>();
         serviceCollection.AddSingleton<CoexistenceWarnings>();
         serviceCollection.AddSingleton<PatchStatus>();
+        serviceCollection.AddSingleton<PatchedChunkRevalidation>();
+        serviceCollection.AddSingleton<Microsoft.AspNetCore.Hosting.IStartupFilter, PatchedChunkRevalidationStartupFilter>();
         serviceCollection.AddSingleton(sp => new ConfigurationBackup(
             Path.Combine(sp.GetRequiredService<IApplicationPaths>().DataPath, Plugin.DataFolderName),
             sp.GetRequiredService<ILogger<ConfigurationBackup>>()));

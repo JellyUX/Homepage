@@ -47,7 +47,8 @@ public sealed class StartupServiceTests
             fileSystemMock.Object,
             lifetime,
             new PatchStatus(),
-            new ConfigurationBackup(Path.Combine(Path.GetTempPath(), "jux-startup-tests-" + Guid.NewGuid()), NullLogger.Instance));
+            new ConfigurationBackup(Path.Combine(Path.GetTempPath(), "jux-startup-tests-" + Guid.NewGuid()), NullLogger.Instance),
+            new PatchedChunkRevalidation());
 
         var startTask = service.StartAsync(CancellationToken.None);
         lifetime.Start();
@@ -77,7 +78,8 @@ public sealed class StartupServiceTests
             new Mock<IFileSystem>().Object,
             lifetime,
             new PatchStatus(),
-            new ConfigurationBackup(Path.Combine(Path.GetTempPath(), "jux-startup-tests-" + Guid.NewGuid()), NullLogger.Instance));
+            new ConfigurationBackup(Path.Combine(Path.GetTempPath(), "jux-startup-tests-" + Guid.NewGuid()), NullLogger.Instance),
+            new PatchedChunkRevalidation());
 
         await service.StartAsync(CancellationToken.None);
         tmdbCacheServiceMock.Verify(s => s.RefreshDueAsync(It.IsAny<IProgress<double>?>(), It.IsAny<CancellationToken>()), Times.Never);

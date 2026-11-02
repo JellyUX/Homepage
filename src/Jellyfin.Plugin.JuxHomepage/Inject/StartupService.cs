@@ -18,6 +18,8 @@ namespace Jellyfin.Plugin.JuxHomepage.Inject;
 /// </summary>
 public sealed class StartupService : IHostedService, IDisposable
 {
+    private const string HomeHtmlPattern = "home-html\\.[^.]+\\.chunk\\.js";
+
     private readonly IApplicationPaths _applicationPaths;
     private readonly ILogger<StartupService> _logger;
     private readonly FileTransformationDetector _detector;
@@ -26,6 +28,7 @@ public sealed class StartupService : IHostedService, IDisposable
     private readonly IHostApplicationLifetime _lifetime;
     private readonly PatchStatus _patchStatus;
     private readonly ConfigurationBackup _backup;
+    private readonly PatchedChunkRevalidation _revalidation;
     private readonly ServerStartedRun _afterStart = new();
 
     /// <summary>
@@ -39,6 +42,7 @@ public sealed class StartupService : IHostedService, IDisposable
     /// <param name="lifetime">Host lifetime, used to defer the TMDb refresh until the server has started.</param>
     /// <param name="patchStatus">Receives the patch state the dry runs find (FIAB-04).</param>
     /// <param name="backup">The saved copy of the configuration, offered after a reset (FIAB-07).</param>
+    /// <param name="revalidation">Told which chunks FileTransformation patches (H-01, DR-027).</param>
     public StartupService(
         IApplicationPaths applicationPaths,
         ILogger<StartupService> logger,
@@ -47,7 +51,8 @@ public sealed class StartupService : IHostedService, IDisposable
         IFileSystem fileSystem,
         IHostApplicationLifetime lifetime,
         PatchStatus patchStatus,
-        ConfigurationBackup backup)
+        ConfigurationBackup backup,
+        PatchedChunkRevalidation revalidation)
     {
         _applicationPaths = applicationPaths;
         _logger = logger;
@@ -57,6 +62,7 @@ public sealed class StartupService : IHostedService, IDisposable
         _lifetime = lifetime;
         _patchStatus = patchStatus;
         _backup = backup;
+        _revalidation = revalidation;
     }
 
     /// <inheritdoc/>
@@ -192,13 +198,14 @@ public sealed class StartupService : IHostedService, IDisposable
         var payload = new JObject
         {
             ["id"] = Guid.NewGuid().ToString(),
-            ["fileNamePattern"] = "home-html\\.[^.]+\\.chunk\\.js",
+            ["fileNamePattern"] = HomeHtmlPattern,
             ["callbackAssembly"] = GetType().Assembly.FullName,
             ["callbackClass"] = typeof(TransformationPatches).FullName,
             ["callbackMethod"] = nameof(TransformationPatches.HomeHtmlChunk)
         };
 
         _detector.RegisterTransformation(payload);
+        _revalidation.AddPattern(HomeHtmlPattern);
         _logger.LogInformation("Registered home-html chunk transformation for JellyUX Homepage tabs.");
     }
 
@@ -241,6 +248,7 @@ public sealed class StartupService : IHostedService, IDisposable
             };
 
             _detector.RegisterTransformation(payload);
+            _revalidation.AddPattern(fileNamePattern);
             _logger.LogInformation(
                 "Registered loadSections chunk transformation for {FileName} (pattern: {Pattern}, id: {Id}).",
                 fileName,
