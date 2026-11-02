@@ -386,3 +386,74 @@ describe('navigation re-arming', () => {
         expect(init).toHaveBeenCalledTimes(1);
     });
 });
+
+// V6 phase 12: a page loaded on the address of a JellyUX tab never renders the home tab, which alone
+// provides the native card builder (window.JellyfinAPI). The script shows the home tab first, then
+// opens the addressed tab once the card builder exists. Loaded afresh here: the deferral runs when
+// the script loads.
+describe('JellyUX tab named by the address the page loads on', () => {
+    const clicks = [];
+    // The native tab bar marks the button it was clicked on as the only active one.
+    const record = (event) => {
+        const button = event.target.closest('button');
+        clicks.push(button && (button.id || `native-${button.getAttribute('data-index')}`));
+        document.querySelectorAll('.emby-tab-button').forEach((b) => b.classList.toggle('emby-tab-button-active', b === button));
+    };
+
+    async function loadOn(hash, cardBuilder = false) {
+        renderHomePage();
+        window.location.hash = hash;
+        delete window.juxTabInjector;
+        delete window.JellyfinAPI;
+        if (cardBuilder) {
+            window.JellyfinAPI = { cardBuilder: {} };
+        }
+        clicks.length = 0;
+        document.addEventListener('click', record);
+        vi.resetModules();
+        await import(SCRIPT);
+    }
+
+    afterEach(() => {
+        document.removeEventListener('click', record);
+        delete window.JellyfinAPI;
+    });
+
+    it('shows the home tab first, then opens the addressed tab once the card builder exists', async () => {
+        await loadOn('#/home?tab=2');
+        expect(window.location.hash).toBe('#/home');
+
+        vi.advanceTimersByTime(100);
+        expect(clicks).toEqual(['native-0']);
+
+        window.JellyfinAPI = { cardBuilder: {} };
+        vi.advanceTimersByTime(100);
+
+        expect(window.location.hash).toBe('#/home?tab=2');
+        expect(clicks).toEqual(['native-0', 'jux-tabbtn-watchlist']);
+    });
+
+    it('opens Statistics for an old tab 5 address', async () => {
+        await loadOn('#/home?tab=5');
+        vi.advanceTimersByTime(100);
+        window.JellyfinAPI = { cardBuilder: {} };
+        vi.advanceTimersByTime(100);
+
+        expect(window.location.hash).toBe('#/home?tab=4');
+        expect(clicks).toEqual(['native-0', 'jux-tabbtn-statistics']);
+    });
+
+    it('leaves the address of a native tab alone', async () => {
+        await loadOn('#/home?tab=1');
+        vi.advanceTimersByTime(200);
+        expect(window.location.hash).toBe('#/home?tab=1');
+        expect(clicks).toEqual([]);
+    });
+
+    it('opens the tab at once when the card builder already exists', async () => {
+        await loadOn('#/home?tab=3', true);
+        expect(window.location.hash).toBe('#/home?tab=3');
+        vi.advanceTimersByTime(200);
+        expect(clicks).toEqual(['jux-tabbtn-history']);
+    });
+});

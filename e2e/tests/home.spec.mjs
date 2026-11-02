@@ -227,6 +227,28 @@ test('an old link to the Statistics tab (tab 5) opens Statistics (FEAT-03.b)', a
     await expect(page.locator('#jux-tab-statistics:visible .jux-stat-card').first()).toBeVisible();
 });
 
+// A JellyUX tab opened by its address (a bookmark, a reload) is served like one opened from the home page:
+// the Watchlist shows its card, which needs the native card builder the home tab provides.
+for (const tab of TABS) {
+    test(`the address #/home?tab=${tab.index} opens ${tab.id} with its content`, async ({ page }) => {
+        const errors = watchJuxErrors(page);
+        await login(page, env.admin);
+        await page.goto(`${env.serverUrl}/web/#/home?tab=${tab.index}`);
+        await page.reload();
+
+        const pane = page.locator(`#${tab.id}:visible`);
+        if (tab.index === 2) {
+            await expect(pane.locator('.card').first()).toBeVisible();
+        } else if (tab.subs) {
+            await expect(pane.locator('.jux-sort-button').first()).toBeVisible();
+        } else {
+            await expect(pane.locator('.jux-stat-card').first()).toBeVisible();
+        }
+        await expect(page).toHaveURL(new RegExp(`[?&]tab=${tab.index}(&|$)`));
+        expect(errors).toEqual([]);
+    });
+}
+
 // Jellyfin 12 Modern layout: the entries arrive with the native header links, after them, so Favorites
 // never moves. Polled every frame from a reload, by a script that runs before the page's own (D-13).
 test('the JellyUX entries arrive with the native header links and the bar stays still (F-42, Jellyfin 12)', async ({ page }) => {

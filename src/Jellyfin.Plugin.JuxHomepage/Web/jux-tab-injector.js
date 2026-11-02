@@ -142,6 +142,72 @@ if (typeof window.juxTabInjector === 'undefined') {
         }
     };
 
+    // A page loaded on #/home?tab=N (N >= 2: native tabs are 0 and 1) never renders the home tab, whose
+    // patched loadSections alone provides the card builder (window.JellyfinAPI): the Watchlist showed a
+    // count without cards. The router has read the address already, so the native Home button is clicked
+    // (Legacy bar, or the hidden native bar of the Modern layout, unknown yet: isModern reads the header);
+    // the address keeps no tab meanwhile, so createTabs opens nothing early. Once the card builder exists
+    // the address is put back and the tab opened (button, or jux-tab-modern.js). Tab 5 -> 4 (FEAT-03.b).
+    var _DEFERRED_POLL_MS = 100;
+    var _DEFERRED_MAX_TRIES = 100;
+
+    function _deferAddressedTab() {
+        var hash = window.juxTabInjector.retiredTabTarget(window.location.hash) || window.location.hash;
+        var match = /^#\/home(?:\.html)?\?(?:[^#]*&)?tab=(\d+)(?:&|$)/.exec(hash);
+        if (!match || Number(match[1]) < 2 || window.JellyfinAPI) {
+            return;
+        }
+        var home = hash.replace(/([?&])tab=\d+(&|$)/, function (all, before, after) {
+            return after ? before : '';
+        }).replace(/\?$/, '');
+        window.history.replaceState(window.history.state, '', home);
+        _openDeferredTab(hash, 0, false);
+    }
+
+    // The tab bar the deferred tab is opened from: the native bar once it holds the JellyUX buttons
+    // (Legacy), the hidden native bar as soon as it exists (Modern), else null.
+    function _deferredBar(modern) {
+        var slider = document.querySelector('.emby-tabs-slider');
+        if (!slider) {
+            return null;
+        }
+        return modern || slider.querySelector('[id^="jux-tabbtn-"]') ? slider : null;
+    }
+
+    function _modernLayout() {
+        return !!(window.juxTabModern && window.juxTabModern.isModern());
+    }
+
+    function _openDeferredTab(hash, tries, homeShown) {
+        var modern = _modernLayout();
+        var bar = _deferredBar(modern);
+        homeShown = homeShown || _clickNativeHome(bar);
+        var ready = bar && window.JellyfinAPI;
+        if (!ready && tries < _DEFERRED_MAX_TRIES) {
+            setTimeout(function () { _openDeferredTab(hash, tries + 1, homeShown); }, _DEFERRED_POLL_MS);
+            return;
+        }
+        window.history.replaceState(window.history.state, '', hash);
+        if (modern) {
+            window.juxTabModern.sync();
+        } else {
+            _openAddressedTab(bar);
+        }
+    }
+
+    // Clicks the native Home button, the first of the bar (the JellyUX ones come after the native ones),
+    // once the bar is there and the card builder still missing; true once done, so it happens once.
+    function _clickNativeHome(bar) {
+        if (!bar || window.JellyfinAPI) {
+            return false;
+        }
+        var homeButton = bar.querySelector('.emby-tab-button');
+        if (homeButton) {
+            homeButton.click();
+        }
+        return true;
+    }
+
     // The Legacy home opens no JellyUX tab from its address (#/home?tab=4 after the tab 5 redirect, or a
     // bookmark): the tab it names is opened the way a user does, by its button (FEAT-03.b), when the view
     // mounts (createTabs) and when the address changes on the home page already shown (hashchange). A
@@ -228,6 +294,7 @@ if (typeof window.juxTabInjector === 'undefined') {
         _tabBarObserver.observe(tabsSlider, { attributes: true, attributeFilter: ['class'], subtree: true });
     }
 
+    _deferAddressedTab();
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function () { window.juxTabInjector.init(); });
     } else {
