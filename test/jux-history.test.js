@@ -177,7 +177,8 @@ describe('History tab (FEAT-03)', () => {
         expect(selected()).toEqual(['series']);
         expect(shown()).toEqual(['jux-tab-history-series']);
         expect(routes()).toContain('JuxHomepage/SeriesProgress/Items');
-        expect(window.location.hash).toBe('#/home?sub=series');
+        // The Legacy tab bar keeps the tab out of the address: the sub-tab names it, so a reload opens History.
+        expect(window.location.hash).toBe('#/home?tab=3&sub=series');
     });
 
     it('opens the sub-tab named by the address', async () => {

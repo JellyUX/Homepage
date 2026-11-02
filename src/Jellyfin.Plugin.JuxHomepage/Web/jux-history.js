@@ -197,9 +197,12 @@
         });
     }
 
+    // The Legacy tab bar keeps the tab out of the address: name it, so a reload opens History on this sub-tab.
     function _setAddressSub(sub) {
+        var button = document.getElementById('jux-tabbtn-history');
+        var hash = '#/home?tab=' + (button ? button.getAttribute('data-index') : '3');
         if (window.history && window.history.replaceState) {
-            window.history.replaceState(window.history.state, '', _withSub(window.location.hash, sub));
+            window.history.replaceState(window.history.state, '', _withSub(hash, sub));
         }
     }
 
@@ -254,10 +257,7 @@
     function showSub(sub) {
         var button = document.getElementById('jux-tabbtn-history');
         if (button) {
-            var tab = button.getAttribute('data-index');
-            if (window.history && window.history.replaceState) {
-                window.history.replaceState(window.history.state, '', _withSub('#/home' + (tab ? '?tab=' + tab : ''), sub));
-            }
+            _setAddressSub(sub);
             button.click();
         } else if (_modern()) {
             window.location.hash = '#/home?tab=3&sub=' + sub;
