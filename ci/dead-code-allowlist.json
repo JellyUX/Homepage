@@ -24,6 +24,7 @@
         "Controllers/JuxHomepageController.cs:GetSeriesProgressItems": "HTTP route of JuxHomepageController, called by the client scripts and the admin page through the API",
         "Controllers/JuxHomepageController.cs:GetWatchlistIds": "HTTP route of JuxHomepageController, called by the client scripts and the admin page through the API",
         "Controllers/JuxHomepageController.cs:GetWatchlistItems": "HTTP route of JuxHomepageController, called by the client scripts and the admin page through the API",
+        "Controllers/PrivateNoCacheAttribute.cs:OnResultExecuting": "MVC result filter member, called by ASP.NET Core before each response of a controller that carries the attribute",
         "Inject/StartupService.cs:StopAsync": "IHostedService member, called by the host at shutdown",
         "Library/CollectionsIndexInvalidationListener.cs:StopAsync": "IHostedService member, called by the host at shutdown",
         "PluginServiceRegistrator.cs:RegisterServices": "IPluginServiceRegistrator entry point, called by Jellyfin at startup",
