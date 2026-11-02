@@ -163,6 +163,29 @@ describe('KTW-01.b images', () => {
         }
     });
 
+    // PERF-08.c (PCLIX-06): a rotation updates the 4 thumbnails in place instead of rebuilding the strip.
+    it('keeps the strip buttons across rotations and updates what they show (PERF-08.c)', () => {
+        render(items(6));
+        const before = [...container.querySelectorAll('.jux-featured-thumb')];
+        const images = before.map((b) => b.querySelector('img'));
+        expect(before.map((b) => b.dataset.index)).toEqual(['0', '1', '2', '3']);
+
+        container.querySelector('.jux-featured-next').click();
+
+        const after = [...container.querySelectorAll('.jux-featured-thumb')];
+        expect(after).toHaveLength(4);
+        after.forEach((button, i) => {
+            expect(button).toBe(before[i]);
+            expect(button.querySelector('img')).toBe(images[i]);
+        });
+        expect(after.map((b) => b.dataset.index)).toEqual(['1', '2', '3', '4']);
+        expect(after.map((b) => b.getAttribute('aria-current'))).toEqual(['true', null, null, null]);
+        expect(after[0].classList.contains('jux-featured-active')).toBe(true);
+        expect(after[1].classList.contains('jux-featured-active')).toBe(false);
+        expect(after[3].querySelector('img').getAttribute('src')).toContain('/Items/id4/');
+        expect(after[0].getAttribute('aria-label')).toContain('Movie 1');
+    });
+
     // R11 constat 4: a logo hidden by the phone layout loads once its slide comes up wider.
     it('loads a logo only outside the phone layout, on any later render', () => {
         let phone = true;

@@ -307,26 +307,44 @@
         }
     }
 
-    function _stripHtml(state) {
-        var labels = _labels();
+    // The strip's buttons, created once (PERF-08.c, PCLIX-06: the strip was rebuilt on every rotation,
+    // 4 buttons and 4 images every 8 s); each rotation only changes what they show.
+    function _stripButtons(state) {
+        var buttons = state.strip.querySelectorAll('.jux-featured-thumb');
+        if (buttons.length) {
+            return buttons;
+        }
         var priority = _phoneLayout() ? ' fetchpriority="low"' : '';
         var html = '';
         for (var offset = 0; offset < Math.min(STRIP_SIZE, state.slides.length); offset++) {
+            html += '<button type="button" class="jux-featured-thumb">' +
+                '<img alt="" decoding="async" loading="lazy"' + priority + '></button>';
+        }
+        state.strip.innerHTML = html;
+        return state.strip.querySelectorAll('.jux-featured-thumb');
+    }
+
+    function _updateStrip(state) {
+        Array.prototype.forEach.call(_stripButtons(state), function (button, offset) {
             var index = (state.index + offset) % state.slides.length;
             var slide = state.slides[index];
             var name = slide.querySelector('.jux-featured-title').textContent;
-            html += '<button type="button" class="jux-featured-thumb' + (offset === 0 ? ' jux-featured-active' : '') + '"' +
-                ' data-index="' + index + '"' + (offset === 0 ? ' aria-current="true"' : '') +
-                ' aria-label="' + _esc(window.JuxCore.t('client.featured.goTo', { name: name })) + '">' +
-                '<img alt="" decoding="async" loading="lazy"' + priority + ' src="' + _esc(_image(state.apiClient, slide.dataset.id, {
-                    type: 'Backdrop',
-                    index: 0,
-                    tag: slide.querySelector('.jux-featured-backdrop').dataset.tag,
-                    maxWidth: THUMB_WIDTH,
-                    quality: 70
-                })) + '"></button>';
-        }
-        return html;
+            button.classList.toggle('jux-featured-active', offset === 0);
+            button.setAttribute('data-index', String(index));
+            if (offset === 0) {
+                button.setAttribute('aria-current', 'true');
+            } else {
+                button.removeAttribute('aria-current');
+            }
+            button.setAttribute('aria-label', window.JuxCore.t('client.featured.goTo', { name: name }));
+            button.querySelector('img').setAttribute('src', _image(state.apiClient, slide.dataset.id, {
+                type: 'Backdrop',
+                index: 0,
+                tag: slide.querySelector('.jux-featured-backdrop').dataset.tag,
+                maxWidth: THUMB_WIDTH,
+                quality: 70
+            }));
+        });
     }
 
     function _render(state) {
@@ -344,7 +362,7 @@
         });
         _loadSlide(state, state.slides[state.index]);
         _loadSlide(state, state.slides[(state.index + 1) % count]);
-        state.strip.innerHTML = _stripHtml(state);
+        _updateStrip(state);
         state.counter.textContent = (state.index + 1) + ' / ' + count;
     }
 
@@ -370,7 +388,7 @@
     }
 
     // The control the focus was on when the slide changed: the same button of the new slide, or the active
-    // thumbnail of the rebuilt strip, so the keyboard stays in the banner (the old slide turns inert).
+    // thumbnail of the strip, so the keyboard stays in the banner (the old slide turns inert).
     function _focusTarget(state) {
         var focused = document.activeElement;
         if (!focused || !state.root.contains(focused)) {
