@@ -1,3 +1,24 @@
+## [2.18.0](https://github.com/JellyUX/Homepage/compare/v2.17.5...v2.18.0) (2026-11-02)
+
+### Features
+
+* **tabs:** merge Progress and History into one History tab with Movies and Series sub-tabs ([9b2e335](https://github.com/JellyUX/Homepage/commit/9b2e335802799aeb8e22ebb49a7bed8134329675))
+* **tabs:** send an old link to the Statistics tab to its new position ([ca77f27](https://github.com/JellyUX/Homepage/commit/ca77f27e198ddf922517181519f409dffd922a4c))
+* **tabs:** show the JellyUX tabs in the header of the Jellyfin 12 Modern layout ([3546a78](https://github.com/JellyUX/Homepage/commit/3546a7862b2f9941acd302b7685f915adeba8fca)), closes [#favoritesTab](https://github.com/JellyUX/Homepage/issues/favoritesTab)
+
+### Bug Fixes
+
+* **admin:** drop the home kept in memory when the admin page saves the configuration ([a634f6d](https://github.com/JellyUX/Homepage/commit/a634f6df4174143b720b631cd395ead76c13dd33))
+* **breadcrumb:** show the trail under the top bar of the Jellyfin 12 Modern layout ([a3caef3](https://github.com/JellyUX/Homepage/commit/a3caef36fbdd0d8b2ff96d97f38781b57036e47c))
+* **history:** name the History tab in the address when a sub-tab opens ([da09fc2](https://github.com/JellyUX/Homepage/commit/da09fc21dab9a49b4b22f570ae855e98b2136a9f))
+* **home:** check the age of a kept row when it is read, not only when the home mounts ([de3289a](https://github.com/JellyUX/Homepage/commit/de3289a16a2e3a34117c52cd6a04bab64fb921bd))
+* **home:** count only a server-spliced pane as proof of the home-html patch ([0f7d441](https://github.com/JellyUX/Homepage/commit/0f7d4414609e18ed71f5653e728d4ba7d261a705)), closes [#jux-tab-watchlist](https://github.com/JellyUX/Homepage/issues/jux-tab-watchlist)
+* **home:** paint the home kept in memory on the way back to the Jellyfin 12 Modern home ([3074ce2](https://github.com/JellyUX/Homepage/commit/3074ce23d954efed4b0bc534013a5a36f29dd533))
+* **tabs:** open the tab an address names on the Jellyfin 10.11 home, in the view on screen ([14cd447](https://github.com/JellyUX/Homepage/commit/14cd4473621d8cd3e06f47e8a25ce3bbcec2a2ad))
+* **tabs:** reach History and the Watchlist from other pages in every layout and width ([ccdc77b](https://github.com/JellyUX/Homepage/commit/ccdc77b23550ad67eac93d1bf4e5c64f864f41da))
+* **tabs:** send an old Statistics link to tab 4 when it is followed inside the Modern home ([6f597e5](https://github.com/JellyUX/Homepage/commit/6f597e5aa67b166cc051b9d1d71747c7e9754b46))
+* **tabs:** take the Modern entries and panes back when a user turns JellyUX off ([70a5338](https://github.com/JellyUX/Homepage/commit/70a533825a5bc88c8e8c2d4770e592d50dd1fb1f))
+
 ## [2.17.5](https://github.com/JellyUX/Homepage/compare/v2.17.4...v2.17.5) (2026-11-01)
 
 ### Bug Fixes
