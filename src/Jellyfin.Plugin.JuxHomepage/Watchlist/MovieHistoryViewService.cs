@@ -60,7 +60,7 @@ public sealed class MovieHistoryViewService : IMovieHistoryViewService
         // The whole history is checked against the user's current rights before paginating, so a
         // library or parental restriction added after the cache was built hides the item and does
         // not leak through the total either.
-        var visibleItems = UserVisibleItems.Resolve(
+        var visibleIds = UserVisibleItems.VisibleIds(
             _libraryManager,
             user,
             sorted.Select(e => e.ItemId).ToList(),
@@ -73,14 +73,15 @@ public sealed class MovieHistoryViewService : IMovieHistoryViewService
                 unresolvedCount);
         }
 
-        var page = visibleItems.Skip(startIndex).Take(limit).ToList();
+        // Only the page is read in full and projected (PERF-03, DR-007).
+        var page = UserVisibleItems.LoadPage(_libraryManager, visibleIds.Skip(startIndex).Take(limit).ToList());
         if (page.Count == 0)
         {
-            return new WidgetResult([], visibleItems.Count);
+            return new WidgetResult([], visibleIds.Count);
         }
 
         var dtos = _dtoService.GetBaseItemDtos(page, WidgetDtoOptions.Standard(), user);
-        return new WidgetResult(dtos, visibleItems.Count);
+        return new WidgetResult(dtos, visibleIds.Count);
     }
 
     private static IReadOnlyList<Models.MovieHistoryEntry> Sort(

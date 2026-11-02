@@ -215,4 +215,50 @@ public sealed class SeriesProgressViewServiceTests
         Assert.Equal(1, result.TotalRecordCount);
         Assert.Equal(allowed.Id, Assert.Single(result.Items).Item.Id);
     }
+
+    // PERF-03 (DR-007): same two reads as the movie history.
+    [Fact]
+    public void GetItems_ProjectsThePageReadAgain_NeverTheLeanItems()
+    {
+        var user = new User("test", "Default", "Default");
+        var ids = Enumerable.Range(0, 4).Select(_ => Guid.NewGuid()).ToList();
+        var cacheMock = new Mock<ISeriesProgressCacheService>();
+        cacheMock.Setup(m => m.GetProgress(user.Id)).Returns(
+            [.. ids.Select((id, i) => new SeriesProgressEntry { SeriesId = id, SeriesName = $"S{i}", WatchedEpisodes = 1, TotalEpisodes = 5, LastPlayedDate = new DateTime(2026, 1, 10 - i) })]);
+        var lean = ids.Select(id => new TestSeries { Id = id }).ToList();
+        var full = ids.Select(id => new TestSeries { Id = id }).ToList();
+        var pageQueries = new List<Guid[]>();
+        var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
+            .Returns((InternalItemsQuery q) =>
+            {
+                if (!q.DtoOptions.EnableUserData)
+                {
+                    return [.. lean];
+                }
+
+                pageQueries.Add(q.ItemIds);
+                return [.. full.Where(s => q.ItemIds.Contains(s.Id))];
+            });
+        var projected = new List<BaseItem>();
+        var dtoServiceMock = new Mock<IDtoService>();
+        dtoServiceMock.StubBaseItemDtos((items, _) =>
+        {
+            projected.AddRange(items);
+            return [.. items.Select(i => new BaseItemDto { Id = i.Id })];
+        });
+        var service = new SeriesProgressViewService(
+            cacheMock.Object,
+            TestMocks.UserManagerReturning(user).Object,
+            libraryManagerMock.Object,
+            dtoServiceMock.Object,
+            NullLogger<SeriesProgressViewService>.Instance);
+
+        var result = service.GetItems(user.Id, null, null, null, 0, 3, CancellationToken.None);
+
+        Assert.Equal(4, result.TotalRecordCount);
+        Assert.Equal([ids[0], ids[1], ids[2]], result.Items.Select(i => i.Item.Id));
+        Assert.Equal([ids[0], ids[1], ids[2]], Assert.Single(pageQueries));
+        Assert.All(projected, item => Assert.Contains(item, full));
+    }
 }

@@ -210,4 +210,51 @@ public sealed class MovieHistoryViewServiceTests
         Assert.Equal(1, result.TotalRecordCount);
         Assert.Equal(allowed.Id, Assert.Single(result.Items).Id);
     }
+
+    // PERF-03 (DR-007): the whole history is checked with a lean read, never projected; the page is read
+    // again and only those items reach the DTO projection.
+    [Fact]
+    public void GetItems_ProjectsThePageReadAgain_NeverTheLeanItems()
+    {
+        var user = new User("test", "Default", "Default");
+        var ids = Enumerable.Range(0, 5).Select(_ => Guid.NewGuid()).ToList();
+        var cacheMock = new Mock<IMovieHistoryCacheService>();
+        cacheMock.Setup(m => m.GetHistory(user.Id)).Returns(
+            [.. ids.Select((id, i) => new MovieHistoryEntry { ItemId = id, Name = $"M{i}", LastPlayedDate = new DateTime(2026, 1, 10 - i) })]);
+        var lean = ids.Select(id => new TestMovie { Id = id }).ToList();
+        var full = ids.Select(id => new TestMovie { Id = id }).ToList();
+        var pageQueries = new List<Guid[]>();
+        var libraryManagerMock = new Mock<ILibraryManager>();
+        libraryManagerMock.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
+            .Returns((InternalItemsQuery q) =>
+            {
+                if (!q.DtoOptions.EnableUserData)
+                {
+                    return [.. lean];
+                }
+
+                pageQueries.Add(q.ItemIds);
+                return [.. full.Where(m => q.ItemIds.Contains(m.Id))];
+            });
+        var projected = new List<BaseItem>();
+        var dtoServiceMock = new Mock<IDtoService>();
+        dtoServiceMock.StubBaseItemDtos((items, _) =>
+        {
+            projected.AddRange(items);
+            return [.. items.Select(i => new BaseItemDto { Id = i.Id })];
+        });
+        var service = new MovieHistoryViewService(
+            cacheMock.Object,
+            TestMocks.UserManagerReturning(user).Object,
+            libraryManagerMock.Object,
+            dtoServiceMock.Object,
+            NullLogger<MovieHistoryViewService>.Instance);
+
+        var result = service.GetItems(user.Id, null, null, null, 1, 2, CancellationToken.None);
+
+        Assert.Equal(5, result.TotalRecordCount);
+        Assert.Equal([ids[1], ids[2]], result.Items.Select(d => d.Id));
+        Assert.Equal([ids[1], ids[2]], Assert.Single(pageQueries));
+        Assert.All(projected, item => Assert.Contains(item, full));
+    }
 }

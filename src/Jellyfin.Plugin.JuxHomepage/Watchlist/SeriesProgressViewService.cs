@@ -65,7 +65,7 @@ public sealed class SeriesProgressViewService : ISeriesProgressViewService
 
         // Same rights check as MovieHistoryViewService: the whole list is filtered before paginating
         // so neither the page nor the total includes a series the user can no longer open.
-        var visibleItems = UserVisibleItems.Resolve(
+        var visibleIds = UserVisibleItems.VisibleIds(
             _libraryManager,
             user,
             sorted.Select(e => e.SeriesId).ToList(),
@@ -79,10 +79,11 @@ public sealed class SeriesProgressViewService : ISeriesProgressViewService
         }
 
         var entriesById = sorted.GroupBy(e => e.SeriesId).ToDictionary(g => g.Key, g => g.First());
-        var resolvedItems = visibleItems.Skip(startIndex).Take(limit).ToList();
+        // Only the page is read in full and projected (PERF-03, DR-007).
+        var resolvedItems = UserVisibleItems.LoadPage(_libraryManager, visibleIds.Skip(startIndex).Take(limit).ToList());
         if (resolvedItems.Count == 0)
         {
-            return new SeriesProgressResult { Items = [], TotalRecordCount = visibleItems.Count };
+            return new SeriesProgressResult { Items = [], TotalRecordCount = visibleIds.Count };
         }
 
         var resolvedEntries = resolvedItems.Select(i => entriesById[i.Id]).ToList();
@@ -104,7 +105,7 @@ public sealed class SeriesProgressViewService : ISeriesProgressViewService
             });
         }
 
-        return new SeriesProgressResult { Items = items, TotalRecordCount = visibleItems.Count };
+        return new SeriesProgressResult { Items = items, TotalRecordCount = visibleIds.Count };
     }
 
     /// <summary>
