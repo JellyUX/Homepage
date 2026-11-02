@@ -107,13 +107,22 @@
     // the size of a real backdrop card at every screen width (measured on 8096: 359 px at 1920 px).
     var SKELETON_SECTIONS = 3;
     var SKELETON_CARDS = 8;
+    var SKELETON_SHAPES = { Portrait: 'overflowPortrait', Square: 'overflowSquare', Backdrop: 'overflowBackdrop' };
 
-    function _skeletonCardsHtml() {
+    // The opening of a grey card of each native shape (C12: a portrait row waits with portrait cards,
+    // so its height does not change when its cards arrive); a backdrop card by default.
+    var SKELETON_CARD_OPENINGS = {
+        overflowPortrait: '<div class="card overflowPortraitCard jux-skeleton-card"><div class="cardBox cardBox-bottompadded">' +
+            '<div class="cardScalable"><div class="cardPadder cardPadder-overflowPortrait"></div>',
+        overflowSquare: '<div class="card overflowSquareCard jux-skeleton-card"><div class="cardBox cardBox-bottompadded">' +
+            '<div class="cardScalable"><div class="cardPadder cardPadder-overflowSquare"></div>',
+        overflowBackdrop: '<div class="card overflowBackdropCard jux-skeleton-card"><div class="cardBox cardBox-bottompadded">' +
+            '<div class="cardScalable"><div class="cardPadder cardPadder-overflowBackdrop"></div>'
+    };
+
+    function _skeletonCardsHtml(shape) {
         return new Array(SKELETON_CARDS + 1).join(
-            '<div class="card overflowBackdropCard jux-skeleton-card">' +
-            '<div class="cardBox cardBox-bottompadded">' +
-            '<div class="cardScalable">' +
-            '<div class="cardPadder cardPadder-overflowBackdrop"></div>' +
+            (SKELETON_CARD_OPENINGS[shape] || SKELETON_CARD_OPENINGS.overflowBackdrop) +
             '<div class="cardImageContainer jux-skeleton-block"></div>' +
             '</div>' +
             '<div class="cardText jux-skeleton-text"><div class="jux-skeleton-bar"></div></div>' +
@@ -336,6 +345,7 @@
             : false;
 
         var cardsHtml = _makeGetItemsHtml(descriptor, shapeFn, useEpisodeImages);
+        itemsContainer._juxShape = SKELETON_SHAPES[descriptor.ViewMode];
         itemsContainer.fetchData = _guardFetchData(_keptFetchData(_makeFetchData(apiClient, userId, descriptor), descriptor, memory), descriptor);
         itemsContainer.getItemsHtml = _guardGetItemsHtml(cardsHtml);
         itemsContainer.parentContainer = sectionEl;
@@ -522,32 +532,81 @@
     }
 
     // A row is fetched once it comes within one screen below the viewport (PERF-09.a), not with
-    // every other row of the page. Until then grey cards hold it at a row's height, so the rows
-    // further down stay out of reach; the native render replaces them (test: jux-homepage.test.js
-    // "sections loaded near the viewport"). The TV layout never gets here: it keeps the native home.
+    // every other row of the page. Until then grey cards of its shape hold it at a row's height, so the
+    // rows further down stay out of reach; the native render replaces them (test: jux-homepage.test.js
+    // "sections loaded near the viewport"). C12: a row of the first screen is read at once, one of the
+    // next screen when the page is idle (at most IDLE_TIMEOUT_MS later), or as soon as it comes on
+    // screen, so the first screen does not wait for the rows below it. The TV layout never gets here:
+    // it keeps the native home.
     var _rowObservers = typeof WeakMap === 'function' ? new WeakMap() : null;
+    var IDLE_TIMEOUT_MS = 2000;
+    var IDLE_FALLBACK_MS = 200;
+
+    function _whenIdle(callback) {
+        if (typeof window.requestIdleCallback === 'function') {
+            window.requestIdleCallback(callback, { timeout: IDLE_TIMEOUT_MS });
+        } else {
+            setTimeout(callback, IDLE_FALLBACK_MS);
+        }
+    }
+
+    function _resumeOnce(watch, container) {
+        watch.screen.unobserve(container);
+        if (container._juxResumed) {
+            return;
+        }
+        container._juxResumed = true;
+        _resumeContainer(container);
+    }
+
+    // The two observers of one home view: near (one screen below the viewport) and screen.
+    function _rowWatch(elem) {
+        var watch = _rowObservers.get(elem);
+        if (watch) {
+            return watch;
+        }
+        var near = new IntersectionObserver(function (entries) {
+            entries.forEach(function (entry) {
+                if (!entry.isIntersecting) {
+                    return;
+                }
+                near.unobserve(entry.target);
+                if (entry.boundingClientRect.top < window.innerHeight) {
+                    _resumeOnce(watch, entry.target);
+                    return;
+                }
+                watch.screen.observe(entry.target);
+                _whenIdle(function () { _resumeOnce(watch, entry.target); });
+            });
+        }, { rootMargin: '0px 0px 100% 0px' });
+        var screen = new IntersectionObserver(function (entries) {
+            entries.forEach(function (entry) {
+                if (entry.isIntersecting) {
+                    _resumeOnce(watch, entry.target);
+                }
+            });
+        });
+        watch = {
+            near: near,
+            screen: screen,
+            disconnect: function () {
+                near.disconnect();
+                screen.disconnect();
+            }
+        };
+        _rowObservers.set(elem, watch);
+        return watch;
+    }
 
     function _resumeWhenNear(elem, container) {
         if (typeof IntersectionObserver === 'undefined' || !_rowObservers) {
             _resumeContainer(container);
             return;
         }
-        var observer = _rowObservers.get(elem);
-        if (!observer) {
-            observer = new IntersectionObserver(function (entries) {
-                entries.forEach(function (entry) {
-                    if (entry.isIntersecting) {
-                        observer.unobserve(entry.target);
-                        _resumeContainer(entry.target);
-                    }
-                });
-            }, { rootMargin: '0px 0px 100% 0px' });
-            _rowObservers.set(elem, observer);
-        }
         container.innerHTML = container.classList.contains('jux-featured-host')
             ? '<div class="jux-featured-skeleton jux-skeleton-block"></div>'
-            : _skeletonCardsHtml();
-        observer.observe(container);
+            : _skeletonCardsHtml(container._juxShape);
+        _rowWatch(elem).near.observe(container);
     }
 
     function _makeGetItemsHtml(descriptor, shapeFn, useEpisodeImages) {

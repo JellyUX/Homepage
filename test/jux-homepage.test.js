@@ -907,7 +907,8 @@ describe('sections loaded near the viewport (PERF-09)', () => {
             observe(target) { this.targets.push(target); }
             unobserve(target) { this.targets = this.targets.filter((t) => t !== target); }
             disconnect() { this.targets = []; }
-            fire(entries) { this.callback(entries.map(([target, isIntersecting]) => ({ target, isIntersecting })), this); }
+            // A row on screen by default; top: a row near the viewport but below it (C12).
+            fire(entries) { this.callback(entries.map(([target, isIntersecting, top = 0]) => ({ target, isIntersecting, boundingClientRect: { top } })), this); }
         };
         HTMLDivElement.prototype.resume = vi.fn(() => Promise.resolve());
     });
@@ -938,7 +939,7 @@ describe('sections loaded near the viewport (PERF-09)', () => {
         const rows = await renderThreeSections();
 
         expect(HTMLDivElement.prototype.resume).not.toHaveBeenCalled();
-        expect(observers).toHaveLength(1);
+        expect(observers).toHaveLength(2);
         expect(observers[0].options.rootMargin).toBe('0px 0px 100% 0px');
         expect(observers[0].targets).toEqual(rows);
     });
@@ -954,6 +955,53 @@ describe('sections loaded near the viewport (PERF-09)', () => {
         observers[0].fire([[rows[1], true]]);
         expect(resume.mock.contexts).toEqual([rows[0], rows[1]]);
         expect(observers[0].targets).toEqual([rows[2]]);
+    });
+
+    // C12: the rows of the first screen are read at once, those of the next screen when the page is
+    // idle, or as soon as they come on screen.
+    it('reads a row below the screen when the page is idle, or once it comes on screen', async () => {
+        const idle = [];
+        window.requestIdleCallback = vi.fn((callback, options) => { idle.push({ callback, options }); return idle.length; });
+        try {
+            const rows = await renderThreeSections();
+            const resume = HTMLDivElement.prototype.resume;
+            const below = window.innerHeight + 10;
+
+            observers[0].fire([[rows[0], true], [rows[1], true, below], [rows[2], true, below]]);
+            expect(resume.mock.contexts).toEqual([rows[0]]);
+            expect(idle).toHaveLength(2);
+            expect(idle[0].options.timeout).toBeGreaterThan(0);
+
+            observers[1].fire([[rows[2], true]]);
+            expect(resume.mock.contexts).toEqual([rows[0], rows[2]]);
+
+            idle.forEach((entry) => entry.callback());
+            expect(resume.mock.contexts).toEqual([rows[0], rows[2], rows[1]]);
+        } finally {
+            delete window.requestIdleCallback;
+        }
+    });
+
+    it('gives the grey cards of a waiting row the shape of its cards', async () => {
+        const elem = document.createElement('div');
+        document.body.appendChild(elem);
+        const client = {
+            getCurrentUserId: () => 'u1',
+            getUrl: (route) => route,
+            getJSON: vi.fn().mockResolvedValue({
+                Sections: [['a', 'Portrait'], ['b', 'Square'], ['c', 'Backdrop']].map(([name, ViewMode]) => ({ WidgetType: 'jux.genre', DisplayName: name, ViewMode })),
+                HasMore: false,
+                Enabled: true
+            })
+        };
+        await _renderHome({}, elem, client, {}, {});
+
+        const shapes = [...elem.querySelectorAll('.jux-items-container')].map((row) => row.querySelector('.jux-skeleton-card').className);
+        expect(shapes).toEqual([
+            'card overflowPortraitCard jux-skeleton-card',
+            'card overflowSquareCard jux-skeleton-card',
+            'card overflowBackdropCard jux-skeleton-card'
+        ]);
     });
 
     it('holds a waiting row open with grey cards, which the native render replaces', async () => {
@@ -975,9 +1023,9 @@ describe('sections loaded near the viewport (PERF-09)', () => {
         const first = observers[0];
         await _renderHome({}, elem, client, {}, {});
 
-        expect(observers).toHaveLength(2);
+        expect(observers).toHaveLength(4);
         expect(first.targets).toEqual([]);
-        expect(observers[1].targets).toEqual([...elem.querySelectorAll('.jux-items-container')]);
+        expect(observers[2].targets).toEqual([...elem.querySelectorAll('.jux-items-container')]);
     });
 
     it('fetches every row at once in a browser without IntersectionObserver', async () => {
