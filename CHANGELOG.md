@@ -1,3 +1,17 @@
+## [2.18.1](https://github.com/JellyUX/Homepage/compare/v2.18.0...v2.18.1) (2026-11-02)
+
+### Bug Fixes
+
+* **api:** answer every authenticated route with Cache-Control private, no-cache ([9233549](https://github.com/JellyUX/Homepage/commit/92335490e221e7c48536eca6f3317bb4a3bc4b0d))
+* **featured:** read a featured section with fewer than 3 backdrops as cards ([83f6f76](https://github.com/JellyUX/Homepage/commit/83f6f7697b12033334007f777a96b3a058019da0))
+* **featured:** read only the banner's slides with the slide fields ([8d44cc9](https://github.com/JellyUX/Homepage/commit/8d44cc9d4341508876c3145e1597c8a6a4673971))
+* **inject:** give the patched index.html to a browser that cached the native one ([7d3757c](https://github.com/JellyUX/Homepage/commit/7d3757cba6269faf98a7afe9f798973422233f0e))
+* **inject:** remember the ETag the patched chunk starts with, not the native one ([85cf447](https://github.com/JellyUX/Homepage/commit/85cf447fb66f67dd6fb6e0bc6adcae3eb2baadb2))
+* **inject:** stop revalidating a cached native chunk against the patched one ([a7e5fcc](https://github.com/JellyUX/Homepage/commit/a7e5fccd16890671c010fe8a11f4c29f8313ea16))
+* **inject:** stream the chunks when looking for loadSections at startup ([5435001](https://github.com/JellyUX/Homepage/commit/5435001e97e36e1e223a4970e33bb038bc09cc29))
+* **library:** check the watch history with a lean read and load only the page ([e619a28](https://github.com/JellyUX/Homepage/commit/e619a28636ae5c98776a4469e2fd7f020b93debb))
+* **watchlist:** answer an empty watchlist without reading the library ([eb7df94](https://github.com/JellyUX/Homepage/commit/eb7df94a391c94ef6ece9bc4c52a6371344dd0fb))
+
 ## [2.18.0](https://github.com/JellyUX/Homepage/compare/v2.17.5...v2.18.0) (2026-11-02)
 
 ### Features
