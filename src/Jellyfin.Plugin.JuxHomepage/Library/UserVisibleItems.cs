@@ -28,34 +28,8 @@ internal static class UserVisibleItems
         ILibraryManager libraryManager,
         User user,
         IReadOnlyList<Guid> ids,
-        out int unresolvedCount)
-    {
-        unresolvedCount = 0;
-        if (ids.Count == 0)
-        {
-            return [];
-        }
-
-        // GetItemList with ItemIds does not preserve the input order, hence the dictionary.
-        var itemsById = libraryManager
-            .GetItemList(new InternalItemsQuery { ItemIds = ids.Distinct().ToArray() })
-            .ToDictionary(i => i.Id);
-
-        var visible = new List<BaseItem>(ids.Count);
-        foreach (var id in ids)
-        {
-            if (!itemsById.TryGetValue(id, out var item))
-            {
-                unresolvedCount++;
-            }
-            else if (item.IsVisibleStandalone(user))
-            {
-                visible.Add(item);
-            }
-        }
-
-        return visible;
-    }
+        out int unresolvedCount) =>
+        Check(libraryManager, user, ids, new InternalItemsQuery(), out unresolvedCount);
 
     /// <summary>
     /// Returns, in input order, the ids of <paramref name="ids"/> that <paramref name="user"/> may open on
@@ -75,31 +49,8 @@ internal static class UserVisibleItems
         IReadOnlyList<Guid> ids,
         out int unresolvedCount)
     {
-        unresolvedCount = 0;
-        if (ids.Count == 0)
-        {
-            return [];
-        }
-
-        var lean = new DtoOptions(false) { EnableImages = false, EnableUserData = false };
-        var itemsById = libraryManager
-            .GetItemList(new InternalItemsQuery { ItemIds = ids.Distinct().ToArray(), DtoOptions = lean })
-            .ToDictionary(i => i.Id);
-
-        var visible = new List<Guid>(ids.Count);
-        foreach (var id in ids)
-        {
-            if (!itemsById.TryGetValue(id, out var item))
-            {
-                unresolvedCount++;
-            }
-            else if (item.IsVisibleStandalone(user))
-            {
-                visible.Add(id);
-            }
-        }
-
-        return visible;
+        var lean = new InternalItemsQuery { DtoOptions = new DtoOptions(false) { EnableImages = false, EnableUserData = false } };
+        return [.. Check(libraryManager, user, ids, lean, out unresolvedCount).Select(item => item.Id)];
     }
 
     /// <summary>
@@ -130,5 +81,39 @@ internal static class UserVisibleItems
         }
 
         return page;
+    }
+
+    // Reads the ids with the given query and keeps, in input order, the items the user may open on their own.
+    private static List<BaseItem> Check(
+        ILibraryManager libraryManager,
+        User user,
+        IReadOnlyList<Guid> ids,
+        InternalItemsQuery query,
+        out int unresolvedCount)
+    {
+        unresolvedCount = 0;
+        if (ids.Count == 0)
+        {
+            return [];
+        }
+
+        // GetItemList with ItemIds does not preserve the input order, hence the dictionary.
+        query.ItemIds = ids.Distinct().ToArray();
+        var itemsById = libraryManager.GetItemList(query).ToDictionary(i => i.Id);
+
+        var visible = new List<BaseItem>(ids.Count);
+        foreach (var id in ids)
+        {
+            if (!itemsById.TryGetValue(id, out var item))
+            {
+                unresolvedCount++;
+            }
+            else if (item.IsVisibleStandalone(user))
+            {
+                visible.Add(item);
+            }
+        }
+
+        return visible;
     }
 }
