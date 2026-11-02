@@ -3,6 +3,7 @@ using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.Inject;
 using Jellyfin.Plugin.JuxHomepage.IO;
 using Jellyfin.Plugin.JuxHomepage.Models;
+using Jellyfin.Plugin.JuxHomepage.Widgets;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
@@ -244,7 +245,8 @@ public sealed class TransformationPatchesTests
         // <BaseUrl>/JuxHomepage/; an absolute "/JuxHomepage/" ignores BaseUrl and receives the web
         // client's HTML fallback instead of the asset.
         Assert.DoesNotContain("\"/JuxHomepage/", html, StringComparison.Ordinal);
-        Assert.Equal(18, html.Split("\"../JuxHomepage/").Length - 1);
+        // Every asset but jux-featured.js: the default configuration features no section (PERF-10.a).
+        Assert.Equal(17, html.Split("\"../JuxHomepage/").Length - 1);
     }
 
     [Fact]
@@ -272,9 +274,13 @@ public sealed class TransformationPatchesTests
 
     private static readonly string[] JuxUiConsumers = ["jux-watchlist.js", "jux-progress.js", "jux-history.js", "jux-statistics.js", "jux-collections.js"];
 
+    // A configuration with a featured section, so jux-featured.js is injected (PERF-10.a).
+    private static PluginConfiguration FeaturedConfig() =>
+        new() { Widgets = [new WidgetConfig { WidgetType = "jux.native.recently-added-movies", Featured = true }] };
+
     private static PluginConfiguration ConfigWithout(params string[] switches)
     {
-        var config = new PluginConfiguration();
+        var config = FeaturedConfig();
         foreach (var name in switches)
         {
             typeof(ModulesConfig).GetProperty(name)!.SetValue(config.Modules, false);
@@ -289,9 +295,27 @@ public sealed class TransformationPatchesTests
     [Fact]
     public void InjectClientAssets_AllModulesOn_InjectsEveryAssetInDocumentOrder()
     {
-        var html = TransformationPatches.InjectClientAssets(EmptyIndex, new PluginConfiguration(), "k");
+        var html = TransformationPatches.InjectClientAssets(EmptyIndex, FeaturedConfig(), "k");
 
         Assert.Equal(AllAssetsInOrder, InjectedAssets(html));
+    }
+
+    // PERF-10.a: the banner script is injected only when an enabled section of the configuration is
+    // featured; jux-homepage.js loads it on demand otherwise (an index.html cached before the change).
+    [Fact]
+    public void InjectClientAssets_NoEnabledFeaturedSection_LeavesOutTheBannerScript()
+    {
+        var none = new PluginConfiguration { Widgets = [new WidgetConfig { WidgetType = "jux.native.next-up" }] };
+        var disabled = FeaturedConfig();
+        disabled.Widgets[0].Enabled = false;
+
+        Assert.Equal(
+            AllAssetsInOrder.Where(a => a != "jux-featured.js"),
+            InjectedAssets(TransformationPatches.InjectClientAssets(EmptyIndex, none, "k")));
+        Assert.Equal(
+            AllAssetsInOrder.Where(a => a != "jux-featured.js"),
+            InjectedAssets(TransformationPatches.InjectClientAssets(EmptyIndex, disabled, "k")));
+        Assert.Equal(AllAssetsInOrder, InjectedAssets(TransformationPatches.InjectClientAssets(EmptyIndex, FeaturedConfig(), "k")));
     }
 
     [Fact]
@@ -401,7 +425,7 @@ public sealed class TransformationPatchesTests
     {
         var html = TransformationPatches.IndexHtml(new PatchRequestPayload { Contents = EmptyIndex });
 
-        Assert.Equal(AllAssetsInOrder, InjectedAssets(html));
+        Assert.Equal(AllAssetsInOrder.Where(a => a != "jux-featured.js"), InjectedAssets(html));
         var key = ClientAssetVersion.Current;
         Assert.Contains($"<link rel=\"stylesheet\" href=\"../JuxHomepage/jux-ui.css?v={key}\" />\n</head>", html, StringComparison.Ordinal);
         Assert.Contains($"<script src=\"../JuxHomepage/jux-breadcrumb.js?v={key}\" defer></script>\n</body>", html, StringComparison.Ordinal);

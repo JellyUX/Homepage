@@ -1117,3 +1117,64 @@ describe('home kept in memory for the way back (COMPAT-11)', () => {
         expect(memory.rows).toEqual({});
     });
 });
+
+// PERF-10.a: jux-featured.js is injected only when the configuration features a section; an index.html
+// cached before a section was featured lacks it, and the home page loads it before building the sections.
+describe('banner script loaded on demand (PERF-10.a)', () => {
+    const featured = [{ WidgetType: 'jux.local.top-rated', DisplayName: 'Top', ViewMode: 'Portrait', Featured: true }];
+    const client = () => ({
+        getCurrentUserId: () => 'u1',
+        getUrl: (route) => route,
+        getJSON: vi.fn((route) => Promise.resolve(route === 'JuxHomepage/Sections'
+            ? { Sections: featured, HasMore: false, Enabled: true }
+            : { Items: [] }))
+    });
+    let saved;
+    let own;
+
+    beforeEach(async () => {
+        await import('../src/Jellyfin.Plugin.JuxHomepage/Web/jux-featured.js');
+        saved = window.JuxFeatured;
+        delete window.JuxFeatured;
+        own = document.createElement('script');
+        own.setAttribute('src', '../JuxHomepage/jux-homepage.js?v=k1');
+        document.head.appendChild(own);
+    });
+
+    afterEach(() => {
+        window.JuxFeatured = saved;
+        own.remove();
+        document.querySelectorAll('script[src*="jux-featured.js"]').forEach((s) => s.remove());
+    });
+
+    it('loads jux-featured.js once, then builds the featured section as a banner', async () => {
+        const elem = document.createElement('div');
+        const page = _loadPage(elem, client(), 'u1', {}, 0);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        const scripts = document.querySelectorAll('script[src="../JuxHomepage/jux-featured.js?v=k1"]');
+        expect(scripts).toHaveLength(1);
+        expect(elem.querySelector('.jux-widget-section')).toBeNull();
+
+        window.JuxFeatured = saved;
+        scripts[0].dispatchEvent(new Event('load'));
+        await page;
+
+        expect(elem.querySelector('.jux-featured-host')).not.toBeNull();
+    });
+
+    it('builds the section as cards when the script cannot load', async () => {
+        const elem = document.createElement('div');
+        const page = _loadPage(elem, client(), 'u2', {}, 0);
+        await new Promise((resolve) => setTimeout(resolve, 0));
+
+        const script = document.querySelector('script[src*="jux-featured.js"]');
+        if (script) {
+            script.dispatchEvent(new Event('error'));
+        }
+        await page;
+
+        expect(elem.querySelector('.jux-widget-section')).not.toBeNull();
+        expect(elem.querySelector('.jux-featured-host')).toBeNull();
+    });
+});

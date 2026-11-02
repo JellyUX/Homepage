@@ -47,12 +47,14 @@ internal enum HomeHtmlOutcome
 /// <param name="Module">The module switch that enables the asset, or null for a core asset.</param>
 /// <param name="IsJuxUi">True for the shared jux-ui assets, loaded only when a consumer is.</param>
 /// <param name="UsesJuxUi">True when the asset consumes <c>window.JuxUI</c>.</param>
+/// <param name="Needed">A further condition on the configuration, or null when the module decides alone.</param>
 internal sealed record ClientAsset(
     string FileName,
     bool IsStylesheet,
     Func<ModulesConfig, bool>? Module,
     bool IsJuxUi = false,
-    bool UsesJuxUi = false);
+    bool UsesJuxUi = false,
+    Func<PluginConfiguration, bool>? Needed = null);
 
 /// <summary>
 /// Static transformation callbacks invoked by the FileTransformation plugin via reflection.
@@ -98,7 +100,9 @@ public static class TransformationPatches
         new(ClientI18nAsset, IsStylesheet: false, Module: null),
         new("jux-core.js", IsStylesheet: false, Module: null),
         new("jux-homepage.js", IsStylesheet: false, Module: null),
-        new("jux-featured.js", IsStylesheet: false, Module: null),
+        // Only with an enabled featured section (PERF-10.a); jux-homepage.js loads it on demand when an
+        // index.html cached before a section was featured lacks it.
+        new("jux-featured.js", IsStylesheet: false, Module: null, Needed: HasFeaturedSection),
         new("jux-user-settings.js", IsStylesheet: false, Module: null),
         new("jux-ui.js", IsStylesheet: false, Module: null, IsJuxUi: true),
         new("jux-tab-injector.js", IsStylesheet: false, Module: m => m.Tabs),
@@ -173,6 +177,9 @@ public static class TransformationPatches
             .Replace("</body>", $"{string.Concat(scripts)}</body>", StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool HasFeaturedSection(PluginConfiguration config) =>
+        config.Widgets?.Any(w => w is { Enabled: true, Featured: true }) == true;
+
     /// <summary>
     /// Resolves which client assets the configuration activates, in document order.
     /// </summary>
@@ -186,7 +193,9 @@ public static class TransformationPatches
         }
 
         var modules = config.Modules ?? new ModulesConfig();
-        var active = ClientAssets.Where(a => !a.IsJuxUi && (a.Module is null || a.Module(modules))).ToList();
+        var active = ClientAssets
+            .Where(a => !a.IsJuxUi && (a.Module is null || a.Module(modules)) && (a.Needed is null || a.Needed(config)))
+            .ToList();
         var needsJuxUi = active.Any(a => a.UsesJuxUi);
         return ClientAssets.Where(a => active.Contains(a) || (a.IsJuxUi && needsJuxUi)).ToList();
     }

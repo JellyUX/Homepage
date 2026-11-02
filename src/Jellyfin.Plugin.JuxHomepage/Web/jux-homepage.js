@@ -202,24 +202,8 @@
                 return typeof onFirstPageFailure === 'function' ? onFirstPageFailure() : undefined;
             }
 
-            // A descriptor that throws loses its own section only (FIAB-08), never the whole page.
-            var tasks = descriptors.map(function (descriptor) {
-                try {
-                    return _buildSection(elem, apiClient, userId, userSettings, descriptor, memory);
-                } catch (err) {
-                    console.error('[JellyUX] Section build failed (' + (descriptor && descriptor.WidgetType) + '):', err);
-                    return null;
-                }
-            });
-
-            return Promise.all(tasks).then(function () {
-                var containers = elem.querySelectorAll('.jux-items-container:not([data-jux-loaded])');
-                Array.prototype.forEach.call(containers, function (c) {
-                    c.setAttribute('data-jux-loaded', '1');
-                    if (typeof c.resume === 'function') {
-                        _resumeWhenNear(elem, c);
-                    }
-                });
+            return _featuredScript(descriptors).then(function () {
+                return _buildPage(elem, apiClient, userId, userSettings, descriptors, memory);
             });
         }).catch(function (err) {
             console.error('[JellyUX] Sections fetch failed (page ' + page + '):', err);
@@ -230,6 +214,58 @@
             // A later page reports its failure, so the lazy loader asks for it again (FIAB-08).
             throw err;
         });
+    }
+
+    function _buildPage(elem, apiClient, userId, userSettings, descriptors, memory) {
+        // A descriptor that throws loses its own section only (FIAB-08), never the whole page.
+        var tasks = descriptors.map(function (descriptor) {
+            try {
+                return _buildSection(elem, apiClient, userId, userSettings, descriptor, memory);
+            } catch (err) {
+                console.error('[JellyUX] Section build failed (' + (descriptor && descriptor.WidgetType) + '):', err);
+                return null;
+            }
+        });
+
+        return Promise.all(tasks).then(function () {
+            var containers = elem.querySelectorAll('.jux-items-container:not([data-jux-loaded])');
+            Array.prototype.forEach.call(containers, function (c) {
+                c.setAttribute('data-jux-loaded', '1');
+                if (typeof c.resume === 'function') {
+                    _resumeWhenNear(elem, c);
+                }
+            });
+        });
+    }
+
+    // PERF-10.a: jux-featured.js is injected only when the configuration features a section, so an
+    // index.html cached before that lacks it: it is loaded here, once, from the folder and version of
+    // the JellyUX scripts, before the page's sections are built (a load that fails leaves cards, and
+    // the next page tries again).
+    var _featuredLoad = null;
+
+    function _featuredScript(descriptors) {
+        var wanted = descriptors.some(function (descriptor) { return descriptor && descriptor.Featured; });
+        if (window.JuxFeatured || !wanted) {
+            return Promise.resolve();
+        }
+        _featuredLoad = _featuredLoad || new Promise(function (resolve) {
+            var own = Array.prototype.filter.call(document.scripts, function (s) {
+                return /JuxHomepage\/[^/?]+\?v=/.test(s.getAttribute('src') || '');
+            })[0];
+            if (!own) {
+                resolve();
+                return;
+            }
+            var script = document.createElement('script');
+            script.src = own.getAttribute('src').replace(/[^/?]+(?=\?)/, 'jux-featured.js');
+            script.onload = script.onerror = function () {
+                _featuredLoad = null;
+                resolve();
+            };
+            document.head.appendChild(script);
+        });
+        return _featuredLoad;
     }
 
     // -------------------------------------------------------------------------
