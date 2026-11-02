@@ -3,7 +3,10 @@
 //   node bench/perf-matrix.mjs --configs native,pile,full,hp --profiles lowend,srvperso [--template jux-bench-tpl-1011]
 //        [--image jellyfin/jellyfin:10.11.11] [--out bench/.work/matrix] [--remove-volumes] [--banner]
 //        [cell options: --browsers desktop,desktop-slow,phone --colds 3 --boot-colds 3 --warm-desktop 20 --warm-phone 10
-//         --warm-persisted 20 --min-uptime-s 120]
+//         --warm-persisted 20 --min-uptime-s 120 --page-timeout-s 300] [--timeout-s N [--force]]
+// It prints ESTIMATE (cells, minutes, end time; bench-estimate.mjs) before the first cell, and each cell prints its
+// steps with an ETA. --timeout-s: the bound the caller puts around the run (shell timeout); a value below 1.3 x the
+// estimate is refused unless --force. durations.json in --out: estimated and measured seconds of each cell.
 // A configuration is a pluginDirs key of bench/.work/bench-local.json (native: no plugin; pile: the production
 // plugins without Homepage; full: with it; hp: Homepage alone). Per cell: the template is copied into
 // jux-bench-mx-<config>-<profile> (refused when it exists, unless --remove-volumes removes it first, and again after the
@@ -19,10 +22,11 @@ import { repoRoot } from './perf-bench-common.mjs';
 import { docker, dockerOrNull, volumeExists, stopBench } from './bench-docker.mjs';
 import { startProfiled, BANNER_OVERRIDE } from './bench-start.mjs';
 import { archiveSeries } from './bench-archive.mjs';
+import { cellOptions, clock, estimateCellS, timeoutProblem } from './bench-estimate.mjs';
 
 const NAME = 'jux-bench-mx';
 const PORT = process.env.JUX_MATRIX_PORT || '8112';
-const CELL_OPTIONS = ['browsers', 'colds', 'boot-colds', 'warm-desktop', 'warm-phone', 'warm-persisted', 'min-uptime-s'];
+const CELL_OPTIONS = ['browsers', 'colds', 'boot-colds', 'warm-desktop', 'warm-phone', 'warm-persisted', 'min-uptime-s', 'page-timeout-s'];
 
 /** Other running Jellyfin containers (any image jellyfin/jellyfin), which a measured cell must not share the PC with. */
 export function otherJellyfins(except = NAME) {
@@ -44,12 +48,23 @@ async function main() {
     if (others.length > 0) { throw new Error(`another Jellyfin container runs (${others.join(', ')}): stop it first (V4)`); }
     if (!configs.includes('native')) { console.warn('no native configuration: the other cells have no witness in this matrix'); }
     mkdirSync(out, { recursive: true });
+    const options = cellOptions(arg);
+    const cells = configs.flatMap((config) => profiles.map((profile) => ({ config, profile, estimateS: Math.round(estimateCellS(config, options)) })));
+    const totalS = cells.reduce((sum, c) => sum + c.estimateS, 0);
+    console.log(`ESTIMATE cells=${cells.length} total=${Math.round(totalS / 60)}min end=${clock(Date.now() + totalS * 1000)} (${cells.map((c) => `${c.config}-${c.profile} ${Math.round(c.estimateS / 60)}`).join(', ')}; srvperso costs, bench-estimate.mjs)`);
+    const timeoutS = arg('timeout-s');
+    const problem = timeoutS ? timeoutProblem(Number(timeoutS), totalS) : null;
+    if (problem && !process.argv.includes('--force')) { throw new Error(problem); }
+    if (problem) { console.warn(problem); }
+    const durations = [];
     const cellArgs = CELL_OPTIONS.flatMap((o) => (arg(o) ? [`--${o}`, arg(o)] : []));
     for (const config of configs) {
         for (const profile of profiles) {
             const volume = `jux-bench-mx-${config}-${profile}`;
             const dir = cellFolder(out, config, profile);
-            console.log(`== ${config} ${profile} ${new Date().toISOString()}`);
+            const cellStart = Date.now();
+            const { estimateS } = cells.find((c) => c.config === config && c.profile === profile);
+            console.log(`== ${config} ${profile} ${new Date().toISOString()} estimate ${Math.round(estimateS / 60)}min end ${clock(cellStart + estimateS * 1000)}`);
             if (volumeExists(volume)) {
                 if (!removeVolumes) { throw new Error(`volume ${volume} exists: pass --remove-volumes to replace it`); }
                 stopBench(NAME);
@@ -66,7 +81,7 @@ async function main() {
                 mkdirSync(dir, { recursive: true });
                 const scratch = path.join(out, '.state', `${config}-${profile}`);
                 rmSync(scratch, { recursive: true, force: true });
-                execFileSync(process.execPath, ['--no-warnings', path.join(repoRoot, 'bench', 'perf-matrix-cell.mjs'), ...cellArgs, ...(useBanner ? ['--banner'] : []), '--wait-s', String(waitS)], {
+                execFileSync(process.execPath, ['--no-warnings', path.join(repoRoot, 'bench', 'perf-matrix-cell.mjs'), ...cellArgs, '--config', config, ...(useBanner ? ['--banner'] : []), '--wait-s', String(waitS)], {
                     stdio: 'inherit',
                     env: { ...process.env, JUX_URL: `http://localhost:${PORT}`, JUX_CONTAINER: NAME, JUX_BENCH_OUT: dir, PERF_SCRATCH: scratch, JUX_BENCH_OVERRIDES: useBanner ? BANNER_OVERRIDE : '' }
                 });
@@ -77,6 +92,10 @@ async function main() {
                 if (log !== null) { mkdirSync(path.join(out, '.logs'), { recursive: true }); writeFileSync(path.join(out, '.logs', `${config}-${profile}.log`), log); }
                 stopBench(NAME);
                 if (removeVolumes && dockerOrNull(['volume', 'inspect', volume])) { docker(['volume', 'rm', volume]); }
+                const measuredS = Math.round((Date.now() - cellStart) / 1000);
+                durations.push({ config, profile, options, estimateS, measuredS });
+                writeFileSync(path.join(out, 'durations.json'), JSON.stringify(durations, null, 1));
+                console.log(`== ${config} ${profile} took ${Math.round(measuredS / 60)}min (estimate ${Math.round(estimateS / 60)})`);
             }
         }
     }

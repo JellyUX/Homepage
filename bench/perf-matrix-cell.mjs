@@ -12,7 +12,9 @@
 // reads them: perf-bench-browser-{std-desktop,lowend-desktop,lowend-mobile,boot-desktop}.json.
 // Ported from the audit V5 mx-cell.mjs.
 //   node bench/perf-matrix-cell.mjs --browsers desktop,phone --colds 3 --boot-colds 3 --warm-desktop 20
-//        --warm-phone 10 --wait-s 100 [--min-uptime-s 120] [--banner]
+//        --warm-phone 10 --wait-s 100 [--min-uptime-s 120] [--banner] [--page-timeout-s 300] [--config hp]
+// Each progress line carries "step i/n" and the cell ETA (bench-estimate.mjs costs of --config, scaled by the pace
+// of the finished steps). --page-timeout-s: the longest wait for one page (120 s desktop, 300 s low-end by default).
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -20,6 +22,7 @@ import { rawDir, repoRoot, dockerStats, sleep, waitHealthy, CONTAINER } from './
 import { launch, launchPersisted, ensureStorageState, storageStatePath, measurePage, validateTarget, CONTEXTS } from './perf-bench-browser.mjs';
 import { startSeries, endSeries } from './bench-fingerprint.mjs';
 import { waitForLog, remainingUptimeMs } from './bench-docker.mjs';
+import { cellOptions, cellSteps, clock, etaMs } from './bench-estimate.mjs';
 
 const arg = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i > 0 ? process.argv[i + 1] : d; };
 const browsers = arg('browsers', 'desktop,desktop-slow,phone').split(',');
@@ -30,17 +33,28 @@ const warmPersisted = Number(arg('warm-persisted', 0));
 const waitS = Number(arg('wait-s', 100));
 const minUptimeS = Number(arg('min-uptime-s', 0));
 const banner = process.argv.includes('--banner');
+const pageTimeoutS = arg('page-timeout-s');
 
 export const BROWSERS = {
-    desktop: { file: 'std-desktop', ctx: CONTEXTS.desktop, lowend: false, timeoutMs: 120000 },
-    'desktop-slow': { file: 'lowend-desktop', ctx: CONTEXTS.desktop, lowend: true, timeoutMs: 300000 },
-    phone: { file: 'lowend-mobile', ctx: CONTEXTS.mobile, lowend: true, timeoutMs: 300000 }
+    desktop: { file: 'std-desktop', ctx: CONTEXTS.desktop, lowend: false, timeoutMs: pageTimeoutS ? Number(pageTimeoutS) * 1000 : 120000 },
+    'desktop-slow': { file: 'lowend-desktop', ctx: CONTEXTS.desktop, lowend: true, timeoutMs: pageTimeoutS ? Number(pageTimeoutS) * 1000 : 300000 },
+    phone: { file: 'lowend-mobile', ctx: CONTEXTS.mobile, lowend: true, timeoutMs: pageTimeoutS ? Number(pageTimeoutS) * 1000 : 300000 }
 };
 
 // The raw file of the warm-persisted pages of each browser it runs for.
 const PERSISTED = { desktop: 'persisted-desktop', phone: 'persisted-mobile' };
 
+const steps = cellSteps(arg('config', 'hp'), cellOptions(arg));
+const cellStartMs = Date.now();
+let stepsDone = 0;
 const log = (...a) => console.log(new Date().toISOString(), path.basename(rawDir), ...a);
+/** A progress line closing the next step: "step i/n" and the cell ETA. */
+const progress = (...a) => {
+    stepsDone = Math.min(stepsDone + 1, steps.length);
+    const doneS = steps.slice(0, stepsDone).reduce((sum, st) => sum + st.s, 0);
+    const leftS = steps.slice(stepsDone).reduce((sum, st) => sum + st.s, 0);
+    log(...a, `step ${stepsDone}/${steps.length}`, `eta ${clock(etaMs(Date.now(), cellStartMs, doneS, leftS))}`);
+};
 const series = await startSeries({ label: 'perf-matrix-cell' });
 const homepage = series.homepage !== null;
 
@@ -85,10 +99,10 @@ try {
         try {
             const r = await measurePage(ctx, { lowend: BROWSERS[b].lowend, timeoutMs: BROWSERS[b].timeoutMs, doTabs: false });
             raw(file).cycles.push({ cycle: i, startup: st, memRest: st.memRest, cold: r, warm: [] });
-            log(b, file, i, 'first', Math.round(r.home.firstSectionMs));
+            progress(b, file, i, 'first', Math.round(r.home.firstSectionMs));
         } catch (e) {
             raw(file).cycles.push({ cycle: i, startup: st, memRest: st.memRest, error: String(e.message || e).slice(0, 300) });
-            log(b, file, i, 'ERROR', String(e.message || e).slice(0, 120));
+            progress(b, file, i, 'ERROR', String(e.message || e).slice(0, 120));
         } finally { await ctx.close(); save(); }
     };
     for (let i = 1; i <= colds; i++) {
@@ -109,7 +123,7 @@ try {
             }
         } finally { await ctx.close(); }
         raw(BROWSERS[b].file).cycles.push({ cycle: 'warm', memRest: dockerStats(), warm });
-        log(b, 'warm', warm.length, 'pages');
+        progress(b, 'warm', warm.length, 'pages');
         save();
     }
     for (const b of browsers.filter((x) => PERSISTED[x] && warmPersisted > 0)) {
@@ -126,7 +140,7 @@ try {
             } catch (e) { warm.push({ error: String(e.message || e).slice(0, 300) }); } finally { await ctx.close(); }
         }
         raw(PERSISTED[b]).cycles.push({ cycle: 'warm-persisted', memRest: dockerStats(), warm });
-        log(b, 'warm-persisted', warm.length, 'pages');
+        progress(b, 'warm-persisted', warm.length, 'pages');
         save();
         rmSync(dir, { recursive: true, force: true });
     }

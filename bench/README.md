@@ -109,6 +109,13 @@ only when the same manifest rows are present on both sides.
 
 ## Load matrix
 
+Duration: before the first cell the matrix prints `ESTIMATE cells=N total=X min end=HH:MM` from the unit costs of
+`bench-estimate.mjs` (big data set, srvperso, `--min-uptime-s 120`: native cell 56 min, Homepage cell 70 min with
+5 colds, no boot cold and 20 warm pages); each cell line carries `step i/n` and its ETA. Size the shell `timeout`
+around the run from that estimate and pass it as `--timeout-s`: a value below 1.3 x the estimate is refused unless
+`--force`. `--page-timeout-s` bounds the wait for one page (120 s desktop, 300 s low-end by default).
+`durations.json` in `--out` holds the estimated and measured seconds of each cell: recalibrate `COSTS` from it.
+
 `node bench/perf-matrix.mjs --configs native,pile,full,hp --profiles lowend,2c8g,srvperso --remove-volumes`
 runs each configuration (a `pluginDirs` key) on each server profile, on a fresh copy of the template per cell
 (`jux-bench-mx-<config>-<profile>`, replaced and removed by `--remove-volumes`; a cell folder that already holds a series is refused), container `jux-bench-mx` on 8112. A
