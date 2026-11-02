@@ -18,6 +18,9 @@ export default defineConfig({
         // untracked folders of a local checkout hold other projects' suites.
         include: ['test/**/*.test.js'],
         setupFiles: ['test/setup-core.js'],
+        // Node 25+ has a global localStorage of its own (undefined without --localstorage-file) that hides
+        // the jsdom one: turned off so the tests read the browser storage jsdom provides.
+        execArgv: ['--no-experimental-webstorage'],
         // npx vitest run --coverage; summarized in CI by ci/coverage-summary.mjs, no threshold. lcov gives
         // the per-line hits of the changed lines coverage.
         coverage: {
