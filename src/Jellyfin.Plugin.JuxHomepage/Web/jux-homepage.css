@@ -656,3 +656,42 @@
 .fieldDescription.jux-user-settings-error {
     color: var(--error-color, #e5350b);
 }
+
+/* -------------------------------------------------------------------------
+ * The tab entries the home scripts add as the page loads are styled here with the home page, not in
+ * jux-ui.css, which styles the tab contents and may arrive with them later (PERF-10.b)
+ * ------------------------------------------------------------------------- */
+
+/* -------------------------------------------------------------------------
+ * Tab bar labels (jux-tab-injector.js): a long tab name gives way to its short form on a narrow
+ * screen, so the native tab bar scrolls less (TODO_V4.md 7.3, F-47)
+ * ------------------------------------------------------------------------- */
+
+.jux-tab-label-short {
+    display: none;
+}
+
+@media (max-width: 40em) {
+    .jux-tab-label-long {
+        display: none;
+    }
+
+    .jux-tab-label-short {
+        display: inline;
+    }
+}
+
+/* -------------------------------------------------------------------------
+ * Tab entries of the Jellyfin 12 Modern header (jux-tab-modern.js, D-13): the open one is underlined
+ * like a sub-tab; in the drawer it takes the native selected look, and the home entry the native
+ * drawer still marks selected is drawn as unselected
+ * ------------------------------------------------------------------------- */
+
+.jux-modern-tab[aria-current="page"]:not(.Mui-selected) {
+    box-shadow: inset 0 -2px 0 var(--jf-palette-primary-main, #00a4dc);
+}
+
+.jux-modern-tab-open .Mui-selected:not(.jux-modern-tab) {
+    background-color: transparent;
+    color: inherit;
+}
