@@ -12,6 +12,7 @@ namespace Jellyfin.Plugin.JuxHomepage.Controllers;
 /// Route: /JuxHomepage/UserSettings
 /// </summary>
 [ApiController]
+[PrivateNoCache]
 [Route("JuxHomepage/UserSettings")]
 public class JuxUserSettingsController : ControllerBase
 {

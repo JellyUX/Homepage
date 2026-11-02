@@ -24,6 +24,7 @@ namespace Jellyfin.Plugin.JuxHomepage.Controllers;
 /// Route: /JuxHomepage
 /// </summary>
 [ApiController]
+[PrivateNoCache]
 [Route("JuxHomepage")]
 public class JuxHomepageAdminController : ControllerBase
 {
