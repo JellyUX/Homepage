@@ -8,6 +8,7 @@ using Jellyfin.Plugin.JuxHomepage.IO;
 using Jellyfin.Plugin.JuxHomepage.Library;
 using Jellyfin.Plugin.JuxHomepage.TMDb;
 using Jellyfin.Plugin.JuxHomepage.TMDb.Models;
+using Jellyfin.Plugin.JuxHomepage.Watchlist;
 using Jellyfin.Plugin.JuxHomepage.Widgets;
 using Jellyfin.Plugin.JuxHomepage.Widgets.Connected;
 using Jellyfin.Plugin.JuxHomepage.Widgets.Local;
@@ -223,6 +224,13 @@ public sealed class PerfBudgetTests : IDisposable
             measured,
             $"TMDb refresh (6 lists of {TmdbListSize} titles)",
             () => _provider.GetRequiredService<ITMDbCacheService>().RefreshAllAsync(null, CancellationToken.None));
+
+        // The Watchlist tab, full then empty (PERF-04): the page load has read the liked ids first.
+        await Measure(measured, "Watchlist/Items", () => controller.GetWatchlistItems(_user.Id));
+        _library.Inner.Setup(m => m.GetItemIds(It.Is<InternalItemsQuery>(q => q.IsLiked == true))).Returns([]);
+        _provider.GetRequiredService<LikedItemIdsCache>().Clear();
+        await controller.GetWatchlistIds(_user.Id);
+        await Measure(measured, "Watchlist/Items (empty)", () => controller.GetWatchlistItems(_user.Id));
 
         return measured;
     }

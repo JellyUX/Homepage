@@ -1,7 +1,10 @@
 using Jellyfin.Data.Enums;
 using Jellyfin.Database.Implementations.Enums;
 using Jellyfin.Database.Implementations.Entities;
+using System.Text.Json;
+using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.Watchlist;
+using Jellyfin.Plugin.JuxHomepage.Widgets;
 using MediaBrowser.Controller.Dto;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
@@ -218,5 +221,47 @@ public sealed class WatchlistServiceTests
 
         Assert.Equal([movie], ids);
         libraryManagerMock.Verify(m => m.GetItemIds(It.IsAny<InternalItemsQuery>()), Times.Once);
+    }
+
+    // PERF-04: an empty watchlist is known from the liked ids kept in memory; the tab answers without
+    // reading the library, with the same JSON as the query that found nothing.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void GetItems_EmptyLikedIdsInMemory_AnswersWithoutReadingTheLibrary(bool includeTotalRecordCount)
+    {
+        var user = new User("test", "Default", "Default");
+        var userManagerMock = new Mock<IUserManager>();
+        userManagerMock.Setup(m => m.GetUserById(user.Id)).Returns(user);
+        var library = new TestMocks.CountingLibraryManager();
+        var dtoServiceMock = new Mock<IDtoService>();
+        dtoServiceMock.StubBaseItemDtos((items, _) => [.. items.Select(i => new BaseItemDto { Id = i.Id })]);
+        var likedIds = new LikedItemIdsCache(() => new PluginConfiguration());
+        Assert.True(likedIds.Set(user.Id, [], likedIds.VersionOf(user.Id)));
+        var service = new WatchlistService(userManagerMock.Object, library.Object, dtoServiceMock.Object, likedIds);
+
+        var result = service.GetItems(user.Id, null, null, "movie", "abc", 0, 50, includeTotalRecordCount, CancellationToken.None);
+
+        Assert.Equal(0, library.Total);
+        var queried = WidgetResult.Project(dtoServiceMock.Object, [], WidgetDtoOptions.Standard(), user, includeTotalRecordCount ? 0 : null);
+        Assert.Equal(JsonSerializer.Serialize(queried), JsonSerializer.Serialize(result));
+    }
+
+    [Fact]
+    public void GetItems_LikedIdsNotInMemory_StillQueriesTheLibrary()
+    {
+        var user = new User("test", "Default", "Default");
+        var userManagerMock = new Mock<IUserManager>();
+        userManagerMock.Setup(m => m.GetUserById(user.Id)).Returns(user);
+        var library = new TestMocks.CountingLibraryManager();
+        var service = new WatchlistService(
+            userManagerMock.Object,
+            library.Object,
+            new Mock<IDtoService>().Object,
+            new LikedItemIdsCache(() => new PluginConfiguration()));
+
+        service.GetItems(user.Id, null, null, null, null, 0, 50, true, CancellationToken.None);
+
+        Assert.Equal(1, library.Total);
     }
 }

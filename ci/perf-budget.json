@@ -53,7 +53,9 @@
     "SeriesProgress/Items": 0,
     "TMDb refresh (6 lists of 20 titles)": 2,
     "Watchlist/Ids": 1,
-    "Watchlist/Ids (repeat)": 0
+    "Watchlist/Ids (repeat)": 0,
+    "Watchlist/Items": 1,
+    "Watchlist/Items (empty)": 0
   },
   "userData": {
     "Collections/IncludedIn": 0,
@@ -108,7 +110,9 @@
     "SeriesProgress/Items": 0,
     "TMDb refresh (6 lists of 20 titles)": 0,
     "Watchlist/Ids": 0,
-    "Watchlist/Ids (repeat)": 0
+    "Watchlist/Ids (repeat)": 0,
+    "Watchlist/Items": 0,
+    "Watchlist/Items (empty)": 0
   },
   "dto": {
     "Collections/IncludedIn": 0,
@@ -163,7 +167,9 @@
     "SeriesProgress/Items": 0,
     "TMDb refresh (6 lists of 20 titles)": 0,
     "Watchlist/Ids": 0,
-    "Watchlist/Ids (repeat)": 0
+    "Watchlist/Ids (repeat)": 0,
+    "Watchlist/Items": 1,
+    "Watchlist/Items (empty)": 0
   },
   "fileSystem": {
     "Collections/IncludedIn": 4,
@@ -218,6 +224,8 @@
     "SeriesProgress/Items": 2,
     "TMDb refresh (6 lists of 20 titles)": 50,
     "Watchlist/Ids": 0,
-    "Watchlist/Ids (repeat)": 0
+    "Watchlist/Ids (repeat)": 0,
+    "Watchlist/Items": 0,
+    "Watchlist/Items (empty)": 0
   }
 }

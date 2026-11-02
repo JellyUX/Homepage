@@ -65,6 +65,13 @@ public sealed class WatchlistService : IWatchlistService
             return WidgetResult.Empty;
         }
 
+        // An empty watchlist is known from the liked ids kept in memory: no filter, sort or page of it
+        // can hold an item, so the library is not read (PERF-04).
+        if (_likedIds is not null && _likedIds.TryGet(userId, out var likedIds) && likedIds.Count == 0)
+        {
+            return WidgetResult.Empty;
+        }
+
         var dtoOptions = section is null ? WidgetDtoOptions.Standard() : FeaturedItems.DtoOptionsFor(section);
         var query = new InternalItemsQuery(user)
         {
