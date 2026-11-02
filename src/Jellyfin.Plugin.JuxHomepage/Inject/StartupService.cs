@@ -181,6 +181,7 @@ public sealed class StartupService : IHostedService, IDisposable
         };
 
         _detector.RegisterTransformation(payload);
+        _revalidation.AddPattern("index\\.html");
         _logger.LogInformation("Registered index.html transformation for JellyUX Homepage.");
     }
 

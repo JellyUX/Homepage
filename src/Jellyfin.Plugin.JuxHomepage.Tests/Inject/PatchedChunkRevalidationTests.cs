@@ -64,6 +64,24 @@ public sealed class PatchedChunkRevalidationTests
         Assert.Equal(200, response.StatusCode);
     }
 
+    // R11 of phase 11, measured on 10.11.11: FileTransformation also answers 304 to the native validators of
+    // index.html, which it serves no-cache, so a browser revalidates it on every visit; the folder URL is the same
+    // file (DefaultFiles maps it to index.html after this middleware).
+    [Theory]
+    [InlineData("/web/index.html")]
+    [InlineData("/web/")]
+    public async Task IndexHtml_NativeValidators_GetThePatchedPage(string path)
+    {
+        var pipeline = Pipeline(out _, patterns: ["index.html"]);
+        await Send(pipeline, path);
+
+        var native = await Send(pipeline, path, NativeETag, NativeDate);
+        var own = await Send(pipeline, path, PatchedETag);
+
+        Assert.Equal(200, native.StatusCode);
+        Assert.Equal(304, own.StatusCode);
+    }
+
     [Fact]
     public async Task AnotherFile_KeepsItsValidators()
     {
