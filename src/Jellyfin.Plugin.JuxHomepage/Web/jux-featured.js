@@ -288,6 +288,11 @@
                 backdrop.classList.add('jux-featured-loaded');
             }, { once: true });
             var media = slide.querySelector('.jux-featured-media');
+            // PERF-08.a (DR-029): on a phone the active backdrop goes before the next one and the
+            // thumbnails (MB-11: banner 1 220 -> 650 ms); no measurable gain on a desktop.
+            if (_phoneLayout()) {
+                backdrop.setAttribute('fetchpriority', slide === state.slides[state.index] ? 'high' : 'low');
+            }
             backdrop.src = _image(state.apiClient, id, {
                 type: 'Backdrop',
                 index: 0,
@@ -300,6 +305,7 @@
 
     function _stripHtml(state) {
         var labels = _labels();
+        var priority = _phoneLayout() ? ' fetchpriority="low"' : '';
         var html = '';
         for (var offset = 0; offset < Math.min(STRIP_SIZE, state.slides.length); offset++) {
             var index = (state.index + offset) % state.slides.length;
@@ -308,7 +314,7 @@
             html += '<button type="button" class="jux-featured-thumb' + (offset === 0 ? ' jux-featured-active' : '') + '"' +
                 ' data-index="' + index + '"' + (offset === 0 ? ' aria-current="true"' : '') +
                 ' aria-label="' + _esc(window.JuxCore.t('client.featured.goTo', { name: name })) + '">' +
-                '<img alt="" decoding="async" loading="lazy" src="' + _esc(_image(state.apiClient, slide.dataset.id, {
+                '<img alt="" decoding="async" loading="lazy"' + priority + ' src="' + _esc(_image(state.apiClient, slide.dataset.id, {
                     type: 'Backdrop',
                     index: 0,
                     tag: slide.querySelector('.jux-featured-backdrop').dataset.tag,

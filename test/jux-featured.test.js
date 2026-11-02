@@ -122,6 +122,21 @@ describe('KTW-01.b images', () => {
         expect(loaded()).toEqual(['0', '1', '2']);
     });
 
+    // PERF-08.a (DR-029): on the phone layout the active backdrop is fetched first, the next one and the
+    // thumbnails after it; elsewhere the browser keeps its own order.
+    it('fetches the active backdrop first on the phone layout only (PERF-08.a)', () => {
+        const priorities = () => [...container.querySelectorAll('.jux-featured-backdrop[src], .jux-featured-thumb img')]
+            .map((img) => img.getAttribute('fetchpriority'));
+        render(items(4));
+        expect(priorities().every((p) => p === null)).toBe(true);
+        destroy(container);
+        container.remove();
+
+        window.matchMedia = vi.fn((q) => ({ matches: q.includes('max-width') }));
+        render(items(4));
+        expect(priorities()).toEqual(['high', 'low', 'low', 'low', 'low', 'low']);
+    });
+
     // R11 constat 4: a logo hidden by the phone layout loads once its slide comes up wider.
     it('loads a logo only outside the phone layout, on any later render', () => {
         let phone = true;
