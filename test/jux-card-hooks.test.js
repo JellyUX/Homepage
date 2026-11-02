@@ -316,7 +316,7 @@ describe('library infinite scroll, end of the list (FIAB-01)', () => {
         '<div class="itemsContainer">' + '<div class="card"></div>'.repeat(4) + '</div><div class="paging"></div></div></div>';
 
     async function setUpLibrary(getJSON, markup = LEGACY_LIBRARY) {
-        localStorage.clear();
+        window.localStorage.clear();
         document.body.innerHTML = markup;
         // The sentinel is always in view: a list that re-arms queries again at once.
         window.IntersectionObserver = class {
@@ -347,7 +347,7 @@ describe('library infinite scroll, end of the list (FIAB-01)', () => {
         delete window.JellyfinAPI;
         delete window.ApiClient;
         document.body.innerHTML = '';
-        localStorage.clear();
+        window.localStorage.clear();
     });
 
     it('queries a list shorter than one page once, then never again on later mutations', async () => {
@@ -428,7 +428,7 @@ describe('library infinite scroll, end of the list (FIAB-01)', () => {
         await mutate(3);
         const listed = getJSON.mock.calls.length;
 
-        localStorage.setItem('u1-abc1-movies', JSON.stringify({ SortBy: 'DateCreated', SortOrder: 'Descending' }));
+        window.localStorage.setItem('u1-abc1-movies', JSON.stringify({ SortBy: 'DateCreated', SortOrder: 'Descending' }));
         await mutate(3);
         expect(getJSON.mock.calls.length - listed).toBe(1);
         expect(getJSON.mock.calls[listed][0]).toContain('SortBy=DateCreated');
