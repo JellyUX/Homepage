@@ -1,6 +1,7 @@
 using Jellyfin.Plugin.JuxHomepage.Inject;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -22,6 +23,19 @@ public sealed class PatchedChunkRevalidationTests
     public async Task NativeValidators_GetThePatchedChunk()
     {
         var pipeline = Pipeline(out _);
+
+        var response = await Send(pipeline, LoadSectionsPath, NativeETag, NativeDate);
+
+        Assert.Equal(200, response.StatusCode);
+    }
+
+    // Bench of 1e4c98c: the ETag read when the inner middlewares returned was the native one, so the native
+    // validators were kept after the first 200 and got 304 again.
+    [Fact]
+    public async Task NativeValidators_GetThePatchedChunk_AfterItWasServed()
+    {
+        var pipeline = Pipeline(out _);
+        await Send(pipeline, LoadSectionsPath);
 
         var response = await Send(pipeline, LoadSectionsPath, NativeETag, NativeDate);
 
@@ -89,22 +103,42 @@ public sealed class PatchedChunkRevalidationTests
             revalidation.AddPattern(pattern);
         }
 
+        // The order measured on 10.11.11 and 12.4: FileTransformation's startup filter is registered before ours, so
+        // its middleware wraps ours, which wraps the static files.
         var app = new ApplicationBuilder(new ServiceCollection().BuildServiceProvider());
-        new PatchedChunkRevalidationStartupFilter(revalidation).Configure(builder => builder.Run(FileTransformationAsMeasured))(app);
+        app.Use(FileTransformationAsMeasured);
+        new PatchedChunkRevalidationStartupFilter(revalidation).Configure(builder => builder.Run(StaticFilesAsMeasured))(app);
         return app.Build();
     }
 
-    // FileTransformation as measured on 10.11.11 and 12.4: 304 to any validator, 200 with its own ETag otherwise.
-    private static Task FileTransformationAsMeasured(HttpContext context)
+    // StaticFileMiddleware: 304 to the validators of the file on disk (the native chunk), 200 otherwise.
+    private static Task StaticFilesAsMeasured(HttpContext context)
     {
-        context.Response.Headers.ETag = context.Request.Path.Value!.Contains("10092", StringComparison.Ordinal) ? NativeETag : PatchedETag;
-        context.Response.StatusCode = context.Request.Headers.IfNoneMatch.Count > 0 || context.Request.Headers.IfModifiedSince.Count > 0 ? 304 : 200;
+        var native = context.Request.Headers.IfNoneMatch.ToString() == NativeETag || context.Request.Headers.IfModifiedSince.ToString() == NativeDate;
+        context.Response.StatusCode = native ? 304 : 200;
+        context.Response.Headers.ETag = NativeETag;
         return Task.CompletedTask;
+    }
+
+    // FileTransformation around it: 304 to its own ETag, the inner 304 passed through, 200 otherwise; it writes its
+    // own ETag (a hash of the patched body) when the response starts, after the inner middlewares returned.
+    private static async Task FileTransformationAsMeasured(HttpContext context, RequestDelegate next)
+    {
+        var isPatched = !context.Request.Path.Value!.Contains("10092", StringComparison.Ordinal);
+        await next(context);
+        if (isPatched)
+        {
+            context.Response.StatusCode = context.Request.Headers.IfNoneMatch.ToString() == PatchedETag ? 304 : context.Response.StatusCode;
+            context.Response.Headers.ETag = PatchedETag;
+        }
+
+        await ((StartableResponse)context.Features.Get<IHttpResponseFeature>()!).StartAsync();
     }
 
     private static async Task<HttpResponse> Send(RequestDelegate pipeline, string path, string? ifNoneMatch = null, string? ifModifiedSince = null)
     {
         var context = new DefaultHttpContext();
+        context.Features.Set<IHttpResponseFeature>(new StartableResponse());
         context.Request.Method = "GET";
         context.Request.Path = path;
         if (ifNoneMatch is not null)
@@ -119,5 +153,21 @@ public sealed class PatchedChunkRevalidationTests
 
         await pipeline(context);
         return context.Response;
+    }
+
+    // A response feature that runs its OnStarting callbacks when the test server starts the response.
+    private sealed class StartableResponse : HttpResponseFeature
+    {
+        private readonly List<(Func<object, Task> Callback, object State)> _starting = [];
+
+        public override void OnStarting(Func<object, Task> callback, object state) => _starting.Add((callback, state));
+
+        public async Task StartAsync()
+        {
+            foreach (var (callback, state) in Enumerable.Reverse(_starting))
+            {
+                await callback(state);
+            }
+        }
     }
 }

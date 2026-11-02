@@ -15,12 +15,18 @@ public sealed class PatchedChunkRevalidationStartupFilter(PatchedChunkRevalidati
     {
         app.Use(async (context, nextMiddleware) =>
         {
-            var patched = revalidation.Prepare(context.Request);
-            await nextMiddleware(context).ConfigureAwait(false);
-            if (patched)
+            if (revalidation.Prepare(context.Request))
             {
-                revalidation.Record(context);
+                // FileTransformation's own startup filter wraps this middleware and writes the ETag of the patched
+                // body after the inner middlewares returned: the ETag sent is the one the response starts with.
+                context.Response.OnStarting(() =>
+                {
+                    revalidation.Record(context);
+                    return Task.CompletedTask;
+                });
             }
+
+            await nextMiddleware(context).ConfigureAwait(false);
         });
         next(app);
     };
