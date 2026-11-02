@@ -506,7 +506,41 @@
         return sync;
     }
 
+    // PERF-10.b (DR-012): index.html loads the home bundle deferred and names in its data-jux-later
+    // attribute what the home page does not need: jux-ui.css and the bundle of the tab, detail page and
+    // settings scripts. They are added once the window has loaded, a stylesheet as a link, a script in
+    // order (async off); a tab opened before they arrive is rendered when its script starts (paneOpen).
+    function loadLater(urls) {
+        String(urls || '').split(' ').forEach(function (url) {
+            if (!url) {
+                return;
+            }
+            var element;
+            if (/\.css(\?|$)/.test(url)) {
+                element = document.createElement('link');
+                element.rel = 'stylesheet';
+                element.href = url;
+                document.head.appendChild(element);
+                return;
+            }
+            element = document.createElement('script');
+            element.src = url;
+            element.async = false;
+            document.body.appendChild(element);
+        });
+    }
+
+    var _later = document.currentScript && document.currentScript.getAttribute('data-jux-later');
+    if (_later) {
+        if (document.readyState === 'complete') {
+            loadLater(_later);
+        } else {
+            window.addEventListener('load', function () { loadLater(_later); }, { once: true });
+        }
+    }
+
     window.JuxCore = {
+        loadLater: loadLater,
         currentDetailItemId: currentDetailItemId,
         watchDetailPages: watchDetailPages,
         onDomMutation: onDomMutation,

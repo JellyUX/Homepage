@@ -245,8 +245,9 @@ public sealed class TransformationPatchesTests
         // <BaseUrl>/JuxHomepage/; an absolute "/JuxHomepage/" ignores BaseUrl and receives the web
         // client's HTML fallback instead of the asset.
         Assert.DoesNotContain("\"/JuxHomepage/", html, StringComparison.Ordinal);
-        // Every asset but jux-featured.js: the default configuration features no section (PERF-10.a).
-        Assert.Equal(17, html.Split("\"../JuxHomepage/").Length - 1);
+        Assert.DoesNotContain(" /JuxHomepage/", html, StringComparison.Ordinal);
+        // The head stylesheet, the home bundle, then jux-ui.css and the rest bundle (PERF-10.b).
+        Assert.Equal(4, Regex.Matches(html, @"[\"" ]\.\./JuxHomepage/").Count);
     }
 
     [Fact]
@@ -262,10 +263,12 @@ public sealed class TransformationPatchesTests
 
     private const string EmptyIndex = "<html><head></head><body></body></html>";
 
+    // In load order (PERF-10.b, DR-012): the head stylesheet, the home bundle, then what data-jux-later
+    // names (jux-ui.css, the rest bundle).
     private static readonly string[] AllAssetsInOrder =
     [
-        "jux-homepage.css", "jux-ui.css", "jux-i18n.js", "jux-core.js", "jux-homepage.js", "jux-featured.js", "jux-user-settings.js", "jux-ui.js", "jux-tab-injector.js", "jux-tab-modern.js",
-        "jux-watchlist.js", "jux-card-hooks.js", "jux-progress.js", "jux-history.js", "jux-statistics.js",
+        "jux-homepage.css", "jux-i18n.js", "jux-core.js", "jux-homepage.js", "jux-featured.js", "jux-tab-injector.js", "jux-tab-modern.js", "jux-card-hooks.js",
+        "jux-ui.css", "jux-user-settings.js", "jux-ui.js", "jux-watchlist.js", "jux-progress.js", "jux-history.js", "jux-statistics.js",
         "jux-series-flatten.js", "jux-collections.js", "jux-breadcrumb.js",
     ];
 
@@ -289,8 +292,34 @@ public sealed class TransformationPatchesTests
         return config;
     }
 
-    private static List<string> InjectedAssets(string html) =>
-        html.Split("../JuxHomepage/").Skip(1).Select(part => part.Split('?')[0]).ToList();
+    // The assets index.html loads, in load order: head stylesheets, the files of the home bundle, then
+    // each entry of data-jux-later, a bundle expanded into its files.
+    private static List<string> InjectedAssets(string html)
+    {
+        var assets = Regex.Matches(html, @"<link rel=""stylesheet"" href=""\.\./JuxHomepage/([^?""]+)\?")
+            .Select(m => m.Groups[1].Value)
+            .ToList();
+        var script = Regex.Match(html, "<script src=\"([^\"]+)\"(?: data-jux-later=\"([^\"]+)\")? defer></script>");
+        if (!script.Success)
+        {
+            return assets;
+        }
+
+        assets.AddRange(Expand(script.Groups[1].Value));
+        foreach (var url in script.Groups[2].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            assets.AddRange(Expand(url));
+        }
+
+        return assets;
+    }
+
+    private static IEnumerable<string> Expand(string url)
+    {
+        var name = Regex.Match(url, @"JuxHomepage/([^?]+)\?").Groups[1].Value;
+        var files = Regex.Match(url, "&amp;f=([0-9.]+)$");
+        return files.Success ? TransformationPatches.BundleFiles(name, files.Groups[1].Value)! : [name];
+    }
 
     [Fact]
     public void InjectClientAssets_AllModulesOn_InjectsEveryAssetInDocumentOrder()
@@ -366,7 +395,35 @@ public sealed class TransformationPatchesTests
 
         Assert.DoesNotContain("jux-ui.js", assets);
         Assert.DoesNotContain("jux-ui.css", assets);
-        Assert.Equal(["jux-homepage.css", "jux-i18n.js", "jux-core.js", "jux-homepage.js", "jux-featured.js", "jux-user-settings.js", "jux-card-hooks.js", "jux-series-flatten.js", "jux-breadcrumb.js"], assets);
+        Assert.Equal(["jux-homepage.css", "jux-i18n.js", "jux-core.js", "jux-homepage.js", "jux-featured.js", "jux-card-hooks.js", "jux-user-settings.js", "jux-series-flatten.js", "jux-breadcrumb.js"], assets);
+    }
+
+    // PERF-10.b: a bundle URL names its files by position; the server builds only a valid list of its own.
+    [Fact]
+    public void BundleFiles_ReadsTheFilesOfItsOwnBundleOnly()
+    {
+        var html = TransformationPatches.InjectClientAssets(EmptyIndex, FeaturedConfig(), "k");
+        var home = Regex.Match(html, @"jux-home\.js\?v=k&amp;f=([0-9.]+)").Groups[1].Value;
+        var rest = Regex.Match(html, @"jux-rest\.js\?v=k&amp;f=([0-9.]+)").Groups[1].Value;
+
+        Assert.Equal(AllAssetsInOrder[1..8], TransformationPatches.BundleFiles(TransformationPatches.HomeBundle, home));
+        Assert.Equal(AllAssetsInOrder[9..], TransformationPatches.BundleFiles(TransformationPatches.RestBundle, rest));
+        Assert.Null(TransformationPatches.BundleFiles(TransformationPatches.HomeBundle, rest));
+        Assert.Null(TransformationPatches.BundleFiles(TransformationPatches.RestBundle, home));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("3.2")]
+    [InlineData("2.2")]
+    [InlineData("0")]
+    [InlineData("2.x")]
+    [InlineData("2.99")]
+    [InlineData("-2")]
+    public void BundleFiles_RefusesAMalformedOrForeignList(string? files)
+    {
+        Assert.Null(TransformationPatches.BundleFiles(TransformationPatches.HomeBundle, files));
     }
 
     [Fact]
@@ -427,8 +484,10 @@ public sealed class TransformationPatchesTests
 
         Assert.Equal(AllAssetsInOrder.Where(a => a != "jux-featured.js"), InjectedAssets(html));
         var key = ClientAssetVersion.Current;
-        Assert.Contains($"<link rel=\"stylesheet\" href=\"../JuxHomepage/jux-ui.css?v={key}\" />\n</head>", html, StringComparison.Ordinal);
-        Assert.Contains($"<script src=\"../JuxHomepage/jux-breadcrumb.js?v={key}\" defer></script>\n</body>", html, StringComparison.Ordinal);
+        Assert.Contains($"<link rel=\"stylesheet\" href=\"../JuxHomepage/jux-homepage.css?v={key}\" />\n</head>", html, StringComparison.Ordinal);
+        Assert.Contains($"<script src=\"../JuxHomepage/jux-home.js?v={key}&amp;f=", html, StringComparison.Ordinal);
+        Assert.Contains($" data-jux-later=\"../JuxHomepage/jux-ui.css?v={key} ../JuxHomepage/jux-rest.js?v={key}&amp;f=", html, StringComparison.Ordinal);
+        Assert.Contains(" defer></script>\n</body>", html, StringComparison.Ordinal);
         Assert.True(html.IndexOf("</head>", StringComparison.Ordinal) < html.IndexOf("<script", StringComparison.Ordinal));
     }
 

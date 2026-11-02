@@ -249,6 +249,27 @@ for (const tab of TABS) {
     });
 }
 
+// PERF-10.b (DR-012): the tab scripts arrive after the window load event; a tab clicked before them is
+// served once they do. The rest bundle is held until after the click (routing also bypasses the cache).
+test('a tab clicked before the tab scripts arrive shows its content once they do (PERF-10.b)', async ({ page }) => {
+    const errors = watchJuxErrors(page);
+    await login(page, env.admin);
+    let release;
+    const held = new Promise((resolve) => { release = resolve; });
+    await page.route(/\/JuxHomepage\/jux-rest\.js/, async (route) => {
+        await held;
+        await route.continue();
+    });
+    await page.reload();
+
+    await openTab(page, TABS[0]);
+    expect(await page.evaluate(() => typeof window.juxWatchlist)).toBe('undefined');
+    release();
+
+    await expect(page.locator(`#${TABS[0].id}:visible .card`).first()).toBeVisible();
+    expect(errors).toEqual([]);
+});
+
 // Jellyfin 12 Modern layout: the entries arrive with the native header links, after them, so Favorites
 // never moves. Polled every frame from a reload, by a script that runs before the page's own (D-13).
 test('the JellyUX entries arrive with the native header links and the bar stays still (F-42, Jellyfin 12)', async ({ page }) => {

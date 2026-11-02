@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -117,7 +118,24 @@ public static class TransformationPatches
         new("jux-breadcrumb.js", IsStylesheet: false, Module: m => m.Breadcrumb),
     ];
 
-    private static readonly string[] ServedAssets = [.. ClientAssets.Select(a => a.FileName)];
+    /// <summary>
+    /// The bundle index.html loads deferred: what the home page needs to render its sections and tab
+    /// entries (PERF-10.b, DR-012).
+    /// </summary>
+    internal const string HomeBundle = "jux-home.js";
+
+    /// <summary>
+    /// The bundle of the other scripts (tabs, detail pages, settings), loaded after the window load event.
+    /// </summary>
+    internal const string RestBundle = "jux-rest.js";
+
+    // The scripts of the home bundle; every other active script goes to the rest bundle.
+    private static readonly HashSet<string> HomeBundleScripts = new(StringComparer.Ordinal)
+    {
+        ClientI18nAsset, "jux-core.js", "jux-homepage.js", "jux-featured.js", "jux-tab-injector.js", "jux-tab-modern.js", "jux-card-hooks.js",
+    };
+
+    private static readonly string[] ServedAssets = [.. ClientAssets.Select(a => a.FileName), HomeBundle, RestBundle];
 
     /// <summary>
     /// The client labels script (TODO_V4.md 9.4, F-64): not an embedded file but generated from the
@@ -164,17 +182,75 @@ public static class TransformationPatches
 
         // Relative to index.html (served under <BaseUrl>/web/), so the assets follow a configured
         // BaseUrl; an absolute "/JuxHomepage/" would bypass it and receive the web client's HTML.
+        // PERF-10.b (DR-012): the home bundle is deferred; jux-ui.css and the rest bundle, which the home
+        // page does not need, are named in data-jux-later and added by jux-core.js after the window
+        // load event. A bundle URL names its files (f=), so its content never depends on a later
+        // configuration change and the immutable cache of the ?v= key stays right.
         var cacheParam = $"?v={cacheKey}";
         var links = assets
-            .Where(a => a.IsStylesheet)
+            .Where(a => a.IsStylesheet && !a.IsJuxUi)
             .Select(a => $"<link rel=\"stylesheet\" href=\"../JuxHomepage/{a.FileName}{cacheParam}\" />\n");
-        var scripts = assets
-            .Where(a => !a.IsStylesheet)
-            .Select(a => $"<script src=\"../JuxHomepage/{a.FileName}{cacheParam}\" defer></script>\n");
+        var scripts = assets.Where(a => !a.IsStylesheet).ToList();
+        var later = assets
+            .Where(a => a.IsStylesheet && a.IsJuxUi)
+            .Select(a => $"../JuxHomepage/{a.FileName}{cacheParam}")
+            .ToList();
+        var rest = scripts.Where(a => !HomeBundleScripts.Contains(a.FileName)).ToList();
+        if (rest.Count > 0)
+        {
+            later.Add(BundleUrl(RestBundle, rest, cacheParam));
+        }
+
+        var home = BundleUrl(HomeBundle, scripts.Where(a => HomeBundleScripts.Contains(a.FileName)), cacheParam);
+        var laterAttribute = later.Count > 0 ? $" data-jux-later=\"{string.Join(' ', later)}\"" : string.Empty;
+        var script = $"<script src=\"{home}\"{laterAttribute} defer></script>\n";
 
         return html
             .Replace("</head>", $"{string.Concat(links)}</head>", StringComparison.OrdinalIgnoreCase)
-            .Replace("</body>", $"{string.Concat(scripts)}</body>", StringComparison.OrdinalIgnoreCase);
+            .Replace("</body>", $"{script}</body>", StringComparison.OrdinalIgnoreCase);
+    }
+
+    // The URL of a bundle, its files named by their position in ClientAssets ("&amp;" in the HTML).
+    private static string BundleUrl(string bundle, IEnumerable<ClientAsset> scripts, string cacheParam) =>
+        $"../JuxHomepage/{bundle}{cacheParam}&amp;f={string.Join('.', scripts.Select(a => Array.IndexOf(ClientAssets, a)))}";
+
+    /// <summary>
+    /// Reads the files a bundle URL names (its <c>f</c> query: positions in the client asset list,
+    /// ascending, dot-separated), refusing any position outside that bundle.
+    /// </summary>
+    /// <param name="bundle">The bundle name, <see cref="HomeBundle"/> or <see cref="RestBundle"/>.</param>
+    /// <param name="files">The <c>f</c> query value.</param>
+    /// <returns>The file names in bundle order, or null when the query names no valid file list.</returns>
+    internal static IReadOnlyList<string>? BundleFiles(string bundle, string? files)
+    {
+        if (string.IsNullOrEmpty(files))
+        {
+            return null;
+        }
+
+        var home = string.Equals(bundle, HomeBundle, StringComparison.Ordinal);
+        var names = new List<string>();
+        var last = -1;
+        foreach (var part in files.Split('.'))
+        {
+            if (!int.TryParse(part, NumberStyles.None, CultureInfo.InvariantCulture, out var index)
+                || index <= last
+                || index >= ClientAssets.Length)
+            {
+                return null;
+            }
+
+            var asset = ClientAssets[index];
+            if (asset.IsStylesheet || HomeBundleScripts.Contains(asset.FileName) != home)
+            {
+                return null;
+            }
+
+            names.Add(asset.FileName);
+            last = index;
+        }
+
+        return names;
     }
 
     private static bool HasFeaturedSection(PluginConfiguration config) =>

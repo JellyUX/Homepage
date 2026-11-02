@@ -600,3 +600,21 @@ describe('error state without labels (Annexe.b)', () => {
         }
     });
 });
+
+// PERF-10.b (DR-012): what index.html names in data-jux-later is added after the window load event.
+describe('loadLater (PERF-10.b)', () => {
+    afterEach(() => {
+        document.querySelectorAll('[data-test-later]').forEach((e) => e.remove());
+    });
+
+    it('adds a stylesheet as a link and a script in order, ignoring blanks', () => {
+        window.JuxCore.loadLater('../JuxHomepage/jux-ui.css?v=k  ../JuxHomepage/jux-rest.js?v=k&f=9.10');
+
+        const link = document.head.querySelector('link[href="../JuxHomepage/jux-ui.css?v=k"]');
+        const script = document.body.querySelector('script[src="../JuxHomepage/jux-rest.js?v=k&f=9.10"]');
+        expect(link.rel).toBe('stylesheet');
+        expect(script.async).toBe(false);
+        link.setAttribute('data-test-later', '');
+        script.setAttribute('data-test-later', '');
+    });
+});

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Reflection;
 using Jellyfin.Plugin.JuxHomepage.Inject;
 using Jellyfin.Plugin.JuxHomepage.Library;
@@ -26,6 +27,10 @@ public class JuxHomepageController : ControllerBase
     private static readonly Assembly PluginAssembly = typeof(JuxHomepageController).Assembly;
 
     private static readonly string WebResourcePrefix = $"{typeof(Plugin).Namespace}.Web.";
+
+    // The bundles built so far, by name and file list: the embedded files and the labels script do not
+    // change while the server runs, and the file lists a bundle accepts are few (PERF-10.b).
+    private static readonly ConcurrentDictionary<string, string> Bundles = new(StringComparer.Ordinal);
 
     private readonly WidgetService _widgetService;
     private readonly IUserManager _userManager;
@@ -102,6 +107,19 @@ public class JuxHomepageController : ControllerBase
         {
             SetCacheHeaders(Request, Response);
             return Content(_localizationService.GetClientScript(), "application/javascript");
+        }
+
+        if (name is TransformationPatches.HomeBundle or TransformationPatches.RestBundle)
+        {
+            var files = TransformationPatches.BundleFiles(name, Request.Query["f"]);
+            if (files is null)
+            {
+                return NotFound();
+            }
+
+            SetCacheHeaders(Request, Response);
+            var bundle = Bundles.GetOrAdd(name + "?" + string.Join('.', files), _ => string.Join("\n;\n", files.Select(ReadAssetText)));
+            return Content(bundle, "application/javascript");
         }
 
         var stream = name is null ? null : PluginAssembly.GetManifestResourceStream(WebResourcePrefix + name);
@@ -494,6 +512,20 @@ public class JuxHomepageController : ControllerBase
     // Whose data the request reads, or null when it must be refused (IDOR, IRequestUserResolver.ResolveAsync).
     private async Task<Guid?> ResolveRequestUserIdAsync(Guid requestedUserId) =>
         (await _requestUsers.ResolveAsync(HttpContext, requestedUserId).ConfigureAwait(false)).UserId;
+
+    // The text of one bundled script: the generated labels script, or an embedded file.
+    private string ReadAssetText(string name)
+    {
+        if (name == TransformationPatches.ClientI18nAsset)
+        {
+            return _localizationService.GetClientScript();
+        }
+
+        using var stream = PluginAssembly.GetManifestResourceStream(WebResourcePrefix + name)
+            ?? throw new InvalidOperationException($"The client asset {name} is not embedded.");
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
+    }
 
     private static void SetCacheHeaders(HttpRequest request, HttpResponse response)
     {

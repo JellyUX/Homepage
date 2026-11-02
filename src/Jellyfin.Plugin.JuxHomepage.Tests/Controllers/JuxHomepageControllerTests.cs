@@ -264,6 +264,24 @@ public sealed class JuxHomepageControllerTests
         }
     }
 
+    // PERF-10.b (DR-012): a bundle is the files its URL names, joined in order, under the cache key rule
+    // of a single file; a list outside the bundle is refused.
+    [Fact]
+    public void GetAsset_ServesABundleAsTheFilesItsUrlNames()
+    {
+        var html = TransformationPatches.InjectClientAssets("<head></head><body></body>", new PluginConfiguration(), ClientAssetVersion.Current);
+        var files = System.Text.RegularExpressions.Regex.Match(html, "jux-rest.js[?]v=[0-9a-f]+&amp;f=([0-9.]+)").Groups[1].Value;
+        var names = TransformationPatches.BundleFiles(TransformationPatches.RestBundle, files)!;
+
+        var result = Assert.IsType<ContentResult>(InvokeGetAsset("jux-rest.js", $"?v={ClientAssetVersion.Current}&f={files}", out var response));
+
+        Assert.Equal(JavaScript, result.ContentType);
+        Assert.Equal("public, max-age=31536000, immutable", response.Headers.CacheControl.ToString());
+        Assert.Equal(string.Join("\n;\n", names.Select(n => File.ReadAllText(Path.Combine(WebDirectory(), n)))), result.Content);
+        Assert.IsType<NotFoundResult>(InvokeGetAsset("jux-rest.js", "?f=1", out _));
+        Assert.IsType<NotFoundResult>(InvokeGetAsset("jux-home.js", null, out _));
+    }
+
     private static IActionResult InvokeGetAsset(string fileName, string? query, out HttpResponse response)
     {
         var httpContext = new DefaultHttpContext();

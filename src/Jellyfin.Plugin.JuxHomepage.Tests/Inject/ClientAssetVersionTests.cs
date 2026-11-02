@@ -98,6 +98,7 @@ public sealed class ClientAssetVersionTests
     {
         var html = TransformationPatches.IndexHtml(new PatchRequestPayload { Contents = "<html><head></head><body></body></html>" });
 
-        Assert.Contains($"jux-homepage.js?v={ClientAssetVersion.Current}\"", html, StringComparison.Ordinal);
+        Assert.Contains($"jux-home.js?v={ClientAssetVersion.Current}&amp;f=", html, StringComparison.Ordinal);
+        Assert.Contains($"jux-homepage.css?v={ClientAssetVersion.Current}\"", html, StringComparison.Ordinal);
     }
 }
