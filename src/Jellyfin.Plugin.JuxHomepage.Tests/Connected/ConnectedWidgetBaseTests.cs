@@ -200,10 +200,10 @@ public sealed class ConnectedWidgetBaseTests
         Assert.Equal(["Lit 7.5", "Lit 9", "Bare 8"], calls.SelectMany(c => c.Items).Select(i => i.Name));
         Assert.Equal(3, result.TotalRecordCount);
 
-        // PERF-05: the two titles that can be slides carry the slide fields, the bare one is a card.
-        Assert.Equal([2, 1], calls.Select(c => c.Items.Count));
-        Assert.Contains(MediaBrowser.Model.Querying.ItemFields.Overview, calls[0].Options.Fields);
-        Assert.DoesNotContain(MediaBrowser.Model.Querying.ItemFields.Overview, calls[1].Options.Fields);
+        // PERF-05: two backdrops are under the banner's 3 slides, so the client shows a row of cards: every title is
+        // read as a card.
+        Assert.Equal([3], calls.Select(c => c.Items.Count));
+        Assert.DoesNotContain(MediaBrowser.Model.Querying.ItemFields.Overview, calls[0].Options.Fields);
     }
 
     [Fact]

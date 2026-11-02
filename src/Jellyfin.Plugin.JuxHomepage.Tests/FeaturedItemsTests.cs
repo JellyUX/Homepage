@@ -93,6 +93,7 @@ public sealed class FeaturedItemsTests
     [Theory]
     [InlineData(10, 2, 0, 8, 4)]
     [InlineData(3, 5, 0, 3, 5)]
+    [InlineData(2, 5, 0, 0, 7)]
     [InlineData(0, 4, 0, 0, 4)]
     [InlineData(10, 2, 20, 0, 12)]
     public void Project_Featured_EnrichesOnlyTheTitlesThatCanBeSlides(int backdrops, int bare, int startIndex, int enriched, int plain)

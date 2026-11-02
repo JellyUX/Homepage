@@ -21,6 +21,9 @@ public static class FeaturedItems
     /// <summary>The number of slides a banner shows at most (<c>MAX_SLIDES</c> in jux-featured.js).</summary>
     public const int MaxSlides = 8;
 
+    /// <summary>The number of slides under which no banner is shown (<c>MIN_SLIDES</c> in jux-featured.js).</summary>
+    public const int MinSlides = 3;
+
     /// <summary>Returns the DTO options of the section <paramref name="payload"/> reads.</summary>
     /// <param name="payload">The request.</param>
     /// <returns><see cref="WidgetDtoOptions.Featured"/> for a featured section, otherwise <see cref="WidgetDtoOptions.Standard"/>.</returns>
@@ -85,7 +88,9 @@ public static class FeaturedItems
         var slides = payload.Featured && payload.StartIndex == 0
             ? items.Take(MaxSlides).TakeWhile(HasBackdrop).Count()
             : 0;
-        if (slides == 0)
+
+        // Under MinSlides the client shows the whole section as a row of cards, which must look alike.
+        if (slides < MinSlides)
         {
             return WidgetResult.Project(dtoService, items, WidgetDtoOptions.Standard(), user, totalRecordCount);
         }
