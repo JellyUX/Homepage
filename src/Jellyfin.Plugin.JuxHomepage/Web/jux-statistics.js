@@ -23,6 +23,9 @@
                     self.render();
                 }
             });
+            if (window.JuxCore.paneOpen('jux-tab-statistics')) {
+                self.render();
+            }
         },
 
         render: function () {

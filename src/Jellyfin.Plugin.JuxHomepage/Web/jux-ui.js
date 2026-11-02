@@ -96,6 +96,9 @@
                         tab.render();
                     }
                 });
+                if (window.JuxCore.paneOpen(paneId)) {
+                    tab.render();
+                }
             },
 
             render: function () {

@@ -264,6 +264,31 @@ describe('createListTab (F-35)', () => {
     });
 });
 
+// PERF-10.b (DR-012): the tab scripts arrive after the window load event; a tab opened before them
+// (an early click, an address naming it) is rendered when its script starts.
+describe('createListTab started on its open pane (PERF-10.b)', () => {
+    const labels = scope('things', { title: 'Things' });
+    const make = () => createListTab({ id: 'things', endpoint: 'E', logName: 'Things', labels, state: {}, sortOptions: () => [], emptyIcon: 'inbox' });
+
+    afterEach(() => {
+        document.body.innerHTML = '';
+    });
+
+    it('renders at once when its pane is the open one, and waits for a click otherwise', () => {
+        document.body.innerHTML = '<div class="tabContent is-active" id="jux-tab-things"><div class="sections"></div></div>';
+        const open = make();
+        open.render = vi.fn();
+        open.init();
+        expect(open.render).toHaveBeenCalledOnce();
+
+        document.body.innerHTML = '<div class="tabContent" id="jux-tab-things"><div class="sections"></div></div>';
+        const closed = make();
+        closed.render = vi.fn();
+        closed.init();
+        expect(closed.render).not.toHaveBeenCalled();
+    });
+});
+
 describe('createListTab paging (F-54)', () => {
     const labels = scope('things', { title: 'Things', empty: 'No things', emptySubtitle: 'Add some.', sortName: 'Name' });
 

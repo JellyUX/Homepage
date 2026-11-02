@@ -191,6 +191,17 @@ describe('History tab (FEAT-03)', () => {
         expect(routes()).toEqual(['JuxHomepage/SeriesProgress/Items']);
     });
 
+    // PERF-10.b (DR-012): a History tab opened before its script arrived is opened when it starts.
+    it('opens the tab at once when its pane is the open one as the script starts', async () => {
+        renderHome('#/home?tab=3');
+        document.getElementById('jux-tab-history').classList.add('is-active');
+
+        juxHistory._openIfShown();
+        await settle();
+
+        expect(selected()).toEqual(['movies']);
+    });
+
     it('moves between the sub-tabs with the arrow keys', async () => {
         renderHome('#/home');
         juxHistory.openTab();

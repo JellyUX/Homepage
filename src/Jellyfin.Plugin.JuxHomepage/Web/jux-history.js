@@ -272,6 +272,15 @@
         }
     });
 
+    // Opened before this script arrived (PERF-10.b): opened now.
+    function _openIfShown() {
+        if (window.JuxCore.paneOpen('jux-tab-history')) {
+            openTab();
+        }
+    }
+
+    _openIfShown();
+
     // Guarded UMD-lite export (same convention as jux-watchlist.js), so Vitest can exercise the pure
     // functions directly without a real browser/DOM.
     if (typeof module !== 'undefined' && module.exports) {
@@ -284,6 +293,7 @@
             _subOf: _subOf,
             _withSub: _withSub,
             openTab: openTab,
+            _openIfShown: _openIfShown,
             showSub: showSub
         };
     }

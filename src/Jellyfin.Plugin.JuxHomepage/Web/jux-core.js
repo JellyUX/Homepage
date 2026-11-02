@@ -283,6 +283,14 @@
         return document.querySelector('.homePage:not(.hide) [id="' + id + '"]') || document.getElementById(id);
     }
 
+    // Whether the home pane id is the open one. A tab script that arrives after its tab was opened (an
+    // early click, an address naming the tab: the tab scripts load after the window load event,
+    // PERF-10.b) renders it when it starts.
+    function paneOpen(id) {
+        var pane = homePane(id);
+        return !!pane && pane.classList.contains('is-active');
+    }
+
     function isOffForUser() {
         var userId = _currentUserId();
         return !!userId && _userState(userId) === '1';
@@ -505,6 +513,7 @@
         runInFlight: runInFlight,
         isOffForUser: isOffForUser,
         homePane: homePane,
+        paneOpen: paneOpen,
         setUserEnabled: setUserEnabled,
         reportUserStateRequest: reportUserStateRequest,
         provideUserState: provideUserState,

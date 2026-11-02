@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import juxStatistics from '../src/Jellyfin.Plugin.JuxHomepage/Web/jux-statistics.js';
 
 const { _buildTitleHtml, _buildTilesHtml } = juxStatistics;
@@ -82,5 +82,20 @@ describe('_buildTopSeriesHtml (F-55)', () => {
     it('leaves the block out when no series is watched', () => {
         expect(juxStatistics._buildTopSeriesHtml({ TopSeries: [] }, 'en', 'srv')).toBe('');
         expect(juxStatistics._buildTopSeriesHtml({}, 'en', 'srv')).toBe('');
+    });
+});
+
+// PERF-10.b (DR-012): a Statistics tab opened before its script arrived is rendered when it starts.
+describe('started on its open pane (PERF-10.b)', () => {
+    afterEach(() => {
+        document.body.innerHTML = '';
+        vi.restoreAllMocks();
+    });
+
+    it('renders at once when the Statistics pane is the open one', () => {
+        document.body.innerHTML = '<div class="tabContent is-active" id="jux-tab-statistics"><div class="sections"></div></div>';
+        const render = vi.spyOn(window.juxStatistics, 'render').mockImplementation(() => {});
+        window.juxStatistics.init();
+        expect(render).toHaveBeenCalledOnce();
     });
 });
