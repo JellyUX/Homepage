@@ -137,6 +137,32 @@ describe('KTW-01.b images', () => {
         expect(priorities()).toEqual(['high', 'low', 'low', 'low', 'low', 'low']);
     });
 
+    // PERF-08.b (DR-029): the phone layout asks the backdrop for 2 device pixels per CSS pixel at most.
+    it('caps the backdrop pixel ratio at 2 on the phone layout only (PERF-08.b)', () => {
+        const ratio = Object.getOwnPropertyDescriptor(window, 'devicePixelRatio');
+        Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: 3 });
+        const widths = () => apiClient.getScaledImageUrl.mock.calls.filter(([, o]) => o.type === 'Backdrop' && o.index === 0 && o.maxWidth !== 320).map(([, o]) => o.maxWidth);
+        try {
+            const width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(390);
+            render(items(3));
+            expect(widths()).toEqual([1280, 1280]);
+            destroy(container);
+            container.remove();
+            apiClient.getScaledImageUrl.mockClear();
+
+            window.matchMedia = vi.fn((q) => ({ matches: q.includes('max-width') }));
+            render(items(3));
+            expect(widths()).toEqual([960, 960]);
+            width.mockRestore();
+        } finally {
+            if (ratio) {
+                Object.defineProperty(window, 'devicePixelRatio', ratio);
+            } else {
+                delete window.devicePixelRatio;
+            }
+        }
+    });
+
     // R11 constat 4: a logo hidden by the phone layout loads once its slide comes up wider.
     it('loads a logo only outside the phone layout, on any later render', () => {
         let phone = true;

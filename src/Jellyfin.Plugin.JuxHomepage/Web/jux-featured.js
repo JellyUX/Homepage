@@ -290,14 +290,18 @@
             var media = slide.querySelector('.jux-featured-media');
             // PERF-08.a (DR-029): on a phone the active backdrop goes before the next one and the
             // thumbnails (MB-11: banner 1 220 -> 650 ms); no measurable gain on a desktop.
+            // PERF-08.b (DR-029): at most 2 device pixels per CSS pixel on a phone (MB-11: -42 to -71 % of
+            // the image bytes before the banner, softer only at a 1:1 crop of a DPR 3 screen).
+            var pixelRatio = window.devicePixelRatio;
             if (_phoneLayout()) {
                 backdrop.setAttribute('fetchpriority', slide === state.slides[state.index] ? 'high' : 'low');
+                pixelRatio = Math.min(pixelRatio || 1, 2);
             }
             backdrop.src = _image(state.apiClient, id, {
                 type: 'Backdrop',
                 index: 0,
                 tag: backdrop.dataset.tag,
-                maxWidth: backdropWidth((media && media.clientWidth) || state.root.clientWidth, window.devicePixelRatio),
+                maxWidth: backdropWidth((media && media.clientWidth) || state.root.clientWidth, pixelRatio),
                 quality: 80
             });
         }
