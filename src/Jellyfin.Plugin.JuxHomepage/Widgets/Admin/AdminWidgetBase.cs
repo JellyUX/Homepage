@@ -173,7 +173,7 @@ public abstract class AdminWidgetBase : IWidget
             return Task.FromResult(WidgetResult.Empty);
         }
 
-        return Task.FromResult(ItemFetcher.Fetch(WidgetType, user, query, dtoOptions, payload));
+        return Task.FromResult(ItemFetcher.Fetch(WidgetType, user, query, payload));
     }
 
     /// <inheritdoc/>

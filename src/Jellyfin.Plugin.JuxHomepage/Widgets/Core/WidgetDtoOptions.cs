@@ -41,8 +41,7 @@ public static class WidgetDtoOptions
             ItemFields.PrimaryImageAspectRatio,
             ItemFields.DateCreated,
             ItemFields.Overview,
-            ItemFields.Taglines,
-            ItemFields.Genres
+            ItemFields.Taglines
         ],
         ImageTypeLimit = 1,
         ImageTypes =

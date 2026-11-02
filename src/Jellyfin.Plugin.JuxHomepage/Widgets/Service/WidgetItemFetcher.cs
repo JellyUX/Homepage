@@ -48,14 +48,12 @@ public sealed class WidgetItemFetcher
     /// <param name="widgetType">The section's widget type, part of the identity of a random draw.</param>
     /// <param name="user">The user the items are returned to; the query must be built for them.</param>
     /// <param name="query">The filtered items query of the section.</param>
-    /// <param name="dtoOptions">The DTO options of the returned items.</param>
     /// <param name="payload">The request: page, order, MaxItems and the parameters of the section.</param>
     /// <returns>The page of items.</returns>
     public WidgetResult Fetch(
         string widgetType,
         User user,
         InternalItemsQuery query,
-        DtoOptions dtoOptions,
         WidgetPayload payload)
     {
         FeaturedItems.Restrict(query, payload);
@@ -74,7 +72,7 @@ public sealed class WidgetItemFetcher
             items = _libraryManager.GetItemsResult(query).Items;
         }
 
-        return WidgetResult.Project(_dtoService, FeaturedItems.BackdropsFirst(items, payload), dtoOptions, user);
+        return FeaturedItems.Project(_dtoService, FeaturedItems.BackdropsFirst(items, payload), payload, user);
     }
 
     /// <summary>

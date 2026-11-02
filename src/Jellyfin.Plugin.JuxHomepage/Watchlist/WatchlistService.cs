@@ -93,8 +93,10 @@ public sealed class WatchlistService : IWatchlistService
         }
 
         var result = _libraryManager.GetItemsResult(query);
-        var items = section is null ? result.Items : FeaturedItems.BackdropsFirst(result.Items, section);
-        return WidgetResult.Project(_dtoService, items, dtoOptions, user, includeTotalRecordCount ? result.TotalRecordCount : null);
+        var totalRecordCount = includeTotalRecordCount ? result.TotalRecordCount : (int?)null;
+        return section is null
+            ? WidgetResult.Project(_dtoService, result.Items, dtoOptions, user, totalRecordCount)
+            : FeaturedItems.Project(_dtoService, FeaturedItems.BackdropsFirst(result.Items, section), section, user, totalRecordCount);
     }
 
     /// <inheritdoc/>

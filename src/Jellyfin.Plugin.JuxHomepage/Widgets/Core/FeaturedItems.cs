@@ -1,3 +1,4 @@
+using Jellyfin.Database.Implementations.Entities;
 using MediaBrowser.Controller.Dto;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Model.Entities;
@@ -17,6 +18,9 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets;
 /// </summary>
 public static class FeaturedItems
 {
+    /// <summary>The number of slides a banner shows at most (<c>MAX_SLIDES</c> in jux-featured.js).</summary>
+    public const int MaxSlides = 8;
+
     /// <summary>Returns the DTO options of the section <paramref name="payload"/> reads.</summary>
     /// <param name="payload">The request.</param>
     /// <returns><see cref="WidgetDtoOptions.Featured"/> for a featured section, otherwise <see cref="WidgetDtoOptions.Standard"/>.</returns>
@@ -58,6 +62,48 @@ public static class FeaturedItems
         payload.Featured
             ? [.. items.Where(HasBackdrop), .. items.Where(item => !HasBackdrop(item))]
             : items;
+
+    /// <summary>
+    /// Projects a page of a section to DTOs. In a featured section only the titles that can become a slide,
+    /// the first <see cref="MaxSlides"/> with a backdrop of the first page, are read with the slide fields
+    /// (<see cref="WidgetDtoOptions.Featured"/>); every other title is a plain card
+    /// (<see cref="WidgetDtoOptions.Standard"/>), as in a row of cards (PERF-05).
+    /// </summary>
+    /// <param name="dtoService">Jellyfin DTO projection service.</param>
+    /// <param name="items">The page, ordered by <see cref="BackdropsFirst"/> for a featured section.</param>
+    /// <param name="payload">The request.</param>
+    /// <param name="user">The user the items are returned to.</param>
+    /// <param name="totalRecordCount">The total before pagination; the page size when null.</param>
+    /// <returns>The result, projected on the first read of its items.</returns>
+    public static WidgetResult Project(
+        IDtoService dtoService,
+        IReadOnlyList<BaseItem> items,
+        WidgetPayload payload,
+        User user,
+        int? totalRecordCount = null)
+    {
+        var slides = payload.Featured && payload.StartIndex == 0
+            ? items.Take(MaxSlides).TakeWhile(HasBackdrop).Count()
+            : 0;
+        if (slides == 0)
+        {
+            return WidgetResult.Project(dtoService, items, WidgetDtoOptions.Standard(), user, totalRecordCount);
+        }
+
+        if (slides == items.Count)
+        {
+            return WidgetResult.Project(dtoService, items, WidgetDtoOptions.Featured(), user, totalRecordCount);
+        }
+
+        return WidgetResult.Defer(
+            items.Count,
+            totalRecordCount ?? items.Count,
+            () =>
+            [
+                .. dtoService.GetBaseItemDtos(items.Take(slides).ToList(), WidgetDtoOptions.Featured(), user),
+                .. dtoService.GetBaseItemDtos(items.Skip(slides).ToList(), WidgetDtoOptions.Standard(), user)
+            ]);
+    }
 
     private static bool HasBackdrop(BaseItem item) => item.HasImage(ImageType.Backdrop, 0);
 }

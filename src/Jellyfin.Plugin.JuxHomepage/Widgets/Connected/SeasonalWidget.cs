@@ -144,7 +144,7 @@ public sealed class SeasonalWidget : IWidget
             query.Tags = tags;
         }
 
-        return Task.FromResult(_itemFetcher.Fetch(WidgetType, user, query, dtoOptions, payload));
+        return Task.FromResult(_itemFetcher.Fetch(WidgetType, user, query, payload));
     }
 
     /// <inheritdoc/>

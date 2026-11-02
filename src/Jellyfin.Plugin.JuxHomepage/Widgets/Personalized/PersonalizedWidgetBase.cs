@@ -203,12 +203,12 @@ public abstract class PersonalizedWidgetBase : IWidget
         ApplyFilter(query, value, user);
         if (UsesConfiguredSort)
         {
-            return Task.FromResult(ItemFetcher.Fetch(WidgetType, user, query, dtoOptions, payload));
+            return Task.FromResult(ItemFetcher.Fetch(WidgetType, user, query, payload));
         }
 
         FeaturedItems.Restrict(query, payload);
         QueryResult<BaseItem> result = LibraryManager.GetItemsResult(query);
-        return Task.FromResult(WidgetResult.Project(DtoService, FeaturedItems.BackdropsFirst(result.Items, payload), dtoOptions, user));
+        return Task.FromResult(FeaturedItems.Project(DtoService, FeaturedItems.BackdropsFirst(result.Items, payload), payload, user));
     }
 
     /// <inheritdoc/>

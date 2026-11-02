@@ -181,12 +181,11 @@ public sealed class ConnectedWidgetBaseTests
         libraryManagerMock
             .Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
             .Returns<InternalItemsQuery>(q => q.ItemIds.Where(byId.ContainsKey).Select(id => byId[id]).ToList());
-        IReadOnlyList<BaseItem>? capturedItems = null;
-        DtoOptions? capturedOptions = null;
+        var calls = new List<(IReadOnlyList<BaseItem> Items, DtoOptions Options)>();
         var dtoServiceMock = new Mock<IDtoService>();
         dtoServiceMock.StubBaseItemDtos((items, options) =>
         {
-            (capturedItems, capturedOptions) = (items, options);
+            calls.Add((items, options));
             return [];
         });
         var widget = BuildWidget(
@@ -198,9 +197,13 @@ public sealed class ConnectedWidgetBaseTests
             CancellationToken.None);
         _ = result.Items;
 
-        Assert.Equal(["Lit 7.5", "Lit 9", "Bare 8"], capturedItems!.Select(i => i.Name));
+        Assert.Equal(["Lit 7.5", "Lit 9", "Bare 8"], calls.SelectMany(c => c.Items).Select(i => i.Name));
         Assert.Equal(3, result.TotalRecordCount);
-        Assert.Contains(MediaBrowser.Model.Querying.ItemFields.Overview, capturedOptions!.Fields);
+
+        // PERF-05: the two titles that can be slides carry the slide fields, the bare one is a card.
+        Assert.Equal([2, 1], calls.Select(c => c.Items.Count));
+        Assert.Contains(MediaBrowser.Model.Querying.ItemFields.Overview, calls[0].Options.Fields);
+        Assert.DoesNotContain(MediaBrowser.Model.Querying.ItemFields.Overview, calls[1].Options.Fields);
     }
 
     [Fact]

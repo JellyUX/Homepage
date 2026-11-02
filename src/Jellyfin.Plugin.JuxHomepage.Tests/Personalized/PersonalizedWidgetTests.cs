@@ -516,11 +516,11 @@ public sealed class PersonalizedWidgetTests
             .Setup(m => m.GetItemsResult(It.IsAny<InternalItemsQuery>()))
             .Callback<InternalItemsQuery>(q => capturedQuery = q)
             .Returns(new QueryResult<BaseItem>([Candidate("Bare", false), Candidate("Lit", true)]));
-        IReadOnlyList<BaseItem>? projected = null;
+        var projected = new List<BaseItem>();
         var dtoServiceMock = new Mock<IDtoService>();
         dtoServiceMock.StubBaseItemDtos((items, _) =>
         {
-            projected = items;
+            projected.AddRange(items);
             return [];
         });
         var widget = new BecauseYouWatchedWidget(userManagerMock.Object, libraryManagerMock.Object, dtoServiceMock.Object, BuildScoringService(user, []), TestLocalization);
@@ -532,7 +532,7 @@ public sealed class PersonalizedWidgetTests
 
         Assert.Equal(8, capturedQuery!.MinCommunityRating);
         Assert.Contains(MediaBrowser.Model.Querying.ItemFields.Overview, capturedQuery.DtoOptions.Fields);
-        Assert.Equal(["Lit", "Bare"], projected!.Select(i => i.Name));
+        Assert.Equal(["Lit", "Bare"], projected.Select(i => i.Name));
     }
 
     [Fact]

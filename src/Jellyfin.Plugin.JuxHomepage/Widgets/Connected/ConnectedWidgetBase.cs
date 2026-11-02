@@ -140,7 +140,7 @@ public abstract class ConnectedWidgetBase<T> : IWidget
         // In-memory list in the TMDb ranking order, so pagination is a plain Skip/Take -- the same
         // pattern MyMediaWidget uses over its in-memory library folder list.
         var pageItems = visibleItems.Skip(payload.StartIndex).Take(payload.Limit).ToList();
-        return Task.FromResult(WidgetResult.Project(DtoService, pageItems, FeaturedItems.DtoOptionsFor(payload), user, visibleItems.Count));
+        return Task.FromResult(FeaturedItems.Project(DtoService, pageItems, payload, user, visibleItems.Count));
     }
 
     /// <inheritdoc/>

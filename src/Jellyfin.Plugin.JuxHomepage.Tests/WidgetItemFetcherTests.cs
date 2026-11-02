@@ -45,9 +45,9 @@ public sealed class WidgetItemFetcherTests
         var fetcher = BuildFetcher();
         var user = TestMocks.DefaultUser();
 
-        var probe = Ids(fetcher.Fetch("jux.admin.genre", user, new InternalItemsQuery(user), new DtoOptions(), RandomPayload(limit: 4)));
-        var first = Ids(fetcher.Fetch("jux.admin.genre", user, new InternalItemsQuery(user), new DtoOptions(), RandomPayload(limit: 20)));
-        var reload = Ids(fetcher.Fetch("jux.admin.genre", user, new InternalItemsQuery(user), new DtoOptions(), RandomPayload(limit: 20)));
+        var probe = Ids(fetcher.Fetch("jux.admin.genre", user, new InternalItemsQuery(user), RandomPayload(limit: 4)));
+        var first = Ids(fetcher.Fetch("jux.admin.genre", user, new InternalItemsQuery(user), RandomPayload(limit: 20)));
+        var reload = Ids(fetcher.Fetch("jux.admin.genre", user, new InternalItemsQuery(user), RandomPayload(limit: 20)));
 
         Assert.Single(_idQueries);
         Assert.Equal(first, reload);
@@ -60,10 +60,10 @@ public sealed class WidgetItemFetcherTests
     {
         var fetcher = BuildFetcher();
         var user = TestMocks.DefaultUser();
-        var today = Ids(fetcher.Fetch("jux.admin.genre", user, new InternalItemsQuery(user), new DtoOptions(), RandomPayload(limit: 20)));
+        var today = Ids(fetcher.Fetch("jux.admin.genre", user, new InternalItemsQuery(user), RandomPayload(limit: 20)));
 
         _clock.UtcNowValue = _clock.UtcNowValue.AddDays(1);
-        var tomorrow = Ids(fetcher.Fetch("jux.admin.genre", user, new InternalItemsQuery(user), new DtoOptions(), RandomPayload(limit: 20)));
+        var tomorrow = Ids(fetcher.Fetch("jux.admin.genre", user, new InternalItemsQuery(user), RandomPayload(limit: 20)));
 
         Assert.Equal(2, _idQueries.Count);
         Assert.NotEqual(today, tomorrow);
@@ -77,9 +77,9 @@ public sealed class WidgetItemFetcherTests
         var alice = TestMocks.DefaultUser();
         var bob = TestMocks.DefaultUser();
 
-        fetcher.Fetch("jux.admin.genre", alice, new InternalItemsQuery(alice), new DtoOptions(), RandomPayload(limit: 20));
-        fetcher.Fetch("jux.admin.genre", bob, new InternalItemsQuery(bob), new DtoOptions(), RandomPayload(limit: 20));
-        fetcher.Fetch("jux.admin.genre", alice, new InternalItemsQuery(alice), new DtoOptions(), RandomPayload(limit: 20, value: "Drama"));
+        fetcher.Fetch("jux.admin.genre", alice, new InternalItemsQuery(alice), RandomPayload(limit: 20));
+        fetcher.Fetch("jux.admin.genre", bob, new InternalItemsQuery(bob), RandomPayload(limit: 20));
+        fetcher.Fetch("jux.admin.genre", alice, new InternalItemsQuery(alice), RandomPayload(limit: 20, value: "Drama"));
 
         Assert.Equal(3, _idQueries.Count);
         Assert.Same(alice, _idQueries[0].User);
@@ -95,8 +95,8 @@ public sealed class WidgetItemFetcherTests
         var fetcher = BuildFetcher();
         var user = TestMocks.DefaultUser();
 
-        var all = Ids(fetcher.Fetch("jux.admin.genre", user, new InternalItemsQuery(user), new DtoOptions(), RandomPayload(limit: 100, maxItems: 31)));
-        var page = Ids(fetcher.Fetch("jux.admin.genre", user, new InternalItemsQuery(user), new DtoOptions(), RandomPayload(limit: 100, maxItems: 10)));
+        var all = Ids(fetcher.Fetch("jux.admin.genre", user, new InternalItemsQuery(user), RandomPayload(limit: 100, maxItems: 31)));
+        var page = Ids(fetcher.Fetch("jux.admin.genre", user, new InternalItemsQuery(user), RandomPayload(limit: 100, maxItems: 10)));
 
         Assert.DoesNotContain(hidden.Id, all);
         Assert.Equal(30, all.Count);
@@ -116,7 +116,7 @@ public sealed class WidgetItemFetcherTests
         var user = TestMocks.DefaultUser();
         var payload = new WidgetPayload { UserId = user.Id, SortBy = WidgetSort.DateCreated, SortOrder = WidgetSort.Descending, StartIndex = 20, Limit = 10 };
 
-        fetcher.Fetch("jux.admin.genre", user, new InternalItemsQuery(user), new DtoOptions(), payload);
+        fetcher.Fetch("jux.admin.genre", user, new InternalItemsQuery(user), payload);
 
         Assert.NotNull(seen);
         Assert.Equal([(ItemSortBy.DateCreated, SortOrder.Descending), (ItemSortBy.SortName, SortOrder.Ascending)], seen!.OrderBy);
@@ -163,8 +163,8 @@ public sealed class WidgetItemFetcherTests
         featured.Featured = true;
         featured.FeaturedMinRating = 7;
 
-        fetcher.Fetch("jux.admin.genre", user, new InternalItemsQuery(user), new DtoOptions(), RandomPayload(limit: 4));
-        fetcher.Fetch("jux.admin.genre", user, new InternalItemsQuery(user), new DtoOptions(), featured);
+        fetcher.Fetch("jux.admin.genre", user, new InternalItemsQuery(user), RandomPayload(limit: 4));
+        fetcher.Fetch("jux.admin.genre", user, new InternalItemsQuery(user), featured);
 
         Assert.Equal(2, fetcher.DrawCountForTesting());
         Assert.All(_idQueries, q => Assert.Empty(q.ImageTypes));

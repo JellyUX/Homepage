@@ -95,7 +95,7 @@ public abstract class LocalLibraryWidgetBase : IWidget
             FeaturedMinRating = payload.FeaturedMinRating
         };
 
-        return Task.FromResult(_itemFetcher.Fetch(WidgetType, user, query, dtoOptions, ordered));
+        return Task.FromResult(_itemFetcher.Fetch(WidgetType, user, query, ordered));
     }
 
     /// <inheritdoc/>
