@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Jellyfin.Data.Enums;
 using Jellyfin.Plugin.JuxHomepage.Caching;
 using Jellyfin.Plugin.JuxHomepage.Configuration;
@@ -105,7 +106,11 @@ public sealed class RewardsCacheService : IRewardsCacheService, IDisposable
 
         try
         {
+            // Wikidata is 92 to 97 % of a refresh (BKL-50, DR-015): its time and the local time are logged
+            // apart, for an admin to see where a slow refresh comes from.
+            var started = Stopwatch.GetTimestamp();
             var items = DeduplicateById(await _apiClient.GetAwardWinnersAsync(filter, cancellationToken).ConfigureAwait(false));
+            var fetched = Stopwatch.GetTimestamp();
 
             // Unlike TMDb, the IMDb id is already known directly from the Wikidata SPARQL query (see
             // WikidataApiClient), so the lookup callback is a synchronous dictionary read rather than a
@@ -123,7 +128,12 @@ public sealed class RewardsCacheService : IRewardsCacheService, IDisposable
 
             _cache.WriteUnlessEmpty(GetFileName(instanceId), items);
             _sectionResults?.Clear();
-            LogRefreshOutcome(instanceId, items.Count, matched);
+            LogRefreshOutcome(
+                instanceId,
+                items.Count,
+                matched,
+                (long)Stopwatch.GetElapsedTime(started, fetched).TotalMilliseconds,
+                (long)Stopwatch.GetElapsedTime(fetched).TotalMilliseconds);
         }
         catch (Exception ex)
         {
@@ -208,21 +218,25 @@ public sealed class RewardsCacheService : IRewardsCacheService, IDisposable
         return deduplicated;
     }
 
-    private void LogRefreshOutcome(string instanceId, int itemCount, int matchedCount)
+    private void LogRefreshOutcome(string instanceId, int itemCount, int matchedCount, long wikidataMs, long localMs)
     {
         if (itemCount == 0)
         {
             _logger.LogInformation(
-                "Rewards cache '{InstanceId}' refresh returned 0 items -- check for a preceding WikidataApiClient warning (no filter configured, a rate limit, or a network failure). The previous cache, if any, was left untouched.",
-                instanceId);
+                "Rewards cache '{InstanceId}' refresh returned 0 items after {WikidataMs} ms on Wikidata and {LocalMs} ms locally -- check for a preceding WikidataApiClient warning (no filter configured, a rate limit, or a network failure). The previous cache, if any, was left untouched.",
+                instanceId,
+                wikidataMs,
+                localMs);
             return;
         }
 
         _logger.LogInformation(
-            "Rewards cache '{InstanceId}' refreshed: {ItemCount} item(s), {MatchedCount} matched to the local library.",
+            "Rewards cache '{InstanceId}' refreshed: {ItemCount} item(s), {MatchedCount} matched to the local library; {WikidataMs} ms on Wikidata, {LocalMs} ms locally (library index, matching, cache write).",
             instanceId,
             itemCount,
-            matchedCount);
+            matchedCount,
+            wikidataMs,
+            localMs);
     }
 
     private static string GetFileName(string instanceId)

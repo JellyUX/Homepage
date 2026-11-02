@@ -8,6 +8,7 @@ using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Entities;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
@@ -18,7 +19,7 @@ public sealed class RewardsCacheServiceTests : IDisposable
 {
     private readonly string _tempDir = Path.Combine(Path.GetTempPath(), "jux-rewards-tests-" + Guid.NewGuid());
 
-    private RewardsCacheService BuildService(IWikidataApiClient apiClient, ILibraryManager libraryManager, WidgetConfig[]? widgets = null, SectionResultCache? sectionResults = null)
+    private RewardsCacheService BuildService(IWikidataApiClient apiClient, ILibraryManager libraryManager, WidgetConfig[]? widgets = null, SectionResultCache? sectionResults = null, ILogger<RewardsCacheService>? logger = null)
     {
         var applicationPathsMock = new Mock<IApplicationPaths>();
         applicationPathsMock.Setup(p => p.DataPath).Returns(_tempDir);
@@ -29,7 +30,7 @@ public sealed class RewardsCacheServiceTests : IDisposable
             apiClient,
             libraryManager,
             () => new PluginConfiguration { Widgets = widgets ?? [] },
-            NullLogger<RewardsCacheService>.Instance,
+            logger ?? NullLogger<RewardsCacheService>.Instance,
             sectionResults);
     }
 
@@ -299,5 +300,43 @@ public sealed class RewardsCacheServiceTests : IDisposable
         {
             Directory.Delete(_tempDir, recursive: true);
         }
+    }
+
+    // BKL-50 (DR-015): Wikidata is 92 to 97 % of a refresh, so the outcome line of each row says how long
+    // Wikidata and the local work (library index, matching, cache write) took, for an admin to see where a
+    // slow refresh comes from. Both outcomes (items, no item) carry the two durations.
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task RefreshAllInstancesAsync_LogsTheWikidataAndLocalDurationsOfEachRow(bool withItems)
+    {
+        var instanceId = Guid.NewGuid().ToString();
+        var apiClientMock = new Mock<IWikidataApiClient>();
+        apiClientMock
+            .Setup(c => c.GetAwardWinnersAsync(It.IsAny<RewardsFilter>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(withItems
+                ? (IReadOnlyList<RewardsWinner>)[new RewardsWinner { Id = 1, FilmQid = "Q1", FilmLabel = "A", ImdbId = "tt0000001" }]
+                : []);
+        var logger = new RecordingLogger();
+
+        await BuildService(apiClientMock.Object, LibraryWith(), RowFor(instanceId), logger: logger).RefreshAllInstancesAsync(CancellationToken.None);
+
+        var outcome = Assert.Single(logger.Entries, e => e.State.Any(kv => kv.Key == "InstanceId" && Equals(kv.Value, instanceId)));
+        Assert.Equal(LogLevel.Information, outcome.Level);
+        Assert.True((long)outcome.State.Single(kv => kv.Key == "WikidataMs").Value! >= 0);
+        Assert.True((long)outcome.State.Single(kv => kv.Key == "LocalMs").Value! >= 0);
+    }
+
+    private sealed class RecordingLogger : ILogger<RewardsCacheService>
+    {
+        public List<(LogLevel Level, IReadOnlyList<KeyValuePair<string, object?>> State)> Entries { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Entries.Add((logLevel, state as IReadOnlyList<KeyValuePair<string, object?>> ?? []));
     }
 }
