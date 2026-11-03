@@ -22,7 +22,8 @@ public sealed class ConfigurationChangeListenerTests
         userManagerMock.Setup(m => m.GetUserById(It.IsAny<Guid>())).Returns(user);
         var film = new Movie { Id = Guid.NewGuid(), Name = "Film", Genres = ["Drama"] };
         var libraryManagerMock = new Mock<ILibraryManager>();
-        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>()))
+            .Returns((InternalItemsQuery q) => q.IsPlayed == true ? [film.Id] : []);
         libraryManagerMock
             .Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
             .Returns((InternalItemsQuery q) =>

@@ -26,7 +26,8 @@ public sealed class ScoringInvalidationListenerTests
         userManagerMock.Setup(m => m.GetUserById(It.IsAny<Guid>())).Returns(_user);
 
         var libraryManagerMock = new Mock<ILibraryManager>();
-        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>()))
+            .Returns((InternalItemsQuery q) => q.IsPlayed == true ? _watched.Select(i => i.Id).Take(1).ToList() : []);
         libraryManagerMock
             .Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
             .Returns((InternalItemsQuery q) =>
@@ -47,6 +48,7 @@ public sealed class ScoringInvalidationListenerTests
         var listener = new ScoringInvalidationListener(_userDataManagerMock.Object, _service, NullLogger<ScoringInvalidationListener>.Instance);
         await listener.StartAsync(CancellationToken.None);
         Assert.Empty(_service.GetTopGenres(_user.Id, 5));
+        await _service.WhenIdleForTesting();
 
         _watched.Add(_film);
         Raise(UserDataSaveReason.PlaybackFinished);
@@ -63,6 +65,7 @@ public sealed class ScoringInvalidationListenerTests
         var listener = new ScoringInvalidationListener(_userDataManagerMock.Object, _service, NullLogger<ScoringInvalidationListener>.Instance);
         await listener.StartAsync(CancellationToken.None);
         Assert.Empty(_service.GetTopGenres(_user.Id, 5));
+        await _service.WhenIdleForTesting();
 
         _watched.Add(_film);
         Raise(UserDataSaveReason.PlaybackProgress);
