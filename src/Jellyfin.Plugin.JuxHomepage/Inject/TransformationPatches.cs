@@ -210,17 +210,20 @@ public static class TransformationPatches
             .Replace("</body>", $"{script}</body>", StringComparison.OrdinalIgnoreCase);
     }
 
-    // The URL of a bundle, its files named by their position in ClientAssets ("&amp;" in the HTML).
+    // The URL of a bundle, its files named without "jux-" and ".js" ("&amp;" in the HTML). Names, not positions in
+    // ClientAssets: an index.html cached before a release that reorders the list still names the same files (R11).
     private static string BundleUrl(string bundle, IEnumerable<ClientAsset> scripts, string cacheParam) =>
-        $"../JuxHomepage/{bundle}{cacheParam}&amp;f={string.Join('.', scripts.Select(a => Array.IndexOf(ClientAssets, a)))}";
+        $"../JuxHomepage/{bundle}{cacheParam}&amp;f={string.Join('.', scripts.Select(a => BundleName(a.FileName)))}";
+
+    private static string BundleName(string fileName) => fileName["jux-".Length..^".js".Length];
 
     /// <summary>
-    /// Reads the files a bundle URL names (its <c>f</c> query: positions in the client asset list,
-    /// ascending, dot-separated), refusing any position outside that bundle.
+    /// Reads the files a bundle URL names (its <c>f</c> query: dot-separated names, <c>core</c> for
+    /// <c>jux-core.js</c>, in any order and each once), refusing any name outside that bundle.
     /// </summary>
     /// <param name="bundle">The bundle name, <see cref="HomeBundle"/> or <see cref="RestBundle"/>.</param>
     /// <param name="files">The <c>f</c> query value.</param>
-    /// <returns>The file names in bundle order, or null when the query names no valid file list.</returns>
+    /// <returns>The file names in client asset order, or null when the query names no valid file list.</returns>
     internal static IReadOnlyList<string>? BundleFiles(string bundle, string? files)
     {
         if (string.IsNullOrEmpty(files))
@@ -229,28 +232,20 @@ public static class TransformationPatches
         }
 
         var home = string.Equals(bundle, HomeBundle, StringComparison.Ordinal);
-        var names = new List<string>();
-        var last = -1;
+        var named = new HashSet<string>(StringComparer.Ordinal);
         foreach (var part in files.Split('.'))
         {
-            if (!int.TryParse(part, NumberStyles.None, CultureInfo.InvariantCulture, out var index)
-                || index <= last
-                || index >= ClientAssets.Length)
+            if (!named.Add(part))
             {
                 return null;
             }
-
-            var asset = ClientAssets[index];
-            if (asset.IsStylesheet || HomeBundleScripts.Contains(asset.FileName) != home)
-            {
-                return null;
-            }
-
-            names.Add(asset.FileName);
-            last = index;
         }
 
-        return names;
+        var assets = ClientAssets
+            .Where(a => !a.IsStylesheet && HomeBundleScripts.Contains(a.FileName) == home && named.Contains(BundleName(a.FileName)))
+            .Select(a => a.FileName)
+            .ToList();
+        return assets.Count == named.Count ? assets : null;
     }
 
     private static bool HasFeaturedSection(PluginConfiguration config) =>

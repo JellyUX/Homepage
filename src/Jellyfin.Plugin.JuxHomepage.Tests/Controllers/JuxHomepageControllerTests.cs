@@ -270,7 +270,7 @@ public sealed class JuxHomepageControllerTests
     public void GetAsset_ServesABundleAsTheFilesItsUrlNames()
     {
         var html = TransformationPatches.InjectClientAssets("<head></head><body></body>", new PluginConfiguration(), ClientAssetVersion.Current);
-        var files = System.Text.RegularExpressions.Regex.Match(html, "jux-rest.js[?]v=[0-9a-f]+&amp;f=([0-9.]+)").Groups[1].Value;
+        var files = System.Text.RegularExpressions.Regex.Match(html, "jux-rest.js[?]v=[0-9a-f]+&amp;f=([a-z0-9.-]+)").Groups[1].Value;
         var names = TransformationPatches.BundleFiles(TransformationPatches.RestBundle, files)!;
 
         var result = Assert.IsType<ContentResult>(InvokeGetAsset("jux-rest.js", $"?v={ClientAssetVersion.Current}&f={files}", out var response));
@@ -278,7 +278,7 @@ public sealed class JuxHomepageControllerTests
         Assert.Equal(JavaScript, result.ContentType);
         Assert.Equal("public, max-age=31536000, immutable", response.Headers.CacheControl.ToString());
         Assert.Equal(JuxHomepageController.BundleText(names.Select(n => (n, File.ReadAllText(Path.Combine(WebDirectory(), n))))), result.Content);
-        Assert.IsType<NotFoundResult>(InvokeGetAsset("jux-rest.js", "?f=1", out _));
+        Assert.IsType<NotFoundResult>(InvokeGetAsset("jux-rest.js", "?f=core", out _));
         Assert.IsType<NotFoundResult>(InvokeGetAsset("jux-home.js", null, out _));
     }
 
@@ -300,12 +300,12 @@ public sealed class JuxHomepageControllerTests
     [Fact]
     public void GetAsset_ManyFileLists_KeepsABoundedNumberOfBundles()
     {
-        var lists = new[] { "6", "7", "10", "12", "13", "14", "15", "16", "17" };
-        foreach (var first in lists)
+        var files = new[] { "user-settings", "ui", "watchlist", "progress", "history", "statistics", "series-flatten", "collections", "breadcrumb" };
+        for (var i = 0; i < files.Length; i++)
         {
-            foreach (var second in lists.Where(l => int.Parse(l, System.Globalization.CultureInfo.InvariantCulture) > int.Parse(first, System.Globalization.CultureInfo.InvariantCulture)))
+            for (var j = i + 1; j < files.Length; j++)
             {
-                Assert.IsType<ContentResult>(InvokeGetAsset("jux-rest.js", $"?f={first}.{second}", out _));
+                Assert.IsType<ContentResult>(InvokeGetAsset("jux-rest.js", $"?f={files[i]}.{files[j]}", out _));
             }
         }
 

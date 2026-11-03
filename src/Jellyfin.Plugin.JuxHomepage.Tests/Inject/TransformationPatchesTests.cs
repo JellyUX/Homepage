@@ -317,7 +317,7 @@ public sealed class TransformationPatchesTests
     private static IEnumerable<string> Expand(string url)
     {
         var name = Regex.Match(url, @"JuxHomepage/([^?]+)\?").Groups[1].Value;
-        var files = Regex.Match(url, "&amp;f=([0-9.]+)$");
+        var files = Regex.Match(url, "&amp;f=([a-z0-9.-]+)$");
         return files.Success ? TransformationPatches.BundleFiles(name, files.Groups[1].Value)! : [name];
     }
 
@@ -398,13 +398,13 @@ public sealed class TransformationPatchesTests
         Assert.Equal(["jux-homepage.css", "jux-i18n.js", "jux-core.js", "jux-homepage.js", "jux-featured.js", "jux-card-hooks.js", "jux-user-settings.js", "jux-series-flatten.js", "jux-breadcrumb.js"], assets);
     }
 
-    // PERF-10.b: a bundle URL names its files by position; the server builds only a valid list of its own.
+    // PERF-10.b: a bundle URL names its files (jux-core.js: core); the server builds only a valid list of its own.
     [Fact]
     public void BundleFiles_ReadsTheFilesOfItsOwnBundleOnly()
     {
         var html = TransformationPatches.InjectClientAssets(EmptyIndex, FeaturedConfig(), "k");
-        var home = Regex.Match(html, @"jux-home\.js\?v=k&amp;f=([0-9.]+)").Groups[1].Value;
-        var rest = Regex.Match(html, @"jux-rest\.js\?v=k&amp;f=([0-9.]+)").Groups[1].Value;
+        var home = Regex.Match(html, @"jux-home\.js\?v=k&amp;f=([a-z0-9.-]+)").Groups[1].Value;
+        var rest = Regex.Match(html, @"jux-rest\.js\?v=k&amp;f=([a-z0-9.-]+)").Groups[1].Value;
 
         Assert.Equal(AllAssetsInOrder[1..8], TransformationPatches.BundleFiles(TransformationPatches.HomeBundle, home));
         Assert.Equal(AllAssetsInOrder[9..], TransformationPatches.BundleFiles(TransformationPatches.RestBundle, rest));
@@ -412,15 +412,25 @@ public sealed class TransformationPatchesTests
         Assert.Null(TransformationPatches.BundleFiles(TransformationPatches.RestBundle, home));
     }
 
+    // R11 (phase 12): names, not positions in ClientAssets, so an index.html cached before a release that reorders
+    // the list still names the same files; they run in the order of the list.
+    [Fact]
+    public void BundleFiles_ServesNamedFilesInTheOrderOfTheClientAssetList()
+    {
+        Assert.Equal(["jux-i18n.js", "jux-core.js", "jux-homepage.js"], TransformationPatches.BundleFiles(TransformationPatches.HomeBundle, "homepage.i18n.core"));
+        Assert.Equal(["jux-ui.js", "jux-series-flatten.js"], TransformationPatches.BundleFiles(TransformationPatches.RestBundle, "series-flatten.ui"));
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("")]
-    [InlineData("3.2")]
-    [InlineData("2.2")]
-    [InlineData("0")]
-    [InlineData("2.x")]
-    [InlineData("2.99")]
-    [InlineData("-2")]
+    [InlineData("core.core")]
+    [InlineData("core..homepage")]
+    [InlineData("core.ui")]
+    [InlineData("Core")]
+    [InlineData("nope")]
+    [InlineData("2.3")]
+    [InlineData("../core")]
     public void BundleFiles_RefusesAMalformedOrForeignList(string? files)
     {
         Assert.Null(TransformationPatches.BundleFiles(TransformationPatches.HomeBundle, files));
