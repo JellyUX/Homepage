@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using Jellyfin.Plugin.JuxHomepage.Configuration;
 
 namespace Jellyfin.Plugin.JuxHomepage.Widgets;
@@ -12,20 +11,14 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets;
 /// the caller can serve it while it rebuilds the layout in the background (PERF-01). Clearing or
 /// invalidating removes entries outright and bumps a version, so a layout built before that is never
 /// stored (<see cref="Set"/>). A background timer garbage-collects entries that have not been accessed
-/// in over an hour.
+/// in over an hour. The versions and the cleanup are those of <see cref="VersionedUserCache{TKey, TEntry}"/>.
 /// </summary>
 public sealed class SessionCache : IDisposable
 {
     private const int CleanupIntervalMinutes = 5;
     private const int GarbageCollectAfterMinutes = 60;
 
-    private readonly ConcurrentDictionary<(Guid UserId, string Lang), SessionData> _cache = new();
-    private readonly ConcurrentDictionary<Guid, long> _userVersions = new();
-    private readonly Lock _writeLock = new();
-    private readonly Timer _cleanupTimer;
-    private readonly TimeProvider _timeProvider;
-    private long _version;
-    private bool _disposed;
+    private readonly VersionedUserCache<(Guid UserId, string Lang), SessionData> _cache;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SessionCache"/> class.
@@ -33,12 +26,11 @@ public sealed class SessionCache : IDisposable
     /// <param name="timeProvider">Time source for entry expiry. Defaults to <see cref="TimeProvider.System"/>.</param>
     public SessionCache(TimeProvider? timeProvider = null)
     {
-        _timeProvider = timeProvider ?? TimeProvider.System;
-        _cleanupTimer = new Timer(
-            _ => Cleanup(),
-            null,
+        _cache = new(
+            key => key.UserId,
+            (_, data, now) => data.LastAccessed < now - TimeSpan.FromMinutes(GarbageCollectAfterMinutes),
             TimeSpan.FromMinutes(CleanupIntervalMinutes),
-            TimeSpan.FromMinutes(CleanupIntervalMinutes));
+            timeProvider);
     }
 
     /// <summary>
@@ -53,8 +45,8 @@ public sealed class SessionCache : IDisposable
     /// <returns>True if an entry was found, fresh or expired; otherwise false.</returns>
     public bool TryGet(Guid userId, string? lang, TimeSpan ttl, out IReadOnlyList<WidgetDescriptor>? descriptors, out bool expired)
     {
-        var now = UtcNow;
-        if (_cache.TryGetValue((userId, NormalizeKey(lang)), out var data))
+        var now = _cache.UtcNow;
+        if (_cache.TryGet((userId, NormalizeKey(lang)), out var data))
         {
             data.LastAccessed = now;
             descriptors = data.Descriptors;
@@ -74,7 +66,7 @@ public sealed class SessionCache : IDisposable
     /// </summary>
     /// <param name="userId">The user.</param>
     /// <returns>A value that only grows.</returns>
-    public long VersionOf(Guid userId) => Interlocked.Read(ref _version) + _userVersions.GetValueOrDefault(userId);
+    public long VersionOf(Guid userId) => _cache.VersionOf(userId);
 
     /// <summary>
     /// Stores or replaces the descriptor list for the given user and language, unless the user's
@@ -89,22 +81,12 @@ public sealed class SessionCache : IDisposable
     /// <returns>True when the layout was stored.</returns>
     public bool Set(Guid userId, string? lang, IReadOnlyList<WidgetDescriptor> descriptors, long? builtAtVersion = null)
     {
-        lock (_writeLock)
-        {
-            if (builtAtVersion is { } version && version != VersionOf(userId))
-            {
-                return false;
-            }
-
-            var now = UtcNow;
-            _cache[(userId, NormalizeKey(lang))] = new SessionData
-            {
-                CreatedAt = now,
-                LastAccessed = now,
-                Descriptors = descriptors
-            };
-            return true;
-        }
+        var now = _cache.UtcNow;
+        var data = new SessionData { CreatedAt = now, LastAccessed = now, Descriptors = descriptors };
+        return _cache.Set(
+            (userId, NormalizeKey(lang)),
+            data,
+            () => builtAtVersion is not { } version || version == VersionOf(userId));
     }
 
     /// <summary>
@@ -112,17 +94,7 @@ public sealed class SessionCache : IDisposable
     /// rebuild on the user's next request regardless of which language they're viewing in.
     /// </summary>
     /// <param name="userId">The user whose cache entries to remove.</param>
-    public void Invalidate(Guid userId)
-    {
-        lock (_writeLock)
-        {
-            _userVersions.AddOrUpdate(userId, 1, (_, v) => v + 1);
-            foreach (var key in _cache.Keys.Where(k => k.UserId == userId).ToList())
-            {
-                _cache.TryRemove(key, out _);
-            }
-        }
-    }
+    public void Invalidate(Guid userId) => _cache.Invalidate(userId);
 
     /// <summary>
     /// Normalizes a raw language tag to a stable cache-key component, mirroring
@@ -140,38 +112,10 @@ public sealed class SessionCache : IDisposable
     /// immediately rather than waiting for the per-user TTL to expire; an expired layout is not
     /// served after this, it is gone.
     /// </summary>
-    public void Clear()
-    {
-        lock (_writeLock)
-        {
-            Interlocked.Increment(ref _version);
-            _cache.Clear();
-        }
-    }
+    public void Clear() => _cache.Clear();
 
     /// <inheritdoc/>
-    public void Dispose()
-    {
-        if (!_disposed)
-        {
-            _cleanupTimer.Dispose();
-            _disposed = true;
-        }
-    }
-
-    private DateTime UtcNow => _timeProvider.GetUtcNow().UtcDateTime;
-
-    private void Cleanup()
-    {
-        var cutoff = UtcNow - TimeSpan.FromMinutes(GarbageCollectAfterMinutes);
-        foreach (var key in _cache.Keys.ToList())
-        {
-            if (_cache.TryGetValue(key, out var data) && data.LastAccessed < cutoff)
-            {
-                _cache.TryRemove(key, out _);
-            }
-        }
-    }
+    public void Dispose() => _cache.Dispose();
 
     /// <summary>
     /// Test-only seam: backdates an existing entry's <see cref="SessionData.LastAccessed"/> so a
@@ -183,7 +127,7 @@ public sealed class SessionCache : IDisposable
     /// <param name="lastAccessed">The simulated last-accessed timestamp.</param>
     internal void SetLastAccessedForTesting(Guid userId, string? lang, DateTime lastAccessed)
     {
-        if (_cache.TryGetValue((userId, NormalizeKey(lang)), out var data))
+        if (_cache.TryGet((userId, NormalizeKey(lang)), out var data))
         {
             data.LastAccessed = lastAccessed;
         }
@@ -193,5 +137,5 @@ public sealed class SessionCache : IDisposable
     /// Test-only seam: runs the same garbage-collection pass the background <see cref="Timer"/>
     /// triggers every <see cref="CleanupIntervalMinutes"/> minutes, synchronously and on demand.
     /// </summary>
-    internal void RunCleanupForTesting() => Cleanup();
+    internal void RunCleanupForTesting() => _cache.Cleanup();
 }

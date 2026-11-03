@@ -1,5 +1,3 @@
-using System.Collections.Concurrent;
-
 namespace Jellyfin.Plugin.JuxHomepage.Widgets;
 
 /// <summary>
@@ -13,21 +11,16 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets;
 /// was invalidated or the configuration changed (<see cref="SessionCache.VersionOf"/>), nor after
 /// <see cref="Invalidate"/> (the user's data changed: a title watched, resumed or liked) or
 /// <see cref="Clear"/> (an item was added to or removed from the library). A page computed before one
-/// of these is never stored (<c>Section_InvalidatedWhileRead_IsNotStored</c>).
+/// of these is never stored (<c>Section_InvalidatedWhileRead_IsNotStored</c>). The versions and the cleanup are
+/// those of <see cref="VersionedUserCache{TKey, TEntry}"/>.
 /// </para>
 /// </summary>
 public sealed class SectionResultCache : IDisposable
 {
     private const int CleanupIntervalMinutes = 5;
 
-    private readonly ConcurrentDictionary<SectionId, Entry> _entries = new();
-    private readonly ConcurrentDictionary<Guid, long> _userVersions = new();
-    private readonly Lock _writeLock = new();
+    private readonly VersionedUserCache<SectionId, Entry> _entries;
     private readonly SessionCache _sessionCache;
-    private readonly TimeProvider _timeProvider;
-    private readonly Timer _cleanupTimer;
-    private long _version;
-    private bool _disposed;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SectionResultCache"/> class.
@@ -37,12 +30,11 @@ public sealed class SectionResultCache : IDisposable
     public SectionResultCache(SessionCache sessionCache, TimeProvider? timeProvider = null)
     {
         _sessionCache = sessionCache;
-        _timeProvider = timeProvider ?? TimeProvider.System;
-        _cleanupTimer = new Timer(
-            _ => Cleanup(),
-            null,
+        _entries = new(
+            id => id.UserId,
+            (id, entry, now) => now >= entry.ExpiresAt || entry.Stamp != StampOf(id.UserId),
             TimeSpan.FromMinutes(CleanupIntervalMinutes),
-            TimeSpan.FromMinutes(CleanupIntervalMinutes));
+            timeProvider);
     }
 
     /// <summary>
@@ -51,7 +43,7 @@ public sealed class SectionResultCache : IDisposable
     /// <param name="userId">The user.</param>
     /// <returns>The stamp.</returns>
     public Stamp StampOf(Guid userId) =>
-        new(_sessionCache.VersionOf(userId), Interlocked.Read(ref _version) + _userVersions.GetValueOrDefault(userId));
+        new(_sessionCache.VersionOf(userId), _entries.VersionOf(userId));
 
     /// <summary>
     /// Returns the stored page of a section, when it is the requested one and still valid.
@@ -63,11 +55,11 @@ public sealed class SectionResultCache : IDisposable
     /// <returns>True on a hit.</returns>
     public bool TryGet(SectionId id, int startIndex, int limit, out WidgetResult? result)
     {
-        if (_entries.TryGetValue(id, out var entry)
+        if (_entries.TryGet(id, out var entry)
             && entry.StartIndex == startIndex
             && entry.Limit == limit
             && entry.Stamp == StampOf(id.UserId)
-            && UtcNow < entry.ExpiresAt)
+            && _entries.UtcNow < entry.ExpiresAt)
         {
             result = entry.Result;
             return true;
@@ -90,16 +82,8 @@ public sealed class SectionResultCache : IDisposable
     /// <returns>True when the page was stored.</returns>
     public bool Set(SectionId id, int startIndex, int limit, WidgetResult result, Stamp stamp, TimeSpan ttl)
     {
-        lock (_writeLock)
-        {
-            if (stamp != StampOf(id.UserId))
-            {
-                return false;
-            }
-
-            _entries[id] = new Entry(startIndex, limit, result, stamp, UtcNow + ttl);
-            return true;
-        }
+        var entry = new Entry(startIndex, limit, result, stamp, _entries.UtcNow + ttl);
+        return _entries.Set(id, entry, () => stamp == StampOf(id.UserId));
     }
 
     /// <summary>
@@ -109,45 +93,21 @@ public sealed class SectionResultCache : IDisposable
     /// <param name="result">The page that failed; a page stored since is kept.</param>
     public void Remove(SectionId id, WidgetResult result)
     {
-        if (_entries.TryGetValue(id, out var entry) && ReferenceEquals(entry.Result, result))
+        if (_entries.TryGet(id, out var entry) && ReferenceEquals(entry.Result, result))
         {
-            _entries.TryRemove(KeyValuePair.Create(id, entry));
+            _entries.Remove(id, entry);
         }
     }
 
     /// <summary>Drops every stored page of the user.</summary>
     /// <param name="userId">The user.</param>
-    public void Invalidate(Guid userId)
-    {
-        lock (_writeLock)
-        {
-            _userVersions.AddOrUpdate(userId, 1, (_, v) => v + 1);
-            foreach (var key in _entries.Keys.Where(k => k.UserId == userId).ToList())
-            {
-                _entries.TryRemove(key, out _);
-            }
-        }
-    }
+    public void Invalidate(Guid userId) => _entries.Invalidate(userId);
 
     /// <summary>Drops every stored page.</summary>
-    public void Clear()
-    {
-        lock (_writeLock)
-        {
-            Interlocked.Increment(ref _version);
-            _entries.Clear();
-        }
-    }
+    public void Clear() => _entries.Clear();
 
     /// <inheritdoc/>
-    public void Dispose()
-    {
-        if (!_disposed)
-        {
-            _cleanupTimer.Dispose();
-            _disposed = true;
-        }
-    }
+    public void Dispose() => _entries.Dispose();
 
     /// <summary>
     /// Test-only seam: the number of stored pages.
@@ -159,21 +119,7 @@ public sealed class SectionResultCache : IDisposable
     /// Test-only seam: runs the cleanup the background timer runs every
     /// <see cref="CleanupIntervalMinutes"/> minutes.
     /// </summary>
-    internal void RunCleanupForTesting() => Cleanup();
-
-    private DateTime UtcNow => _timeProvider.GetUtcNow().UtcDateTime;
-
-    private void Cleanup()
-    {
-        var now = UtcNow;
-        foreach (var entry in _entries)
-        {
-            if (now >= entry.Value.ExpiresAt || entry.Value.Stamp != StampOf(entry.Key.UserId))
-            {
-                _entries.TryRemove(entry);
-            }
-        }
-    }
+    internal void RunCleanupForTesting() => _entries.Cleanup();
 
     /// <summary>A user's versions: the layout cache's and this cache's own.</summary>
     /// <param name="Layout">The layout cache version (<see cref="SessionCache.VersionOf"/>).</param>
