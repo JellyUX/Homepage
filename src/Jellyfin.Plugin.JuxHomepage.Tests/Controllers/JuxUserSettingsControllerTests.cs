@@ -99,7 +99,7 @@ public sealed class JuxUserSettingsControllerTests
         var localization = new LocalizationService(new Dictionary<string, IReadOnlyDictionary<string, string>>());
         Func<PluginConfiguration?> configuration = () => new PluginConfiguration();
         var resolver = new WidgetLayoutResolver(new WidgetRegistry(), _store.Object, localization, configuration, NullLogger<WidgetLayoutResolver>.Instance);
-        var widgetService = new WidgetService(new WidgetRegistry(), new SessionCache(), resolver, configuration, NullLogger<WidgetService>.Instance);
+        var widgetService = TestWidgetServices.Create(new WidgetRegistry(), new SessionCache(), resolver, configuration);
         var service = new UserSettingsService(_store.Object, localization, widgetService, configuration);
 
         return new JuxUserSettingsController(service, new RequestUserResolver(TestCaller.AuthContext(caller).Object))

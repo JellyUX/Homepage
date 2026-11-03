@@ -172,7 +172,7 @@ public sealed class HomeWarmupServiceTests : IDisposable
         });
         var registry = new WidgetRegistry();
         var resolver = new WidgetLayoutResolver(registry, store.Object, localization, () => new PluginConfiguration(), NullLogger<WidgetLayoutResolver>.Instance);
-        var widgets = new WidgetService(registry, _sessionCache, resolver, () => new PluginConfiguration(), NullLogger<WidgetService>.Instance, _scoring);
+        var widgets = TestWidgetServices.Create(registry, _sessionCache, resolver, () => new PluginConfiguration(), _scoring);
         var server = new Mock<IServerConfigurationManager>();
         server.Setup(s => s.Configuration).Returns(new MediaBrowser.Model.Configuration.ServerConfiguration { UICulture = "de-DE" });
 

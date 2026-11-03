@@ -36,10 +36,10 @@ public sealed class WidgetService
     private readonly WidgetLayoutResolver _layoutResolver;
     private readonly Func<PluginConfiguration?> _getConfiguration;
     private readonly ILogger<WidgetService> _logger;
-    private readonly IPersonalizationState? _personalizationState;
-    private readonly SectionResultCache? _sectionResults;
-    private readonly UserAccessWatch? _accessWatch;
-    private readonly BinaryMismatchReporter? _mismatchReporter;
+    private readonly IPersonalizationState _personalizationState;
+    private readonly SectionResultCache _sectionResults;
+    private readonly IUserAccessWatch _accessWatch;
+    private readonly BinaryMismatchReporter _mismatchReporter;
     private int _queuedRebuildCount;
 
     /// <summary>
@@ -55,20 +55,18 @@ public sealed class WidgetService
     /// <param name="logger">Logger.</param>
     /// <param name="personalizationState">
     /// Reports a layout built before the user's first scoring finished, which is then not cached so
-    /// the personalized sections appear on the next load. Null disables the check.
+    /// the personalized sections appear on the next load.
     /// </param>
     /// <param name="sectionResults">
     /// Keeps the first page of each section the layout probe read and each page a section request
-    /// read, so the client's section requests read no widget (PERF-03.b, PERF-06.a). Null reads every
-    /// section from its widget.
+    /// read, so the client's section requests read no widget (PERF-03.b, PERF-06.a).
     /// </param>
     /// <param name="accessWatch">
-    /// Drops the user's cached home screen after an administrator changed what they may see. Null
-    /// never reads the user's access.
+    /// Drops the user's cached home screen after an administrator changed what they may see.
     /// </param>
     /// <param name="mismatchReporter">
     /// Tells the administrator when a section fails because the plugin build does not match the server
-    /// (COMPAT-01.a). Null only logs it.
+    /// (COMPAT-01.a).
     /// </param>
     public WidgetService(
         IWidgetRegistry registry,
@@ -76,10 +74,10 @@ public sealed class WidgetService
         WidgetLayoutResolver layoutResolver,
         Func<PluginConfiguration?> getConfiguration,
         ILogger<WidgetService> logger,
-        IPersonalizationState? personalizationState = null,
-        SectionResultCache? sectionResults = null,
-        UserAccessWatch? accessWatch = null,
-        BinaryMismatchReporter? mismatchReporter = null)
+        IPersonalizationState personalizationState,
+        SectionResultCache sectionResults,
+        IUserAccessWatch accessWatch,
+        BinaryMismatchReporter mismatchReporter)
     {
         _registry = registry;
         _sessionCache = sessionCache;
@@ -113,7 +111,7 @@ public sealed class WidgetService
         string? lang,
         CancellationToken cancellationToken)
     {
-        _accessWatch?.Check(userId);
+        _accessWatch.Check(userId);
         if (_sessionCache.TryGet(userId, lang, SessionTtl, out var cached, out var expired) && cached is not null)
         {
             if (expired)
@@ -161,16 +159,15 @@ public sealed class WidgetService
         try
         {
             // Read before the probes, so a page probed before the user's data changed is not kept.
-            var stamp = _sectionResults?.StampOf(key.UserId);
+            var stamp = _sectionResults.StampOf(key.UserId);
             var ttl = SessionTtl;
-            Action<WidgetDescriptor, int, WidgetResult>? keepProbedPage = stamp is { } probeStamp
-                ? (descriptor, limit, page) => _sectionResults!.Set(SectionOf(key.UserId, descriptor), 0, limit, page, probeStamp, ttl)
-                : null;
+            Action<WidgetDescriptor, int, WidgetResult> keepProbedPage =
+                (descriptor, limit, page) => _sectionResults.Set(SectionOf(key.UserId, descriptor), 0, limit, page, stamp, ttl);
             var descriptors = await _layoutResolver.BuildDescriptors(key.UserId, lang, keepProbedPage, CancellationToken.None).ConfigureAwait(false);
 
             // A layout built before the user's first scoring finished is served, never cached, so an
             // expired one is never served in its place either (Sections_PendingScoring_IsNotCachedNorServedStale).
-            if (_personalizationState?.TakePendingServed(key.UserId) != true)
+            if (!_personalizationState.TakePendingServed(key.UserId))
             {
                 _sessionCache.Set(key.UserId, lang, descriptors, version);
             }
@@ -290,19 +287,19 @@ public sealed class WidgetService
         // The page the layout probe or an earlier request kept is served without reading the widget
         // (Section_AfterLayoutBuild_IsServedFromTheProbe, Section_ReadTwice_ReadsItsWidgetOnce).
         var section = new SectionId(userId, widgetType, additionalData, sectionKey);
-        _accessWatch?.Check(userId);
+        _accessWatch.Check(userId);
         WidgetResult? stored = null;
-        var hit = _sectionResults?.TryGet(section, payload.StartIndex, payload.Limit, out stored) == true;
-        var stamp = _sectionResults?.StampOf(userId);
+        var hit = _sectionResults.TryGet(section, payload.StartIndex, payload.Limit, out stored);
+        var stamp = _sectionResults.StampOf(userId);
         try
         {
             var result = hit ? stored! : await widget.GetItemsAsync(payload, cancellationToken).ConfigureAwait(false);
 
             // Projected here, so a failed projection is answered like a failed read and never kept.
             _ = result.Items;
-            if (!hit && stamp is { } readStamp)
+            if (!hit)
             {
-                _sectionResults!.Set(section, payload.StartIndex, payload.Limit, result, readStamp, SessionTtl);
+                _sectionResults.Set(section, payload.StartIndex, payload.Limit, result, stamp, SessionTtl);
             }
 
             return result;
@@ -311,14 +308,11 @@ public sealed class WidgetService
         {
             if (hit)
             {
-                _sectionResults!.Remove(section, stored!);
+                _sectionResults.Remove(section, stored!);
             }
 
             _logger.LogError(ex, "Widget '{WidgetType}' threw an exception during GetWidgetItems for user {UserId}.", widgetType, userId);
-            if (_mismatchReporter is not null)
-            {
-                await _mismatchReporter.ReportAsync(widgetType, ex).ConfigureAwait(false);
-            }
+            await _mismatchReporter.ReportAsync(widgetType, ex).ConfigureAwait(false);
 
             return WidgetResult.Empty;
         }

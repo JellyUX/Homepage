@@ -570,7 +570,7 @@ public sealed class JuxHomepageControllerTests
         IUserConfigurationStore? userConfigStore = null)
     {
         var registry = new WidgetRegistry();
-        var widgetService = new WidgetService(
+        var widgetService = TestWidgetServices.Create(
             registry,
             sessionCache ?? new SessionCache(),
             new WidgetLayoutResolver(
@@ -579,8 +579,7 @@ public sealed class JuxHomepageControllerTests
                 new LocalizationService(new Dictionary<string, IReadOnlyDictionary<string, string>>()),
                 () => new PluginConfiguration(),
                 NullLogger<WidgetLayoutResolver>.Instance),
-            () => new PluginConfiguration(),
-            NullLogger<WidgetService>.Instance);
+            () => new PluginConfiguration());
 
         return new JuxHomepageController(
             widgetService,

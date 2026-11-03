@@ -942,7 +942,7 @@ public sealed class WidgetServiceTests : IDisposable
 
         var config = new PluginConfiguration { Widgets = globalWidgets, Cache = cache ?? new CacheConfig() };
 
-        var mismatchReporter = activityManager is null ? null : new BinaryMismatchReporter(NullLogger<BinaryMismatchReporter>.Instance, activityManager);
+        var mismatchReporter = new BinaryMismatchReporter(NullLogger<BinaryMismatchReporter>.Instance, activityManager);
         var layoutResolver = new WidgetLayoutResolver(
             registry,
             _userConfigStoreMock.Object,
@@ -954,15 +954,14 @@ public sealed class WidgetServiceTests : IDisposable
         var sectionResults = new SectionResultCache(sessionCache ?? _sessionCache);
         _sectionResults.Add(sectionResults);
 
-        return new WidgetService(
+        return TestWidgetServices.Create(
             registry,
             sessionCache ?? _sessionCache,
             layoutResolver,
             () => config,
-            NullLogger<WidgetService>.Instance,
             personalizationState,
             sectionResults,
-            mismatchReporter: mismatchReporter);
+            mismatchReporter);
     }
 
     private static IWidget MakeWidget(string widgetType, int totalRecordCount)

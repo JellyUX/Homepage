@@ -49,6 +49,7 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton<SessionCache>();
         serviceCollection.AddSingleton<SectionResultCache>();
         serviceCollection.AddSingleton<UserAccessWatch>();
+        serviceCollection.AddSingleton<IUserAccessWatch>(sp => sp.GetRequiredService<UserAccessWatch>());
         serviceCollection.AddHostedService<ConfigurationChangeListener>();
         serviceCollection.AddHostedService<StartupService>();
         serviceCollection.AddSingleton<IFileSystem, FileSystem>();
@@ -108,11 +109,9 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         // One reporter for the layout probe and the section reads, so a widget type is reported once (COMPAT-01.a).
         serviceCollection.AddSingleton<BinaryMismatchReporter>();
         serviceCollection.AddSingleton<WidgetLayoutResolver>();
-        // WidgetService takes the personalization state as an optional parameter: built by type
-        // alone, it would get null, and a layout built while a user's first scoring still runs
-        // would be cached without its personalized sections. Passing it here, rather than
-        // registering ScoringService a second time, keeps one owner that disposes it once. The section
-        // results cache and the access watch, also optional, are resolved from the container.
+        // WidgetService takes the scoring service as its personalization state, passed here rather than
+        // registered a second time as IPersonalizationState, so one owner disposes it once. Its other
+        // collaborators are resolved from the container.
         serviceCollection.AddSingleton(serviceProvider => ActivatorUtilities.CreateInstance<WidgetService>(
             serviceProvider,
             (IPersonalizationState)serviceProvider.GetRequiredService<ScoringService>()));

@@ -140,12 +140,11 @@ public sealed class LoadTests
             () => config,
             NullLogger<WidgetLayoutResolver>.Instance);
 
-        return new WidgetService(
+        return TestWidgetServices.Create(
             registry,
             new SessionCache(),
             layoutResolver,
-            () => config,
-            NullLogger<WidgetService>.Instance);
+            () => config);
     }
 
     private static IWidget MakeCountingWidget(string widgetType, Action onFetch)

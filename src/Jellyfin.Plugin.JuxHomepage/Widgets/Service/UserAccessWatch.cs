@@ -16,7 +16,7 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets;
 /// once per <see cref="CheckInterval"/> and compared with the previous read: a cached layout or section
 /// page is served at most that long after the change (R11 review, DEC-P07-15).
 /// </summary>
-public sealed class UserAccessWatch
+public sealed class UserAccessWatch : IUserAccessWatch
 {
     /// <summary>The longest a user's access goes unread while their home screen is requested.</summary>
     public static readonly TimeSpan CheckInterval = TimeSpan.FromSeconds(60);
@@ -45,11 +45,7 @@ public sealed class UserAccessWatch
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
-    /// <summary>
-    /// Reads the user's access when it was last read more than <see cref="CheckInterval"/> ago, and
-    /// drops their cached home screen when it changed.
-    /// </summary>
-    /// <param name="userId">The user.</param>
+    /// <inheritdoc/>
     public void Check(Guid userId)
     {
         var now = _timeProvider.GetUtcNow().UtcDateTime;

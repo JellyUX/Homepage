@@ -149,7 +149,7 @@ public sealed class UserSettingsServiceTests
             }
         });
         var resolver = new WidgetLayoutResolver(new WidgetRegistry(), _store.Object, localization, () => new PluginConfiguration { Widgets = Rows }, NullLogger<WidgetLayoutResolver>.Instance);
-        var widgetService = new WidgetService(new WidgetRegistry(), cache, resolver, () => new PluginConfiguration(), NullLogger<WidgetService>.Instance);
+        var widgetService = TestWidgetServices.Create(new WidgetRegistry(), cache, resolver, () => new PluginConfiguration());
         return new UserSettingsService(_store.Object, localization, widgetService, () => new PluginConfiguration { Widgets = Rows });
     }
 }
