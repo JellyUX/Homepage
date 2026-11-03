@@ -57,7 +57,7 @@ public sealed class SectionCacheInvalidationListener : IHostedService, IDisposab
         _registry = registry;
         _taskManager = taskManager;
         _logger = logger;
-        _libraryChanges = new LibraryChangeBatcher(cache.ClearSources, timeProvider);
+        _libraryChanges = new LibraryChangeBatcher(cache.ClearSources, timeProvider, logger);
     }
 
     /// <inheritdoc/>

@@ -1,4 +1,5 @@
 using Jellyfin.Plugin.JuxHomepage.Widgets;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace Jellyfin.Plugin.JuxHomepage.Tests;
@@ -12,7 +13,7 @@ public sealed class LibraryChangeBatcherTests : IDisposable
 
     public LibraryChangeBatcherTests()
     {
-        _batcher = new LibraryChangeBatcher(_clears.Add, _clock);
+        _batcher = new LibraryChangeBatcher(_clears.Add, _clock, NullLogger.Instance);
     }
 
     public void Dispose() => _batcher.Dispose();
@@ -59,6 +60,40 @@ public sealed class LibraryChangeBatcherTests : IDisposable
         }
 
         Assert.NotEmpty(_clears);
+    }
+
+    [Fact]
+    public void AScanWhoseEndNeverArrives_HoldsTheChangesNoLongerThanTheLimit()
+    {
+        _batcher.ScanStarted();
+        _batcher.Changed(SectionSources.Movies);
+        _clock.Advance(LibraryChangeBatcher.MaxScanHold);
+        Assert.Empty(_clears);
+
+        _batcher.Changed(SectionSources.Series);
+
+        Assert.Single(_clears);
+    }
+
+    [Fact]
+    public void AScanEndWithoutItsStart_ClearsTheChanges()
+    {
+        _batcher.Changed(SectionSources.Movies);
+
+        _batcher.ScanEnded();
+
+        Assert.Single(_clears);
+    }
+
+    [Fact]
+    public void AClearThatThrowsOnTheTimer_IsLoggedNotRethrown()
+    {
+        using var throwing = new LibraryChangeBatcher(_ => throw new InvalidOperationException("clear failed"), _clock, NullLogger.Instance);
+        throwing.Changed(SectionSources.Movies);
+
+        var thrown = Record.Exception(() => _clock.Advance(LibraryChangeBatcher.QuietDelay));
+
+        Assert.Null(thrown);
     }
 
     [Fact]
