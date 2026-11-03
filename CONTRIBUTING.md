@@ -169,6 +169,7 @@ promise that never settles, a gate released by the test), never a sleep or a sto
 | Native client helper that rescales its arguments (`ApiClient.getScaledImageUrl` multiplies `maxWidth`, `fillWidth` and the like by `devicePixelRatio`) | `test/jux-featured.test.js`, "requests the snapped backdrop width once, capped at 2 device pixels on the phone layout (PERF-08.b)" | the stub rescales like the native helper, and the URL the server gets carries the width counted once (960 px at DPR 3, not 2 880) |
 | Page loaded on an address the native router reads before the plugin is ready (`#/home?tab=N`) | `test/jux-tab-injector.test.js`, "shows the home tab first, then opens the addressed tab once the card builder exists" | the addressed tab opens with its content after the native home has rendered, with no exception |
 | Script of a later bundle arriving after its pane was opened | `e2e/tests/home.spec.mjs`, "a tab clicked before the tab scripts arrive shows its content once they do (PERF-10.b)" | the module renders a pane already active when it starts, instead of waiting for a click it missed |
+| Native menu placed before the plugin adds its entry (`.actionSheet`, the Watchlist entry of `jux-card-hooks.js`) | to be written (FIAB-05) | the menu, once the entry is added, still fits the screen at 390 px (no entry cut) |
 
 A defect found outside the CI (manual test, review, bench, audit) whose class has no row adds its row
 here, with its model test, in the commit that fixes it. A row whose test is not written yet names the
