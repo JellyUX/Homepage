@@ -29,8 +29,13 @@ public class JuxHomepageController : ControllerBase
     private static readonly string WebResourcePrefix = $"{typeof(Plugin).Namespace}.Web.";
 
     // The bundles built so far, by name and file list: the embedded files and the labels script do not
-    // change while the server runs, and the file lists a bundle accepts are few (PERF-10.b).
+    // change while the server runs (PERF-10.b); at most MaxCachedBundles lists are kept.
     private static readonly ConcurrentDictionary<string, string> Bundles = new(StringComparer.Ordinal);
+
+    private const int MaxCachedBundles = 16;
+
+    // The number of bundles kept (test seam).
+    internal static int CachedBundleCountForTesting => Bundles.Count;
 
     private readonly WidgetService _widgetService;
     private readonly IUserManager _userManager;
@@ -513,9 +518,23 @@ public class JuxHomepageController : ControllerBase
         (await _requestUsers.ResolveAsync(HttpContext, requestedUserId).ConfigureAwait(false)).UserId;
 
     // The text of one bundled script: the generated labels script, or an embedded file.
-    // A bundle built once per file list.
+    // A bundle built once per file list, up to MaxCachedBundles lists: index.html names one list per bundle and
+    // configuration, while any valid list can be asked for (R11, phase 12), so the others are built each time.
     private string Bundle(string key, IReadOnlyList<string> files)
-        => Bundles.GetOrAdd(key, _ => BundleText(files.Select(f => (f, ReadAssetText(f)))));
+    {
+        if (Bundles.TryGetValue(key, out var cached))
+        {
+            return cached;
+        }
+
+        var bundle = BundleText(files.Select(f => (f, ReadAssetText(f))));
+        if (Bundles.Count < MaxCachedBundles)
+        {
+            Bundles.TryAdd(key, bundle);
+        }
+
+        return bundle;
+    }
 
     /// <summary>
     /// Joins the files of a bundle, each in a function of its own called on window: its 'use strict' line stays a

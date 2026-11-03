@@ -295,6 +295,23 @@ public sealed class JuxHomepageControllerTests
             bundle);
     }
 
+    // R11 (phase 12): any valid file list can be asked for; past a few lists, the bundle is built each time
+    // instead of kept for the life of the server.
+    [Fact]
+    public void GetAsset_ManyFileLists_KeepsABoundedNumberOfBundles()
+    {
+        var lists = new[] { "6", "7", "10", "12", "13", "14", "15", "16", "17" };
+        foreach (var first in lists)
+        {
+            foreach (var second in lists.Where(l => int.Parse(l, System.Globalization.CultureInfo.InvariantCulture) > int.Parse(first, System.Globalization.CultureInfo.InvariantCulture)))
+            {
+                Assert.IsType<ContentResult>(InvokeGetAsset("jux-rest.js", $"?f={first}.{second}", out _));
+            }
+        }
+
+        Assert.InRange(JuxHomepageController.CachedBundleCountForTesting, 1, 16);
+    }
+
     private static IActionResult InvokeGetAsset(string fileName, string? query, out HttpResponse response)
     {
         var httpContext = new DefaultHttpContext();
