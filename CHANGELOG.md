@@ -1,3 +1,17 @@
+## [2.18.3](https://github.com/JellyUX/Homepage/compare/v2.18.2...v2.18.3) (2026-11-03)
+
+### Bug Fixes
+
+* **personalized:** serve the default home at once to a user who played nothing ([764fe5d](https://github.com/JellyUX/Homepage/commit/764fe5dd698080c6d6fad58dc0315b10ed329f0d))
+* **widgets:** bound how long a library scan holds the section page changes ([58c3812](https://github.com/JellyUX/Homepage/commit/58c38129a24414a16239610c30d46ee79168cfc6))
+* **widgets:** clear every library section when a folder or a library is removed ([5bba6bb](https://github.com/JellyUX/Homepage/commit/5bba6bb6bb34442fbe9f97d3c2bbe1e18af18a8d))
+* **widgets:** clear the section pages once per library scan, not once per item ([453f6b0](https://github.com/JellyUX/Homepage/commit/453f6b06b475d39d0d3098af2195e8f8fce12964))
+* **widgets:** drop only the section pages whose sources changed ([420a7f2](https://github.com/JellyUX/Homepage/commit/420a7f2d2ad4b453cdcbf413a80f2f7aec315f57))
+* **widgets:** keep section pages through playback and refresh them after it ends ([43fbf53](https://github.com/JellyUX/Homepage/commit/43fbf5343178cfdac2bc341c8bcc5311668a8b5b))
+* **widgets:** mark section pages stale only for the playback ends DR-032 names ([08b2703](https://github.com/JellyUX/Homepage/commit/08b270312ea57b87874716059a7e76c34c3ec090))
+* **widgets:** mark the personalized pages stale again when a new scoring is stored ([8ca0193](https://github.com/JellyUX/Homepage/commit/8ca01939e35e8375f11cf83dc4fb7eaf22858549))
+* **widgets:** read stale section pages again in a queue apart from the layout rebuilds ([83e2df4](https://github.com/JellyUX/Homepage/commit/83e2df4c176eeae68a0f5c866b0126929e9a2038))
+
 ## [2.18.2](https://github.com/JellyUX/Homepage/compare/v2.18.1...v2.18.2) (2026-11-03)
 
 ### Bug Fixes
