@@ -1,5 +1,7 @@
+using Jellyfin.Data.Events;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Entities;
+using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -12,16 +14,22 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets;
 /// during a playback (DR-008: 0 % hits). A playback end, a played toggle or a rating (the Watchlist, a like) drops
 /// the user's direct pages and marks the deferred ones stale, read again in the background while still served. An
 /// item added to or removed from the library drops the pages of the sections that read its kind
-/// (<see cref="SectionSources.OfItemKind"/>, REV-04.c). A configuration change or a user's settings change already
+/// (<see cref="SectionSources.OfItemKind"/>, REV-04.c), once per library scan or quiet period
+/// (<see cref="LibraryChangeBatcher"/>). A configuration change or a user's settings change already
 /// drops them through the layout cache's version, and a rewritten TMDb or Rewards list drops the pages of its
 /// sections from <c>TMDbCacheService</c> and <c>RewardsCacheService</c>.
 /// </summary>
-public sealed class SectionCacheInvalidationListener : IHostedService
+public sealed class SectionCacheInvalidationListener : IHostedService, IDisposable
 {
+    /// <summary>The key of Jellyfin's library scan task (<c>RefreshMediaLibraryTask</c>).</summary>
+    internal const string LibraryScanTaskKey = "RefreshLibrary";
+
     private readonly IUserDataManager _userDataManager;
     private readonly ILibraryManager _libraryManager;
     private readonly SectionResultCache _cache;
     private readonly IWidgetRegistry _registry;
+    private readonly ITaskManager _taskManager;
+    private readonly LibraryChangeBatcher _libraryChanges;
     private readonly ILogger<SectionCacheInvalidationListener> _logger;
 
     /// <summary>
@@ -31,19 +39,25 @@ public sealed class SectionCacheInvalidationListener : IHostedService
     /// <param name="libraryManager">Jellyfin library manager.</param>
     /// <param name="cache">The section page cache.</param>
     /// <param name="registry">The widgets, which tell whether a section is direct.</param>
+    /// <param name="taskManager">Jellyfin task manager, which tells when a library scan runs.</param>
+    /// <param name="timeProvider">Time source of the quiet delay between library changes.</param>
     /// <param name="logger">Logger.</param>
     public SectionCacheInvalidationListener(
         IUserDataManager userDataManager,
         ILibraryManager libraryManager,
         SectionResultCache cache,
         IWidgetRegistry registry,
+        ITaskManager taskManager,
+        TimeProvider timeProvider,
         ILogger<SectionCacheInvalidationListener> logger)
     {
         _userDataManager = userDataManager;
         _libraryManager = libraryManager;
         _cache = cache;
         _registry = registry;
+        _taskManager = taskManager;
         _logger = logger;
+        _libraryChanges = new LibraryChangeBatcher(cache.ClearSources, timeProvider);
     }
 
     /// <inheritdoc/>
@@ -52,6 +66,8 @@ public sealed class SectionCacheInvalidationListener : IHostedService
         _userDataManager.UserDataSaved += OnUserDataSaved;
         _libraryManager.ItemAdded += OnLibraryChanged;
         _libraryManager.ItemRemoved += OnLibraryChanged;
+        _taskManager.TaskExecuting += OnTaskExecuting;
+        _taskManager.TaskCompleted += OnTaskCompleted;
         return Task.CompletedTask;
     }
 
@@ -61,8 +77,13 @@ public sealed class SectionCacheInvalidationListener : IHostedService
         _userDataManager.UserDataSaved -= OnUserDataSaved;
         _libraryManager.ItemAdded -= OnLibraryChanged;
         _libraryManager.ItemRemoved -= OnLibraryChanged;
+        _taskManager.TaskExecuting -= OnTaskExecuting;
+        _taskManager.TaskCompleted -= OnTaskCompleted;
         return Task.CompletedTask;
     }
+
+    /// <inheritdoc/>
+    public void Dispose() => _libraryChanges.Dispose();
 
     private void OnUserDataSaved(object? sender, UserDataSaveEventArgs e) =>
         EventHandlerGuard.Run(_logger, nameof(OnUserDataSaved), () =>
@@ -86,7 +107,25 @@ public sealed class SectionCacheInvalidationListener : IHostedService
         {
             if (SectionSources.OfItemKind(e.Item.GetBaseItemKind()) is { } source)
             {
-                _cache.ClearSources([source]);
+                _libraryChanges.Changed(source);
+            }
+        });
+
+    private void OnTaskExecuting(object? sender, GenericEventArgs<IScheduledTaskWorker> e) =>
+        EventHandlerGuard.Run(_logger, nameof(OnTaskExecuting), () =>
+        {
+            if (e.Argument.ScheduledTask.Key == LibraryScanTaskKey)
+            {
+                _libraryChanges.ScanStarted();
+            }
+        });
+
+    private void OnTaskCompleted(object? sender, TaskCompletionEventArgs e) =>
+        EventHandlerGuard.Run(_logger, nameof(OnTaskCompleted), () =>
+        {
+            if (e.Task.ScheduledTask.Key == LibraryScanTaskKey)
+            {
+                _libraryChanges.ScanEnded();
             }
         });
 }

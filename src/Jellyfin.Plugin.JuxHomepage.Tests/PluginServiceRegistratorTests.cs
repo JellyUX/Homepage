@@ -13,6 +13,7 @@ using MediaBrowser.Controller.Net;
 using MediaBrowser.Controller.TV;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using MediaBrowser.Model.Tasks;
 using Moq;
 using Xunit;
 
@@ -51,6 +52,7 @@ public sealed class PluginServiceRegistratorTests : IDisposable
         _services.AddSingleton(Mock.Of<IServerConfigurationManager>());
         _services.AddSingleton(Mock.Of<IAuthorizationContext>());
         _services.AddSingleton(Mock.Of<IServerApplicationHost>());
+        _services.AddSingleton(Mock.Of<ITaskManager>());
 
         new PluginServiceRegistrator().RegisterServices(_services, Mock.Of<IServerApplicationHost>());
         _provider = _services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });

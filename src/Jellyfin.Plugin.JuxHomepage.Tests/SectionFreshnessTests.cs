@@ -6,6 +6,7 @@ using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Dto;
 using MediaBrowser.Model.Entities;
+using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
@@ -147,7 +148,7 @@ public sealed class SectionFreshnessTests : IDisposable
     private async Task StartListener()
     {
         var listener = new SectionCacheInvalidationListener(
-            _userData.Object, _library.Object, _cache, _registry, NullLogger<SectionCacheInvalidationListener>.Instance);
+            _userData.Object, _library.Object, _cache, _registry, Mock.Of<ITaskManager>(), _clock, NullLogger<SectionCacheInvalidationListener>.Instance);
         await listener.StartAsync(CancellationToken.None);
     }
 

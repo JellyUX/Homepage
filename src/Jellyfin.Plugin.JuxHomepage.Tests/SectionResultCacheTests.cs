@@ -1,3 +1,4 @@
+using Jellyfin.Data.Events;
 using Jellyfin.Plugin.JuxHomepage.Widgets;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
@@ -5,6 +6,7 @@ using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Dto;
 using MediaBrowser.Model.Entities;
+using MediaBrowser.Model.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
@@ -160,32 +162,83 @@ public sealed class SectionResultCacheTests : IDisposable
     }
 
     [Fact]
-    public async Task Listener_LibraryChange_DropsThePagesOfTheChangedKindOnly()
+    public async Task Listener_LibraryChange_DropsThePagesOfTheChangedKindOnly_OnceTheLibraryIsQuiet()
     {
-        var userData = new Mock<IUserDataManager>();
         var library = new Mock<ILibraryManager>();
-        var listener = new SectionCacheInvalidationListener(
-            userData.Object, library.Object, _cache, new WidgetRegistry(), NullLogger<SectionCacheInvalidationListener>.Instance);
+        using var listener = Listener(library, new Mock<ITaskManager>());
         var other = Guid.NewGuid();
         await listener.StartAsync(CancellationToken.None);
 
         _cache.Set(Section(other), 0, 20, Page(), _cache.StampOf(other), Ttl, [SectionSources.Series]);
-        library.Raise(m => m.ItemAdded += null, library.Object, new ItemChangeEventArgs { Item = new Movie() });
+        Added(library, new Movie());
+        Added(library, new Person());
+        _clock.Advance(LibraryChangeBatcher.QuietDelay);
         Assert.True(_cache.TryGet(Section(other), 0, 20, out _, out _));
-        library.Raise(m => m.ItemAdded += null, library.Object, new ItemChangeEventArgs { Item = new Person() });
+
+        Added(library, new Episode());
         Assert.True(_cache.TryGet(Section(other), 0, 20, out _, out _));
-        library.Raise(m => m.ItemAdded += null, library.Object, new ItemChangeEventArgs { Item = new Episode() });
+        _clock.Advance(LibraryChangeBatcher.QuietDelay);
         Assert.False(_cache.TryGet(Section(other), 0, 20, out _, out _));
 
         _cache.Set(Section(other), 0, 20, Page(), _cache.StampOf(other), Ttl);
         library.Raise(m => m.ItemRemoved += null, library.Object, new ItemChangeEventArgs { Item = new Movie() });
+        _clock.Advance(LibraryChangeBatcher.QuietDelay);
         Assert.False(_cache.TryGet(Section(other), 0, 20, out _, out _));
 
         await listener.StopAsync(CancellationToken.None);
         _cache.Set(Section(other), 0, 20, Page(), _cache.StampOf(other), Ttl);
-        library.Raise(m => m.ItemAdded += null, library.Object, new ItemChangeEventArgs { Item = new Movie() });
+        Added(library, new Movie());
+        _clock.Advance(LibraryChangeBatcher.QuietDelay);
         Assert.True(_cache.TryGet(Section(other), 0, 20, out _, out _));
     }
+
+    [Fact]
+    public async Task Listener_LibraryScan_KeepsEveryPageUntilTheScanEnds_ThenDropsTheChangedKindsOnce()
+    {
+        var library = new Mock<ILibraryManager>();
+        var tasks = new Mock<ITaskManager>();
+        using var listener = Listener(library, tasks);
+        await listener.StartAsync(CancellationToken.None);
+        var scan = Worker(SectionCacheInvalidationListener.LibraryScanTaskKey);
+        var movies = new SectionId(_user, "jux.test.movies", null, null);
+        var shows = new SectionId(_user, "jux.test.shows", null, null);
+        _cache.Set(movies, 0, 20, Page(), _cache.StampOf(_user), Ttl, [SectionSources.Movies]);
+        _cache.Set(shows, 0, 20, Page(), _cache.StampOf(_user), Ttl, [SectionSources.Series]);
+
+        tasks.Raise(m => m.TaskExecuting += null, tasks.Object, new GenericEventArgs<IScheduledTaskWorker>(scan));
+        for (var i = 0; i < 500; i++)
+        {
+            Added(library, new Movie());
+        }
+
+        _clock.Advance(LibraryChangeBatcher.MaxDelay);
+        Assert.True(_cache.TryGet(movies, 0, 20, out _, out _));
+
+        tasks.Raise(m => m.TaskCompleted += null, tasks.Object, new TaskCompletionEventArgs(scan, new TaskResult()));
+        Assert.False(_cache.TryGet(movies, 0, 20, out _, out _));
+        Assert.True(_cache.TryGet(shows, 0, 20, out _, out _));
+    }
+
+    private static IScheduledTaskWorker Worker(string key)
+    {
+        var task = new Mock<IScheduledTask>();
+        task.SetupGet(t => t.Key).Returns(key);
+        var worker = new Mock<IScheduledTaskWorker>();
+        worker.SetupGet(w => w.ScheduledTask).Returns(task.Object);
+        return worker.Object;
+    }
+
+    private static void Added(Mock<ILibraryManager> library, BaseItem item) =>
+        library.Raise(m => m.ItemAdded += null, library.Object, new ItemChangeEventArgs { Item = item });
+
+    private SectionCacheInvalidationListener Listener(Mock<ILibraryManager> library, Mock<ITaskManager> tasks) => new(
+        new Mock<IUserDataManager>().Object,
+        library.Object,
+        _cache,
+        new WidgetRegistry(),
+        tasks.Object,
+        _clock,
+        NullLogger<SectionCacheInvalidationListener>.Instance);
 
     private static SectionId Section(Guid user) => new(user, "jux.test.section", "value", "jux.test.section#1");
 
