@@ -51,7 +51,9 @@ public sealed class SectionFreshnessTests : IDisposable
     [Theory]
     [InlineData(UserDataSaveReason.PlaybackProgress)]
     [InlineData(UserDataSaveReason.PlaybackStart)]
-    public async Task PlaybackStartOrProgress_KeepsTheUsersPagesFresh(UserDataSaveReason reason)
+    [InlineData(UserDataSaveReason.Import)]
+    [InlineData(UserDataSaveReason.UpdateUserData)]
+    public async Task PlaybackStartProgressOrImport_KeepsTheUsersPagesFresh(UserDataSaveReason reason)
     {
         await StartListener();
         Store(_user, DirectType);

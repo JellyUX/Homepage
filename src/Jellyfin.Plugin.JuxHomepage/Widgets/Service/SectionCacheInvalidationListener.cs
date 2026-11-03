@@ -11,8 +11,9 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets;
 /// Hosted service that keeps the section pages of <see cref="SectionResultCache"/> fresh (DEC-P07-2, REV-04.b,
 /// DR-032). A playback start or progress report changes no cached section: the playback rows are read natively or
 /// by the client on each home screen mount (V17), and dropping the pages on each report left the cache useless
-/// during a playback (DR-008: 0 % hits). A playback end, a played toggle or a rating (the Watchlist, a like) drops
-/// the user's direct pages and marks the deferred ones stale, read again in the background while still served. An
+/// during a playback (DR-008: 0 % hits); nor does an import or a generic user data update. A playback end, a played
+/// toggle or a rating (the Watchlist, a like) drops the user's direct pages and marks the deferred ones stale, read
+/// again in the background while still served. An
 /// item added to or removed from the library drops the pages of the sections that read its kind
 /// (<see cref="SectionSources.OfItemKind"/>, REV-04.c), once per library scan or quiet period
 /// (<see cref="LibraryChangeBatcher"/>). A configuration change or a user's settings change already
@@ -88,7 +89,9 @@ public sealed class SectionCacheInvalidationListener : IHostedService, IDisposab
     private void OnUserDataSaved(object? sender, UserDataSaveEventArgs e) =>
         EventHandlerGuard.Run(_logger, nameof(OnUserDataSaved), () =>
         {
-            if (e.SaveReason is UserDataSaveReason.PlaybackStart or UserDataSaveReason.PlaybackProgress)
+            // Only what DR-032 names ends a playback's effect on the sections; a progress report changes none, and an
+            // import (NFO watched state during a scan) would mark the pages stale item by item.
+            if (e.SaveReason is not (UserDataSaveReason.PlaybackFinished or UserDataSaveReason.TogglePlayed or UserDataSaveReason.UpdateUserRating))
             {
                 return;
             }
