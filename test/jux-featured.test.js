@@ -22,7 +22,8 @@ const item = (n, extra = {}) => ({
 
 const items = (count) => Array.from({ length: count }, (_, i) => item(i));
 
-const apiClient = { getScaledImageUrl: vi.fn((id, o) => `/Items/${id}/Images/${o.type}?tag=${o.tag}&maxWidth=${o.maxWidth}`) };
+// Like jellyfin-apiclient (10.11 and 12): getScaledImageUrl multiplies maxWidth by window.devicePixelRatio.
+const apiClient = { getScaledImageUrl: vi.fn((id, o) => `/Items/${id}/Images/${o.type}?tag=${o.tag}&maxWidth=${Math.round(o.maxWidth * (window.devicePixelRatio || 1))}`) };
 
 let container;
 let observers;
@@ -137,24 +138,32 @@ describe('KTW-01.b images', () => {
         expect(priorities()).toEqual(['high', 'low', 'low', 'low', 'low', 'low']);
     });
 
-    // PERF-08.b (DR-029): the phone layout asks the backdrop for 2 device pixels per CSS pixel at most.
-    it('caps the backdrop pixel ratio at 2 on the phone layout only (PERF-08.b)', () => {
+    // PERF-08.b (DR-029): the server gets the snapped width itself (getScaledImageUrl multiplies by the device
+    // pixel ratio again: 3840 for a 1280 backdrop at DPR 3 before 2026-11-03), and the phone layout counts 2 device
+    // pixels per CSS pixel at most.
+    it('requests the snapped backdrop width once, capped at 2 device pixels on the phone layout (PERF-08.b)', () => {
         const ratio = Object.getOwnPropertyDescriptor(window, 'devicePixelRatio');
-        Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: 3 });
-        const widths = () => apiClient.getScaledImageUrl.mock.calls.filter(([, o]) => o.type === 'Backdrop' && o.index === 0 && o.maxWidth !== 320).map(([, o]) => o.maxWidth);
-        try {
-            const width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(390);
+        const requested = () => [...container.querySelectorAll('.jux-featured-backdrop[src]')]
+            .map((img) => Number(new URL(img.getAttribute('src'), 'http://jf').searchParams.get('maxWidth')));
+        const width = vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get');
+        const renderAt = (dpr, cssWidth) => {
+            Object.defineProperty(window, 'devicePixelRatio', { configurable: true, value: dpr });
+            width.mockReturnValue(cssWidth);
             render(items(3));
-            expect(widths()).toEqual([1280, 1280]);
+            const out = requested();
             destroy(container);
             container.remove();
-            apiClient.getScaledImageUrl.mockClear();
-
+            return out;
+        };
+        try {
+            expect(renderAt(3, 390)).toEqual([1280, 1280]);
+            expect(renderAt(2, 1920)).toEqual([1920, 1920]);
+            expect(renderAt(1, 1000)).toEqual([1280, 1280]);
             window.matchMedia = vi.fn((q) => ({ matches: q.includes('max-width') }));
+            expect(renderAt(3, 390)).toEqual([960, 960]);
             render(items(3));
-            expect(widths()).toEqual([960, 960]);
-            width.mockRestore();
         } finally {
+            width.mockRestore();
             if (ratio) {
                 Object.defineProperty(window, 'devicePixelRatio', ratio);
             } else {
