@@ -121,6 +121,25 @@ public sealed class SectionFreshnessTests : IDisposable
         Assert.Equal(1, directReads);
     }
 
+    [Fact]
+    public async Task SectionRead_KeepsItsSources_SoAnotherSourceChangeKeepsItsPage()
+    {
+        var service = Service();
+        var reads = 0;
+        var widget = Widget("jux.test.series", FreshnessLevel.Deferred, () => reads++);
+        Mock.Get(widget).SetupGet(w => w.Sources).Returns([SectionSources.Series]);
+        _registry.Register(widget);
+
+        await service.GetWidgetItems(_user, "jux.test.series", null, null, 0, 20, CancellationToken.None);
+        _cache.ClearSources([SectionSources.Movies]);
+        await service.GetWidgetItems(_user, "jux.test.series", null, null, 0, 20, CancellationToken.None);
+        Assert.Equal(1, reads);
+
+        _cache.ClearSources([SectionSources.Series]);
+        await service.GetWidgetItems(_user, "jux.test.series", null, null, 0, 20, CancellationToken.None);
+        Assert.Equal(2, reads);
+    }
+
     private static SectionId Section(Guid user, string type) => new(user, type, null, null);
 
     private static WidgetResult Page() => new([new BaseItemDto()], 1);

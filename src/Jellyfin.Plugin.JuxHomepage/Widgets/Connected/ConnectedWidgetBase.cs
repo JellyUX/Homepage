@@ -90,6 +90,10 @@ public abstract class ConnectedWidgetBase<T> : IWidget
     /// <inheritdoc/>
     public FreshnessLevel Freshness => FreshnessLevel.Deferred;
 
+    /// <inheritdoc/>
+    /// <remarks>The external list, matched against the library's movies and series.</remarks>
+    public virtual IReadOnlyList<string> Sources => SectionSources.TMDbList;
+
     /// <summary>
     /// Returns the currently cached external items for this widget's data set (e.g. trending movies,
     /// or a Rewards instance's award winners).

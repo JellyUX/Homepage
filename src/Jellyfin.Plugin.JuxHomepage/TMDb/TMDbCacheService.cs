@@ -210,7 +210,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
             var matched = await MatchAsync(items, _movieExternalIds.GetImdbIdAsync, () => indexes.Movies, cancellationToken).ConfigureAwait(false);
             _movieExternalIds.Save();
             _movieCache.WriteUnlessEmpty(GetDiscoverFileName(instanceId), items);
-            _sectionResults?.Clear();
+            _sectionResults?.ClearSources([SectionSources.TMDb]);
             _logger.LogInformation(
                 "TMDb Discover cache '{InstanceId}' refreshed: {ItemCount} item(s), {MatchedCount} matched to the local library.",
                 instanceId,
@@ -281,8 +281,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
             var matched = await MatchAsync(items, _movieExternalIds.GetImdbIdAsync, () => indexes.Movies, cancellationToken).ConfigureAwait(false);
             _movieExternalIds.Save();
             _movieCache.WriteUnlessEmpty(GetFileName(type), items);
-            _sectionResults?.Clear();
-            LogRefreshOutcome(type, items.Count, matched);
+            OnListRewritten(type, items.Count, matched);
         }
         catch (Exception ex)
         {
@@ -302,8 +301,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
             var matched = await MatchAsync(items, _showExternalIds.GetImdbIdAsync, () => indexes.Shows, cancellationToken).ConfigureAwait(false);
             _showExternalIds.Save();
             _showCache.WriteUnlessEmpty(GetFileName(type), items);
-            _sectionResults?.Clear();
-            LogRefreshOutcome(type, items.Count, matched);
+            OnListRewritten(type, items.Count, matched);
         }
         catch (Exception ex)
         {
@@ -386,6 +384,16 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
         items.Count == 0
             ? 0
             : await _crossReferencer.CrossReferenceAsync(items, getExternalImdbId, index(), cancellationToken).ConfigureAwait(false);
+
+    /// <summary>
+    /// Drops the cached home section pages of the TMDb sections (REV-04.c), which would keep the old list, and logs
+    /// the refresh outcome.
+    /// </summary>
+    private void OnListRewritten(TMDbCacheType type, int itemCount, int matchedCount)
+    {
+        _sectionResults?.ClearSources([SectionSources.TMDb]);
+        LogRefreshOutcome(type, itemCount, matchedCount);
+    }
 
     private void LogRefreshOutcome(TMDbCacheType type, int itemCount, int matchedCount)
     {

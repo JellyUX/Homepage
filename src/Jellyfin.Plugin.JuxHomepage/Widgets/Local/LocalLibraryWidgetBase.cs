@@ -55,6 +55,9 @@ public abstract class LocalLibraryWidgetBase : IWidget
     public FreshnessLevel Freshness => FreshnessLevel.Deferred;
 
     /// <inheritdoc/>
+    public IReadOnlyList<string> Sources => SectionSources.MoviesAndSeries;
+
+    /// <inheritdoc/>
     public int DefaultMinItems => 4;
 
     /// <inheritdoc/>

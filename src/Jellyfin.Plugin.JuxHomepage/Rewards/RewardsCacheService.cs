@@ -128,7 +128,7 @@ public sealed class RewardsCacheService : IRewardsCacheService, IDisposable
                 fallbackProvider: null).ConfigureAwait(false);
 
             _cache.WriteUnlessEmpty(GetFileName(instanceId), items);
-            _sectionResults?.Clear();
+            _sectionResults?.ClearSources([SectionSources.Rewards]);
             LogRefreshOutcome(
                 instanceId,
                 items.Count,

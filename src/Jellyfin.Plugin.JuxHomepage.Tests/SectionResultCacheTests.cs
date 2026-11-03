@@ -1,6 +1,7 @@
 using Jellyfin.Plugin.JuxHomepage.Widgets;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
+using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Dto;
 using MediaBrowser.Model.Entities;
@@ -95,16 +96,21 @@ public sealed class SectionResultCacheTests : IDisposable
     }
 
     [Fact]
-    public void Clear_DropsEveryUsersPages()
+    public void ClearSources_DropsEveryUsersPagesOfThoseSources_AndKeepsTheOthers()
     {
         var other = Guid.NewGuid();
-        _cache.Set(Section(_user), 0, 20, Page(), _cache.StampOf(_user), Ttl);
-        _cache.Set(Section(other), 0, 20, Page(), _cache.StampOf(other), Ttl);
+        var movies = new SectionId(_user, "jux.test.movies", null, null);
+        var shows = new SectionId(other, "jux.test.shows", null, null);
+        var anything = new SectionId(other, "jux.test.anything", null, null);
+        _cache.Set(movies, 0, 20, Page(), _cache.StampOf(_user), Ttl, [SectionSources.Movies]);
+        _cache.Set(shows, 0, 20, Page(), _cache.StampOf(other), Ttl, [SectionSources.Series]);
+        _cache.Set(anything, 0, 20, Page(), _cache.StampOf(other), Ttl);
 
-        _cache.Clear();
+        _cache.ClearSources([SectionSources.Movies]);
 
-        Assert.False(_cache.TryGet(Section(_user), 0, 20, out _, out _));
-        Assert.False(_cache.TryGet(Section(other), 0, 20, out _, out _));
+        Assert.False(_cache.TryGet(movies, 0, 20, out _, out _));
+        Assert.False(_cache.TryGet(anything, 0, 20, out _, out _));
+        Assert.True(_cache.TryGet(shows, 0, 20, out _, out _));
     }
 
     [Fact]
@@ -112,8 +118,8 @@ public sealed class SectionResultCacheTests : IDisposable
     {
         // A page computed before the library or the layout changed reflects the old state.
         var stamp = _cache.StampOf(_user);
-        _cache.Clear();
-        Assert.False(_cache.Set(Section(_user), 0, 20, Page(), stamp, Ttl));
+        _cache.ClearSources([SectionSources.Series]);
+        Assert.False(_cache.Set(Section(_user), 0, 20, Page(), stamp, Ttl, [SectionSources.Movies]));
 
         stamp = _cache.StampOf(_user);
         _sessionCache.Clear();
@@ -154,7 +160,7 @@ public sealed class SectionResultCacheTests : IDisposable
     }
 
     [Fact]
-    public async Task Listener_LibraryChange_DropsEveryPage()
+    public async Task Listener_LibraryChange_DropsThePagesOfTheChangedKindOnly()
     {
         var userData = new Mock<IUserDataManager>();
         var library = new Mock<ILibraryManager>();
@@ -163,8 +169,12 @@ public sealed class SectionResultCacheTests : IDisposable
         var other = Guid.NewGuid();
         await listener.StartAsync(CancellationToken.None);
 
-        _cache.Set(Section(other), 0, 20, Page(), _cache.StampOf(other), Ttl);
+        _cache.Set(Section(other), 0, 20, Page(), _cache.StampOf(other), Ttl, [SectionSources.Series]);
         library.Raise(m => m.ItemAdded += null, library.Object, new ItemChangeEventArgs { Item = new Movie() });
+        Assert.True(_cache.TryGet(Section(other), 0, 20, out _, out _));
+        library.Raise(m => m.ItemAdded += null, library.Object, new ItemChangeEventArgs { Item = new Person() });
+        Assert.True(_cache.TryGet(Section(other), 0, 20, out _, out _));
+        library.Raise(m => m.ItemAdded += null, library.Object, new ItemChangeEventArgs { Item = new Episode() });
         Assert.False(_cache.TryGet(Section(other), 0, 20, out _, out _));
 
         _cache.Set(Section(other), 0, 20, Page(), _cache.StampOf(other), Ttl);

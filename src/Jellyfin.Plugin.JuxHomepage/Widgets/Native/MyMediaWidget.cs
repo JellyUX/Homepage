@@ -14,6 +14,8 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets.Native;
 /// </summary>
 public sealed class MyMediaWidget : NativeWidgetBase
 {
+    private static readonly IReadOnlyList<string> LibrarySources = [SectionSources.Libraries];
+
     private readonly IUserViewManager _userViewManager;
 
     /// <summary>
@@ -39,6 +41,9 @@ public sealed class MyMediaWidget : NativeWidgetBase
     /// <inheritdoc/>
     /// <remarks>The user's libraries, which change with the configuration.</remarks>
     public override FreshnessLevel Freshness => FreshnessLevel.Deferred;
+
+    /// <inheritdoc/>
+    public override IReadOnlyList<string> Sources => LibrarySources;
 
     /// <inheritdoc/>
     public override int DefaultMinItems => 1;

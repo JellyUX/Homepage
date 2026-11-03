@@ -15,6 +15,8 @@ namespace Jellyfin.Plugin.JuxHomepage.Rewards;
 /// </summary>
 public sealed class RewardsWidget : ConnectedWidgetBase<RewardsWinner>
 {
+    private static readonly IReadOnlyList<string> RewardsSources = [SectionSources.Movies, SectionSources.Rewards];
+
     /// <summary>The <c>ExtraParams</c> key of the instance id of the section.</summary>
     public const string ValueParam = WidgetConfig.ValueParam;
 
@@ -50,6 +52,9 @@ public sealed class RewardsWidget : ConnectedWidgetBase<RewardsWinner>
 
     /// <inheritdoc/>
     public override string WidgetType => RewardsWidgetTypes.Rewards;
+
+    /// <inheritdoc/>
+    public override IReadOnlyList<string> Sources => RewardsSources;
 
     /// <summary>Gets a new instance id; the admin picks the ceremony or category.</summary>
     public override IReadOnlyList<WidgetExtraParam> DefaultExtraParams =>

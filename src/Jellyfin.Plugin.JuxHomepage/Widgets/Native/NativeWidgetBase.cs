@@ -65,6 +65,9 @@ public abstract class NativeWidgetBase : IWidget
     /// </remarks>
     public virtual FreshnessLevel Freshness => FreshnessLevel.Direct;
 
+    /// <inheritdoc/>
+    public virtual IReadOnlyList<string> Sources => SectionSources.MoviesAndSeries;
+
     /// <summary>
     /// Gets a value indicating whether the client reads this section from a native Jellyfin route
     /// (<c>NATIVE_ROUTES</c> of the client script) instead of the Section endpoint: true for a native

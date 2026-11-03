@@ -31,6 +31,22 @@ public sealed class WidgetFreshnessTests
     }
 
     [Fact]
+    public void EveryWidget_DeclaresTheSourcesItsItemsDependOn()
+    {
+        var known = typeof(SectionSources).GetFields()
+            .Where(f => f.IsLiteral)
+            .Select(f => (string)f.GetRawConstantValue()!)
+            .ToHashSet(StringComparer.Ordinal);
+
+        Assert.All(WidgetTypes.All, pair =>
+        {
+            var sources = WidgetTypes.Instance(pair.Value).Sources;
+            Assert.NotEmpty(sources);
+            Assert.All(sources, s => Assert.Contains(s, known));
+        });
+    }
+
+    [Fact]
     public void DirectWidgets_AreThePlaybackRecentlyAddedAndWatchlistRows()
     {
         var direct = WidgetTypes.All

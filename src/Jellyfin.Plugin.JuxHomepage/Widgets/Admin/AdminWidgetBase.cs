@@ -24,6 +24,8 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets.Admin;
 /// </summary>
 public abstract class AdminWidgetBase : IWidget
 {
+    private static readonly IReadOnlyList<string> AdminSources = [SectionSources.Movies, SectionSources.Series, SectionSources.Collections];
+
     /// <summary>The <c>ExtraParams</c> key of the item the section shows.</summary>
     public const string ValueParam = WidgetConfig.ValueParam;
 
@@ -78,6 +80,10 @@ public abstract class AdminWidgetBase : IWidget
 
     /// <inheritdoc/>
     public FreshnessLevel Freshness => FreshnessLevel.Deferred;
+
+    /// <inheritdoc/>
+    /// <remarks>A row can list collections (Collection widget, item types of the row).</remarks>
+    public IReadOnlyList<string> Sources => AdminSources;
 
     /// <summary>
     /// Gets the item types to include in the query.

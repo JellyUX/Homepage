@@ -91,15 +91,24 @@ public sealed class VersionedUserCache<TKey, TEntry> : IDisposable
     /// <param name="entry">The entry to drop.</param>
     public void Remove(TKey key, TEntry entry) => _entries.TryRemove(KeyValuePair.Create(key, entry));
 
-    /// <summary>Drops the entries <paramref name="match"/> names, without bumping any version.</summary>
+    /// <summary>
+    /// Drops the entries <paramref name="match"/> names, without bumping any version, under the write lock that
+    /// <see cref="Set"/> takes: <paramref name="whileLocked"/> runs first, so a write checked against a state it
+    /// changes is refused.
+    /// </summary>
     /// <param name="match">Whether an entry is dropped.</param>
-    public void RemoveWhere(Func<TKey, TEntry, bool> match)
+    /// <param name="whileLocked">Runs under the write lock before the entries are dropped.</param>
+    public void RemoveWhere(Func<TKey, TEntry, bool> match, Action? whileLocked = null)
     {
-        foreach (var entry in _entries)
+        lock (_writeLock)
         {
-            if (match(entry.Key, entry.Value))
+            whileLocked?.Invoke();
+            foreach (var entry in _entries)
             {
-                _entries.TryRemove(entry);
+                if (match(entry.Key, entry.Value))
+                {
+                    _entries.TryRemove(entry);
+                }
             }
         }
     }

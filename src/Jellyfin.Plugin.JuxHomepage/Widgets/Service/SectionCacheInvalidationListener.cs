@@ -11,9 +11,10 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets;
 /// by the client on each home screen mount (V17), and dropping the pages on each report left the cache useless
 /// during a playback (DR-008: 0 % hits). A playback end, a played toggle or a rating (the Watchlist, a like) drops
 /// the user's direct pages and marks the deferred ones stale, read again in the background while still served. An
-/// item added to or removed from the library drops every page. A configuration change or a user's settings change
-/// already drops them through the layout cache's version, and a rewritten TMDb or Rewards list drops every page
-/// from <c>TMDbCacheService</c> and <c>RewardsCacheService</c>.
+/// item added to or removed from the library drops the pages of the sections that read its kind
+/// (<see cref="SectionSources.OfItemKind"/>, REV-04.c). A configuration change or a user's settings change already
+/// drops them through the layout cache's version, and a rewritten TMDb or Rewards list drops the pages of its
+/// sections from <c>TMDbCacheService</c> and <c>RewardsCacheService</c>.
 /// </summary>
 public sealed class SectionCacheInvalidationListener : IHostedService
 {
@@ -81,5 +82,11 @@ public sealed class SectionCacheInvalidationListener : IHostedService
     private bool IsDirect(string widgetType) => _registry.GetByType(widgetType)?.Freshness != FreshnessLevel.Deferred;
 
     private void OnLibraryChanged(object? sender, ItemChangeEventArgs e) =>
-        EventHandlerGuard.Run(_logger, nameof(OnLibraryChanged), _cache.Clear);
+        EventHandlerGuard.Run(_logger, nameof(OnLibraryChanged), () =>
+        {
+            if (SectionSources.OfItemKind(e.Item.GetBaseItemKind()) is { } source)
+            {
+                _cache.ClearSources([source]);
+            }
+        });
 }

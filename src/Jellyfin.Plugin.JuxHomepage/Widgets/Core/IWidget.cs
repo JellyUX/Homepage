@@ -22,6 +22,12 @@ public interface IWidget
     /// <summary>Gets how fresh this widget's section must be when the home screen shows it.</summary>
     FreshnessLevel Freshness { get; }
 
+    /// <summary>
+    /// Gets what this widget's items depend on (<see cref="SectionSources"/>): a change to one of them drops the
+    /// section's cached pages.
+    /// </summary>
+    IReadOnlyList<string> Sources { get; }
+
     /// <summary>Gets the default minimum number of items required to display this widget.</summary>
     int DefaultMinItems { get; }
 

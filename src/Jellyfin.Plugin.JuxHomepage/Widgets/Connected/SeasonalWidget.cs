@@ -93,6 +93,9 @@ public sealed class SeasonalWidget : IWidget
     public FreshnessLevel Freshness => FreshnessLevel.Deferred;
 
     /// <inheritdoc/>
+    public IReadOnlyList<string> Sources => SectionSources.MoviesAndSeries;
+
+    /// <inheritdoc/>
     public IWidget? Resolve(Guid userId, WidgetInstanceConfig config, int rank) => this;
 
     /// <inheritdoc/>

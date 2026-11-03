@@ -111,6 +111,10 @@ public abstract class PersonalizedWidgetBase : IWidget
     /// <inheritdoc/>
     public FreshnessLevel Freshness => FreshnessLevel.Deferred;
 
+    /// <inheritdoc/>
+    /// <remarks>Chosen from the user's history, which a playback end marks stale (REV-04.b).</remarks>
+    public IReadOnlyList<string> Sources => SectionSources.MoviesAndSeries;
+
     /// <summary>
     /// Gets the item types to include in the recommendation query. Never null, unlike
     /// <see cref="Jellyfin.Plugin.JuxHomepage.Widgets.Admin.AdminWidgetBase.IncludeItemTypes"/> --

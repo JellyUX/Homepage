@@ -163,7 +163,8 @@ public sealed class WidgetService
             var stamp = _sectionResults.StampOf(key.UserId);
             var ttl = SessionTtl;
             Action<WidgetDescriptor, int, WidgetResult> keepProbedPage =
-                (descriptor, limit, page) => _sectionResults.Set(SectionOf(key.UserId, descriptor), 0, limit, page, stamp, ttl);
+                (descriptor, limit, page) => _sectionResults.Set(
+                    SectionOf(key.UserId, descriptor), 0, limit, page, stamp, ttl, _registry.GetByType(descriptor.WidgetType)?.Sources);
             var descriptors = await _layoutResolver.BuildDescriptors(key.UserId, lang, keepProbedPage, CancellationToken.None).ConfigureAwait(false);
 
             // A layout built before the user's first scoring finished is served, never cached, so an
@@ -266,7 +267,7 @@ public sealed class WidgetService
                     var stamp = _sectionResults.StampOf(section.UserId);
                     var result = await widget.GetItemsAsync(payload, CancellationToken.None).ConfigureAwait(false);
                     _ = result.Items;
-                    _sectionResults.Set(section, payload.StartIndex, payload.Limit, result, stamp, SessionTtl);
+                    _sectionResults.Set(section, payload.StartIndex, payload.Limit, result, stamp, SessionTtl, widget.Sources);
                 }
                 finally
                 {
@@ -361,7 +362,7 @@ public sealed class WidgetService
             _ = result.Items;
             if (!hit)
             {
-                _sectionResults.Set(section, payload.StartIndex, payload.Limit, result, stamp, SessionTtl);
+                _sectionResults.Set(section, payload.StartIndex, payload.Limit, result, stamp, SessionTtl, widget.Sources);
             }
 
             return result;
