@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { injectedAssets, compareAssets, clientI18nScript, servedAssets } from '../ci/asset-budget.mjs';
+import { injectedAssets, compareAssets, clientI18nScript, servedAssets, firstRenderAssets, compareFirstRender } from '../ci/asset-budget.mjs';
 
 describe('clientI18nScript', () => {
     const en = JSON.stringify({ 'client.a': 'Don’t "go" <b>', 'admin.x': 'Admin only' });
@@ -61,5 +61,40 @@ describe('servedAssets (A-05.a)', () => {
     it('adds every embedded web file the injected list leaves out: admin page, loadSections fragment', () => {
         const files = ['jux-a.js', 'config.html', 'config.js', 'config.css', 'jux-loadsections-inject.js', 'jux-native-selectors.json'];
         expect(servedAssets(['jux-i18n.js', 'jux-a.js'], files)).toEqual(['jux-i18n.js', 'jux-a.js', 'config.css', 'config.html', 'config.js', 'jux-loadsections-inject.js']);
+    });
+});
+
+// H-04 (DR-031): the first render (the home bundle and the stylesheets linked in <head>) has a total budget, so a
+// script moved into the home bundle shows even when no file grew.
+describe('first render total (H-04)', () => {
+    const source = `
+    private static readonly ClientAsset[] ClientAssets =
+    [
+        new("jux-homepage.css", IsStylesheet: true, Module: null),
+        new("jux-ui.css", IsStylesheet: true, Module: null, IsJuxUi: true),
+        new(ClientI18nAsset, IsStylesheet: false, Module: null),
+        new("jux-core.js", IsStylesheet: false, Module: null),
+        new("jux-ui.js", IsStylesheet: false, Module: null, IsJuxUi: true),
+    ];
+
+    private static readonly HashSet<string> HomeBundleScripts = new(StringComparer.Ordinal)
+    {
+        ClientI18nAsset, "jux-core.js",
+    };`;
+
+    it('reads the home bundle scripts and the stylesheets linked at once (not the later jux-ui.css)', () => {
+        expect(firstRenderAssets(source)).toEqual(['jux-i18n.js', 'jux-core.js', 'jux-homepage.css']);
+    });
+
+    it('refuses a source where the home bundle cannot be read', () => {
+        expect(() => firstRenderAssets('class X {}')).toThrow(/HomeBundleScripts/);
+    });
+
+    it('sums the first render files against the budget, 2 % either way', () => {
+        const measured = { 'a.js': 600, 'b.css': 400, 'later.js': 5000 };
+        expect(compareFirstRender(measured, ['a.js', 'b.css'], 1000)).toEqual([]);
+        expect(compareFirstRender(measured, ['a.js', 'b.css', 'later.js'], 1000)).toEqual([expect.stringContaining('first render is 6000 B gzip')]);
+        expect(compareFirstRender(measured, ['a.js'], 1000)).toEqual([expect.stringContaining('lower the budget')]);
+        expect(compareFirstRender(measured, ['a.js'], undefined)).toEqual([expect.stringContaining('no firstRender budget')]);
     });
 });

@@ -4,6 +4,9 @@
 // of the language files, is rebuilt here as the server serves it (A-15.a). Fails when an asset exceeds its
 // budget by more than 2 % or falls more than 2 % under it, has no budget, or a budget names no asset; a
 // budget only rises with a "Budget: <reason>" commit trailer (ci/static-checks.mjs).
+// H-04 (DR-031): the first render (TransformationPatches.HomeBundleScripts and the stylesheets linked in <head>, all
+// but jux-ui.css) also has a total budget, "firstRender": the sum of their gzip sizes, 2 % either way, so a script
+// moved into the home bundle fails even when no file grew.
 //   node ci/asset-budget.mjs           check against ci/asset-budget.json
 //   node ci/asset-budget.mjs --print   print the measured sizes as the JSON "assets" table
 
@@ -24,6 +27,37 @@ const TOLERANCE = 0.02;
 export function injectedAssets(source) {
     const list = /ClientAsset\[\] ClientAssets =\s*\[([\s\S]*?)\];/.exec(source)?.[1] ?? '';
     return [...list.matchAll(/new(?:\s+ClientAsset)?\(\s*(?:"([\w.-]+)"|(ClientI18nAsset))\s*,/g)].map((m) => m[1] ?? I18N_ASSET);
+}
+
+/**
+ * The assets of the first render: the scripts of the home bundle (TransformationPatches.HomeBundleScripts), then the
+ * stylesheets index.html links at once (those without IsJuxUi, which jux-core.js adds after the load event).
+ * @param {string} source The C# source of TransformationPatches.
+ * @returns {string[]}
+ */
+export function firstRenderAssets(source) {
+    const set = /HomeBundleScripts = new\(StringComparer\.Ordinal\)\s*\{([\s\S]*?)\};/.exec(source)?.[1];
+    if (!set) { throw new Error('TransformationPatches.HomeBundleScripts not found: update ci/asset-budget.mjs'); }
+    const scripts = [...set.matchAll(/"([\w.-]+)"|(ClientI18nAsset)/g)].map((m) => m[1] ?? I18N_ASSET);
+    const list = /ClientAsset\[\] ClientAssets =\s*\[([\s\S]*?)\];/.exec(source)?.[1] ?? '';
+    const styles = [...list.matchAll(/new(?:\s+ClientAsset)?\(\s*"([\w.-]+)"\s*,\s*IsStylesheet:\s*true([^)]*)\)/g)]
+        .filter((m) => !/IsJuxUi:\s*true/.test(m[2])).map((m) => m[1]);
+    return [...scripts, ...styles];
+}
+
+/**
+ * Compares the summed gzip size of the first render with its budget.
+ * @param {Record<string, number>} measured
+ * @param {string[]} files
+ * @param {number | undefined} budget
+ * @returns {string[]} errors
+ */
+export function compareFirstRender(measured, files, budget) {
+    const size = files.reduce((sum, f) => sum + measured[f], 0);
+    if (typeof budget !== 'number') { return [`the first render (${size} B gzip) has no firstRender budget in ${BUDGET_FILE}.`]; }
+    if (size > budget * (1 + TOLERANCE)) { return [`the first render is ${size} B gzip (${files.join(', ')}), over its budget of ${budget} B + ${TOLERANCE * 100} %.`]; }
+    if (size < budget * (1 - TOLERANCE)) { return [`the first render is ${size} B gzip, under its budget of ${budget} B: lower the budget in the same commit.`]; }
+    return [];
 }
 
 /**
@@ -85,8 +119,10 @@ function gzipSize(buffer) {
     return gzipSync(Buffer.from(buffer.toString('utf8').replace(/\r\n/g, '\n'), 'utf8')).length;
 }
 
+function readPatches() { return readFileSync(join(PLUGIN_DIR, 'Inject/TransformationPatches.cs'), 'utf8'); }
+
 function measure() {
-    const source = readFileSync(join(PLUGIN_DIR, 'Inject/TransformationPatches.cs'), 'utf8');
+    const source = readPatches();
     const languages = readdirSync(join(PLUGIN_DIR, 'Localization'))
         .filter((f) => f.endsWith('.json'))
         .sort()
@@ -103,11 +139,15 @@ function main() {
         console.log(JSON.stringify(measured, null, 4));
         return;
     }
-    const { errors, warnings } = compareAssets(measured, JSON.parse(readFileSync(BUDGET_FILE, 'utf8')).assets);
+    const budget = JSON.parse(readFileSync(BUDGET_FILE, 'utf8'));
+    const { errors, warnings } = compareAssets(measured, budget.assets);
+    const firstRender = firstRenderAssets(readPatches());
+    errors.push(...compareFirstRender(measured, firstRender, budget.firstRender));
     warnings.forEach((w) => console.log(`warning: ${w}`));
     errors.forEach((e) => console.error(`error: ${e}`));
     const total = Object.values(measured).reduce((a, b) => a + b, 0);
-    console.log(`Asset budget: ${Object.keys(measured).length} assets, ${total} B gzip, ${errors.length} error(s), ${warnings.length} warning(s).`);
+    const firstRenderSize = firstRender.reduce((sum, f) => sum + measured[f], 0);
+    console.log(`Asset budget: ${Object.keys(measured).length} assets, ${total} B gzip, first render ${firstRenderSize} B, ${errors.length} error(s), ${warnings.length} warning(s).`);
     process.exitCode = errors.length > 0 ? 1 : 0;
 }
 
