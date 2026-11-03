@@ -76,6 +76,9 @@ public abstract class AdminWidgetBase : IWidget
     /// <inheritdoc/>
     public virtual WidgetCategory Category => WidgetCategory.Admin;
 
+    /// <inheritdoc/>
+    public FreshnessLevel Freshness => FreshnessLevel.Deferred;
+
     /// <summary>
     /// Gets the item types to include in the query.
     /// Override and return <see langword="null"/> to include all item types (e.g. for collections,

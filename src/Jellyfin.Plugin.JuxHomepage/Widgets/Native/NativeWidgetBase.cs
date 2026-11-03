@@ -58,6 +58,13 @@ public abstract class NativeWidgetBase : IWidget
     /// <inheritdoc/>
     public virtual WidgetCategory Category => WidgetCategory.Native;
 
+    /// <inheritdoc/>
+    /// <remarks>
+    /// Direct: the playback rows, the recently added rows and the Watchlist. A native widget whose section may be
+    /// cached overrides it (My Media).
+    /// </remarks>
+    public virtual FreshnessLevel Freshness => FreshnessLevel.Direct;
+
     /// <summary>
     /// Gets a value indicating whether the client reads this section from a native Jellyfin route
     /// (<c>NATIVE_ROUTES</c> of the client script) instead of the Section endpoint: true for a native

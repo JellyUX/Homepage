@@ -52,6 +52,9 @@ public abstract class LocalLibraryWidgetBase : IWidget
     public WidgetCategory Category => WidgetCategory.Admin;
 
     /// <inheritdoc/>
+    public FreshnessLevel Freshness => FreshnessLevel.Deferred;
+
+    /// <inheritdoc/>
     public int DefaultMinItems => 4;
 
     /// <inheritdoc/>

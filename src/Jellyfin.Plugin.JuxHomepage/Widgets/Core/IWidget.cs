@@ -19,6 +19,9 @@ public interface IWidget
     /// <summary>Gets the category that classifies this widget's data source.</summary>
     WidgetCategory Category { get; }
 
+    /// <summary>Gets how fresh this widget's section must be when the home screen shows it.</summary>
+    FreshnessLevel Freshness { get; }
+
     /// <summary>Gets the default minimum number of items required to display this widget.</summary>
     int DefaultMinItems { get; }
 

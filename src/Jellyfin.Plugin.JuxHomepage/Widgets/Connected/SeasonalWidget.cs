@@ -90,6 +90,9 @@ public sealed class SeasonalWidget : IWidget
     public IReadOnlyList<WidgetExtraParam> DefaultExtraParams => [new WidgetExtraParam { Key = ValueParam, Value = string.Empty }];
 
     /// <inheritdoc/>
+    public FreshnessLevel Freshness => FreshnessLevel.Deferred;
+
+    /// <inheritdoc/>
     public IWidget? Resolve(Guid userId, WidgetInstanceConfig config, int rank) => this;
 
     /// <inheritdoc/>

@@ -37,6 +37,10 @@ public sealed class MyMediaWidget : NativeWidgetBase
     public override string WidgetType => "jux.native.my-media";
 
     /// <inheritdoc/>
+    /// <remarks>The user's libraries, which change with the configuration.</remarks>
+    public override FreshnessLevel Freshness => FreshnessLevel.Deferred;
+
+    /// <inheritdoc/>
     public override int DefaultMinItems => 1;
 
     /// <inheritdoc/>

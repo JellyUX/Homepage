@@ -108,6 +108,9 @@ public abstract class PersonalizedWidgetBase : IWidget
     /// <inheritdoc/>
     public virtual WidgetCategory Category => WidgetCategory.Personalized;
 
+    /// <inheritdoc/>
+    public FreshnessLevel Freshness => FreshnessLevel.Deferred;
+
     /// <summary>
     /// Gets the item types to include in the recommendation query. Never null, unlike
     /// <see cref="Jellyfin.Plugin.JuxHomepage.Widgets.Admin.AdminWidgetBase.IncludeItemTypes"/> --

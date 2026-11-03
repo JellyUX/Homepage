@@ -87,6 +87,9 @@ public abstract class ConnectedWidgetBase<T> : IWidget
     /// <inheritdoc/>
     public virtual WidgetCategory Category => WidgetCategory.Connected;
 
+    /// <inheritdoc/>
+    public FreshnessLevel Freshness => FreshnessLevel.Deferred;
+
     /// <summary>
     /// Returns the currently cached external items for this widget's data set (e.g. trending movies,
     /// or a Rewards instance's award winners).
