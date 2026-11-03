@@ -186,6 +186,12 @@ public sealed class SectionResultCacheTests : IDisposable
         _clock.Advance(LibraryChangeBatcher.QuietDelay);
         Assert.False(_cache.TryGet(Section(other), 0, 20, out _, out _));
 
+        // A removed library may take its titles without one event each: every library source is cleared.
+        _cache.Set(Section(other), 0, 20, Page(), _cache.StampOf(other), Ttl, [SectionSources.Movies]);
+        library.Raise(m => m.ItemRemoved += null, library.Object, new ItemChangeEventArgs { Item = new CollectionFolder() });
+        _clock.Advance(LibraryChangeBatcher.QuietDelay);
+        Assert.False(_cache.TryGet(Section(other), 0, 20, out _, out _));
+
         await listener.StopAsync(CancellationToken.None);
         _cache.Set(Section(other), 0, 20, Page(), _cache.StampOf(other), Ttl);
         Added(library, new Movie());

@@ -32,6 +32,20 @@ public static class SectionSources
     /// <summary>A TMDb list matched against the library's movies and series.</summary>
     public static readonly IReadOnlyList<string> TMDbList = [Movies, Series, TMDb];
 
+    /// <summary>Every library source, which a removed folder or library may change as a whole.</summary>
+    public static readonly IReadOnlyList<string> AllLibrary = [Movies, Series, Collections, Libraries];
+
+    /// <summary>
+    /// The sources a removed library item changes: every library source for a folder or a library, whose children
+    /// Jellyfin may remove without one event each; otherwise <see cref="OfItemKind"/>.
+    /// </summary>
+    /// <param name="kind">The removed item's kind.</param>
+    /// <returns>The sources, empty when no section reads its kind.</returns>
+    public static IReadOnlyList<string> OfRemovedItemKind(BaseItemKind kind) =>
+        kind is BaseItemKind.Folder or BaseItemKind.CollectionFolder or BaseItemKind.UserView or BaseItemKind.AggregateFolder
+            ? AllLibrary
+            : OfItemKind(kind) is { } source ? [source] : [];
+
     /// <summary>
     /// The source an added or removed library item changes, or null when no section reads its kind (people,
     /// music, photos...).

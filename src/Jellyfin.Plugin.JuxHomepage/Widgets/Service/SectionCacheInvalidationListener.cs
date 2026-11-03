@@ -71,7 +71,7 @@ public sealed class SectionCacheInvalidationListener : IHostedService, IDisposab
     {
         _userDataManager.UserDataSaved += OnUserDataSaved;
         _libraryManager.ItemAdded += OnLibraryChanged;
-        _libraryManager.ItemRemoved += OnLibraryChanged;
+        _libraryManager.ItemRemoved += OnLibraryItemRemoved;
         _taskManager.TaskExecuting += OnTaskExecuting;
         _taskManager.TaskCompleted += OnTaskCompleted;
         _scoring.SnapshotStored += OnSnapshotStored;
@@ -83,7 +83,7 @@ public sealed class SectionCacheInvalidationListener : IHostedService, IDisposab
     {
         _userDataManager.UserDataSaved -= OnUserDataSaved;
         _libraryManager.ItemAdded -= OnLibraryChanged;
-        _libraryManager.ItemRemoved -= OnLibraryChanged;
+        _libraryManager.ItemRemoved -= OnLibraryItemRemoved;
         _taskManager.TaskExecuting -= OnTaskExecuting;
         _taskManager.TaskCompleted -= OnTaskCompleted;
         _scoring.SnapshotStored -= OnSnapshotStored;
@@ -128,6 +128,15 @@ public sealed class SectionCacheInvalidationListener : IHostedService, IDisposab
     /// </summary>
     private void OnSnapshotStored(object? sender, Guid userId) =>
         EventHandlerGuard.Run(_logger, nameof(OnSnapshotStored), () => _cache.MarkStale(userId, _ => false));
+
+    private void OnLibraryItemRemoved(object? sender, ItemChangeEventArgs e) =>
+        EventHandlerGuard.Run(_logger, nameof(OnLibraryItemRemoved), () =>
+        {
+            foreach (var source in SectionSources.OfRemovedItemKind(e.Item.GetBaseItemKind()))
+            {
+                _libraryChanges.Changed(source);
+            }
+        });
 
     private void OnTaskExecuting(object? sender, GenericEventArgs<IScheduledTaskWorker> e) =>
         EventHandlerGuard.Run(_logger, nameof(OnTaskExecuting), () =>
