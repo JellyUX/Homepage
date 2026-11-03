@@ -311,6 +311,13 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
             return cached!;
         }
 
+        // S10 (DR-032): the scoring of a user who played nothing is empty, so the default home is served at once
+        // rather than after a wait of up to the first-compute timeout behind other users' computations.
+        if (!HasPlayedAnything(userId))
+        {
+            return ScoreSnapshot.CreateEmpty(UtcNow, Today);
+        }
+
         if (compute is not null && WaitForFirstCompute(compute))
         {
             return compute.Result;
@@ -318,6 +325,19 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
 
         _pendingServed[userId] = 0;
         return ScoreSnapshot.CreateEmpty(UtcNow, Today);
+    }
+
+    /// <summary>Whether the user played at least one movie or episode: one indexed id read, no item built.</summary>
+    private bool HasPlayedAnything(Guid userId)
+    {
+        var user = _userManager.GetUserById(userId);
+        return user is not null && _libraryManager.GetItemIds(new InternalItemsQuery(user)
+        {
+            IncludeItemTypes = [BaseItemKind.Movie, BaseItemKind.Episode],
+            IsPlayed = true,
+            Recursive = true,
+            Limit = 1
+        }).Count > 0;
     }
 
     private bool HasFreshSnapshot(Guid userId)

@@ -34,7 +34,7 @@ public sealed class UserAccessWatchTests : IDisposable
 
         // The watched films the user's access lets the scoring read.
         var libraryManager = new Mock<ILibraryManager>();
-        libraryManager.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
+        libraryManager.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns((InternalItemsQuery q) => q.IsPlayed == true ? [Guid.NewGuid()] : []);
         libraryManager
             .Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
             .Returns((InternalItemsQuery q) =>

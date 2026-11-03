@@ -43,6 +43,9 @@ public sealed class ScoringServiceTests
         var libraryManagerMock = new Mock<ILibraryManager>();
         libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
         libraryManagerMock
+            .Setup(m => m.GetItemIds(It.Is<InternalItemsQuery>(q => q.IsPlayed == true)))
+            .Returns(() => watched.Concat(episodes).Select(i => i.Id).Take(1).ToList());
+        libraryManagerMock
             .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(
                 q => q.IsFavorite != true && q.IncludeItemTypes.Contains(BaseItemKind.Movie))))
             .Returns(watched);
@@ -95,16 +98,20 @@ public sealed class ScoringServiceTests
     private static ScoringService BuildSlowService(
         ComputeCounters counters,
         ManualTimeProvider clock,
-        TimeSpan firstComputeTimeout)
+        TimeSpan firstComputeTimeout,
+        Guid? userWithoutHistory = null)
     {
         var userManagerMock = new Mock<IUserManager>();
         userManagerMock
             .Setup(m => m.GetUserById(It.IsAny<Guid>()))
-            .Returns(() => new User("test", "Default", "Default"));
+            .Returns((Guid id) => new User(id == userWithoutHistory ? "newcomer" : "test", "Default", "Default"));
 
         var genreMovie = new Movie { Id = Guid.NewGuid(), Name = "Film", Genres = ["Drama"] };
         var libraryManagerMock = new Mock<ILibraryManager>();
         libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
+        libraryManagerMock
+            .Setup(m => m.GetItemIds(It.Is<InternalItemsQuery>(q => q.IsPlayed == true)))
+            .Returns((InternalItemsQuery q) => q.User?.Username == "newcomer" ? [] : [genreMovie.Id]);
         libraryManagerMock
             .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(
                 q => q.IsFavorite != true && q.IncludeItemTypes.Contains(BaseItemKind.Movie))))
@@ -268,6 +275,31 @@ public sealed class ScoringServiceTests
     }
 
     [Fact]
+    public async Task GetSnapshot_FirstAccessOfAUserWhoPlayedNothing_ServesTheDefaultHomeWithoutWaiting()
+    {
+        // S10 (DR-032): the scoring of a user with no history is empty anyway, so the request does not wait for
+        // it, even while other computations hold the queue; nothing is pending, the default home is final.
+        var counters = new ComputeCounters();
+        counters.Gate.Reset();
+        var clock = new ManualTimeProvider();
+        var newcomer = Guid.NewGuid();
+        var service = BuildSlowService(counters, clock, TimeSpan.FromSeconds(2), userWithoutHistory: newcomer);
+        var busy = OnOwnThread(() => service.GetTopGenres(Guid.NewGuid(), 5));
+        WaitUntil(() => clock.ActiveTimers == 1);
+
+        var newcomerCall = OnOwnThread(() => service.GetTopGenres(newcomer, 5));
+        var servedAtOnce = SpinWait.SpinUntil(() => newcomerCall.IsCompleted, TimeSpan.FromSeconds(10));
+        counters.Gate.Set();
+        clock.Advance(TimeSpan.FromSeconds(2));
+        await Task.WhenAll(busy, newcomerCall);
+        await service.WhenIdleForTesting();
+
+        Assert.True(servedAtOnce, "the request waited for the scoring");
+        Assert.Empty(await newcomerCall);
+        Assert.False(service.TakePendingServed(newcomer));
+    }
+
+    [Fact]
     public async Task GetSnapshot_StaleSnapshot_ServedImmediatelyWhileRecomputing()
     {
         // The recomputation is blocked and the clock never moves: the stale read can only return
@@ -385,6 +417,7 @@ public sealed class ScoringServiceTests
             timeProvider: clock);
 
         service.GetTopGenres(user.Id, 5);
+        await service.WhenIdleForTesting();
         clock.UtcNowValue = Noon.AddMinutes(14);
         service.GetTopGenres(user.Id, 5);
         Assert.Equal(1, computations);

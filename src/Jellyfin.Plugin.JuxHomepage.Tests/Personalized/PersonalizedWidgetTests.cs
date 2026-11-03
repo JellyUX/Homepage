@@ -52,7 +52,7 @@ public sealed class PersonalizedWidgetTests
         var episodes = series.Select(s => (BaseItem)new Episode { Id = Guid.NewGuid(), SeriesId = s.Id }).ToList();
 
         var libraryManagerMock = new Mock<ILibraryManager>();
-        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns((InternalItemsQuery q) => q.IsPlayed == true ? [Guid.NewGuid()] : []);
         libraryManagerMock
             .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(
                 q => q.IsFavorite != true && q.IncludeItemTypes.Contains(BaseItemKind.Movie))))
@@ -201,7 +201,7 @@ public sealed class PersonalizedWidgetTests
 
         InternalItemsQuery? capturedQuery = null;
         var libraryManagerMock = new Mock<ILibraryManager>();
-        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns((InternalItemsQuery q) => q.IsPlayed == true ? [Guid.NewGuid()] : []);
         libraryManagerMock
             .Setup(m => m.GetItemsResult(It.IsAny<InternalItemsQuery>()))
             .Callback<InternalItemsQuery>(q => capturedQuery = q)
@@ -234,7 +234,7 @@ public sealed class PersonalizedWidgetTests
 
         InternalItemsQuery? capturedQuery = null;
         var libraryManagerMock = new Mock<ILibraryManager>();
-        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns((InternalItemsQuery q) => q.IsPlayed == true ? [Guid.NewGuid()] : []);
         libraryManagerMock
             .Setup(m => m.GetItemsResult(It.IsAny<InternalItemsQuery>()))
             .Callback<InternalItemsQuery>(q => capturedQuery = q)
@@ -342,7 +342,7 @@ public sealed class PersonalizedWidgetTests
 
         InternalItemsQuery? capturedQuery = null;
         var libraryManagerMock = new Mock<ILibraryManager>();
-        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns((InternalItemsQuery q) => q.IsPlayed == true ? [Guid.NewGuid()] : []);
         libraryManagerMock
             .Setup(m => m.GetItemsResult(It.IsAny<InternalItemsQuery>()))
             .Callback<InternalItemsQuery>(q => capturedQuery = q)
@@ -377,7 +377,7 @@ public sealed class PersonalizedWidgetTests
         userManagerMock.Setup(m => m.GetUserById(It.IsAny<Guid>())).Returns(user);
 
         var libraryManagerMock = new Mock<ILibraryManager>();
-        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns((InternalItemsQuery q) => q.IsPlayed == true ? [Guid.NewGuid()] : []);
         libraryManagerMock
             .Setup(m => m.GetItemList(It.Is<InternalItemsQuery>(
                 q => q.IsFavorite != true && q.IncludeItemTypes.Contains(BaseItemKind.Movie))))
@@ -467,7 +467,7 @@ public sealed class PersonalizedWidgetTests
 
         InternalItemsQuery? capturedQuery = null;
         var libraryManagerMock = new Mock<ILibraryManager>();
-        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns((InternalItemsQuery q) => q.IsPlayed == true ? [Guid.NewGuid()] : []);
         libraryManagerMock.Setup(m => m.GetItemById(reference.Id)).Returns(reference);
         libraryManagerMock
             .Setup(m => m.GetItemsResult(It.IsAny<InternalItemsQuery>()))
@@ -510,7 +510,7 @@ public sealed class PersonalizedWidgetTests
         userManagerMock.Setup(m => m.GetUserById(user.Id)).Returns(user);
         InternalItemsQuery? capturedQuery = null;
         var libraryManagerMock = new Mock<ILibraryManager>();
-        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns((InternalItemsQuery q) => q.IsPlayed == true ? [Guid.NewGuid()] : []);
         libraryManagerMock.Setup(m => m.GetItemById(reference.Id)).Returns(reference);
         libraryManagerMock
             .Setup(m => m.GetItemsResult(It.IsAny<InternalItemsQuery>()))
@@ -543,7 +543,7 @@ public sealed class PersonalizedWidgetTests
         userManagerMock.Setup(m => m.GetUserById(user.Id)).Returns(user);
 
         var libraryManagerMock = new Mock<ILibraryManager>();
-        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns((InternalItemsQuery q) => q.IsPlayed == true ? [Guid.NewGuid()] : []);
         libraryManagerMock.Setup(m => m.GetItemById(It.IsAny<Guid>())).Returns((BaseItem?)null);
         libraryManagerMock
             .Setup(m => m.GetItemsResult(It.IsAny<InternalItemsQuery>()))
@@ -577,7 +577,7 @@ public sealed class PersonalizedWidgetTests
 
         InternalItemsQuery? capturedQuery = null;
         var libraryManagerMock = new Mock<ILibraryManager>();
-        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
+        libraryManagerMock.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns((InternalItemsQuery q) => q.IsPlayed == true ? [Guid.NewGuid()] : []);
         libraryManagerMock.Setup(m => m.GetItemById(reference.Id)).Returns(reference);
         libraryManagerMock
             .Setup(m => m.GetItemsResult(It.IsAny<InternalItemsQuery>()))
