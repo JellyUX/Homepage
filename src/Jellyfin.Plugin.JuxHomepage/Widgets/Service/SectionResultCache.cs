@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 namespace Jellyfin.Plugin.JuxHomepage.Widgets;
 
 /// <summary>
@@ -9,10 +11,14 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets;
 /// <para>
 /// A page is served until the layout TTL it was stored with ends, and never after the user's layout
 /// was invalidated or the configuration changed (<see cref="SessionCache.VersionOf"/>), nor after
-/// <see cref="Invalidate"/> (the user's data changed: a title watched, resumed or liked) or
 /// <see cref="Clear"/> (an item was added to or removed from the library). A page computed before one
 /// of these is never stored (<c>Section_InvalidatedWhileRead_IsNotStored</c>). The versions and the cleanup are
 /// those of <see cref="VersionedUserCache{TKey, TEntry}"/>.
+/// </para>
+/// <para>
+/// <see cref="MarkStale"/> (a playback end, a played toggle or a rating, REV-04.b) drops the user's direct pages and
+/// marks the deferred ones stale: <see cref="TryGet"/> still serves them, flagged, so the caller reads them again in
+/// the background (DR-032).
 /// </para>
 /// </summary>
 public sealed class SectionResultCache : IDisposable
@@ -21,6 +27,7 @@ public sealed class SectionResultCache : IDisposable
 
     private readonly VersionedUserCache<SectionId, Entry> _entries;
     private readonly SessionCache _sessionCache;
+    private readonly ConcurrentDictionary<Guid, long> _staleMarks = new();
 
     /// <summary>
     /// Initializes a new instance of the <see cref="SectionResultCache"/> class.
@@ -32,7 +39,7 @@ public sealed class SectionResultCache : IDisposable
         _sessionCache = sessionCache;
         _entries = new(
             id => id.UserId,
-            (id, entry, now) => now >= entry.ExpiresAt || entry.Stamp != StampOf(id.UserId),
+            (id, entry, now) => now >= entry.ExpiresAt || !entry.Stamp.SameState(StampOf(id.UserId)),
             TimeSpan.FromMinutes(CleanupIntervalMinutes),
             timeProvider);
     }
@@ -43,7 +50,7 @@ public sealed class SectionResultCache : IDisposable
     /// <param name="userId">The user.</param>
     /// <returns>The stamp.</returns>
     public Stamp StampOf(Guid userId) =>
-        new(_sessionCache.VersionOf(userId), _entries.VersionOf(userId));
+        new(_sessionCache.VersionOf(userId), _entries.VersionOf(userId), _staleMarks.GetValueOrDefault(userId));
 
     /// <summary>
     /// Returns the stored page of a section, when it is the requested one and still valid.
@@ -52,20 +59,24 @@ public sealed class SectionResultCache : IDisposable
     /// <param name="startIndex">The requested start index.</param>
     /// <param name="limit">The requested page size.</param>
     /// <param name="result">The page, or null on a miss.</param>
+    /// <param name="stale">True when the page was stored before the user's last <see cref="MarkStale"/>.</param>
     /// <returns>True on a hit.</returns>
-    public bool TryGet(SectionId id, int startIndex, int limit, out WidgetResult? result)
+    public bool TryGet(SectionId id, int startIndex, int limit, out WidgetResult? result, out bool stale)
     {
+        var current = StampOf(id.UserId);
         if (_entries.TryGet(id, out var entry)
             && entry.StartIndex == startIndex
             && entry.Limit == limit
-            && entry.Stamp == StampOf(id.UserId)
+            && entry.Stamp.SameState(current)
             && _entries.UtcNow < entry.ExpiresAt)
         {
             result = entry.Result;
+            stale = entry.Stamp.StaleMark != current.StaleMark;
             return true;
         }
 
         result = null;
+        stale = false;
         return false;
     }
 
@@ -83,7 +94,7 @@ public sealed class SectionResultCache : IDisposable
     public bool Set(SectionId id, int startIndex, int limit, WidgetResult result, Stamp stamp, TimeSpan ttl)
     {
         var entry = new Entry(startIndex, limit, result, stamp, _entries.UtcNow + ttl);
-        return _entries.Set(id, entry, () => stamp == StampOf(id.UserId));
+        return _entries.Set(id, entry, () => stamp.SameState(StampOf(id.UserId)));
     }
 
     /// <summary>
@@ -99,9 +110,17 @@ public sealed class SectionResultCache : IDisposable
         }
     }
 
-    /// <summary>Drops every stored page of the user.</summary>
+    /// <summary>
+    /// Drops the user's pages of a direct section and marks the others stale (REV-04.b): they are still served,
+    /// flagged by <see cref="TryGet"/>, until a page read after this call replaces them.
+    /// </summary>
     /// <param name="userId">The user.</param>
-    public void Invalidate(Guid userId) => _entries.Invalidate(userId);
+    /// <param name="isDirect">Whether a widget type is direct (<see cref="FreshnessLevel.Direct"/>).</param>
+    public void MarkStale(Guid userId, Func<string, bool> isDirect)
+    {
+        _staleMarks.AddOrUpdate(userId, 1, (_, v) => v + 1);
+        _entries.RemoveWhere((id, _) => id.UserId == userId && isDirect(id.WidgetType));
+    }
 
     /// <summary>Drops every stored page.</summary>
     public void Clear() => _entries.Clear();
@@ -121,10 +140,20 @@ public sealed class SectionResultCache : IDisposable
     /// </summary>
     internal void RunCleanupForTesting() => _entries.Cleanup();
 
-    /// <summary>A user's versions: the layout cache's and this cache's own.</summary>
+    /// <summary>A user's versions: the layout cache's, this cache's own, and the user's stale mark.</summary>
     /// <param name="Layout">The layout cache version (<see cref="SessionCache.VersionOf"/>).</param>
     /// <param name="Sections">This cache's version for the user.</param>
-    public readonly record struct Stamp(long Layout, long Sections);
+    /// <param name="StaleMark">How many times <see cref="MarkStale"/> ran for the user.</param>
+    public readonly record struct Stamp(long Layout, long Sections, long StaleMark)
+    {
+        /// <summary>
+        /// Whether a page stamped with this stamp may still be served under <paramref name="current"/>: the stale
+        /// mark only flags a page, it never drops it.
+        /// </summary>
+        /// <param name="current">The user's current stamp.</param>
+        /// <returns>True when the layout and section versions are the same.</returns>
+        public bool SameState(Stamp current) => Layout == current.Layout && Sections == current.Sections;
+    }
 
     private sealed record Entry(int StartIndex, int Limit, WidgetResult Result, Stamp Stamp, DateTime ExpiresAt);
 }

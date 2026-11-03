@@ -42,11 +42,11 @@ public sealed class SectionResultCacheTests : IDisposable
         var page = Page();
         Assert.True(_cache.Set(id, 0, 20, page, _cache.StampOf(_user), Ttl));
 
-        Assert.True(_cache.TryGet(id, 0, 20, out var hit));
+        Assert.True(_cache.TryGet(id, 0, 20, out var hit, out _));
         Assert.Same(page, hit);
-        Assert.False(_cache.TryGet(id, 20, 20, out _));
-        Assert.False(_cache.TryGet(id, 0, 10, out _));
-        Assert.False(_cache.TryGet(Section(Guid.NewGuid()), 0, 20, out _));
+        Assert.False(_cache.TryGet(id, 20, 20, out _, out _));
+        Assert.False(_cache.TryGet(id, 0, 10, out _, out _));
+        Assert.False(_cache.TryGet(Section(Guid.NewGuid()), 0, 20, out _, out _));
     }
 
     [Fact]
@@ -57,8 +57,8 @@ public sealed class SectionResultCacheTests : IDisposable
         _cache.Set(id, 20, 20, Page(), _cache.StampOf(_user), Ttl);
 
         Assert.Equal(1, _cache.CountForTesting());
-        Assert.False(_cache.TryGet(id, 0, 20, out _));
-        Assert.True(_cache.TryGet(id, 20, 20, out _));
+        Assert.False(_cache.TryGet(id, 0, 20, out _, out _));
+        Assert.True(_cache.TryGet(id, 20, 20, out _, out _));
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public sealed class SectionResultCacheTests : IDisposable
     {
         _cache.Set(new SectionId(_user, "w", string.Empty, string.Empty), 0, 20, Page(), _cache.StampOf(_user), Ttl);
 
-        Assert.True(_cache.TryGet(new SectionId(_user, "w", null, null), 0, 20, out _));
+        Assert.True(_cache.TryGet(new SectionId(_user, "w", null, null), 0, 20, out _, out _));
     }
 
     [Fact]
@@ -76,9 +76,9 @@ public sealed class SectionResultCacheTests : IDisposable
         _cache.Set(id, 0, 20, Page(), _cache.StampOf(_user), Ttl);
 
         _clock.UtcNowValue += Ttl - TimeSpan.FromSeconds(1);
-        Assert.True(_cache.TryGet(id, 0, 20, out _));
+        Assert.True(_cache.TryGet(id, 0, 20, out _, out _));
         _clock.UtcNowValue += TimeSpan.FromSeconds(1);
-        Assert.False(_cache.TryGet(id, 0, 20, out _));
+        Assert.False(_cache.TryGet(id, 0, 20, out _, out _));
     }
 
     [Fact]
@@ -87,38 +87,31 @@ public sealed class SectionResultCacheTests : IDisposable
         var id = Section(_user);
         _cache.Set(id, 0, 20, Page(), _cache.StampOf(_user), Ttl);
         _sessionCache.Clear();
-        Assert.False(_cache.TryGet(id, 0, 20, out _));
+        Assert.False(_cache.TryGet(id, 0, 20, out _, out _));
 
         _cache.Set(id, 0, 20, Page(), _cache.StampOf(_user), Ttl);
         _sessionCache.Invalidate(_user);
-        Assert.False(_cache.TryGet(id, 0, 20, out _));
+        Assert.False(_cache.TryGet(id, 0, 20, out _, out _));
     }
 
     [Fact]
-    public void Invalidate_DropsThatUsersPagesOnly_Clear_DropsEveryPage()
+    public void Clear_DropsEveryUsersPages()
     {
         var other = Guid.NewGuid();
         _cache.Set(Section(_user), 0, 20, Page(), _cache.StampOf(_user), Ttl);
         _cache.Set(Section(other), 0, 20, Page(), _cache.StampOf(other), Ttl);
 
-        _cache.Invalidate(_user);
-        Assert.False(_cache.TryGet(Section(_user), 0, 20, out _));
-        Assert.True(_cache.TryGet(Section(other), 0, 20, out _));
-
         _cache.Clear();
-        Assert.False(_cache.TryGet(Section(other), 0, 20, out _));
+
+        Assert.False(_cache.TryGet(Section(_user), 0, 20, out _, out _));
+        Assert.False(_cache.TryGet(Section(other), 0, 20, out _, out _));
     }
 
     [Fact]
     public void Section_InvalidatedWhileRead_IsNotStored()
     {
-        // A page computed before the user's data changed reflects the old state.
+        // A page computed before the library or the layout changed reflects the old state.
         var stamp = _cache.StampOf(_user);
-        _cache.Invalidate(_user);
-
-        Assert.False(_cache.Set(Section(_user), 0, 20, Page(), stamp, Ttl));
-
-        stamp = _cache.StampOf(_user);
         _cache.Clear();
         Assert.False(_cache.Set(Section(_user), 0, 20, Page(), stamp, Ttl));
 
@@ -138,11 +131,11 @@ public sealed class SectionResultCacheTests : IDisposable
         _cache.Set(id, 0, 20, stored, _cache.StampOf(_user), Ttl);
 
         _cache.Remove(id, failed);
-        Assert.True(_cache.TryGet(id, 0, 20, out var hit));
+        Assert.True(_cache.TryGet(id, 0, 20, out var hit, out _));
         Assert.Same(stored, hit);
 
         _cache.Remove(id, stored);
-        Assert.False(_cache.TryGet(id, 0, 20, out _));
+        Assert.False(_cache.TryGet(id, 0, 20, out _, out _));
     }
 
     [Fact]
@@ -161,31 +154,27 @@ public sealed class SectionResultCacheTests : IDisposable
     }
 
     [Fact]
-    public async Task Listener_UserDataSave_DropsThatUsersPages_LibraryChange_DropsEveryPage()
+    public async Task Listener_LibraryChange_DropsEveryPage()
     {
         var userData = new Mock<IUserDataManager>();
         var library = new Mock<ILibraryManager>();
-        var listener = new SectionCacheInvalidationListener(userData.Object, library.Object, _cache, NullLogger<SectionCacheInvalidationListener>.Instance);
+        var listener = new SectionCacheInvalidationListener(
+            userData.Object, library.Object, _cache, new WidgetRegistry(), NullLogger<SectionCacheInvalidationListener>.Instance);
         var other = Guid.NewGuid();
         await listener.StartAsync(CancellationToken.None);
 
-        _cache.Set(Section(_user), 0, 20, Page(), _cache.StampOf(_user), Ttl);
         _cache.Set(Section(other), 0, 20, Page(), _cache.StampOf(other), Ttl);
-        userData.Raise(m => m.UserDataSaved += null, new UserDataSaveEventArgs { UserId = _user, SaveReason = UserDataSaveReason.PlaybackProgress, Item = new Movie() });
-        Assert.False(_cache.TryGet(Section(_user), 0, 20, out _));
-        Assert.True(_cache.TryGet(Section(other), 0, 20, out _));
-
         library.Raise(m => m.ItemAdded += null, library.Object, new ItemChangeEventArgs { Item = new Movie() });
-        Assert.False(_cache.TryGet(Section(other), 0, 20, out _));
+        Assert.False(_cache.TryGet(Section(other), 0, 20, out _, out _));
 
         _cache.Set(Section(other), 0, 20, Page(), _cache.StampOf(other), Ttl);
         library.Raise(m => m.ItemRemoved += null, library.Object, new ItemChangeEventArgs { Item = new Movie() });
-        Assert.False(_cache.TryGet(Section(other), 0, 20, out _));
+        Assert.False(_cache.TryGet(Section(other), 0, 20, out _, out _));
 
         await listener.StopAsync(CancellationToken.None);
         _cache.Set(Section(other), 0, 20, Page(), _cache.StampOf(other), Ttl);
         library.Raise(m => m.ItemAdded += null, library.Object, new ItemChangeEventArgs { Item = new Movie() });
-        Assert.True(_cache.TryGet(Section(other), 0, 20, out _));
+        Assert.True(_cache.TryGet(Section(other), 0, 20, out _, out _));
     }
 
     private static SectionId Section(Guid user) => new(user, "jux.test.section", "value", "jux.test.section#1");

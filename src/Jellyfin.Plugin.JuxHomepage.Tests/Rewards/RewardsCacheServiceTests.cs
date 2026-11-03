@@ -236,7 +236,7 @@ public sealed class RewardsCacheServiceTests : IDisposable
         await BuildService(apiClientMock.Object, library.Object, RowFor(instanceId), sections)
             .RefreshAllInstancesAsync(CancellationToken.None);
 
-        Assert.False(sections.TryGet(section, 0, 20, out _));
+        Assert.False(sections.TryGet(section, 0, 20, out _, out _));
     }
 
     // -------------------------------------------------------------------------

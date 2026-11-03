@@ -91,6 +91,19 @@ public sealed class VersionedUserCache<TKey, TEntry> : IDisposable
     /// <param name="entry">The entry to drop.</param>
     public void Remove(TKey key, TEntry entry) => _entries.TryRemove(KeyValuePair.Create(key, entry));
 
+    /// <summary>Drops the entries <paramref name="match"/> names, without bumping any version.</summary>
+    /// <param name="match">Whether an entry is dropped.</param>
+    public void RemoveWhere(Func<TKey, TEntry, bool> match)
+    {
+        foreach (var entry in _entries)
+        {
+            if (match(entry.Key, entry.Value))
+            {
+                _entries.TryRemove(entry);
+            }
+        }
+    }
+
     /// <summary>Drops every entry of the user and bumps the user's version.</summary>
     /// <param name="userId">The user.</param>
     public void Invalidate(Guid userId)

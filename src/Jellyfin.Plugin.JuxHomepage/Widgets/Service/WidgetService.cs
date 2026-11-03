@@ -29,6 +29,7 @@ public sealed class WidgetService
 
     private readonly ConcurrentDictionary<(Guid UserId, string Lang), (long Version, Lazy<Task<IReadOnlyList<WidgetDescriptor>>> Build)> _builds = new();
     private readonly ConcurrentDictionary<(Guid UserId, string Lang), byte> _queuedRebuilds = new();
+    private readonly ConcurrentDictionary<SectionId, byte> _queuedSectionReads = new();
     private readonly ConcurrentDictionary<Task, byte> _backgroundRebuilds = new();
     private readonly SemaphoreSlim _rebuildGate = new(1, 1);
     private readonly IWidgetRegistry _registry;
@@ -232,8 +233,62 @@ public sealed class WidgetService
                 Interlocked.Decrement(ref _queuedRebuildCount);
             }
         });
-        _backgroundRebuilds.TryAdd(rebuild, 0);
-        _ = rebuild.ContinueWith(t => _backgroundRebuilds.TryRemove(t, out _), TaskScheduler.Default);
+        TrackBackground(rebuild);
+    }
+
+    /// <summary>
+    /// Reads a stale section page again in the background (REV-04.b, DR-032) and stores it, in the same queue as the
+    /// layout rebuilds: one at a time server-wide, at most <see cref="MaxQueuedRebuilds"/> queued, the stale page
+    /// served meanwhile (<c>StalePage_IsServedAndReadAgainInTheBackground_ThenTheNewPageIsServed</c>).
+    /// </summary>
+    private void QueueBackgroundSectionRead(SectionId section, IWidget widget, WidgetPayload payload)
+    {
+        if (!_queuedSectionReads.TryAdd(section, 0))
+        {
+            return;
+        }
+
+        if (Interlocked.Increment(ref _queuedRebuildCount) > MaxQueuedRebuilds)
+        {
+            Interlocked.Decrement(ref _queuedRebuildCount);
+            _queuedSectionReads.TryRemove(section, out _);
+            _logger.LogDebug("Rebuild queue full; serving the stale {WidgetType} page of user {UserId} as is.", section.WidgetType, section.UserId);
+            return;
+        }
+
+        TrackBackground(Task.Run(async () =>
+        {
+            try
+            {
+                await _rebuildGate.WaitAsync().ConfigureAwait(false);
+                try
+                {
+                    var stamp = _sectionResults.StampOf(section.UserId);
+                    var result = await widget.GetItemsAsync(payload, CancellationToken.None).ConfigureAwait(false);
+                    _ = result.Items;
+                    _sectionResults.Set(section, payload.StartIndex, payload.Limit, result, stamp, SessionTtl);
+                }
+                finally
+                {
+                    _rebuildGate.Release();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to read the {WidgetType} section of user {UserId} again in the background.", section.WidgetType, section.UserId);
+            }
+            finally
+            {
+                _queuedSectionReads.TryRemove(section, out _);
+                Interlocked.Decrement(ref _queuedRebuildCount);
+            }
+        }));
+    }
+
+    private void TrackBackground(Task task)
+    {
+        _backgroundRebuilds.TryAdd(task, 0);
+        _ = task.ContinueWith(t => _backgroundRebuilds.TryRemove(t, out _), TaskScheduler.Default);
     }
 
     /// <summary>
@@ -289,11 +344,18 @@ public sealed class WidgetService
         var section = new SectionId(userId, widgetType, additionalData, sectionKey);
         _accessWatch.Check(userId);
         WidgetResult? stored = null;
-        var hit = _sectionResults.TryGet(section, payload.StartIndex, payload.Limit, out stored);
+        var hit = _sectionResults.TryGet(section, payload.StartIndex, payload.Limit, out stored, out var stale);
+
+        // A direct page is never served stale (V17): one stored by a read that raced a playback end is read again.
+        hit &= !(stale && widget.Freshness == FreshnessLevel.Direct);
         var stamp = _sectionResults.StampOf(userId);
         try
         {
             var result = hit ? stored! : await widget.GetItemsAsync(payload, cancellationToken).ConfigureAwait(false);
+            if (hit && stale)
+            {
+                QueueBackgroundSectionRead(section, widget, payload);
+            }
 
             // Projected here, so a failed projection is answered like a failed read and never kept.
             _ = result.Items;

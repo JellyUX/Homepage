@@ -143,7 +143,7 @@ public sealed class TMDbCacheServiceTests : IDisposable
 
         await BuildService(apiClientMock.Object, NoMatchLibraryManager(), sectionResults: sections).RefreshAllAsync(null, CancellationToken.None);
 
-        Assert.False(sections.TryGet(section, 0, 20, out _));
+        Assert.False(sections.TryGet(section, 0, 20, out _, out _));
     }
 
     [Fact]
