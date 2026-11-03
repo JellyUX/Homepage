@@ -148,6 +148,7 @@ if (typeof window.juxTabInjector === 'undefined') {
     // (Legacy bar, or the hidden native bar of the Modern layout, unknown yet: isModern reads the header);
     // the address keeps no tab meanwhile, so createTabs opens nothing early. Once the card builder exists
     // the address is put back and the tab opened (button, or jux-tab-modern.js). Tab 5 -> 4 (FEAT-03.b).
+    // A page that left the home address meanwhile (signed out: the login page) is left alone (R11).
     var _DEFERRED_POLL_MS = 100;
     var _DEFERRED_MAX_TRIES = 100;
 
@@ -161,7 +162,7 @@ if (typeof window.juxTabInjector === 'undefined') {
             return after ? before : '';
         }).replace(/\?$/, '');
         window.history.replaceState(window.history.state, '', home);
-        _openDeferredTab(hash, 0, false);
+        _openDeferredTab(hash, home, 0, false);
     }
 
     // The tab bar the deferred tab is opened from: the native bar once it holds the JellyUX buttons
@@ -178,13 +179,16 @@ if (typeof window.juxTabInjector === 'undefined') {
         return !!(window.juxTabModern && window.juxTabModern.isModern());
     }
 
-    function _openDeferredTab(hash, tries, homeShown) {
+    function _openDeferredTab(hash, home, tries, homeShown) {
+        if (window.location.hash !== home) {
+            return;
+        }
         var modern = _modernLayout();
         var bar = _deferredBar(modern);
         homeShown = homeShown || _clickNativeHome(bar);
         var ready = bar && window.JellyfinAPI;
         if (!ready && tries < _DEFERRED_MAX_TRIES) {
-            setTimeout(function () { _openDeferredTab(hash, tries + 1, homeShown); }, _DEFERRED_POLL_MS);
+            setTimeout(function () { _openDeferredTab(hash, home, tries + 1, homeShown); }, _DEFERRED_POLL_MS);
             return;
         }
         window.history.replaceState(window.history.state, '', hash);

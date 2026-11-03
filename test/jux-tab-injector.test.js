@@ -433,6 +433,16 @@ describe('JellyUX tab named by the address the page loads on', () => {
         expect(clicks).toEqual(['native-0', 'jux-tabbtn-watchlist']);
     });
 
+    // R11 (phase 12): a signed-out user is sent to the login page meanwhile; the card builder never comes.
+    it('gives up without touching the address once the page left the home address', async () => {
+        await loadOn('#/home?tab=3');
+        window.history.replaceState(null, '', '#/login?serverid=s');
+        vi.advanceTimersByTime(100 * 101);
+
+        expect(window.location.hash).toBe('#/login?serverid=s');
+        expect(clicks).toEqual([]);
+    });
+
     it('opens Statistics for an old tab 5 address', async () => {
         await loadOn('#/home?tab=5');
         vi.advanceTimersByTime(100);
