@@ -118,8 +118,7 @@ public class JuxHomepageController : ControllerBase
             }
 
             SetCacheHeaders(Request, Response);
-            var bundle = Bundles.GetOrAdd(name + "?" + string.Join('.', files), _ => string.Join("\n;\n", files.Select(ReadAssetText)));
-            return Content(bundle, "application/javascript");
+            return Content(Bundle(name + "?" + string.Join('.', files), files), "application/javascript");
         }
 
         var stream = name is null ? null : PluginAssembly.GetManifestResourceStream(WebResourcePrefix + name);
@@ -514,6 +513,21 @@ public class JuxHomepageController : ControllerBase
         (await _requestUsers.ResolveAsync(HttpContext, requestedUserId).ConfigureAwait(false)).UserId;
 
     // The text of one bundled script: the generated labels script, or an embedded file.
+    // A bundle built once per file list.
+    private string Bundle(string key, IReadOnlyList<string> files)
+        => Bundles.GetOrAdd(key, _ => BundleText(files.Select(f => (f, ReadAssetText(f)))));
+
+    /// <summary>
+    /// Joins the files of a bundle, each in a function of its own called on window: its 'use strict' line stays a
+    /// directive (only the first file of a plain join kept it), and a file that throws while it starts is logged
+    /// without stopping the next ones, as when each had its own script tag (R11, phase 12).
+    /// </summary>
+    /// <param name="files">The file names and texts, in order.</param>
+    /// <returns>The bundle text.</returns>
+    internal static string BundleText(IEnumerable<(string Name, string Text)> files)
+        => string.Concat(files.Select(f =>
+            $"try {{\n(function () {{\n{f.Text}\n}}).call(window);\n}} catch (e) {{\n    console.error('JellyUX: {f.Name} failed to start', e);\n}}\n"));
+
     private string ReadAssetText(string name)
     {
         if (name == TransformationPatches.ClientI18nAsset)

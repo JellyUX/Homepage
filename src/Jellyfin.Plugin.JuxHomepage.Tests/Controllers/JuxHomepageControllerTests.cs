@@ -277,9 +277,22 @@ public sealed class JuxHomepageControllerTests
 
         Assert.Equal(JavaScript, result.ContentType);
         Assert.Equal("public, max-age=31536000, immutable", response.Headers.CacheControl.ToString());
-        Assert.Equal(string.Join("\n;\n", names.Select(n => File.ReadAllText(Path.Combine(WebDirectory(), n)))), result.Content);
+        Assert.Equal(JuxHomepageController.BundleText(names.Select(n => (n, File.ReadAllText(Path.Combine(WebDirectory(), n))))), result.Content);
         Assert.IsType<NotFoundResult>(InvokeGetAsset("jux-rest.js", "?f=1", out _));
         Assert.IsType<NotFoundResult>(InvokeGetAsset("jux-home.js", null, out _));
+    }
+
+    // R11 (phase 12): each file of a bundle runs in a function of its own, so its 'use strict' line stays a
+    // directive and a file that throws while it starts does not stop the next ones.
+    [Fact]
+    public void BundleText_WrapsEachFileInAFunctionOfItsOwn()
+    {
+        var bundle = JuxHomepageController.BundleText([("a.js", "'use strict';\nwindow.a = 1;"), ("b.js", "window.b = 2;")]);
+
+        Assert.Equal(
+            "try {\n(function () {\n'use strict';\nwindow.a = 1;\n}).call(window);\n} catch (e) {\n    console.error('JellyUX: a.js failed to start', e);\n}\n"
+            + "try {\n(function () {\nwindow.b = 2;\n}).call(window);\n} catch (e) {\n    console.error('JellyUX: b.js failed to start', e);\n}\n",
+            bundle);
     }
 
     private static IActionResult InvokeGetAsset(string fileName, string? query, out HttpResponse response)
