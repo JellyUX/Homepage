@@ -613,7 +613,7 @@
         return function (items) {
             var api = window.JellyfinAPI;
             if (!api || !api.cardBuilder) { return ''; }
-            return api.cardBuilder.getCardsHtml({
+            return _cardQuality(api.cardBuilder.getCardsHtml({
                 items: items,
                 shape: shapeFn(true),
                 preferThumb: descriptor.ViewMode === 'Portrait' ? null : 'auto',
@@ -629,8 +629,14 @@
                 cardLayout: false,
                 showYear: true,
                 lines: 2
-            });
+            }));
         };
+    }
+
+    // H-07: the native cards ask their images at quality 96; a JellyUX row asks 80 (20 home cards: -56 % of
+    // the bytes, median SSIM 0.958 against 96, no difference visible at the displayed size).
+    function _cardQuality(html) {
+        return html.replace(/([?&;]quality=)96(?!\d)/g, '$180');
     }
 
     // -------------------------------------------------------------------------

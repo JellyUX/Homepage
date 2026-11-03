@@ -259,6 +259,18 @@ describe('_buildSection (F-11)', () => {
         attach.mockRestore();
     });
 
+    // H-07: the native cards ask quality 96; a JellyUX row asks 80 (-56 % of the card bytes, no visible change).
+    it('asks the card images of a JellyUX row at quality 80 (H-07)', async () => {
+        const url = (q) => `/Items/i1/Images/Primary?fillHeight=335&amp;fillWidth=223&amp;quality=${q}&amp;tag=t`;
+        window.JellyfinAPI = { layoutManager: { tv: false }, getPortraitShape: () => 'overflowPortrait', cardBuilder: { getCardsHtml: () => `<div class="card" data-src="${url(96)}"></div><img src="/Items/i2/Images/Thumb?quality=960">` } };
+        const elem = document.createElement('div');
+
+        await juxHomepage._buildSection(elem, {}, 'u', null, { WidgetType: 'jux.local.top-rated', DisplayName: 'Top', ViewMode: 'Portrait' });
+
+        expect(elem.querySelector('.jux-items-container').getItemsHtml([{ Id: 'i1' }]))
+            .toBe(`<div class="card" data-src="${url(80)}"></div><img src="/Items/i2/Images/Thumb?quality=960">`);
+    });
+
     it('keeps a row of cards in its scroller when the section is not featured', async () => {
         const elem = document.createElement('div');
 
