@@ -37,7 +37,7 @@ public sealed class RewardsCacheService : IRewardsCacheService, IDisposable
     private readonly Func<PluginConfiguration?> _getConfiguration;
     private readonly ILogger<RewardsCacheService> _logger;
     private readonly SectionResultCache? _sectionResults;
-    private readonly SemaphoreSlim _refreshGate = new(1, 1);
+    private readonly RefreshGate _refreshGate;
     private bool _disposed;
 
     /// <summary>
@@ -66,6 +66,7 @@ public sealed class RewardsCacheService : IRewardsCacheService, IDisposable
         _sectionResults = sectionResults;
         _getConfiguration = getConfiguration;
         _logger = logger;
+        _refreshGate = new RefreshGate(logger, "Rewards refresh");
         _crossReferencer = new LibraryCrossReferencer(libraryManager, logger);
 
         var cacheDir = Path.Combine(
@@ -142,24 +143,15 @@ public sealed class RewardsCacheService : IRewardsCacheService, IDisposable
     }
 
     /// <inheritdoc/>
-    public async Task RefreshAllInstancesAsync(CancellationToken cancellationToken)
-    {
-        if (!TryAcquireRefreshLock())
-        {
-            _logger.LogInformation("Rewards refresh already in progress; skipping this request.");
-            return;
-        }
-
-        await RunRefreshLockedAsync(cancellationToken).ConfigureAwait(false);
-    }
+    public Task RefreshAllInstancesAsync(CancellationToken cancellationToken) =>
+        _refreshGate.TryRunAsync(() => RunRefreshLockedAsync(cancellationToken));
 
     /// <inheritdoc/>
-    public bool TryAcquireRefreshLock() => _refreshGate.Wait(0);
+    public bool TryAcquireRefreshLock() => _refreshGate.TryEnter();
 
     /// <inheritdoc/>
-    public async Task RunRefreshLockedAsync(CancellationToken cancellationToken)
-    {
-        try
+    public Task RunRefreshLockedAsync(CancellationToken cancellationToken) =>
+        _refreshGate.RunReservedAsync(async () =>
         {
             var rows = _getConfiguration()?.Widgets?
                 .Where(c => c.WidgetType == RewardsWidgetTypes.Rewards)
@@ -177,12 +169,7 @@ public sealed class RewardsCacheService : IRewardsCacheService, IDisposable
                 var filter = RewardsFilter.FromExtraParams(extra, _logger, instanceId);
                 await RefreshInstanceAsync(instanceId, filter, movies, cancellationToken).ConfigureAwait(false);
             }
-        }
-        finally
-        {
-            _refreshGate.Release();
-        }
-    }
+        });
 
     /// <inheritdoc/>
     public void Dispose()

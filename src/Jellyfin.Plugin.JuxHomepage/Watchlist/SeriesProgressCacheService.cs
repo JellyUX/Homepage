@@ -28,8 +28,7 @@ public sealed class SeriesProgressCacheService : ISeriesProgressCacheService, ID
     private readonly IUserManager _userManager;
     private readonly ILibraryManager _libraryManager;
     private readonly IUserDataManager _userDataManager;
-    private readonly ILogger<SeriesProgressCacheService> _logger;
-    private readonly SemaphoreSlim _refreshGate = new(1, 1);
+    private readonly RefreshGate _refreshGate;
     private bool _disposed;
 
     /// <summary>
@@ -52,7 +51,7 @@ public sealed class SeriesProgressCacheService : ISeriesProgressCacheService, ID
         _userManager = userManager;
         _libraryManager = libraryManager;
         _userDataManager = userDataManager;
-        _logger = logger;
+        _refreshGate = new RefreshGate(logger, "Series progress refresh");
 
         var cacheDir = Path.Combine(
             applicationPaths.DataPath,
@@ -92,53 +91,16 @@ public sealed class SeriesProgressCacheService : ISeriesProgressCacheService, ID
     }
 
     /// <inheritdoc/>
-    public bool TryAcquireRefreshLock() => _refreshGate.Wait(0);
+    public bool TryAcquireRefreshLock() => _refreshGate.TryEnter();
 
     /// <inheritdoc/>
-    public Task RunRefreshLockedAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            var users = _userManager.GetUsers().ToList();
-            var refreshed = 0;
-
-            foreach (var user in users)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                try
-                {
-                    _perUser.Refresh(user.Id);
-                    refreshed++;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to refresh series progress cache for user {UserId}.", user.Id);
-                }
-            }
-
-            _logger.LogInformation("Series progress cache refreshed for {Count} of {Total} user(s).", refreshed, users.Count);
-        }
-        finally
-        {
-            _refreshGate.Release();
-        }
-
-        return Task.CompletedTask;
-    }
+    public Task RunRefreshLockedAsync(CancellationToken cancellationToken) =>
+        _refreshGate.RunReserved(() => _perUser.RefreshUsers(
+            _userManager.GetUsers().Select(u => u.Id).ToList(), "series progress", cancellationToken));
 
     /// <inheritdoc/>
-    public async Task<bool> RefreshAllAsync(CancellationToken cancellationToken)
-    {
-        if (!TryAcquireRefreshLock())
-        {
-            _logger.LogInformation("Series progress refresh already in progress; skipping this request.");
-            return false;
-        }
-
-        await RunRefreshLockedAsync(cancellationToken).ConfigureAwait(false);
-        return true;
-    }
+    public Task<bool> RefreshAllAsync(CancellationToken cancellationToken) =>
+        _refreshGate.TryRunAsync(() => RunRefreshLockedAsync(cancellationToken));
 
     /// <inheritdoc/>
     public void Dispose()

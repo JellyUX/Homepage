@@ -45,7 +45,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
     private readonly Func<PluginConfiguration?> _getConfiguration;
     private readonly ILogger<TMDbCacheService> _logger;
     private readonly SectionResultCache? _sectionResults;
-    private readonly SemaphoreSlim _refreshGate = new(1, 1);
+    private readonly RefreshGate _refreshGate;
 
     // Why each fixed list last came back empty, with the API key it was asked with and when (FIAB-10.c,
     // DEC-P10-3; the time tells a new failure from an old one after Refresh now, ADM-02.a).
@@ -82,6 +82,7 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
         _sectionResults = sectionResults;
         _getConfiguration = getConfiguration;
         _logger = logger;
+        _refreshGate = new RefreshGate(logger, "TMDb refresh");
         _crossReferencer = new LibraryCrossReferencer(libraryManager, logger);
 
         var cacheDir = Path.Combine(
@@ -240,37 +241,19 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
             : null;
 
     /// <inheritdoc/>
-    public bool TryAcquireRefreshLock() => _refreshGate.Wait(0);
+    public bool TryAcquireRefreshLock() => _refreshGate.TryEnter();
 
     /// <inheritdoc/>
     public Task RunRefreshLockedAsync(IProgress<double>? progress, CancellationToken cancellationToken) =>
         RunLockedAsync(force: true, progress, cancellationToken);
 
     /// <inheritdoc/>
-    public async Task<bool> RefreshDueAsync(IProgress<double>? progress, CancellationToken cancellationToken)
-    {
-        if (!TryAcquireRefreshLock())
-        {
-            _logger.LogInformation("TMDb refresh already in progress; skipping this run.");
-            return false;
-        }
-
-        await RunLockedAsync(force: false, progress, cancellationToken).ConfigureAwait(false);
-        return true;
-    }
+    public Task<bool> RefreshDueAsync(IProgress<double>? progress, CancellationToken cancellationToken) =>
+        _refreshGate.TryRunAsync(() => RunLockedAsync(force: false, progress, cancellationToken));
 
     /// <inheritdoc/>
-    public async Task<bool> RefreshAllAsync(IProgress<double>? progress, CancellationToken cancellationToken)
-    {
-        if (!TryAcquireRefreshLock())
-        {
-            _logger.LogInformation("TMDb refresh already in progress; skipping this request.");
-            return false;
-        }
-
-        await RunRefreshLockedAsync(progress, cancellationToken).ConfigureAwait(false);
-        return true;
-    }
+    public Task<bool> RefreshAllAsync(IProgress<double>? progress, CancellationToken cancellationToken) =>
+        _refreshGate.TryRunAsync(() => RunRefreshLockedAsync(progress, cancellationToken));
 
     /// <inheritdoc/>
     public void Dispose()
@@ -426,86 +409,82 @@ public sealed class TMDbCacheService : ITMDbCacheService, IDisposable
     /// <paramref name="force"/> is set, otherwise only the due ones (<see cref="IsDue"/>). Releases
     /// the refresh slot the caller reserved.
     /// </summary>
-    private async Task RunLockedAsync(bool force, IProgress<double>? progress, CancellationToken cancellationToken)
+    private Task RunLockedAsync(bool force, IProgress<double>? progress, CancellationToken cancellationToken) =>
+        _refreshGate.RunReservedAsync(() => RefreshListsAsync(force, progress, cancellationToken));
+
+    private async Task RefreshListsAsync(bool force, IProgress<double>? progress, CancellationToken cancellationToken)
     {
-        try
+        if (force)
         {
-            if (force)
-            {
-                // A forced refresh asks again for the titles TMDb had no IMDb id for (DEC-P06-4,
-                // RefreshAllAsync_TitleWithoutImdbId_IsAskedAgainWhereAListRefreshIsNot).
-                _movieExternalIds.ClearMissing();
-                _showExternalIds.ClearMissing();
-            }
-
-            // Without a TMDb key every list would come back empty, every hour (R11,
-            // RefreshDueAsync_NoApiKey_AsksTMDbAndTheLibraryNothing).
-            if (!force && string.IsNullOrEmpty(_getConfiguration()?.ApiKeys?.TMDb))
-            {
-                _logger.LogDebug("TMDb API key not configured; skipping the scheduled TMDb refresh.");
-                return;
-            }
-
-            // Six fixed refreshes, evenly spaced across 0-100, matched against one library read per
-            // item kind, made only if a list needs it (DEC-P06-1, TMDb refresh budget in
-            // ci/perf-budget.json).
-            var indexes = new RefreshIndexes(_crossReferencer);
-            (TMDbCacheType Type, Func<RefreshIndexes, CancellationToken, Task> Refresh)[] steps =
-            [
-                (TMDbCacheType.TrendingMovies, RefreshTrendingMoviesAsync),
-                (TMDbCacheType.TrendingShows, RefreshTrendingShowsAsync),
-                (TMDbCacheType.AiringToday, RefreshAiringTodayAsync),
-                (TMDbCacheType.TopRatedMovies, RefreshTopRatedMoviesAsync),
-                (TMDbCacheType.TopRatedShows, RefreshTopRatedShowsAsync),
-                (TMDbCacheType.NowPlayingMovies, RefreshNowPlayingMoviesAsync)
-            ];
-
-            var skipped = 0;
-            progress?.Report(0);
-            for (var i = 0; i < steps.Length; i++)
-            {
-                if (force || IsStale(steps[i].Type))
-                {
-                    await steps[i].Refresh(indexes, cancellationToken).ConfigureAwait(false);
-                }
-                else
-                {
-                    skipped++;
-                }
-
-                progress?.Report((i + 1) * 100.0 / steps.Length);
-            }
-
-            var discoverRows = _getConfiguration()?.Widgets?
-                .Where(c => c.WidgetType == TMDbWidgetTypes.DiscoverMovies)
-                .ToList() ?? [];
-
-            foreach (var row in discoverRows)
-            {
-                var extra = row.GetExtraParamsDictionary();
-                if (!extra.TryGetValue(DiscoverMoviesWidget.ValueParam, out var instanceId) || string.IsNullOrEmpty(instanceId))
-                {
-                    continue;
-                }
-
-                if (!force && Guid.TryParse(instanceId, out _) && !IsDue(GetDiscoverFileName(instanceId)))
-                {
-                    skipped++;
-                    continue;
-                }
-
-                var filter = TMDbDiscoverFilter.FromExtraParams(extra);
-                await RefreshDiscoverMoviesAsync(instanceId, filter, indexes, cancellationToken).ConfigureAwait(false);
-            }
-
-            if (skipped > 0)
-            {
-                _logger.LogInformation("TMDb refresh skipped {Count} list(s) refreshed within the configured interval.", skipped);
-            }
+            // A forced refresh asks again for the titles TMDb had no IMDb id for (DEC-P06-4,
+            // RefreshAllAsync_TitleWithoutImdbId_IsAskedAgainWhereAListRefreshIsNot).
+            _movieExternalIds.ClearMissing();
+            _showExternalIds.ClearMissing();
         }
-        finally
+
+        // Without a TMDb key every list would come back empty, every hour (R11,
+        // RefreshDueAsync_NoApiKey_AsksTMDbAndTheLibraryNothing).
+        if (!force && string.IsNullOrEmpty(_getConfiguration()?.ApiKeys?.TMDb))
         {
-            _refreshGate.Release();
+            _logger.LogDebug("TMDb API key not configured; skipping the scheduled TMDb refresh.");
+            return;
+        }
+
+        // Six fixed refreshes, evenly spaced across 0-100, matched against one library read per
+        // item kind, made only if a list needs it (DEC-P06-1, TMDb refresh budget in
+        // ci/perf-budget.json).
+        var indexes = new RefreshIndexes(_crossReferencer);
+        (TMDbCacheType Type, Func<RefreshIndexes, CancellationToken, Task> Refresh)[] steps =
+        [
+            (TMDbCacheType.TrendingMovies, RefreshTrendingMoviesAsync),
+            (TMDbCacheType.TrendingShows, RefreshTrendingShowsAsync),
+            (TMDbCacheType.AiringToday, RefreshAiringTodayAsync),
+            (TMDbCacheType.TopRatedMovies, RefreshTopRatedMoviesAsync),
+            (TMDbCacheType.TopRatedShows, RefreshTopRatedShowsAsync),
+            (TMDbCacheType.NowPlayingMovies, RefreshNowPlayingMoviesAsync)
+        ];
+
+        var skipped = 0;
+        progress?.Report(0);
+        for (var i = 0; i < steps.Length; i++)
+        {
+            if (force || IsStale(steps[i].Type))
+            {
+                await steps[i].Refresh(indexes, cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                skipped++;
+            }
+
+            progress?.Report((i + 1) * 100.0 / steps.Length);
+        }
+
+        var discoverRows = _getConfiguration()?.Widgets?
+            .Where(c => c.WidgetType == TMDbWidgetTypes.DiscoverMovies)
+            .ToList() ?? [];
+
+        foreach (var row in discoverRows)
+        {
+            var extra = row.GetExtraParamsDictionary();
+            if (!extra.TryGetValue(DiscoverMoviesWidget.ValueParam, out var instanceId) || string.IsNullOrEmpty(instanceId))
+            {
+                continue;
+            }
+
+            if (!force && Guid.TryParse(instanceId, out _) && !IsDue(GetDiscoverFileName(instanceId)))
+            {
+                skipped++;
+                continue;
+            }
+
+            var filter = TMDbDiscoverFilter.FromExtraParams(extra);
+            await RefreshDiscoverMoviesAsync(instanceId, filter, indexes, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (skipped > 0)
+        {
+            _logger.LogInformation("TMDb refresh skipped {Count} list(s) refreshed within the configured interval.", skipped);
         }
     }
 

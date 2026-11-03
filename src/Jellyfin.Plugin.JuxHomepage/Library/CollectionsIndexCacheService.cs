@@ -31,7 +31,7 @@ public sealed class CollectionsIndexCacheService : ICollectionsIndexCacheService
     private readonly ILogger<CollectionsIndexCacheService> _logger;
     private readonly TimeProvider _timeProvider;
     private volatile Unsaved? _unsaved;
-    private readonly SemaphoreSlim _refreshGate = new(1, 1);
+    private readonly RefreshGate _refreshGate;
     private readonly Timer _invalidationTimer;
     private readonly TimeSpan _invalidationDelay;
     private volatile bool _invalidated;
@@ -58,6 +58,7 @@ public sealed class CollectionsIndexCacheService : ICollectionsIndexCacheService
     {
         _libraryManager = libraryManager;
         _logger = logger;
+        _refreshGate = new RefreshGate(logger, "Collections index refresh");
         _timeProvider = timeProvider ?? TimeProvider.System;
         _invalidationDelay = invalidationDelay ?? DefaultInvalidationDelay;
         _invalidationTimer = new Timer(_ => _ = RefreshAsync(CancellationToken.None), null, Timeout.Infinite, Timeout.Infinite);
@@ -113,49 +114,35 @@ public sealed class CollectionsIndexCacheService : ICollectionsIndexCacheService
     }
 
     /// <inheritdoc/>
-    public bool TryAcquireRefreshLock() => _refreshGate.Wait(0);
+    public bool TryAcquireRefreshLock() => _refreshGate.TryEnter();
 
     /// <inheritdoc/>
-    public Task RunRefreshLockedAsync(CancellationToken cancellationToken)
-    {
-        // Cleared before computing, so a collection change during the computation marks the index
-        // stale again instead of being lost.
-        _invalidated = false;
-        try
+    public Task RunRefreshLockedAsync(CancellationToken cancellationToken) =>
+        _refreshGate.RunReserved(() =>
         {
-            var index = ComputeIndex(cancellationToken);
+            // Cleared before computing, so a collection change during the computation marks the index
+            // stale again instead of being lost.
+            _invalidated = false;
+            try
+            {
+                var index = ComputeIndex(cancellationToken);
 
-            // An index the disk refuses is served from memory for one time-to-live, as
-            // PerUserComputedCache does (FIAB-03): otherwise each IncludedIn request recomputed it (test:
-            // CollectionsIndexCacheServiceTests "RefreshAsync_WhenTheDiskRefusesTheIndex...").
-            _unsaved = _cache.Write(FileName, index) ? null : new Unsaved(_timeProvider.GetUtcNow(), index);
-            _logger.LogInformation("Collections index refreshed: {Count} item(s) with at least one collection.", index.Count);
-        }
-        catch (Exception ex)
-        {
-            _invalidated = true;
-            _logger.LogError(ex, "Failed to refresh collections index.");
-        }
-        finally
-        {
-            _refreshGate.Release();
-        }
-
-        return Task.CompletedTask;
-    }
+                // An index the disk refuses is served from memory for one time-to-live, as
+                // PerUserComputedCache does (FIAB-03): otherwise each IncludedIn request recomputed it (test:
+                // CollectionsIndexCacheServiceTests "RefreshAsync_WhenTheDiskRefusesTheIndex...").
+                _unsaved = _cache.Write(FileName, index) ? null : new Unsaved(_timeProvider.GetUtcNow(), index);
+                _logger.LogInformation("Collections index refreshed: {Count} item(s) with at least one collection.", index.Count);
+            }
+            catch (Exception ex)
+            {
+                _invalidated = true;
+                _logger.LogError(ex, "Failed to refresh collections index.");
+            }
+        });
 
     /// <inheritdoc/>
-    public async Task<bool> RefreshAsync(CancellationToken cancellationToken)
-    {
-        if (!TryAcquireRefreshLock())
-        {
-            _logger.LogInformation("Collections index refresh already in progress; skipping this request.");
-            return false;
-        }
-
-        await RunRefreshLockedAsync(cancellationToken).ConfigureAwait(false);
-        return true;
-    }
+    public Task<bool> RefreshAsync(CancellationToken cancellationToken) =>
+        _refreshGate.TryRunAsync(() => RunRefreshLockedAsync(cancellationToken));
 
     /// <inheritdoc/>
     public void Dispose()

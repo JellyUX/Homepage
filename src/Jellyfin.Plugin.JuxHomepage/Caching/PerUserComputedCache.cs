@@ -130,6 +130,33 @@ internal sealed class PerUserComputedCache<T>
     }
 
     /// <summary>
+    /// Recomputes every given user's list, logging a user that fails and going on with the next one.
+    /// </summary>
+    /// <param name="userIds">The users.</param>
+    /// <param name="cacheName">The cache name used in the log lines, e.g. "movie history".</param>
+    /// <param name="cancellationToken">Stops the walk between two users.</param>
+    public void RefreshUsers(IReadOnlyCollection<Guid> userIds, string cacheName, CancellationToken cancellationToken)
+    {
+        var refreshed = 0;
+        foreach (var userId in userIds)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                Refresh(userId);
+                refreshed++;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to refresh {Cache} cache for user {UserId}.", cacheName, userId);
+            }
+        }
+
+        _logger.LogInformation("{Cache} cache refreshed for {Count} of {Total} user(s).", cacheName, refreshed, userIds.Count);
+    }
+
+    /// <summary>
     /// Replaces a user's list by <paramref name="change"/> applied to it; computes the full list
     /// instead when the user has none yet.
     /// </summary>
