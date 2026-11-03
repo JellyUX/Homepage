@@ -37,7 +37,7 @@ setting to never change the list automatically.
 
 | Field | Default | Description |
 |---|---|---|
-| Session cache TTL (minutes) | 15 | How long the home screen widget layout is cached per user, counted from when it was built. The first visit after that still shows the previous layout while the new one is built in the background. Saving the configuration clears this cache at once, so a lower value is never needed to see a configuration change. Reduce to see new library content sooner; increase to lower server load. |
+| Session cache TTL (minutes) | 15 | How long a user's home screen is cached, counted from when it was built: the layout, the items of each section and the user's liked titles. The first visit after that still shows the previous layout while the new one is built in the background. Saving the configuration clears these caches at once. The sections a library scan changes are refreshed when the scan ends, and a finished title refreshes the user's sections in the background, so a lower value is not needed to see new content; increase it to lower server load. |
 
 ## Sections
 
