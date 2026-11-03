@@ -141,6 +141,41 @@ public sealed class SectionFreshnessTests : IDisposable
         Assert.Equal(2, reads);
     }
 
+    [Fact]
+    public async Task StaleSectionReadsInTheBackground_DoNotHoldBackALayoutRebuild()
+    {
+        using var slowGate = new ManualResetEventSlim(false);
+        var slowReads = 0;
+        _registry.Register(Widget("jux.test.slow", FreshnessLevel.Deferred, () =>
+        {
+            if (Interlocked.Increment(ref slowReads) > 1)
+            {
+                slowGate.Wait(TimeSpan.FromSeconds(10));
+            }
+        }));
+        var layoutReads = 0;
+        var layout = Widget("jux.test.layout", FreshnessLevel.Deferred, () => Interlocked.Increment(ref layoutReads));
+        Mock.Get(layout).Setup(w => w.Resolve(It.IsAny<Guid>(), It.IsAny<WidgetInstanceConfig>(), It.IsAny<int>())).Returns(layout);
+        _registry.Register(layout);
+        var service = Service(new PluginConfiguration { Widgets = [new WidgetConfig { WidgetType = "jux.test.layout", Enabled = true, MinItems = 1 }] });
+        await StartListener();
+        var other = Guid.NewGuid();
+        await service.GetWidgetsForUser(other, page: 0, lang: "en", CancellationToken.None);
+        var readsBefore = layoutReads;
+
+        await service.GetWidgetItems(_user, "jux.test.slow", null, null, 0, 20, CancellationToken.None);
+        Save(_user, UserDataSaveReason.PlaybackFinished);
+        await service.GetWidgetItems(_user, "jux.test.slow", null, null, 0, 20, CancellationToken.None);
+        Assert.True(SpinWait.SpinUntil(() => slowReads == 2, TimeSpan.FromSeconds(5)));
+        _clock.UtcNowValue += TimeSpan.FromMinutes(16);
+        await service.GetWidgetsForUser(other, page: 0, lang: "en", CancellationToken.None);
+
+        var rebuilt = SpinWait.SpinUntil(() => layoutReads > readsBefore, TimeSpan.FromSeconds(3));
+        slowGate.Set();
+        await service.WhenIdleForTesting();
+        Assert.True(rebuilt, "the layout rebuild waited behind a background section read");
+    }
+
     private static SectionId Section(Guid user, string type) => new(user, type, null, null);
 
     private static WidgetResult Page() => new([new BaseItemDto()], 1);
@@ -158,9 +193,9 @@ public sealed class SectionFreshnessTests : IDisposable
     private void Save(Guid user, UserDataSaveReason reason) =>
         _userData.Raise(m => m.UserDataSaved += null, new UserDataSaveEventArgs { UserId = user, SaveReason = reason, Item = new Movie() });
 
-    private WidgetService Service()
+    private WidgetService Service(PluginConfiguration? configuration = null)
     {
-        var config = new PluginConfiguration();
+        var config = configuration ?? new PluginConfiguration();
         var resolver = new WidgetLayoutResolver(
             _registry,
             Mock.Of<IUserConfigurationStore>(),

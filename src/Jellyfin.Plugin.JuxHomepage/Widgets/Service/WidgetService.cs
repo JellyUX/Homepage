@@ -32,6 +32,7 @@ public sealed class WidgetService
     private readonly ConcurrentDictionary<SectionId, byte> _queuedSectionReads = new();
     private readonly ConcurrentDictionary<Task, byte> _backgroundRebuilds = new();
     private readonly SemaphoreSlim _rebuildGate = new(1, 1);
+    private readonly SemaphoreSlim _sectionReadGate = new(1, 1);
     private readonly IWidgetRegistry _registry;
     private readonly SessionCache _sessionCache;
     private readonly WidgetLayoutResolver _layoutResolver;
@@ -42,6 +43,7 @@ public sealed class WidgetService
     private readonly IUserAccessWatch _accessWatch;
     private readonly BinaryMismatchReporter _mismatchReporter;
     private int _queuedRebuildCount;
+    private int _queuedSectionReadCount;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WidgetService"/> class.
@@ -238,9 +240,9 @@ public sealed class WidgetService
     }
 
     /// <summary>
-    /// Reads a stale section page again in the background (REV-04.b, DR-032) and stores it, in the same queue as the
-    /// layout rebuilds: one at a time server-wide, at most <see cref="MaxQueuedRebuilds"/> queued, the stale page
-    /// served meanwhile (<c>StalePage_IsServedAndReadAgainInTheBackground_ThenTheNewPageIsServed</c>).
+    /// Reads a stale section page again in the background (REV-04.b, DR-032) and stores it, in a queue of its own so
+    /// that a burst of stale pages after playback ends never holds back a layout rebuild: one at a time server-wide,
+    /// at most <see cref="MaxQueuedRebuilds"/> queued, the stale page served meanwhile (<c>StalePage_IsServedAndReadAgainInTheBackground_ThenTheNewPageIsServed</c>).
     /// </summary>
     private void QueueBackgroundSectionRead(SectionId section, IWidget widget, WidgetPayload payload)
     {
@@ -249,11 +251,11 @@ public sealed class WidgetService
             return;
         }
 
-        if (Interlocked.Increment(ref _queuedRebuildCount) > MaxQueuedRebuilds)
+        if (Interlocked.Increment(ref _queuedSectionReadCount) > MaxQueuedRebuilds)
         {
-            Interlocked.Decrement(ref _queuedRebuildCount);
+            Interlocked.Decrement(ref _queuedSectionReadCount);
             _queuedSectionReads.TryRemove(section, out _);
-            _logger.LogDebug("Rebuild queue full; serving the stale {WidgetType} page of user {UserId} as is.", section.WidgetType, section.UserId);
+            _logger.LogDebug("Section read queue full; serving the stale {WidgetType} page of user {UserId} as is.", section.WidgetType, section.UserId);
             return;
         }
 
@@ -261,7 +263,7 @@ public sealed class WidgetService
         {
             try
             {
-                await _rebuildGate.WaitAsync().ConfigureAwait(false);
+                await _sectionReadGate.WaitAsync().ConfigureAwait(false);
                 try
                 {
                     var stamp = _sectionResults.StampOf(section.UserId);
@@ -271,7 +273,7 @@ public sealed class WidgetService
                 }
                 finally
                 {
-                    _rebuildGate.Release();
+                    _sectionReadGate.Release();
                 }
             }
             catch (Exception ex)
@@ -281,7 +283,7 @@ public sealed class WidgetService
             finally
             {
                 _queuedSectionReads.TryRemove(section, out _);
-                Interlocked.Decrement(ref _queuedRebuildCount);
+                Interlocked.Decrement(ref _queuedSectionReadCount);
             }
         }));
     }
