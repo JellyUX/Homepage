@@ -1,4 +1,5 @@
 using Jellyfin.Data.Events;
+using Jellyfin.Plugin.JuxHomepage.Widgets.Personalized;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Entities;
 using MediaBrowser.Model.Tasks;
@@ -30,6 +31,7 @@ public sealed class SectionCacheInvalidationListener : IHostedService, IDisposab
     private readonly SectionResultCache _cache;
     private readonly IWidgetRegistry _registry;
     private readonly ITaskManager _taskManager;
+    private readonly ScoringService _scoring;
     private readonly LibraryChangeBatcher _libraryChanges;
     private readonly ILogger<SectionCacheInvalidationListener> _logger;
 
@@ -41,6 +43,7 @@ public sealed class SectionCacheInvalidationListener : IHostedService, IDisposab
     /// <param name="cache">The section page cache.</param>
     /// <param name="registry">The widgets, which tell whether a section is direct.</param>
     /// <param name="taskManager">Jellyfin task manager, which tells when a library scan runs.</param>
+    /// <param name="scoring">The scoring, whose new snapshot makes the user's personalized pages out of date.</param>
     /// <param name="timeProvider">Time source of the quiet delay between library changes.</param>
     /// <param name="logger">Logger.</param>
     public SectionCacheInvalidationListener(
@@ -49,6 +52,7 @@ public sealed class SectionCacheInvalidationListener : IHostedService, IDisposab
         SectionResultCache cache,
         IWidgetRegistry registry,
         ITaskManager taskManager,
+        ScoringService scoring,
         TimeProvider timeProvider,
         ILogger<SectionCacheInvalidationListener> logger)
     {
@@ -57,6 +61,7 @@ public sealed class SectionCacheInvalidationListener : IHostedService, IDisposab
         _cache = cache;
         _registry = registry;
         _taskManager = taskManager;
+        _scoring = scoring;
         _logger = logger;
         _libraryChanges = new LibraryChangeBatcher(cache.ClearSources, timeProvider, logger);
     }
@@ -69,6 +74,7 @@ public sealed class SectionCacheInvalidationListener : IHostedService, IDisposab
         _libraryManager.ItemRemoved += OnLibraryChanged;
         _taskManager.TaskExecuting += OnTaskExecuting;
         _taskManager.TaskCompleted += OnTaskCompleted;
+        _scoring.SnapshotStored += OnSnapshotStored;
         return Task.CompletedTask;
     }
 
@@ -80,6 +86,7 @@ public sealed class SectionCacheInvalidationListener : IHostedService, IDisposab
         _libraryManager.ItemRemoved -= OnLibraryChanged;
         _taskManager.TaskExecuting -= OnTaskExecuting;
         _taskManager.TaskCompleted -= OnTaskCompleted;
+        _scoring.SnapshotStored -= OnSnapshotStored;
         return Task.CompletedTask;
     }
 
@@ -113,6 +120,14 @@ public sealed class SectionCacheInvalidationListener : IHostedService, IDisposab
                 _libraryChanges.Changed(source);
             }
         });
+
+    /// <summary>
+    /// A new scoring snapshot outdates the personalized pages read from the previous one, the background read that
+    /// followed a playback end included: they are marked stale again, and a direct page is read again rather than
+    /// served stale.
+    /// </summary>
+    private void OnSnapshotStored(object? sender, Guid userId) =>
+        EventHandlerGuard.Run(_logger, nameof(OnSnapshotStored), () => _cache.MarkStale(userId, _ => false));
 
     private void OnTaskExecuting(object? sender, GenericEventArgs<IScheduledTaskWorker> e) =>
         EventHandlerGuard.Run(_logger, nameof(OnTaskExecuting), () =>

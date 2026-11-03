@@ -1,7 +1,10 @@
 using Jellyfin.Data.Enums;
 using Jellyfin.Plugin.JuxHomepage.Configuration;
 using Jellyfin.Plugin.JuxHomepage.Localization;
+using Jellyfin.Database.Implementations.Entities;
 using Jellyfin.Plugin.JuxHomepage.Widgets;
+using Jellyfin.Plugin.JuxHomepage.Widgets.Personalized;
+using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Dto;
@@ -32,6 +35,7 @@ public sealed class SectionFreshnessTests : IDisposable
     private readonly WidgetRegistry _registry = new();
     private readonly Guid _user = Guid.NewGuid();
     private readonly Guid _other = Guid.NewGuid();
+    private readonly ScoringService _scoring = NewScoring();
     private int _deferredReads;
 
     public SectionFreshnessTests()
@@ -44,6 +48,7 @@ public sealed class SectionFreshnessTests : IDisposable
 
     public void Dispose()
     {
+        _scoring.Dispose();
         _cache.Dispose();
         _sessionCache.Dispose();
     }
@@ -178,6 +183,32 @@ public sealed class SectionFreshnessTests : IDisposable
         Assert.True(rebuilt, "the layout rebuild waited behind a background section read");
     }
 
+    [Fact]
+    public async Task ANewScoringSnapshot_MarksTheUsersPagesStaleAgain()
+    {
+        await StartListener();
+        Store(_user, DeferredType);
+        Store(_other, DeferredType);
+
+        _scoring.GetTopGenres(_user, 5);
+        await _scoring.WhenIdleForTesting();
+
+        Assert.True(_cache.TryGet(Section(_user, DeferredType), 0, 20, out _, out var stale));
+        Assert.True(stale);
+        Assert.True(_cache.TryGet(Section(_other, DeferredType), 0, 20, out _, out var otherStale));
+        Assert.False(otherStale);
+    }
+
+    private static ScoringService NewScoring()
+    {
+        var users = new Mock<IUserManager>();
+        users.Setup(m => m.GetUserById(It.IsAny<Guid>())).Returns(new User("test", "Default", "Default"));
+        var library = new Mock<ILibraryManager>();
+        library.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>())).Returns([]);
+        library.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>())).Returns([]);
+        return new ScoringService(users.Object, library.Object, new Mock<IUserDataManager>().Object, () => new PluginConfiguration());
+    }
+
     private static SectionId Section(Guid user, string type) => new(user, type, null, null);
 
     private static WidgetResult Page() => new([new BaseItemDto()], 1);
@@ -185,7 +216,7 @@ public sealed class SectionFreshnessTests : IDisposable
     private async Task StartListener()
     {
         var listener = new SectionCacheInvalidationListener(
-            _userData.Object, _library.Object, _cache, _registry, Mock.Of<ITaskManager>(), _clock, NullLogger<SectionCacheInvalidationListener>.Instance);
+            _userData.Object, _library.Object, _cache, _registry, Mock.Of<ITaskManager>(), _scoring, _clock, NullLogger<SectionCacheInvalidationListener>.Instance);
         await listener.StartAsync(CancellationToken.None);
     }
 

@@ -1,5 +1,6 @@
 using Jellyfin.Data.Events;
 using Jellyfin.Plugin.JuxHomepage.Widgets;
+using Jellyfin.Plugin.JuxHomepage.Widgets.Personalized;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Entities.Movies;
 using MediaBrowser.Controller.Entities.TV;
@@ -237,6 +238,7 @@ public sealed class SectionResultCacheTests : IDisposable
         _cache,
         new WidgetRegistry(),
         tasks.Object,
+        new ScoringService(Mock.Of<IUserManager>(), Mock.Of<ILibraryManager>(), Mock.Of<IUserDataManager>(), () => null),
         _clock,
         NullLogger<SectionCacheInvalidationListener>.Instance);
 

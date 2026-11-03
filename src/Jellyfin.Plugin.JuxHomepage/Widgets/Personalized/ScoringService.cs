@@ -33,6 +33,12 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets.Personalized;
 /// </summary>
 public sealed class ScoringService : IPersonalizationState, IDisposable
 {
+    /// <summary>
+    /// Raised with the user id after a computed snapshot was stored: the personalized sections read before it, from
+    /// the previous snapshot, are then out of date (R11 review of phase 13, DR-032).
+    /// </summary>
+    public event EventHandler<Guid>? SnapshotStored;
+
     private const int MaxQueuedComputes = 8;
 
     private const int MaxWatchedScan = 500;
@@ -477,21 +483,27 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
         {
             var token = _shutdown.Token;
             _computeGate.Wait(token);
+            ScoreSnapshot snapshot;
             try
             {
-                var snapshot = ComputeSnapshot(userId, peopleScan, token);
+                snapshot = ComputeSnapshot(userId, peopleScan, token);
                 if (generation == Volatile.Read(ref _generation))
                 {
                     _cache[userId] = snapshot;
                     stored = true;
                 }
-
-                return snapshot;
             }
             finally
             {
                 _computeGate.Release();
             }
+
+            if (stored)
+            {
+                SnapshotStored?.Invoke(this, userId);
+            }
+
+            return snapshot;
         }
         catch (Exception ex) when (ex is not OperationCanceledException and not ObjectDisposedException)
         {
