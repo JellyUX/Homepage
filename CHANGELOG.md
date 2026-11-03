@@ -1,3 +1,22 @@
+## [2.18.2](https://github.com/JellyUX/Homepage/compare/v2.18.1...v2.18.2) (2026-11-03)
+
+### Bug Fixes
+
+* **featured:** fetch the active banner backdrop first on a phone ([3069288](https://github.com/JellyUX/Homepage/commit/3069288e505897ef98b1da87e72faf032d0e102e))
+* **featured:** keep the banner thumbnails across rotations ([6ce9d13](https://github.com/JellyUX/Homepage/commit/6ce9d135d50b593b4ac34c18b05ae9e9a0abd5b2))
+* **featured:** request banner backdrops at 2 device pixels at most on a phone ([d508c30](https://github.com/JellyUX/Homepage/commit/d508c303c8a484b1f825db30ae3c14a0e44b9040))
+* **featured:** request the banner backdrop width once on high density screens ([fe9b77e](https://github.com/JellyUX/Homepage/commit/fe9b77e238e7db86490b071c9d365306082099bd))
+* **home:** ask the card images of the JellyUX rows at quality 80 ([9a58d22](https://github.com/JellyUX/Homepage/commit/9a58d22169e985efe2ae418e3ebc89690cb9b14f))
+* **home:** read the rows below the first screen when the page is idle ([0172e2e](https://github.com/JellyUX/Homepage/commit/0172e2ef6b965f99f0762b45d602ae6593b1da18))
+* **inject:** keep a bounded number of bundles in memory ([d1fb510](https://github.com/JellyUX/Homepage/commit/d1fb510d6146419dc26ece78ff301d7d7ee5e653))
+* **inject:** load the banner script only when a section is featured ([a21edba](https://github.com/JellyUX/Homepage/commit/a21edbac007ea75351ca11a3702357ca7c344b2a))
+* **inject:** load the tab and detail page scripts after the home page ([32f078a](https://github.com/JellyUX/Homepage/commit/32f078ac39628d1b3a1a56d6eaf692e222014715))
+* **inject:** name the files of a bundle URL instead of their positions ([3993e66](https://github.com/JellyUX/Homepage/commit/3993e66604adbf202890b466ba8726c4a51ac6a8))
+* **inject:** run each file of a bundle in a function of its own ([c8fd818](https://github.com/JellyUX/Homepage/commit/c8fd8183c5afd4a505e10166a79ce9f1c8d83539))
+* **tabs:** leave the address alone when the page left the home before its tab opened ([70838df](https://github.com/JellyUX/Homepage/commit/70838dfccd67df6434e6465bc68a34cb485ad354))
+* **tabs:** render a JellyUX tab opened before its script started ([4b9d0b9](https://github.com/JellyUX/Homepage/commit/4b9d0b9057005cadbc9021b426c041b7a7f2d43a))
+* **tabs:** show the Watchlist cards of a page loaded on its tab address ([93c01d0](https://github.com/JellyUX/Homepage/commit/93c01d07ae8ec8aa213e8e08327eb7990af2f27f))
+
 ## [2.18.1](https://github.com/JellyUX/Homepage/compare/v2.18.0...v2.18.1) (2026-11-02)
 
 ### Bug Fixes
