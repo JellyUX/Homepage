@@ -111,7 +111,10 @@ public sealed class WidgetItemFetcher
         // so a restart during the day draws the same order again.
         var seed = unchecked((key.UserId.GetHashCode() * 397) ^ key.Day.DayNumber ^ StableHash(key.Instance));
         SeededShuffle.Shuffle(ids, seed);
-        return ids.Take(Math.Clamp(maxItems, 1, WidgetConfig.MaxItemsCeiling)).ToArray();
+
+        // Twice MaxItems: the margin a stored order keeps for titles watched before the next computation (DR-033). The
+        // first MaxItems are the same whatever the length kept, so a section reads the same titles.
+        return ids.Take(2 * Math.Clamp(maxItems, 1, WidgetConfig.MaxItemsCeiling)).ToArray();
     }
 
     /// <summary>

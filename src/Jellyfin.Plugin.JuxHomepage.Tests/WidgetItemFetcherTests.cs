@@ -88,7 +88,7 @@ public sealed class WidgetItemFetcherTests
     }
 
     [Fact]
-    public void Random_KeepsMaxItemsIdsAndNeverReturnsAnItemHiddenFromTheUser()
+    public void Random_KeepsTwiceMaxItemsIdsAndNeverReturnsAnItemHiddenFromTheUser()
     {
         var hidden = new TestMovie { Id = Guid.NewGuid(), Name = "Hidden", VisibleToUser = false };
         _items[hidden.Id] = hidden;
@@ -100,8 +100,23 @@ public sealed class WidgetItemFetcherTests
 
         Assert.DoesNotContain(hidden.Id, all);
         Assert.Equal(30, all.Count);
-        Assert.True(page.Count <= 10);
+        Assert.True(page.Count <= 20);
         Assert.Null(_idQueries[0].Limit);
+    }
+
+    // R11 of phase 14: the draw keeps a margin of twice MaxItems for the stored order; its first MaxItems are the titles a
+    // section of MaxItems reads.
+    [Fact]
+    public void Random_DrawsAMarginOfTwiceMaxItems_WhoseFirstMaxItemsAreTheSectionsPage()
+    {
+        var fetcher = BuildFetcher();
+        var user = TestMocks.DefaultUser();
+
+        var margin = Ids(fetcher.Fetch("jux.admin.genre", user, new InternalItemsQuery(user), RandomPayload(limit: 10, maxItems: 5)));
+        var page = Ids(fetcher.Fetch("jux.admin.genre", user, new InternalItemsQuery(user), RandomPayload(limit: 5, maxItems: 5)));
+
+        Assert.Equal(10, margin.Count);
+        Assert.Equal(margin.Take(5), page);
     }
 
     [Fact]
