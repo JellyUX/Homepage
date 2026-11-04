@@ -16,7 +16,10 @@ with its own filter.
 A section outside its configured date window returns no items and is automatically hidden from the
 home screen, the same generic "not enough items" behavior every widget already relies on -- there is
 no separate "hide when out of season" setting to configure. A section with neither a genre nor a tag
-is hidden too: without a filter it would show your whole library.
+is hidden too: without a filter it would show your whole library. The window is checked when the order
+of the deferred sections is computed (see "Deferred sections freshness" in the
+[configuration](../../configuration.md#cache)), so a section appears or leaves at the first computation after
+its start or end date, the next day at the latest.
 
 ## Parameters
 
