@@ -109,6 +109,12 @@ public class PluginServiceRegistrator : IPluginServiceRegistrator
         // One reporter for the layout probe and the section reads, so a widget type is reported once (COMPAT-01.a).
         serviceCollection.AddSingleton<BinaryMismatchReporter>();
         serviceCollection.AddSingleton<WidgetLayoutResolver>();
+        serviceCollection.AddSingleton(sp => new StoredHomeScreens(
+            Path.Combine(sp.GetRequiredService<IApplicationPaths>().DataPath, Plugin.DataFolderName),
+            sp.GetRequiredService<IFileSystem>(),
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<StoredHomeScreens>>()));
+        serviceCollection.AddSingleton<StoredSectionReader>();
         // WidgetService takes the scoring service as its personalization state, passed here rather than
         // registered a second time as IPersonalizationState, so one owner disposes it once. Its other
         // collaborators are resolved from the container.

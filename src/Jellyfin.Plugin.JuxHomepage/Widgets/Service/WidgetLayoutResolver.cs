@@ -83,6 +83,38 @@ public sealed class WidgetLayoutResolver
         Guid userId,
         string? lang,
         Action<WidgetDescriptor, int, WidgetResult>? onProbed,
+        CancellationToken cancellationToken) =>
+        (await BuildCore(userId, lang, onProbed, store: null, cancellationToken).ConfigureAwait(false)).Descriptors;
+
+    /// <summary>
+    /// Builds the layout with the deferred level kept on disk (DR-033). With a <paramref name="stored"/> layout, each
+    /// deferred row it holds is read again from its stored order with live user data, without resolving its widget
+    /// (no scoring) nor probing it; a deferred row it lacks and every direct row are read as by
+    /// <see cref="BuildDescriptors(Guid, string?, Action{WidgetDescriptor, int, WidgetResult}?, CancellationToken)"/>.
+    /// Without one, every row is computed, each deferred row probed with a margin of twice its MaxItems, and the
+    /// returned <see cref="LayoutBuild.Computed"/> layout is the one to store.
+    /// </summary>
+    /// <param name="userId">The requesting user's identifier.</param>
+    /// <param name="lang">The requested language code, or null for the default (English).</param>
+    /// <param name="onProbed">Receives each kept section, the page size the client reads and its first page.</param>
+    /// <param name="stored">The stored layout to read again, or null to compute one.</param>
+    /// <param name="reader">Reads a page of a deferred section from its stored ids.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The layout, the layout to store when one was computed, and whether a stored row is due again.</returns>
+    public Task<LayoutBuild> BuildAsync(
+        Guid userId,
+        string? lang,
+        Action<WidgetDescriptor, int, WidgetResult>? onProbed,
+        StoredLayout? stored,
+        StoredSectionReader reader,
+        CancellationToken cancellationToken) =>
+        BuildCore(userId, lang, onProbed, new StoreAccess(stored, reader), cancellationToken);
+
+    private async Task<LayoutBuild> BuildCore(
+        Guid userId,
+        string? lang,
+        Action<WidgetDescriptor, int, WidgetResult>? onProbed,
+        StoreAccess? store,
         CancellationToken cancellationToken)
     {
         var globalConfig = _getConfiguration()?.Widgets ?? [];
@@ -114,22 +146,82 @@ public sealed class WidgetLayoutResolver
         // thread pool, at most MaxConcurrentProbes at a time (PERF-02): a slow row overlaps the others
         // instead of delaying them (BuildDescriptors_SlowSynchronousProbes_OverlapUpToTheBound,
         // BuildDescriptors_ResolveWaitingForScoring_OverlapsTheOtherProbes).
-        var results = new WidgetDescriptor?[effectiveConfigs.Count];
+        var results = new RowOutcome[effectiveConfigs.Count];
         await Parallel.ForEachAsync(
             Enumerable.Range(0, effectiveConfigs.Count),
             new ParallelOptions { MaxDegreeOfParallelism = MaxConcurrentProbes, CancellationToken = cancellationToken },
             async (i, token) =>
             {
                 var (config, key) = effectiveConfigs[i];
-                results[i] = await ResolveAndFetch(userId, config, key, ranks[config], lang, onProbed, token).ConfigureAwait(false);
+                results[i] = store?.Stored?.RowOf(key) is { } row && IsDeferred(config.WidgetType)
+                    ? ReadStoredRow(userId, config, key, row, onProbed, store.Reader)
+                    : await ResolveAndFetch(userId, config, key, ranks[config], lang, onProbed, store, token).ConfigureAwait(false);
             }).ConfigureAwait(false);
 
         // Each config row resolves to at most one descriptor (see ResolveAndFetch); drop the nulls.
-        return results
+        var descriptors = results
+            .Select(r => r.Descriptor)
             .OfType<WidgetDescriptor>()
             .OrderBy(d => d.Order)
             .ToList()
             .AsReadOnly();
+        var computed = store is { Stored: null }
+            ? new StoredLayout { Rows = [.. results.Select(r => r.Row).OfType<StoredRow>()] }
+            : null;
+        return new LayoutBuild(descriptors, computed, results.Any(r => r.Due));
+    }
+
+    private bool IsDeferred(string widgetType) => _registry.GetByType(widgetType)?.Freshness == FreshnessLevel.Deferred;
+
+    /// <summary>
+    /// Reads a deferred row again from its stored order (DR-033): left out as stored, or its section with the page the
+    /// client reads, the live filter applied. It is due again when watched or removed titles left fewer than MaxItems
+    /// of the stored ones, and left out until then when they left fewer than MinItems.
+    /// </summary>
+    private RowOutcome ReadStoredRow(
+        Guid userId,
+        WidgetConfig config,
+        string key,
+        StoredRow row,
+        Action<WidgetDescriptor, int, WidgetResult>? onProbed,
+        StoredSectionReader reader)
+    {
+        var widget = _registry.GetByType(config.WidgetType);
+        if (row.Section is null || widget is null)
+        {
+            return new RowOutcome(null, row, false);
+        }
+
+        var descriptor = row.Section.ToDescriptor(key);
+        var payload = ClientPayload(userId, config, descriptor);
+        var (page, visible) = reader.Read(widget, payload, row.Ids);
+        var due = visible < Math.Min(descriptor.MaxItems, row.Ids.Count);
+        if (visible < config.MinItems)
+        {
+            return new RowOutcome(null, row, true);
+        }
+
+        onProbed?.Invoke(descriptor, payload.Limit, page);
+        return new RowOutcome(descriptor, row, due);
+    }
+
+    /// <summary>The first page the client requests from the Section endpoint for a section (PERF-03.b).</summary>
+    private static WidgetPayload ClientPayload(Guid userId, WidgetConfig config, WidgetDescriptor descriptor)
+    {
+        var maxItems = Math.Clamp(config.MaxItems, 1, WidgetConfig.MaxItemsCeiling);
+        return new WidgetPayload
+        {
+            UserId = userId,
+            AdditionalData = descriptor.AdditionalData,
+            ExtraParams = config.GetExtraParamsDictionary(),
+            SortBy = config.SortBy,
+            SortOrder = config.SortOrder,
+            MaxItems = config.MaxItems,
+            StartIndex = 0,
+            Limit = Math.Max(Math.Max(1, config.MinItems), maxItems),
+            Featured = descriptor.Featured,
+            FeaturedMinRating = descriptor.Featured ? config.FeaturedMinRating : 0
+        };
     }
 
     /// <summary>
@@ -154,6 +246,15 @@ public sealed class WidgetLayoutResolver
     /// <returns>True when the home screen, tabs and card add-ons are JellyUX's for this user.</returns>
     public bool IsEnabledFor(Guid userId) =>
         (_getConfiguration()?.Enabled ?? true) && _userConfigStore.GetUserConfiguration(userId)?.Enabled != false;
+
+    /// <summary>
+    /// Returns the discriminant of the user's stored layouts: a saved configuration or a change of the user's own
+    /// settings makes the layouts stored before it computed again (DR-033).
+    /// </summary>
+    /// <param name="userId">The user.</param>
+    /// <returns>The discriminant.</returns>
+    public string DiscriminantOf(Guid userId) =>
+        StoredHomeScreens.Discriminant(_getConfiguration(), _userConfigStore.GetUserConfiguration(userId));
 
     private static Guid? InstanceId(WidgetConfig row)
     {
@@ -214,13 +315,14 @@ public sealed class WidgetLayoutResolver
     /// resolve to null (the requested <paramref name="rank"/> has no scored value for this user, see
     /// <see cref="Personalized.PersonalizedWidgetBase.Resolve"/>).
     /// </summary>
-    private async Task<WidgetDescriptor?> ResolveAndFetch(
+    private async Task<RowOutcome> ResolveAndFetch(
         Guid userId,
         WidgetConfig config,
         string sectionKey,
         int rank,
         string? lang,
         Action<WidgetDescriptor, int, WidgetResult>? onProbed,
+        StoreAccess? store,
         CancellationToken cancellationToken)
     {
         var widget = _registry.GetByType(config.WidgetType);
@@ -230,8 +332,14 @@ public sealed class WidgetLayoutResolver
                 "Widget type '{WidgetType}' is configured but not registered - skipping (user {UserId}).",
                 config.WidgetType,
                 userId);
-            return null;
+            return default;
         }
+
+        // A computed layout probes its deferred rows with a margin and stores them; a stored layout that lacks a
+        // deferred row (its probe failed when it was computed) reads it live and is due again.
+        var deferred = widget.Freshness == FreshnessLevel.Deferred;
+        var materialize = deferred && store is { Stored: null };
+        var lacking = deferred && store is { Stored: not null };
 
         var instanceConfig = BuildInstanceConfig(config, widget, lang, _localizationService);
 
@@ -248,12 +356,12 @@ public sealed class WidgetLayoutResolver
                 config.WidgetType,
                 userId);
             await ReportMismatchAsync(config.WidgetType, ex).ConfigureAwait(false);
-            return null;
+            return new RowOutcome(null, null, lacking);
         }
 
         if (instance is null)
         {
-            return null;
+            return new RowOutcome(null, materialize ? LeftOut(sectionKey, widget) : null, lacking);
         }
 
         var probed = await FetchInstanceDescriptor(
@@ -261,26 +369,50 @@ public sealed class WidgetLayoutResolver
             config,
             instanceConfig,
             instance,
+            materialize,
             cancellationToken).ConfigureAwait(false);
         if (probed is not { } kept)
         {
-            return null;
+            return new RowOutcome(null, null, lacking);
         }
 
-        kept.Descriptor.SectionKey = sectionKey;
-        if (!kept.Descriptor.ReadNatively)
+        // Only a page read from library ids can be stored: a stored layout lacking any other row is not due for it.
+        var due = lacking && kept.Page.ItemIds is not null;
+        if (kept.Descriptor is not { } descriptor)
         {
-            onProbed?.Invoke(kept.Descriptor, kept.Limit, kept.Page);
+            // Below MinItems: left out, and stored as left out when its page was read from library ids.
+            return new RowOutcome(null, materialize && kept.Page.ItemIds is not null ? LeftOut(sectionKey, widget) : null, due);
         }
 
-        return kept.Descriptor;
+        descriptor.SectionKey = sectionKey;
+        StoredRow? row = null;
+        var (limit, page) = (kept.Limit, kept.Page);
+        if (materialize && page.ItemIds is { } ids && store is not null)
+        {
+            // The order is stored with its margin; the page the client reads is its first MaxItems, filtered live.
+            row = new StoredRow { Key = sectionKey, Sources = [.. widget.Sources], Section = StoredSection.From(descriptor), Ids = [.. ids] };
+            var client = ClientPayload(userId, config, descriptor);
+            (page, _) = store.Reader.Read(widget, client, ids);
+            limit = client.Limit;
+        }
+
+        if (!descriptor.ReadNatively)
+        {
+            onProbed?.Invoke(descriptor, limit, page);
+        }
+
+        return new RowOutcome(descriptor, row, due);
     }
 
-    private async Task<(WidgetDescriptor Descriptor, int Limit, WidgetResult Page)?> FetchInstanceDescriptor(
+    private static StoredRow LeftOut(string sectionKey, IWidget widget) =>
+        new() { Key = sectionKey, Sources = [.. widget.Sources] };
+
+    private async Task<(WidgetDescriptor? Descriptor, int Limit, WidgetResult Page)?> FetchInstanceDescriptor(
         Guid userId,
         WidgetConfig config,
         WidgetInstanceConfig instanceConfig,
         IWidget instance,
+        bool withMargin,
         CancellationToken cancellationToken)
     {
         var instanceDescriptor = instance.GetDescriptor();
@@ -308,7 +440,9 @@ public sealed class WidgetLayoutResolver
             SortOrder = config.SortOrder,
             MaxItems = config.MaxItems,
             StartIndex = 0,
-            Limit = instanceDescriptor.ReadNatively ? minItems : Math.Max(minItems, maxItems)
+            // A computed deferred row reads twice its MaxItems: the margin its stored order keeps for the titles watched
+            // or removed before the next computation (DR-033).
+            Limit = instanceDescriptor.ReadNatively ? minItems : Math.Max(minItems, withMargin ? 2 * maxItems : maxItems)
         }.WithFeatured(config, instanceDescriptor);
 
         WidgetResult result;
@@ -336,7 +470,7 @@ public sealed class WidgetLayoutResolver
                 found,
                 config.MinItems,
                 userId);
-            return null;
+            return (null, payload.Limit, result);
         }
 
         // Generic theme population: any widget instance may carry an ExtraParams["theme"] value
@@ -448,4 +582,16 @@ public sealed class WidgetLayoutResolver
 
     private Task ReportMismatchAsync(string widgetType, Exception exception) =>
         _mismatchReporter?.ReportAsync(widgetType, exception) ?? Task.CompletedTask;
+
+    /// <summary>The outcome of one configuration row: its section or none, its stored row, and whether it is due again.</summary>
+    private readonly record struct RowOutcome(WidgetDescriptor? Descriptor, StoredRow? Row, bool Due);
+
+    /// <summary>The stored layout a build reads again (null: one is computed) and the reader of its sections.</summary>
+    private sealed record StoreAccess(StoredLayout? Stored, StoredSectionReader Reader);
 }
+
+/// <summary>A layout built with the deferred level kept on disk (DR-033).</summary>
+/// <param name="Descriptors">The ordered sections, not yet paginated.</param>
+/// <param name="Computed">The deferred rows this build computed, to store; null when a stored layout was read again.</param>
+/// <param name="Due">Whether a stored row was read short of its MaxItems or was missing, so the layout is computed again.</param>
+public sealed record LayoutBuild(IReadOnlyList<WidgetDescriptor> Descriptors, StoredLayout? Computed, bool Due);

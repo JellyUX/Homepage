@@ -32,6 +32,22 @@ internal static class UserVisibleItems
         Check(libraryManager, user, ids, new InternalItemsQuery(), out unresolvedCount);
 
     /// <summary>
+    /// Resolves <paramref name="ids"/> like <see cref="Resolve"/>, leaving out the titles <paramref name="user"/> has
+    /// played, read live in the same query: a stored order shows no title watched since it was computed (DR-033).
+    /// </summary>
+    /// <param name="libraryManager">The library manager.</param>
+    /// <param name="user">The user the items are returned to.</param>
+    /// <param name="ids">The stored ids, in the order the caller wants back.</param>
+    /// <param name="unresolvedCount">The number of ids that no longer resolve to an unplayed library item.</param>
+    /// <returns>The visible unplayed items, in the order of <paramref name="ids"/>.</returns>
+    public static IReadOnlyList<BaseItem> ResolveUnplayed(
+        ILibraryManager libraryManager,
+        User user,
+        IReadOnlyList<Guid> ids,
+        out int unresolvedCount) =>
+        Check(libraryManager, user, ids, new InternalItemsQuery(user) { IsPlayed = false }, out unresolvedCount);
+
+    /// <summary>
     /// Returns, in input order, the ids of <paramref name="ids"/> that <paramref name="user"/> may open on
     /// their own, checked like <see cref="Resolve"/> but from a lean read: no field, image nor user data
     /// (PERF-03, DR-007). A long cached list (the whole watch history) is checked and counted this way, and

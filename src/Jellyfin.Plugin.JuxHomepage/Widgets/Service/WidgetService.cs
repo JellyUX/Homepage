@@ -29,6 +29,7 @@ public sealed class WidgetService
 
     private readonly ConcurrentDictionary<(Guid UserId, string Lang), (long Version, Lazy<Task<IReadOnlyList<WidgetDescriptor>>> Build)> _builds = new();
     private readonly ConcurrentDictionary<(Guid UserId, string Lang), byte> _queuedRebuilds = new();
+    private readonly ConcurrentDictionary<(Guid UserId, string Lang), byte> _queuedComputes = new();
     private readonly ConcurrentDictionary<SectionId, byte> _queuedSectionReads = new();
     private readonly ConcurrentDictionary<Task, byte> _backgroundRebuilds = new();
     private readonly SemaphoreSlim _rebuildGate = new(1, 1);
@@ -42,7 +43,10 @@ public sealed class WidgetService
     private readonly SectionResultCache _sectionResults;
     private readonly IUserAccessWatch _accessWatch;
     private readonly BinaryMismatchReporter _mismatchReporter;
+    private readonly StoredHomeScreens _stored;
+    private readonly StoredSectionReader _storedReader;
     private int _queuedRebuildCount;
+    private int _queuedComputeCount;
     private int _queuedSectionReadCount;
 
     /// <summary>
@@ -71,6 +75,8 @@ public sealed class WidgetService
     /// Tells the administrator when a section fails because the plugin build does not match the server
     /// (COMPAT-01.a).
     /// </param>
+    /// <param name="stored">The deferred level of each home screen kept on disk (DR-033).</param>
+    /// <param name="storedReader">Reads a page of a deferred section from its stored order with live user data.</param>
     public WidgetService(
         IWidgetRegistry registry,
         SessionCache sessionCache,
@@ -80,7 +86,9 @@ public sealed class WidgetService
         IPersonalizationState personalizationState,
         SectionResultCache sectionResults,
         IUserAccessWatch accessWatch,
-        BinaryMismatchReporter mismatchReporter)
+        BinaryMismatchReporter mismatchReporter,
+        StoredHomeScreens stored,
+        StoredSectionReader storedReader)
     {
         _registry = registry;
         _sessionCache = sessionCache;
@@ -91,6 +99,8 @@ public sealed class WidgetService
         _sectionResults = sectionResults;
         _accessWatch = accessWatch;
         _mismatchReporter = mismatchReporter;
+        _stored = stored;
+        _storedReader = storedReader;
     }
 
     /// <summary>
@@ -137,6 +147,9 @@ public sealed class WidgetService
 
     private TimeSpan SessionTtl => TimeSpan.FromMinutes(_getConfiguration()?.Cache?.SessionTtlMinutes ?? 15);
 
+    /// <summary>Gets how long a stored layout is read again before it is computed again (DR-033).</summary>
+    private static TimeSpan DeferredFreshness => TimeSpan.FromHours(24);
+
     /// <summary>
     /// Builds the user's layout, or joins the build already running for the same user and language,
     /// so simultaneous misses cost one build (<c>Sections_SimultaneousMisses_BuildOnce</c>). A build
@@ -155,28 +168,49 @@ public sealed class WidgetService
     }
 
     private (long Version, Lazy<Task<IReadOnlyList<WidgetDescriptor>>> Build) NewBuild((Guid UserId, string Lang) key, string? lang, long version) =>
-        (version, new Lazy<Task<IReadOnlyList<WidgetDescriptor>>>(() => BuildAndStore(key, lang, version)));
+        (version, new Lazy<Task<IReadOnlyList<WidgetDescriptor>>>(() => BuildAndStore(key, lang, version, compute: false)));
 
-    private async Task<IReadOnlyList<WidgetDescriptor>> BuildAndStore((Guid UserId, string Lang) key, string? lang, long version)
+    /// <summary>
+    /// Builds the layout and caches it. Unless <paramref name="compute"/> is set, a stored layout of the current
+    /// configuration is read again (DR-033): its deferred rows are projected from their stored order with live user
+    /// data, without scoring nor probing them; when it is older than the deferred freshness, marked due, or a row ran
+    /// short, it is still served and computed again in the background. Otherwise every row is computed and the
+    /// deferred ones are stored, unless the layout was built before the user's first scoring finished.
+    /// </summary>
+    private async Task<IReadOnlyList<WidgetDescriptor>> BuildAndStore((Guid UserId, string Lang) key, string? lang, long version, bool compute)
     {
         try
         {
             // Read before the probes, so a page probed before the user's data changed is not kept.
             var stamp = _sectionResults.StampOf(key.UserId);
+            var startedAt = _stored.UtcNow;
             var ttl = SessionTtl;
             Action<WidgetDescriptor, int, WidgetResult> keepProbedPage =
                 (descriptor, limit, page) => _sectionResults.Set(
                     SectionOf(key.UserId, descriptor), 0, limit, page, stamp, ttl, _registry.GetByType(descriptor.WidgetType)?.Sources);
-            var descriptors = await _layoutResolver.BuildDescriptors(key.UserId, lang, keepProbedPage, CancellationToken.None).ConfigureAwait(false);
+            var discriminant = _layoutResolver.DiscriminantOf(key.UserId);
+            var stored = compute ? null : _stored.Read(key.UserId, key.Lang, discriminant, DeferredFreshness);
+            var build = await _layoutResolver.BuildAsync(key.UserId, lang, keepProbedPage, stored?.Layout, _storedReader, CancellationToken.None).ConfigureAwait(false);
 
-            // A layout built before the user's first scoring finished is served, never cached, so an
+            // A layout built before the user's first scoring finished is served, never cached nor stored, so an
             // expired one is never served in its place either (Sections_PendingScoring_IsNotCachedNorServedStale).
             if (!_personalizationState.TakePendingServed(key.UserId))
             {
-                _sessionCache.Set(key.UserId, lang, descriptors, version);
+                _sessionCache.Set(key.UserId, lang, build.Descriptors, version);
+                if (build.Computed is { } computed)
+                {
+                    computed.ComputedAtUtc = startedAt;
+                    computed.Discriminant = discriminant;
+                    _stored.Write(key.UserId, key.Lang, computed);
+                }
             }
 
-            return descriptors;
+            if (stored is { } read && (!read.Fresh || build.Due))
+            {
+                QueueBackgroundCompute(key.UserId, lang);
+            }
+
+            return build.Descriptors;
         }
         finally
         {
@@ -240,6 +274,52 @@ public sealed class WidgetService
     }
 
     /// <summary>
+    /// Computes a stored layout again in the background (DR-033): one build at a time server-wide, behind the same gate
+    /// as the expired layouts, at most <see cref="MaxQueuedRebuilds"/> queued; the stored layout is served meanwhile.
+    /// </summary>
+    private void QueueBackgroundCompute(Guid userId, string? lang)
+    {
+        var key = (userId, SessionCache.NormalizeKey(lang));
+        if (!_queuedComputes.TryAdd(key, 0))
+        {
+            return;
+        }
+
+        if (Interlocked.Increment(ref _queuedComputeCount) > MaxQueuedRebuilds)
+        {
+            Interlocked.Decrement(ref _queuedComputeCount);
+            _queuedComputes.TryRemove(key, out _);
+            _logger.LogDebug("Home screen compute queue full; serving the stored layout of user {UserId} as is.", userId);
+            return;
+        }
+
+        TrackBackground(Task.Run(async () =>
+        {
+            try
+            {
+                await _rebuildGate.WaitAsync().ConfigureAwait(false);
+                try
+                {
+                    await BuildAndStore(key, lang, _sessionCache.VersionOf(userId), compute: true).ConfigureAwait(false);
+                }
+                finally
+                {
+                    _rebuildGate.Release();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to compute the home screen of user {UserId} in the background.", userId);
+            }
+            finally
+            {
+                _queuedComputes.TryRemove(key, out _);
+                Interlocked.Decrement(ref _queuedComputeCount);
+            }
+        }));
+    }
+
+    /// <summary>
     /// Reads a stale section page again in the background (REV-04.b, DR-032) and stores it, in a queue of its own so
     /// that a burst of stale pages after playback ends never holds back a layout rebuild: one at a time server-wide,
     /// at most <see cref="MaxQueuedRebuilds"/> queued, the stale page served meanwhile (<c>StalePage_IsServedAndReadAgainInTheBackground_ThenTheNewPageIsServed</c>).
@@ -267,7 +347,7 @@ public sealed class WidgetService
                 try
                 {
                     var stamp = _sectionResults.StampOf(section.UserId);
-                    var result = await widget.GetItemsAsync(payload, CancellationToken.None).ConfigureAwait(false);
+                    var result = await ReadSection(section, widget, payload, CancellationToken.None).ConfigureAwait(false);
                     _ = result.Items;
                     _sectionResults.Set(section, payload.StartIndex, payload.Limit, result, stamp, SessionTtl, widget.Sources);
                 }
@@ -354,7 +434,7 @@ public sealed class WidgetService
         var stamp = _sectionResults.StampOf(userId);
         try
         {
-            var result = hit ? stored! : await widget.GetItemsAsync(payload, cancellationToken).ConfigureAwait(false);
+            var result = hit ? stored! : await ReadSection(section, widget, payload, cancellationToken).ConfigureAwait(false);
             if (hit && stale)
             {
                 QueueBackgroundSectionRead(section, widget, payload);
@@ -381,6 +461,22 @@ public sealed class WidgetService
 
             return WidgetResult.Empty;
         }
+    }
+
+    /// <summary>
+    /// Reads a page of a section: a deferred section's first page from its stored order with live user data when a
+    /// stored layout of the current configuration holds it (DR-033), otherwise from its widget.
+    /// </summary>
+    private Task<WidgetResult> ReadSection(SectionId section, IWidget widget, WidgetPayload payload, CancellationToken cancellationToken)
+    {
+        if (widget.Freshness == FreshnessLevel.Deferred
+            && payload.StartIndex == 0
+            && _stored.IdsOf(section.UserId, _layoutResolver.DiscriminantOf(section.UserId), section) is { } ids)
+        {
+            return Task.FromResult(_storedReader.Read(widget, payload, ids).Page);
+        }
+
+        return widget.GetItemsAsync(payload, cancellationToken);
     }
 
     private static SectionId SectionOf(Guid userId, WidgetDescriptor descriptor) =>

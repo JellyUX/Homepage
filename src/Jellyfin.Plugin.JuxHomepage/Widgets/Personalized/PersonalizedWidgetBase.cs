@@ -29,7 +29,7 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets.Personalized;
 /// value).
 /// </para>
 /// </summary>
-public abstract class PersonalizedWidgetBase : IWidget
+public abstract class PersonalizedWidgetBase : IWidget, IHidesPlayedItems
 {
     /// <summary>The <c>ExtraParams</c> key of the "hide watched items" switch, on unless "false".</summary>
     public const string ExcludeWatchedParam = "excludeWatched";
@@ -219,6 +219,9 @@ public abstract class PersonalizedWidgetBase : IWidget
     }
 
     /// <inheritdoc/>
+    public bool HidesPlayed(IReadOnlyDictionary<string, string>? extraParams) => ExcludeWatched(extraParams);
+
+    /// <inheritdoc/>
     public WidgetDescriptor GetDescriptor() => new()
     {
         WidgetType = WidgetType,
@@ -242,10 +245,12 @@ public abstract class PersonalizedWidgetBase : IWidget
     /// </summary>
     /// <param name="payload">The request payload.</param>
     /// <returns><see langword="true"/> unless the administrator explicitly disabled the exclusion.</returns>
-    private static bool ExcludeWatched(WidgetPayload payload)
+    private static bool ExcludeWatched(WidgetPayload payload) => ExcludeWatched(payload.ExtraParams);
+
+    private static bool ExcludeWatched(IReadOnlyDictionary<string, string>? extraParams)
     {
-        if (payload.ExtraParams is not null &&
-            payload.ExtraParams.TryGetValue(ExcludeWatchedParam, out var raw) &&
+        if (extraParams is not null &&
+            extraParams.TryGetValue(ExcludeWatchedParam, out var raw) &&
             bool.TryParse(raw, out var value))
         {
             return value;
