@@ -277,6 +277,28 @@ public sealed class WidgetService
     }
 
     /// <summary>
+    /// Computes the user's layout in <paramref name="lang"/> and stores its deferred rows (the nightly task, DR-033):
+    /// scoring and probes included, behind the same gate as the background rebuilds, so one layout is built at a time
+    /// on the server; the layout and its first pages are cached as a visit would leave them.
+    /// </summary>
+    /// <param name="userId">The user.</param>
+    /// <param name="lang">The language of the layout.</param>
+    /// <param name="cancellationToken">Cancels the wait for the gate; a computation once started runs to its end.</param>
+    /// <returns>A task that completes once the layout is stored.</returns>
+    public async Task ComputeAsync(Guid userId, string? lang, CancellationToken cancellationToken)
+    {
+        await _rebuildGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            await BuildAndStore((userId, SessionCache.NormalizeKey(lang)), lang, _sessionCache.VersionOf(userId), compute: true).ConfigureAwait(false);
+        }
+        finally
+        {
+            _rebuildGate.Release();
+        }
+    }
+
+    /// <summary>
     /// Computes a stored layout again in the background (DR-033): one build at a time server-wide, behind the same gate
     /// as the expired layouts, at most <see cref="MaxQueuedRebuilds"/> queued; the stored layout is served meanwhile.
     /// </summary>

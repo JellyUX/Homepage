@@ -179,12 +179,9 @@ public sealed class HomeWarmupServiceTests : IDisposable
 
         return new HomeWarmupService(
             _lifetime,
-            UserManager,
+            new ActiveHomeUsers(UserManager, new HomeLanguageMemory(store.Object), server.Object, localization, _clock),
             _scoring,
             widgets,
-            new HomeLanguageMemory(store.Object),
-            server.Object,
-            localization,
             _clock,
             NullLogger<HomeWarmupService>.Instance,
             processors);

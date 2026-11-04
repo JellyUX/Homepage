@@ -60,6 +60,8 @@
         "Widgets/Service/StoredHomeScreens.cs:ForgetForTesting": "test seam (ForTesting suffix), called by the tests only",
         "Widgets/Service/WidgetItemFetcher.cs:DrawCountForTesting": "test seam (ForTesting suffix), called by the tests only",
         "Widgets/Service/WidgetLayoutResolver.cs:BuildDescriptors": "test seam, called by the tests only: production builds the layout with BuildAsync (WidgetService, DR-033)",
-        "Widgets/Service/WidgetService.cs:WhenIdleForTesting": "test seam (ForTesting suffix), called by the tests only"
+        "Widgets/Service/WidgetService.cs:WhenIdleForTesting": "test seam (ForTesting suffix), called by the tests only",
+        "Widgets/Tasks/HomeSectionsRefreshTask.cs:ExecuteAsync": "IScheduledTask member, called by the Jellyfin task manager",
+        "Widgets/Tasks/HomeSectionsRefreshTask.cs:GetDefaultTriggers": "IScheduledTask member, called by the Jellyfin task manager"
     }
 }

@@ -1,8 +1,4 @@
-using Jellyfin.Plugin.JuxHomepage.Configuration;
-using Jellyfin.Plugin.JuxHomepage.Localization;
 using Jellyfin.Plugin.JuxHomepage.Widgets.Personalized;
-using MediaBrowser.Controller.Configuration;
-using MediaBrowser.Controller.Library;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -22,16 +18,10 @@ public sealed class HomeWarmupService : IHostedService, IDisposable
     /// <summary>The most users warmed after a start.</summary>
     internal const int MaxUsers = 10;
 
-    /// <summary>How recently a user must have been active to be warmed.</summary>
-    internal static readonly TimeSpan ActiveWithin = TimeSpan.FromDays(7);
-
     private readonly IHostApplicationLifetime _lifetime;
-    private readonly IUserManager _userManager;
+    private readonly ActiveHomeUsers _activeUsers;
     private readonly ScoringService _scoring;
     private readonly WidgetService _widgets;
-    private readonly HomeLanguageMemory _homeLanguages;
-    private readonly IServerConfigurationManager _serverConfiguration;
-    private readonly ILocalizationService _localization;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<HomeWarmupService> _logger;
     private readonly int _processorCount;
@@ -41,34 +31,25 @@ public sealed class HomeWarmupService : IHostedService, IDisposable
     /// Initializes a new instance of the <see cref="HomeWarmupService"/> class.
     /// </summary>
     /// <param name="lifetime">Signals the server start.</param>
-    /// <param name="userManager">Jellyfin user manager.</param>
+    /// <param name="activeUsers">The recently active users and the language of their last home screen.</param>
     /// <param name="scoring">The personalization scoring.</param>
     /// <param name="widgets">Builds and caches home screens.</param>
-    /// <param name="homeLanguages">The language of each user's last home screen.</param>
-    /// <param name="serverConfiguration">The server configuration, for its interface language.</param>
-    /// <param name="localization">Normalizes a language like a home screen request does.</param>
-    /// <param name="timeProvider">Time source of the delay and of the activity window.</param>
+    /// <param name="timeProvider">Time source of the delay.</param>
     /// <param name="logger">Logger.</param>
     /// <param name="processorCount">The machine's processor count; <see cref="Environment.ProcessorCount"/> when null.</param>
     public HomeWarmupService(
         IHostApplicationLifetime lifetime,
-        IUserManager userManager,
+        ActiveHomeUsers activeUsers,
         ScoringService scoring,
         WidgetService widgets,
-        HomeLanguageMemory homeLanguages,
-        IServerConfigurationManager serverConfiguration,
-        ILocalizationService localization,
         TimeProvider timeProvider,
         ILogger<HomeWarmupService> logger,
         int? processorCount = null)
     {
         _lifetime = lifetime;
-        _userManager = userManager;
+        _activeUsers = activeUsers;
         _scoring = scoring;
         _widgets = widgets;
-        _homeLanguages = homeLanguages;
-        _serverConfiguration = serverConfiguration;
-        _localization = localization;
         _timeProvider = timeProvider;
         _logger = logger;
         _processorCount = processorCount ?? Environment.ProcessorCount;
@@ -104,19 +85,12 @@ public sealed class HomeWarmupService : IHostedService, IDisposable
             await Task.Delay(Delay, _timeProvider, cancellationToken).ConfigureAwait(false);
 
             var started = _timeProvider.GetTimestamp();
-            var activeSince = _timeProvider.GetUtcNow().UtcDateTime - ActiveWithin;
-            var users = _userManager.GetUsers()
-                .Where(u => u.LastActivityDate >= activeSince)
-                .OrderByDescending(u => u.LastActivityDate)
-                .Take(MaxUsers)
-                .Select(u => u.Id)
-                .ToList();
-            var fallback = _localization.NormalizeLanguage(_serverConfiguration.Configuration.UICulture);
+            var users = _activeUsers.MostRecent(MaxUsers);
 
             var warmed = 0;
             foreach (var userId in users)
             {
-                if (await WarmUserAsync(userId, fallback, cancellationToken).ConfigureAwait(false))
+                if (await WarmUserAsync(userId, cancellationToken).ConfigureAwait(false))
                 {
                     warmed++;
                 }
@@ -138,7 +112,7 @@ public sealed class HomeWarmupService : IHostedService, IDisposable
         }
     }
 
-    private async Task<bool> WarmUserAsync(Guid userId, string fallbackLanguage, CancellationToken cancellationToken)
+    private async Task<bool> WarmUserAsync(Guid userId, CancellationToken cancellationToken)
     {
         if (!_widgets.IsEnabledFor(userId))
         {
@@ -155,8 +129,7 @@ public sealed class HomeWarmupService : IHostedService, IDisposable
                 return false;
             }
 
-            var language = _homeLanguages.Get(userId) ?? fallbackLanguage;
-            await _widgets.GetWidgetsForUser(userId, 0, language, cancellationToken).ConfigureAwait(false);
+            await _widgets.GetWidgetsForUser(userId, 0, _activeUsers.LanguageOf(userId), cancellationToken).ConfigureAwait(false);
             return true;
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
