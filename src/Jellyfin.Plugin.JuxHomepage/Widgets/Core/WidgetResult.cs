@@ -30,6 +30,7 @@ public sealed class WidgetResult
         _items = new Lazy<IReadOnlyList<BaseItemDto>>(items);
         ItemCount = items.Count;
         TotalRecordCount = totalRecordCount;
+        Head = count => count >= ItemCount ? this : new WidgetResult([.. items.Take(count)], totalRecordCount);
     }
 
     private WidgetResult(int itemCount, int totalRecordCount, Func<IReadOnlyList<BaseItemDto>> project, IReadOnlyList<Guid>? itemIds)
@@ -39,6 +40,11 @@ public sealed class WidgetResult
         ItemCount = itemCount;
         TotalRecordCount = totalRecordCount;
         ItemIds = itemIds;
+
+        // By default the first items are cut from this page's DTOs, projected once for both.
+        Head = count => count >= ItemCount
+            ? this
+            : new WidgetResult(count, totalRecordCount, () => [.. Items.Take(count)], itemIds is null ? null : [.. itemIds.Take(count)]);
     }
 
     /// <summary>Gets the page of items for this result, projected to DTOs on the first read.</summary>
@@ -63,12 +69,12 @@ public sealed class WidgetResult
     public IReadOnlyList<Guid>? ItemIds { get; }
 
     /// <summary>
-    /// Gets the first items of the page as a page of their own, projected as the widget projects a page, without
-    /// reading the library again; null when the page cannot be cut (DR-033: a computed row reads a margin past the
-    /// page the client reads).
+    /// Gets the first items of the page as a page of their own, without reading the library again (DR-033: a computed
+    /// row reads a margin past the page the client reads): cut from this page's DTOs, or projected as the widget
+    /// projects a page when it set its own (<see cref="FeaturedItems.Project"/>).
     /// </summary>
     [JsonIgnore]
-    internal Func<int, WidgetResult>? Head { get; private set; }
+    internal Func<int, WidgetResult> Head { get; private set; }
 
     /// <summary>Gets an empty result with no items and a count of zero.</summary>
     public static WidgetResult Empty { get; } = new WidgetResult([], 0);

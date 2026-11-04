@@ -396,13 +396,17 @@ public sealed class WidgetLayoutResolver
         descriptor.SectionKey = sectionKey;
         StoredRow? row = null;
         var (limit, page) = (kept.Limit, kept.Page);
-        if (materialize && page.ItemIds is { } ids && store is not null)
+        if (materialize)
         {
-            // The order is stored with its margin; the page the client reads is its first MaxItems, filtered live.
-            row = new StoredRow { Key = sectionKey, Sources = [.. widget.Sources], Section = StoredSection.From(descriptor), Ids = [.. ids] };
-            var client = ClientPayload(userId, config, descriptor);
-            page = page.Head?.Invoke(client.Limit) ?? store.Reader.Read(widget, client, ids).Page;
-            limit = client.Limit;
+            // The order is stored with its margin when the page holds library ids; the page the client reads is the
+            // first MaxItems of the probed one, stored or not (a row without ids is read again live, not stored).
+            if (page.ItemIds is { } ids)
+            {
+                row = new StoredRow { Key = sectionKey, Sources = [.. widget.Sources], Section = StoredSection.From(descriptor), Ids = [.. ids] };
+            }
+
+            limit = ClientPayload(userId, config, descriptor).Limit;
+            page = page.Head(limit);
         }
 
         if (!descriptor.ReadNatively)

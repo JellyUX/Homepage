@@ -32,8 +32,11 @@ public sealed class StoredHomeScreensTests : IDisposable
     private readonly List<TestMovie> _movies = [.. Enumerable.Range(0, 20).Select(_ => new TestMovie { Id = Guid.NewGuid() })];
     private readonly HashSet<Guid> _played = [];
     private readonly List<IDisposable> _disposables = [];
+    private readonly Mock<IDtoService> _dto = new();
     private PluginConfiguration _config = NewConfiguration();
     private UserConfiguration? _userConfig;
+
+    public StoredHomeScreensTests() => _dto.StubBaseItemDtos((items, _) => [.. items.Select(i => new BaseItemDto { Id = i.Id })]);
 
     [Fact]
     public async Task AfterRestart_TheDeferredSectionsAreReadFromTheStoredOrder_WithoutScoringNorProbing()
@@ -235,6 +238,39 @@ public sealed class StoredHomeScreensTests : IDisposable
         Assert.Contains(logger.Warnings, w => w.Contains("computing it again", StringComparison.Ordinal));
     }
 
+    // A deferred row whose page has no library ids (my-media, a widget of another assembly) is not stored: its probed page
+    // is still the one the client reads, so a computed layout serves it without reading the widget again (PERF-03.b).
+    [Fact]
+    public async Task ADeferredRowWithoutIds_ServesItsProbedPage_WithoutASecondRead()
+    {
+        var reads = 0;
+        var widget = new Mock<IWidget>();
+        widget.SetupGet(w => w.WidgetType).Returns("test.deferred.views");
+        widget.SetupGet(w => w.DefaultDisplayName).Returns("views");
+        widget.SetupGet(w => w.Freshness).Returns(FreshnessLevel.Deferred);
+        widget.SetupGet(w => w.Sources).Returns(SectionSources.AllLibrary);
+        widget.Setup(w => w.Resolve(It.IsAny<Guid>(), It.IsAny<WidgetInstanceConfig>(), It.IsAny<int>())).Returns(() => widget.Object);
+        widget.Setup(w => w.GetDescriptor()).Returns(() => new WidgetDescriptor { WidgetType = "test.deferred.views" });
+        widget.Setup(w => w.GetItemsAsync(It.IsAny<WidgetPayload>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((WidgetPayload payload, CancellationToken _) =>
+            {
+                reads++;
+                var count = Math.Min(payload.Limit, 12);
+                return WidgetResult.Defer(count, count, () => [.. Enumerable.Range(0, count).Select(_ => new BaseItemDto { Id = Guid.NewGuid() })]);
+            });
+        _config = new PluginConfiguration
+        {
+            Widgets = [new WidgetConfig { WidgetType = "test.deferred.views", Enabled = true, Order = 1, MinItems = 1, MaxItems = MaxItems }]
+        };
+        var server = Start(extraWidget: widget.Object);
+
+        var layout = await server.Service.GetWidgetsForUser(_userId, 0, "en", CancellationToken.None);
+        var section = await ReadSection(server, layout.Sections.Single());
+
+        Assert.Equal(MaxItems, section!.Items.Count);
+        Assert.Equal(1, reads);
+    }
+
     public void Dispose() => _disposables.ForEach(d => d.Dispose());
 
     private sealed class RecordingLogger : ILogger<StoredHomeScreens>
@@ -258,11 +294,16 @@ public sealed class StoredHomeScreensTests : IDisposable
     private static Task<WidgetResult?> ReadSection(Server server, WidgetDescriptor section) =>
         server.Service.GetWidgetItems(server.UserId, section.WidgetType, section.AdditionalData, section.SectionKey, 0, section.MaxItems, CancellationToken.None);
 
-    private Server Start(bool pendingScoring = false, ILogger<StoredHomeScreens>? storeLogger = null)
+    private Server Start(bool pendingScoring = false, ILogger<StoredHomeScreens>? storeLogger = null, IWidget? extraWidget = null)
     {
         var widget = new OrderedWidget(this);
         var registry = new WidgetRegistry();
         registry.Register(widget);
+        if (extraWidget is not null)
+        {
+            registry.Register(extraWidget);
+        }
+
         var userConfig = new Mock<IUserConfigurationStore>();
         userConfig.Setup(s => s.GetUserConfiguration(It.IsAny<Guid>())).Returns(() => _userConfig);
         var resolver = new WidgetLayoutResolver(
@@ -274,8 +315,6 @@ public sealed class StoredHomeScreensTests : IDisposable
         var library = new Mock<ILibraryManager>();
         library.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
             .Returns((InternalItemsQuery query) => [.. _movies.Where(m => query.ItemIds.Contains(m.Id) && (query.IsPlayed != false || !_played.Contains(m.Id)))]);
-        var dto = new Mock<IDtoService>();
-        dto.StubBaseItemDtos((items, _) => [.. items.Select(i => new BaseItemDto { Id = i.Id })]);
         var store = TestWidgetServices.NewStore(_disk, _clock, storeLogger);
         var sessions = new SessionCache(_clock);
         var pages = new SectionResultCache(sessions, _clock);
@@ -289,7 +328,7 @@ public sealed class StoredHomeScreensTests : IDisposable
             pendingScoring ? new AlwaysPending() : null,
             pages,
             stored: store,
-            storedReader: new StoredSectionReader(library.Object, TestMocks.UserManagerReturning(_user).Object, dto.Object));
+            storedReader: new StoredSectionReader(library.Object, TestMocks.UserManagerReturning(_user).Object, _dto.Object));
         return new Server(service, widget, sessions, pages, store, _userId);
     }
 
@@ -338,7 +377,7 @@ public sealed class StoredHomeScreensTests : IDisposable
         {
             Reads++;
             BaseItem[] page = [.. test._movies.Where(m => !test._played.Contains(m.Id)).Skip(payload.StartIndex).Take(payload.Limit)];
-            return Task.FromResult(WidgetResult.Project(TestMocks.DtoServiceReturningEmpty().Object, page, new(), test._user));
+            return Task.FromResult(WidgetResult.Project(test._dto.Object, page, new(), test._user));
         }
 
         public WidgetDescriptor GetDescriptor() => new() { WidgetType = Ordered, DisplayName = Ordered };
