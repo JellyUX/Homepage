@@ -13,7 +13,9 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets;
 /// home screen in the language of their last home screen (DEC-P07-10). A user whose stored home screen
 /// is fresh has it read again, its first pages kept, without scoring nor probing (S5, DR-033); any
 /// other user's scoring is computed first, then the home screen. Users active earlier, or for whom
-/// JellyUX is off, are left alone.
+/// JellyUX is off, are left alone. Once the server runs, a library change that clears the library
+/// sections (the end of a scan) has the same users' home screens computed again in the background, so
+/// their next visit reads the new titles without waiting for it.
 /// </summary>
 public sealed class HomeWarmupService : IHostedService, IDisposable
 {
@@ -27,6 +29,7 @@ public sealed class HomeWarmupService : IHostedService, IDisposable
     private readonly ActiveHomeUsers _activeUsers;
     private readonly ScoringService _scoring;
     private readonly WidgetService _widgets;
+    private readonly SectionResultCache _sectionResults;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<HomeWarmupService> _logger;
     private readonly int _processorCount;
@@ -40,6 +43,7 @@ public sealed class HomeWarmupService : IHostedService, IDisposable
     /// <param name="activeUsers">The recently active users and the language of their last home screen.</param>
     /// <param name="scoring">The personalization scoring.</param>
     /// <param name="widgets">Builds and caches home screens.</param>
+    /// <param name="sectionResults">Reports the library sources a scan changed.</param>
     /// <param name="timeProvider">Time source of the delay.</param>
     /// <param name="logger">Logger.</param>
     /// <param name="processorCount">The machine's processor count; <see cref="Environment.ProcessorCount"/> when null.</param>
@@ -51,6 +55,7 @@ public sealed class HomeWarmupService : IHostedService, IDisposable
         ActiveHomeUsers activeUsers,
         ScoringService scoring,
         WidgetService widgets,
+        SectionResultCache sectionResults,
         TimeProvider timeProvider,
         ILogger<HomeWarmupService> logger,
         int? processorCount = null,
@@ -60,6 +65,7 @@ public sealed class HomeWarmupService : IHostedService, IDisposable
         _activeUsers = activeUsers;
         _scoring = scoring;
         _widgets = widgets;
+        _sectionResults = sectionResults;
         _timeProvider = timeProvider;
         _logger = logger;
         _processorCount = processorCount ?? Environment.ProcessorCount;
@@ -79,12 +85,14 @@ public sealed class HomeWarmupService : IHostedService, IDisposable
     public Task StartAsync(CancellationToken cancellationToken)
     {
         _afterStart.Register(_lifetime, RunAsync);
+        _sectionResults.SourcesCleared += OnSourcesCleared;
         return Task.CompletedTask;
     }
 
     /// <inheritdoc/>
     public Task StopAsync(CancellationToken cancellationToken)
     {
+        _sectionResults.SourcesCleared -= OnSourcesCleared;
         _afterStart.Stop();
         return Task.CompletedTask;
     }
@@ -124,6 +132,27 @@ public sealed class HomeWarmupService : IHostedService, IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to build the home screens of recently active users ahead.");
+        }
+    }
+
+    private void OnSourcesCleared(IReadOnlyCollection<string> sources)
+    {
+        if (!sources.Any(SectionSources.AllLibrary.Contains))
+        {
+            return;
+        }
+
+        try
+        {
+            foreach (var userId in _activeUsers.MostRecent(UserBound).Where(_widgets.IsEnabledFor))
+            {
+                _widgets.ComputeInBackground(userId, _activeUsers.LanguageOf(userId));
+            }
+        }
+        catch (Exception ex)
+        {
+            // The home screens are still computed again at the users' next visit.
+            _logger.LogWarning(ex, "Failed to queue the home screens of recently active users after a library change.");
         }
     }
 

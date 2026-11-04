@@ -25,6 +25,9 @@ public sealed class HomeWarmupServiceTests : IDisposable
     private readonly ManualTimeProvider _clock = new() { UtcNowValue = Now };
     private readonly SessionCache _sessionCache = new();
     private readonly InMemoryFileSystem _disk = new();
+    private readonly List<SectionResultCache> _pages = [];
+    private WidgetService? _widgets;
+    private StoredHomeScreens? _store;
     private readonly List<User> _users = [];
     private readonly Dictionary<Guid, UserConfiguration> _settings = [];
     private readonly ScoringService _scoring;
@@ -53,6 +56,7 @@ public sealed class HomeWarmupServiceTests : IDisposable
     public void Dispose()
     {
         _scoring.Dispose();
+        _pages.ForEach(p => p.Dispose());
         _sessionCache.Dispose();
     }
 
@@ -158,6 +162,31 @@ public sealed class HomeWarmupServiceTests : IDisposable
         Assert.False(_scoring.HasSnapshotForTesting(stored.Id));
     }
 
+    // S5: a library scan has the recently active users' home screens computed again in the background, before their
+    // next visit; a change of a list (TMDb, awards) waits for the visit.
+    [Theory]
+    [InlineData(SectionSources.Movies, true)]
+    [InlineData(SectionSources.TMDb, false)]
+    public async Task ALibraryScan_ComputesTheActiveUsersHomeScreensAgain_AListChangeDoesNot(string source, bool computed)
+    {
+        var user = AddUser(TimeSpan.FromHours(1));
+        using var warmup = Build();
+        await warmup.StartAsync(CancellationToken.None);
+        _lifetime.Start();
+        _clock.Advance(warmup.Delay);
+        await warmup.RunningForTesting!;
+        var before = ComputedAt(user);
+        _clock.Advance(TimeSpan.FromSeconds(1));
+
+        _pages[^1].ClearSources([source]);
+        await _widgets!.WhenIdleForTesting();
+
+        Assert.Equal(computed, ComputedAt(user) > before);
+    }
+
+    private DateTime ComputedAt(User user) =>
+        _store!.Read(user.Id, "de", StoredHomeScreens.Discriminant(new PluginConfiguration(), _settings[user.Id]), TimeSpan.FromDays(1))!.Value.Layout.ComputedAtUtc;
+
     // The warmup keeps about 10 MiB a user (DR-011): it takes as many users as 5 % of the available memory holds.
     [Theory]
     [InlineData(64L * 1024 * 1024, 1)]
@@ -221,7 +250,11 @@ public sealed class HomeWarmupServiceTests : IDisposable
         });
         var registry = new WidgetRegistry();
         var resolver = new WidgetLayoutResolver(registry, store.Object, localization, () => new PluginConfiguration(), NullLogger<WidgetLayoutResolver>.Instance);
-        var widgets = TestWidgetServices.Create(registry, _sessionCache, resolver, () => new PluginConfiguration(), _scoring, stored: TestWidgetServices.NewStore(_disk, _clock));
+        var pages = new SectionResultCache(_sessionCache, _clock);
+        _pages.Add(pages);
+        _store = TestWidgetServices.NewStore(_disk, _clock);
+        var widgets = TestWidgetServices.Create(registry, _sessionCache, resolver, () => new PluginConfiguration(), _scoring, pages, stored: _store);
+        _widgets = widgets;
         var server = new Mock<IServerConfigurationManager>();
         server.Setup(s => s.Configuration).Returns(new MediaBrowser.Model.Configuration.ServerConfiguration { UICulture = "de-DE" });
 
@@ -230,6 +263,7 @@ public sealed class HomeWarmupServiceTests : IDisposable
             new ActiveHomeUsers(UserManager, new HomeLanguageMemory(store.Object), server.Object, localization, _clock),
             _scoring,
             widgets,
+            pages,
             _clock,
             NullLogger<HomeWarmupService>.Instance,
             processors,

@@ -309,6 +309,15 @@ public sealed class WidgetService
     }
 
     /// <summary>
+    /// Computes the user's layout in <paramref name="lang"/> again in the background, its deferred rows stored (S5: the
+    /// active users after a library scan): one build at a time server-wide, at most <see cref="MaxQueuedRebuilds"/>
+    /// queued; a full queue leaves the user to their next visit.
+    /// </summary>
+    /// <param name="userId">The user.</param>
+    /// <param name="lang">The language of the layout.</param>
+    public void ComputeInBackground(Guid userId, string? lang) => QueueBackgroundCompute(userId, lang);
+
+    /// <summary>
     /// Computes a stored layout again in the background (DR-033): one build at a time server-wide, behind the same gate
     /// as the expired layouts, at most <see cref="MaxQueuedRebuilds"/> queued; the stored layout is served meanwhile.
     /// </summary>
