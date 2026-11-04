@@ -62,6 +62,14 @@ public sealed class WidgetResult
     [JsonIgnore]
     public IReadOnlyList<Guid>? ItemIds { get; }
 
+    /// <summary>
+    /// Gets the first items of the page as a page of their own, projected as the widget projects a page, without
+    /// reading the library again; null when the page cannot be cut (DR-033: a computed row reads a margin past the
+    /// page the client reads).
+    /// </summary>
+    [JsonIgnore]
+    internal Func<int, WidgetResult>? Head { get; private set; }
+
     /// <summary>Gets an empty result with no items and a count of zero.</summary>
     public static WidgetResult Empty { get; } = new WidgetResult([], 0);
 
@@ -93,6 +101,15 @@ public sealed class WidgetResult
     /// <returns>The result.</returns>
     public static WidgetResult Defer(int itemCount, int totalRecordCount, Func<IReadOnlyList<BaseItemDto>> project, IReadOnlyList<Guid>? itemIds = null) =>
         new(itemCount, totalRecordCount, project, itemIds);
+
+    /// <summary>Sets how the first items of this page are cut into a page of their own (<see cref="Head"/>).</summary>
+    /// <param name="head">Returns the page of the first n items.</param>
+    /// <returns>This result.</returns>
+    internal WidgetResult WithHead(Func<int, WidgetResult> head)
+    {
+        Head = head;
+        return this;
+    }
 
     /// <summary>Returns the ids of <paramref name="items"/>, in order.</summary>
     /// <param name="items">Library items.</param>

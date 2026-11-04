@@ -83,7 +83,16 @@ public static class FeaturedItems
         IReadOnlyList<BaseItem> items,
         WidgetPayload payload,
         User user,
-        int? totalRecordCount = null)
+        int? totalRecordCount = null) =>
+        ProjectPage(dtoService, items, payload, user, totalRecordCount)
+            .WithHead(count => ProjectPage(dtoService, [.. items.Take(count)], payload, user, null));
+
+    private static WidgetResult ProjectPage(
+        IDtoService dtoService,
+        IReadOnlyList<BaseItem> items,
+        WidgetPayload payload,
+        User user,
+        int? totalRecordCount)
     {
         var slides = payload.Featured && payload.StartIndex == 0
             ? items.Take(MaxSlides).TakeWhile(HasBackdrop).Count()

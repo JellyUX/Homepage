@@ -34,7 +34,7 @@ public sealed class StoredHomeScreens
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<StoredHomeScreens> _logger;
     private readonly Lock _lock = new();
-    private readonly Dictionary<Guid, (DateTime WrittenAt, StoredHomeFile? File)> _files = [];
+    private readonly Dictionary<Guid, StoredHomeFile?> _files = [];
     private Dictionary<string, DateTime>? _sourceMarks;
 
     /// <summary>
@@ -180,13 +180,26 @@ public sealed class StoredHomeScreens
         }
     }
 
+    /// <summary>Test-only seam: forgets the user's stored layouts, on disk and in memory, as a first visit finds them.</summary>
+    /// <param name="userId">The user.</param>
+    internal void ForgetForTesting(Guid userId)
+    {
+        lock (_lock)
+        {
+            _files.Remove(userId);
+            if (_fileSystem.FileExists(PathOf(userId)))
+            {
+                _fileSystem.Delete(PathOf(userId));
+            }
+        }
+    }
+
     private void WriteUserFile(Guid userId, StoredHomeFile file)
     {
         var path = PathOf(userId);
-        if (WriteFile(path, file))
-        {
-            _files[userId] = (_fileSystem.GetLastWriteTimeUtc(path), file);
-        }
+        // Kept in memory even when the disk refuses it, so the home screen is still read again until a restart.
+        WriteFile(path, file);
+        _files[userId] = file;
     }
 
     private string PathOf(Guid userId) => Path.Combine(_directory, userId.ToString("N") + ".json");
@@ -202,32 +215,16 @@ public sealed class StoredHomeScreens
         return _sourceMarks;
     }
 
-    // A file is parsed again only when it was written since it was last read, here or by hand.
+    // Only the plugin writes these files: each is read from the disk once, at its first use after a start, then
+    // kept in memory with the writes; a file damaged or deleted by hand counts from the next start.
     private StoredHomeFile? ReadFile(Guid userId)
     {
+        if (_files.TryGetValue(userId, out var known))
+        {
+            return known;
+        }
+
         var path = PathOf(userId);
-        DateTime writtenAt;
-        try
-        {
-            if (!_fileSystem.FileExists(path))
-            {
-                _files.Remove(userId);
-                return null;
-            }
-
-            writtenAt = _fileSystem.GetLastWriteTimeUtc(path);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            _logger.LogWarning(ex, "Could not read the stored home screen file {Path}; computing it again.", path);
-            return null;
-        }
-
-        if (_files.TryGetValue(userId, out var known) && known.WrittenAt == writtenAt)
-        {
-            return known.File;
-        }
-
         var file = TryRead<StoredHomeFile>(path);
         if (file is not null && file.Format != FormatVersion)
         {
@@ -241,7 +238,7 @@ public sealed class StoredHomeScreens
             file = null;
         }
 
-        _files[userId] = (writtenAt, file);
+        _files[userId] = file;
         return file;
     }
 

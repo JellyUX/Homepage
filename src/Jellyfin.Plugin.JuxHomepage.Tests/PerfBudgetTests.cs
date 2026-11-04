@@ -83,7 +83,7 @@ public sealed class PerfBudgetTests : IDisposable
     {
         _output = output;
         _movies = Enumerable.Range(1, LibrarySize)
-            .Select(i => new Movie { Id = new Guid(i, 0, 0, new byte[8]), Name = $"Movie {i}", Genres = ["Action"] })
+            .Select(i => (Movie)new TestMovie { Id = new Guid(i, 0, 0, new byte[8]), Name = $"Movie {i}", Genres = ["Action"] })
             .ToArray();
         _library.Inner.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
             .Returns((InternalItemsQuery q) => [.. Page(q)]);
@@ -172,12 +172,19 @@ public sealed class PerfBudgetTests : IDisposable
         var widgetService = _provider.GetRequiredService<WidgetService>();
         await WarmBackgroundCaches(controller);
         widgetService.InvalidateUser(_user.Id);
+        DeleteStoredHomeScreens();
+
+        // The warm-up's scoring marked the user's stored layouts due at FixedNow: the measured ones come after it.
+        ((ManualTimeProvider)_provider.GetRequiredService<TimeProvider>()).Advance(TimeSpan.FromSeconds(1));
 
         var measured = Tables.ToDictionary(t => t, _ => new SortedDictionary<string, int>(StringComparer.Ordinal));
 
+        // A computed layout (first visit), then the same layout read again from its stored order (DR-033).
         List<WidgetDescriptor> descriptors = [];
         await Measure(measured, "Sections (layout build)", async () => descriptors = await ReadAllSections(controller));
         await Measure(measured, "Sections (cached layout)", () => controller.GetSections(_user.Id, page: 0));
+        widgetService.InvalidateUser(_user.Id);
+        await Measure(measured, "Sections (stored layout)", () => ReadAllSections(controller));
 
         foreach (var descriptor in descriptors)
         {
@@ -293,6 +300,8 @@ public sealed class PerfBudgetTests : IDisposable
         client.Setup(c => c.GetShowExternalIdsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync((int id, CancellationToken _) => Imdb(id));
         return client.Object;
     }
+
+    private void DeleteStoredHomeScreens() => _provider.GetRequiredService<StoredHomeScreens>().ForgetForTesting(_user.Id);
 
     private async Task WarmBackgroundCaches(JuxHomepageController controller)
     {

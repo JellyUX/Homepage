@@ -401,7 +401,7 @@ public sealed class WidgetLayoutResolver
             // The order is stored with its margin; the page the client reads is its first MaxItems, filtered live.
             row = new StoredRow { Key = sectionKey, Sources = [.. widget.Sources], Section = StoredSection.From(descriptor), Ids = [.. ids] };
             var client = ClientPayload(userId, config, descriptor);
-            (page, _) = store.Reader.Read(widget, client, ids);
+            page = page.Head?.Invoke(client.Limit) ?? store.Reader.Read(widget, client, ids).Page;
             limit = client.Limit;
         }
 
