@@ -277,6 +277,16 @@ public sealed class WidgetService
     }
 
     /// <summary>
+    /// Returns whether the user has a stored layout in <paramref name="lang"/>, of the current configuration and still
+    /// fresh, which a build reads again without scoring nor probing (DR-033).
+    /// </summary>
+    /// <param name="userId">The user.</param>
+    /// <param name="lang">The language of the layout.</param>
+    /// <returns>True when the stored layout is fresh.</returns>
+    public bool HasFreshStoredLayout(Guid userId, string? lang) =>
+        _stored.Read(userId, SessionCache.NormalizeKey(lang), _layoutResolver.DiscriminantOf(userId), DeferredFreshness) is { Fresh: true };
+
+    /// <summary>
     /// Computes the user's layout in <paramref name="lang"/> and stores its deferred rows (the nightly task, DR-033):
     /// scoring and probes included, behind the same gate as the background rebuilds, so one layout is built at a time
     /// on the server; the layout and its first pages are cached as a visit would leave them.

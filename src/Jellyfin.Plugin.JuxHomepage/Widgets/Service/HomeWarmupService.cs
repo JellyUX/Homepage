@@ -6,17 +6,22 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets;
 
 /// <summary>
 /// Builds the home screen of recently active users ahead, after a server start (PERF-07, DEC-P07-3):
-/// otherwise the first home screen after a restart waits for the user's scoring and builds every
-/// section cold. A while after the server started (30 s, 90 s on a machine of 2 processors or fewer,
-/// so the server's own startup work goes first), it takes the users active in the last 7 days, the
-/// 10 most recent at most, and one at a time computes their scoring, then builds their home screen in
-/// the language of their last home screen (DEC-P07-10). Users active earlier, or for whom JellyUX is
-/// off, are left alone.
+/// otherwise the first home screen after a restart builds every section cold. A while after the server
+/// started (30 s, 90 s on a machine of 2 processors or fewer, so the server's own startup work goes
+/// first), it takes the users active in the last 7 days, most recent first, as many as 5 % of the memory
+/// available to the server allows at about 10 MiB each (DR-011), 1 to 10, and one at a time builds their
+/// home screen in the language of their last home screen (DEC-P07-10). A user whose stored home screen
+/// is fresh has it read again, its first pages kept, without scoring nor probing (S5, DR-033); any
+/// other user's scoring is computed first, then the home screen. Users active earlier, or for whom
+/// JellyUX is off, are left alone.
 /// </summary>
 public sealed class HomeWarmupService : IHostedService, IDisposable
 {
     /// <summary>The most users warmed after a start.</summary>
     internal const int MaxUsers = 10;
+
+    /// <summary>The memory a warmed user keeps, measured on the large library (DR-011: ~48 MiB for 5 users).</summary>
+    internal const long BytesPerUser = 10L * 1024 * 1024;
 
     private readonly IHostApplicationLifetime _lifetime;
     private readonly ActiveHomeUsers _activeUsers;
@@ -25,6 +30,7 @@ public sealed class HomeWarmupService : IHostedService, IDisposable
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<HomeWarmupService> _logger;
     private readonly int _processorCount;
+    private readonly long _availableMemory;
     private readonly ServerStartedRun _afterStart = new();
 
     /// <summary>
@@ -37,6 +43,9 @@ public sealed class HomeWarmupService : IHostedService, IDisposable
     /// <param name="timeProvider">Time source of the delay.</param>
     /// <param name="logger">Logger.</param>
     /// <param name="processorCount">The machine's processor count; <see cref="Environment.ProcessorCount"/> when null.</param>
+    /// <param name="availableMemoryBytes">
+    /// The memory available to the server; <see cref="GCMemoryInfo.TotalAvailableMemoryBytes"/> when null.
+    /// </param>
     public HomeWarmupService(
         IHostApplicationLifetime lifetime,
         ActiveHomeUsers activeUsers,
@@ -44,7 +53,8 @@ public sealed class HomeWarmupService : IHostedService, IDisposable
         WidgetService widgets,
         TimeProvider timeProvider,
         ILogger<HomeWarmupService> logger,
-        int? processorCount = null)
+        int? processorCount = null,
+        long? availableMemoryBytes = null)
     {
         _lifetime = lifetime;
         _activeUsers = activeUsers;
@@ -53,7 +63,11 @@ public sealed class HomeWarmupService : IHostedService, IDisposable
         _timeProvider = timeProvider;
         _logger = logger;
         _processorCount = processorCount ?? Environment.ProcessorCount;
+        _availableMemory = availableMemoryBytes ?? GC.GetGCMemoryInfo().TotalAvailableMemoryBytes;
     }
+
+    /// <summary>Gets the most users warmed: 5 % of the available memory at <see cref="BytesPerUser"/> each, 1 to 10.</summary>
+    internal int UserBound => (int)Math.Clamp(_availableMemory / 20 / BytesPerUser, 1, MaxUsers);
 
     /// <summary>Gets the delay between the server start and the warmup.</summary>
     internal TimeSpan Delay => TimeSpan.FromSeconds(_processorCount <= 2 ? 90 : 30);
@@ -85,7 +99,7 @@ public sealed class HomeWarmupService : IHostedService, IDisposable
             await Task.Delay(Delay, _timeProvider, cancellationToken).ConfigureAwait(false);
 
             var started = _timeProvider.GetTimestamp();
-            var users = _activeUsers.MostRecent(MaxUsers);
+            var users = _activeUsers.MostRecent(UserBound);
 
             var warmed = 0;
             foreach (var userId in users)
@@ -97,10 +111,11 @@ public sealed class HomeWarmupService : IHostedService, IDisposable
             }
 
             _logger.LogInformation(
-                "Built the home screen of {Warmed} of {Active} recently active users ahead in {Elapsed} ms.",
+                "Built the home screen of {Warmed} of {Active} recently active users ahead in {Elapsed} ms (at most {Bound} for the memory available).",
                 warmed,
                 users.Count,
-                (long)_timeProvider.GetElapsedTime(started).TotalMilliseconds);
+                (long)_timeProvider.GetElapsedTime(started).TotalMilliseconds,
+                UserBound);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -121,15 +136,17 @@ public sealed class HomeWarmupService : IHostedService, IDisposable
 
         try
         {
-            // A layout built before the scoring finished would not be cached: the scoring goes first, and
-            // a full scoring queue skips the user.
-            if (!await _scoring.WarmAsync(userId, cancellationToken).ConfigureAwait(false))
+            // A fresh stored home screen is read again without the scoring (S5). Otherwise a layout built before the
+            // scoring finished would not be cached: the scoring goes first, and a full scoring queue skips the user.
+            var language = _activeUsers.LanguageOf(userId);
+            if (!_widgets.HasFreshStoredLayout(userId, language)
+                && !await _scoring.WarmAsync(userId, cancellationToken).ConfigureAwait(false))
             {
                 _logger.LogDebug("Scoring queue full or scoring dropped while computed; the home screen of user {UserId} is not built ahead.", userId);
                 return false;
             }
 
-            await _widgets.GetWidgetsForUser(userId, 0, _activeUsers.LanguageOf(userId), cancellationToken).ConfigureAwait(false);
+            await _widgets.GetWidgetsForUser(userId, 0, language, cancellationToken).ConfigureAwait(false);
             return true;
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
