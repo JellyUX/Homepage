@@ -34,6 +34,7 @@ public sealed class StoredHomeScreensTests : IDisposable
     private readonly List<IDisposable> _disposables = [];
     private readonly Mock<IDtoService> _dto = new();
     private PluginConfiguration _config = NewConfiguration();
+    private bool _libraryFails;
     private UserConfiguration? _userConfig;
 
     public StoredHomeScreensTests() => _dto.StubBaseItemDtos((items, _) => [.. items.Select(i => new BaseItemDto { Id = i.Id })]);
@@ -300,6 +301,58 @@ public sealed class StoredHomeScreensTests : IDisposable
         Assert.Equal(1, reads);
     }
 
+    // R11: a stored row that cannot be read again is read live; the rest of the home screen is still served.
+    [Fact]
+    public async Task AStoredRowThatCannotBeRead_IsReadLive_AndTheHomeScreenStillServed()
+    {
+        await Start().Service.GetWidgetsForUser(_userId, 0, "en", CancellationToken.None);
+        _libraryFails = true;
+
+        var after = Start();
+        var layout = await after.Service.GetWidgetsForUser(_userId, 0, "en", CancellationToken.None);
+
+        Assert.Equal([Ordered], layout.Sections.Select(s => s.WidgetType));
+        Assert.Equal(1, after.Widget.Reads);
+    }
+
+    // R11: a deferred row that keeps failing is never stored; it is read live at each build, without having the whole
+    // layout computed again each time.
+    [Fact]
+    public async Task ARowThatKeepsFailing_DoesNotHaveTheLayoutComputedAgain()
+    {
+        var failing = new Mock<IWidget>();
+        failing.SetupGet(w => w.WidgetType).Returns("test.deferred.failing");
+        failing.SetupGet(w => w.DefaultDisplayName).Returns("failing");
+        failing.SetupGet(w => w.Freshness).Returns(FreshnessLevel.Deferred);
+        failing.SetupGet(w => w.Sources).Returns(SectionSources.MoviesAndSeries);
+        failing.Setup(w => w.Resolve(It.IsAny<Guid>(), It.IsAny<WidgetInstanceConfig>(), It.IsAny<int>())).Returns(() => failing.Object);
+        failing.Setup(w => w.GetDescriptor()).Returns(() => new WidgetDescriptor { WidgetType = "test.deferred.failing" });
+        failing.Setup(w => w.GetItemsAsync(It.IsAny<WidgetPayload>(), It.IsAny<CancellationToken>())).ThrowsAsync(new InvalidOperationException("TMDb down"));
+        _config = NewConfiguration();
+        _config.Widgets = [.. _config.Widgets, new WidgetConfig { WidgetType = "test.deferred.failing", Enabled = true, Order = 2, MinItems = 1, MaxItems = MaxItems }];
+        await Start(extraWidget: failing.Object).Service.GetWidgetsForUser(_userId, 0, "en", CancellationToken.None);
+
+        var after = Start(extraWidget: failing.Object);
+        await after.Service.GetWidgetsForUser(_userId, 0, "en", CancellationToken.None);
+        await after.Service.WhenIdleForTesting();
+
+        Assert.Equal((0, 0), (after.Widget.Resolves, after.Widget.Reads));
+    }
+
+    // R11: a featured row puts its titles with a backdrop first over the page it reads, so it is probed without margin.
+    [Theory]
+    [InlineData(false, 2 * MaxItems)]
+    [InlineData(true, MaxItems)]
+    public async Task AComputedRow_ReadsAMargin_ExceptAFeaturedRow(bool featured, int limit)
+    {
+        _config.Widgets[0].Featured = featured;
+        var server = Start();
+
+        await server.Service.GetWidgetsForUser(_userId, 0, "en", CancellationToken.None);
+
+        Assert.Equal(limit, server.Widget.LastLimit);
+    }
+
     public void Dispose() => _disposables.ForEach(d => d.Dispose());
 
     private sealed class RecordingLogger : ILogger<StoredHomeScreens>
@@ -343,7 +396,9 @@ public sealed class StoredHomeScreensTests : IDisposable
             NullLogger<WidgetLayoutResolver>.Instance);
         var library = new Mock<ILibraryManager>();
         library.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
-            .Returns((InternalItemsQuery query) => [.. _movies.Where(m => query.ItemIds.Contains(m.Id) && (query.IsPlayed != false || !_played.Contains(m.Id)))]);
+            .Returns((InternalItemsQuery query) => _libraryFails
+                ? throw new InvalidOperationException("library unavailable")
+                : [.. _movies.Where(m => query.ItemIds.Contains(m.Id) && (query.IsPlayed != false || !_played.Contains(m.Id)))]);
         var store = TestWidgetServices.NewStore(_disk, _clock, storeLogger);
         var sessions = new SessionCache(_clock);
         var pages = new SectionResultCache(sessions, _clock);
@@ -380,6 +435,8 @@ public sealed class StoredHomeScreensTests : IDisposable
 
         public int Reads { get; private set; }
 
+        public int LastLimit { get; private set; }
+
         public string WidgetType => Ordered;
 
         public string DefaultDisplayName => Ordered;
@@ -405,6 +462,7 @@ public sealed class StoredHomeScreensTests : IDisposable
         public Task<WidgetResult> GetItemsAsync(WidgetPayload payload, CancellationToken cancellationToken)
         {
             Reads++;
+            LastLimit = payload.Limit;
             BaseItem[] page = [.. test._movies.Where(m => !test._played.Contains(m.Id)).Skip(payload.StartIndex).Take(payload.Limit)];
             return Task.FromResult(WidgetResult.Project(test._dto.Object, page, new(), test._user));
         }

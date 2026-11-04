@@ -162,9 +162,22 @@ public sealed class WidgetLayoutResolver
             async (i, token) =>
             {
                 var (config, key) = effectiveConfigs[i];
-                results[i] = store?.Stored?.RowOf(key) is { } row && IsDeferred(config.WidgetType)
-                    ? ReadStoredRow(userId, config, key, row, onProbed, store.Reader)
-                    : await ResolveAndFetch(userId, config, key, ranks[config], lang, onProbed, store, token).ConfigureAwait(false);
+                if (store?.Stored?.RowOf(key) is { } row && IsDeferred(config.WidgetType))
+                {
+                    try
+                    {
+                        results[i] = ReadStoredRow(userId, config, key, row, onProbed, store.Reader);
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        // One stored row that cannot be read is read live, never the whole home screen failed (R11).
+                        _logger.LogError(ex, "Stored section '{Key}' of user {UserId} could not be read again - reading it live.", key, userId);
+                        await ReportMismatchAsync(config.WidgetType, ex).ConfigureAwait(false);
+                    }
+                }
+
+                results[i] = await ResolveAndFetch(userId, config, key, ranks[config], lang, onProbed, store, token).ConfigureAwait(false);
             }).ConfigureAwait(false);
 
         // Each config row resolves to at most one descriptor (see ResolveAndFetch); drop the nulls.
@@ -345,7 +358,8 @@ public sealed class WidgetLayoutResolver
         }
 
         // A computed layout probes its deferred rows with a margin and stores them; a stored layout that lacks a
-        // deferred row (its probe failed when it was computed) reads it live and is due again.
+        // deferred row (its probe failed when it was computed) reads it live, and is due again only when that read
+        // succeeds with library ids: a row that keeps failing never has the whole layout computed again (R11).
         var deferred = widget.Freshness == FreshnessLevel.Deferred;
         var materialize = deferred && store is { Stored: null };
         var lacking = deferred && store is { Stored: not null };
@@ -365,7 +379,7 @@ public sealed class WidgetLayoutResolver
                 config.WidgetType,
                 userId);
             await ReportMismatchAsync(config.WidgetType, ex).ConfigureAwait(false);
-            return new RowOutcome(null, null, lacking);
+            return new RowOutcome(null, null, false);
         }
 
         if (instance is null)
@@ -382,7 +396,7 @@ public sealed class WidgetLayoutResolver
             cancellationToken).ConfigureAwait(false);
         if (probed is not { } kept)
         {
-            return new RowOutcome(null, null, lacking);
+            return new RowOutcome(null, null, false);
         }
 
         // Only a page read from library ids can be stored: a stored layout lacking any other row is not due for it.
@@ -457,6 +471,13 @@ public sealed class WidgetLayoutResolver
             // or removed before the next computation (DR-033).
             Limit = instanceDescriptor.ReadNatively ? minItems : Math.Max(minItems, withMargin ? 2 * maxItems : maxItems)
         }.WithFeatured(config, instanceDescriptor);
+
+        // A featured row puts its titles with a backdrop first over the page it reads: with a margin, titles ranked
+        // past MaxItems would push higher ranked ones out of the first page, so it reads no margin (R11).
+        if (payload.Featured)
+        {
+            payload.Limit = instanceDescriptor.ReadNatively ? minItems : Math.Max(minItems, maxItems);
+        }
 
         WidgetResult result;
         try
