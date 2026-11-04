@@ -301,7 +301,8 @@ public sealed class StoredHomeScreensTests : IDisposable
         Assert.Equal(1, reads);
     }
 
-    // R11: a stored row that cannot be read again is read live; the rest of the home screen is still served.
+    // R11: a stored row that cannot be read again is read live; the rest of the home screen is still served, and the
+    // live read, which holds library ids, has the layout computed again in the background.
     [Fact]
     public async Task AStoredRowThatCannotBeRead_IsReadLive_AndTheHomeScreenStillServed()
     {
@@ -310,9 +311,10 @@ public sealed class StoredHomeScreensTests : IDisposable
 
         var after = Start();
         var layout = await after.Service.GetWidgetsForUser(_userId, 0, "en", CancellationToken.None);
+        await after.Service.WhenIdleForTesting();
 
         Assert.Equal([Ordered], layout.Sections.Select(s => s.WidgetType));
-        Assert.Equal(1, after.Widget.Reads);
+        Assert.Equal((2, 2), (after.Widget.Resolves, after.Widget.Reads));
     }
 
     // R11: a deferred row that keeps failing is never stored; it is read live at each build, without having the whole
