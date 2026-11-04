@@ -245,6 +245,7 @@ public sealed class SectionResultCacheTests : IDisposable
         new WidgetRegistry(),
         tasks.Object,
         new ScoringService(Mock.Of<IUserManager>(), Mock.Of<ILibraryManager>(), Mock.Of<IUserDataManager>(), () => null),
+        TestWidgetServices.NewStore(new InMemoryFileSystem(), _clock),
         _clock,
         NullLogger<SectionCacheInvalidationListener>.Instance);
 

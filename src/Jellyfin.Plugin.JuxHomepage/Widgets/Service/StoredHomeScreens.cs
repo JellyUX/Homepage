@@ -56,21 +56,15 @@ public sealed class StoredHomeScreens
     public DateTime UtcNow => _timeProvider.GetUtcNow().UtcDateTime;
 
     /// <summary>
-    /// Returns the discriminant of a stored layout: what the configuration says about the user's deferred rows. A
-    /// saved configuration or a user's own settings change it, so a layout stored before is computed again.
+    /// Returns the discriminant of a stored layout: the whole plugin configuration and the user's own settings, so that
+    /// any save of either, a row, a list filter or a module switch alike, makes a layout stored before computed again.
     /// </summary>
     /// <param name="configuration">The plugin configuration.</param>
     /// <param name="user">The user's own configuration, or null.</param>
     /// <returns>The discriminant.</returns>
     public static string Discriminant(PluginConfiguration? configuration, UserConfiguration? user)
     {
-        var json = JsonSerializer.Serialize(new
-        {
-            Enabled = configuration?.Enabled ?? true,
-            Widgets = configuration?.Widgets ?? [],
-            UserEnabled = user?.Enabled,
-            Hidden = user?.HiddenSections ?? []
-        });
+        var json = JsonSerializer.Serialize(new { Configuration = configuration, User = user });
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(json)));
     }
 

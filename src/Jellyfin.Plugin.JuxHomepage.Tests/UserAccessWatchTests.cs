@@ -20,6 +20,9 @@ namespace Jellyfin.Plugin.JuxHomepage.Tests;
 public sealed class UserAccessWatchTests : IDisposable
 {
     private readonly ManualTimeProvider _clock = new();
+    private readonly InMemoryFileSystem _disk = new();
+
+    private StoredHomeScreens StoredHomes => TestWidgetServices.NewStore(_disk, _clock);
     private readonly SessionCache _sessionCache;
     private readonly Mock<IUserManager> _userManager = new();
     private readonly Jellyfin.Database.Implementations.Entities.User _user = TestMocks.DefaultUser();
@@ -42,7 +45,7 @@ public sealed class UserAccessWatchTests : IDisposable
         libraryManager.Setup(m => m.GetPeople(It.IsAny<BaseItem>())).Returns([]);
         _scoring = new ScoringService(_userManager.Object, libraryManager.Object, new Mock<IUserDataManager>().Object, () => new PluginConfiguration(), timeProvider: _clock);
 
-        _watch = new UserAccessWatch(_userManager.Object, _sessionCache, _scoring, NullLogger<UserAccessWatch>.Instance, _clock);
+        _watch = new UserAccessWatch(_userManager.Object, _sessionCache, _scoring, StoredHomes, NullLogger<UserAccessWatch>.Instance, _clock);
     }
 
     public void Dispose()
@@ -90,12 +93,16 @@ public sealed class UserAccessWatchTests : IDisposable
     {
         _watch.Check(_user.Id);
         _sessionCache.Set(_user.Id, "en", []);
+        StoredHomes.Write(_user.Id, "en", new StoredLayout { ComputedAtUtc = _clock.GetUtcNow().UtcDateTime, Discriminant = "d" });
 
         _user.MaxParentalRatingScore = 12;
         _clock.Advance(UserAccessWatch.CheckInterval);
         _watch.Check(_user.Id);
 
         Assert.False(Cached());
+
+        // The stored orders were read with the former access: computed again (DR-033).
+        Assert.False(StoredHomes.Read(_user.Id, "en", "d", TimeSpan.FromDays(1))!.Value.Fresh);
     }
 
     [Fact]

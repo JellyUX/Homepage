@@ -28,6 +28,9 @@ public sealed class SectionFreshnessTests : IDisposable
     private static readonly TimeSpan Ttl = TimeSpan.FromMinutes(15);
 
     private readonly ManualTimeProvider _clock = new();
+    private readonly InMemoryFileSystem _disk = new();
+
+    private StoredHomeScreens StoredHomes => TestWidgetServices.NewStore(_disk, _clock);
     private readonly SessionCache _sessionCache;
     private readonly SectionResultCache _cache;
     private readonly Mock<IUserDataManager> _userData = new();
@@ -189,9 +192,17 @@ public sealed class SectionFreshnessTests : IDisposable
         await StartListener();
         Store(_user, DeferredType);
         Store(_other, DeferredType);
+        var computedAt = _clock.GetUtcNow().UtcDateTime;
+        StoredHomes.Write(_user, "en", new StoredLayout { ComputedAtUtc = computedAt, Discriminant = "d" });
+        StoredHomes.Write(_other, "en", new StoredLayout { ComputedAtUtc = computedAt, Discriminant = "d" });
+        _clock.Advance(TimeSpan.FromSeconds(1));
 
         _scoring.GetTopGenres(_user, 5);
         await _scoring.WhenIdleForTesting();
+
+        // The personalized rows were stored from the former scores: due again, the other user's stay fresh (DR-033).
+        Assert.False(StoredHomes.Read(_user, "en", "d", TimeSpan.FromDays(1))!.Value.Fresh);
+        Assert.True(StoredHomes.Read(_other, "en", "d", TimeSpan.FromDays(1))!.Value.Fresh);
 
         Assert.True(_cache.TryGet(Section(_user, DeferredType), 0, 20, out _, out var stale));
         Assert.True(stale);
@@ -216,7 +227,7 @@ public sealed class SectionFreshnessTests : IDisposable
     private async Task StartListener()
     {
         var listener = new SectionCacheInvalidationListener(
-            _userData.Object, _library.Object, _cache, _registry, Mock.Of<ITaskManager>(), _scoring, _clock, NullLogger<SectionCacheInvalidationListener>.Instance);
+            _userData.Object, _library.Object, _cache, _registry, Mock.Of<ITaskManager>(), _scoring, StoredHomes, _clock, NullLogger<SectionCacheInvalidationListener>.Instance);
         await listener.StartAsync(CancellationToken.None);
     }
 

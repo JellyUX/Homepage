@@ -101,6 +101,9 @@ public sealed class WidgetService
         _mismatchReporter = mismatchReporter;
         _stored = stored;
         _storedReader = storedReader;
+
+        // A library scan, a refreshed TMDb or award list: the stored orders that read it are computed again too.
+        _sectionResults.SourcesCleared += _stored.MarkSourcesStale;
     }
 
     /// <summary>

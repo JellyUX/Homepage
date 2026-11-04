@@ -31,6 +31,8 @@ public sealed class StoredHomeScreensTests : IDisposable
     private readonly List<TestMovie> _movies = [.. Enumerable.Range(0, 20).Select(_ => new TestMovie { Id = Guid.NewGuid() })];
     private readonly HashSet<Guid> _played = [];
     private readonly List<IDisposable> _disposables = [];
+    private PluginConfiguration _config = NewConfiguration();
+    private UserConfiguration? _userConfig;
 
     [Fact]
     public async Task AfterRestart_TheDeferredSectionsAreReadFromTheStoredOrder_WithoutScoringNorProbing()
@@ -103,6 +105,85 @@ public sealed class StoredHomeScreensTests : IDisposable
         Assert.Empty(_disk.Paths);
     }
 
+    // R7 sisters of the cache invalidations (DR-033 E): a saved configuration and a change of the user's own settings
+    // change the discriminant, so the stored layout is computed again at once.
+    [Fact]
+    public async Task AfterASavedConfigurationOrAChangedUserSetting_TheStoredLayoutIsComputedAgain()
+    {
+        await Start().Service.GetWidgetsForUser(_userId, 0, "en", CancellationToken.None);
+
+        _config = NewConfiguration(maxItems: MaxItems + 1);
+        var saved = Start();
+        await saved.Service.GetWidgetsForUser(_userId, 0, "en", CancellationToken.None);
+        Assert.Equal((1, 1), (saved.Widget.Resolves, saved.Widget.Reads));
+
+        _userConfig = new UserConfiguration { HiddenSections = ["jux.other#1"] };
+        var changed = Start();
+        await changed.Service.GetWidgetsForUser(_userId, 0, "en", CancellationToken.None);
+        Assert.Equal((1, 1), (changed.Widget.Resolves, changed.Widget.Reads));
+
+        var unchanged = Start();
+        await unchanged.Service.GetWidgetsForUser(_userId, 0, "en", CancellationToken.None);
+        Assert.Equal((0, 0), (unchanged.Widget.Resolves, unchanged.Widget.Reads));
+    }
+
+    // A new scoring or a change of access marks the user (UserAccessWatch, SectionCacheInvalidationListener), a library
+    // scan or a refreshed list the sources it changed (SectionResultCache.ClearSources): the stored layout is served,
+    // then computed again in the background, and the marks survive a restart.
+    [Theory]
+    [InlineData("user")]
+    [InlineData("source")]
+    public async Task AMarkedUserOrSource_IsServedAfterARestart_ThenComputedAgainInTheBackground(string mark)
+    {
+        var before = Start();
+        await before.Service.GetWidgetsForUser(_userId, 0, "en", CancellationToken.None);
+        _clock.Advance(TimeSpan.FromSeconds(1));
+        if (mark == "user")
+        {
+            before.Store.MarkUserStale(_userId);
+        }
+        else
+        {
+            before.Pages.ClearSources([SectionSources.Movies]);
+        }
+
+        var after = Start();
+        var layout = await after.Service.GetWidgetsForUser(_userId, 0, "en", CancellationToken.None);
+        Assert.Equal([Ordered], layout.Sections.Select(s => s.WidgetType));
+        await after.Service.WhenIdleForTesting();
+
+        Assert.Equal((1, 1), (after.Widget.Resolves, after.Widget.Reads));
+    }
+
+    [Fact]
+    public async Task AChangeOfAnotherSource_LeavesTheStoredLayoutFresh()
+    {
+        var before = Start();
+        await before.Service.GetWidgetsForUser(_userId, 0, "en", CancellationToken.None);
+        _clock.Advance(TimeSpan.FromSeconds(1));
+        before.Pages.ClearSources([SectionSources.Rewards]);
+
+        var after = Start();
+        await after.Service.GetWidgetsForUser(_userId, 0, "en", CancellationToken.None);
+        await after.Service.WhenIdleForTesting();
+
+        Assert.Equal((0, 0), (after.Widget.Resolves, after.Widget.Reads));
+    }
+
+    // A mark taken while a layout is computed is not cleared by the write that ends the computation.
+    [Fact]
+    public void AMarkTakenDuringTheComputation_KeepsTheLayoutWrittenAfterItDue()
+    {
+        var store = TestWidgetServices.NewStore(_disk, _clock);
+        var startedAt = store.UtcNow;
+        store.Write(_userId, "en", new StoredLayout { ComputedAtUtc = startedAt, Discriminant = "d", Rows = [] });
+        _clock.Advance(TimeSpan.FromSeconds(1));
+        store.MarkUserStale(_userId);
+        store.Write(_userId, "en", new StoredLayout { ComputedAtUtc = startedAt, Discriminant = "d", Rows = [] });
+
+        Assert.False(store.Read(_userId, "en", "d", TimeSpan.FromHours(24))!.Value.Fresh);
+    }
+
     public void Dispose() => _disposables.ForEach(d => d.Dispose());
 
     private static Task<WidgetResult?> ReadSection(Server server, WidgetDescriptor section) =>
@@ -113,22 +194,20 @@ public sealed class StoredHomeScreensTests : IDisposable
         var widget = new OrderedWidget(this);
         var registry = new WidgetRegistry();
         registry.Register(widget);
-        var config = new PluginConfiguration
-        {
-            Widgets = [new WidgetConfig { WidgetType = Ordered, Enabled = true, Order = 1, MinItems = 1, MaxItems = MaxItems }]
-        };
         var userConfig = new Mock<IUserConfigurationStore>();
+        userConfig.Setup(s => s.GetUserConfiguration(It.IsAny<Guid>())).Returns(() => _userConfig);
         var resolver = new WidgetLayoutResolver(
             registry,
             userConfig.Object,
             new LocalizationService(new Dictionary<string, IReadOnlyDictionary<string, string>>()),
-            () => config,
+            () => _config,
             NullLogger<WidgetLayoutResolver>.Instance);
         var library = new Mock<ILibraryManager>();
         library.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
             .Returns((InternalItemsQuery query) => [.. _movies.Where(m => query.ItemIds.Contains(m.Id) && (query.IsPlayed != false || !_played.Contains(m.Id)))]);
         var dto = new Mock<IDtoService>();
         dto.StubBaseItemDtos((items, _) => [.. items.Select(i => new BaseItemDto { Id = i.Id })]);
+        var store = TestWidgetServices.NewStore(_disk, _clock);
         var sessions = new SessionCache(_clock);
         var pages = new SectionResultCache(sessions, _clock);
         _disposables.Add(sessions);
@@ -137,15 +216,20 @@ public sealed class StoredHomeScreensTests : IDisposable
             registry,
             sessions,
             resolver,
-            () => config,
+            () => _config,
             pendingScoring ? new AlwaysPending() : null,
             pages,
-            stored: TestWidgetServices.NewStore(_disk, _clock),
+            stored: store,
             storedReader: new StoredSectionReader(library.Object, TestMocks.UserManagerReturning(_user).Object, dto.Object));
-        return new Server(service, widget, sessions, _userId);
+        return new Server(service, widget, sessions, pages, store, _userId);
     }
 
-    private sealed record Server(WidgetService Service, OrderedWidget Widget, SessionCache Sessions, Guid UserId);
+    private static PluginConfiguration NewConfiguration(int maxItems = MaxItems) => new()
+    {
+        Widgets = [new WidgetConfig { WidgetType = Ordered, Enabled = true, Order = 1, MinItems = 1, MaxItems = maxItems }]
+    };
+
+    private sealed record Server(WidgetService Service, OrderedWidget Widget, SessionCache Sessions, SectionResultCache Pages, StoredHomeScreens Store, Guid UserId);
 
     private sealed class AlwaysPending : IPersonalizationState
     {

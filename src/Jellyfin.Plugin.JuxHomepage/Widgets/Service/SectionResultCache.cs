@@ -131,10 +131,19 @@ public sealed class SectionResultCache : IDisposable
     /// before this call (REV-04.c); the other pages stay served.
     /// </summary>
     /// <param name="sources">The changed sources (<see cref="SectionSources"/>).</param>
-    public void ClearSources(IReadOnlyCollection<string> sources) =>
+    public void ClearSources(IReadOnlyCollection<string> sources)
+    {
         _entries.RemoveWhere(
             (_, entry) => entry.Sources is null || entry.Sources.Any(sources.Contains),
             () => Interlocked.Increment(ref _sourceChanges));
+        SourcesCleared?.Invoke(sources);
+    }
+
+    /// <summary>
+    /// Raised after <see cref="ClearSources"/> with the changed sources, so the stored orders that read them are
+    /// computed again too (DR-033).
+    /// </summary>
+    public event Action<IReadOnlyCollection<string>>? SourcesCleared;
 
     /// <inheritdoc/>
     public void Dispose() => _entries.Dispose();

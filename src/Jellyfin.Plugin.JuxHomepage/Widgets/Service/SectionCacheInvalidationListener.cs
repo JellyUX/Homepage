@@ -32,6 +32,7 @@ public sealed class SectionCacheInvalidationListener : IHostedService, IDisposab
     private readonly IWidgetRegistry _registry;
     private readonly ITaskManager _taskManager;
     private readonly ScoringService _scoring;
+    private readonly StoredHomeScreens _stored;
     private readonly LibraryChangeBatcher _libraryChanges;
     private readonly ILogger<SectionCacheInvalidationListener> _logger;
 
@@ -44,6 +45,7 @@ public sealed class SectionCacheInvalidationListener : IHostedService, IDisposab
     /// <param name="registry">The widgets, which tell whether a section is direct.</param>
     /// <param name="taskManager">Jellyfin task manager, which tells when a library scan runs.</param>
     /// <param name="scoring">The scoring, whose new snapshot makes the user's personalized pages out of date.</param>
+    /// <param name="stored">The stored home screens, whose personalized rows a new snapshot makes due again (DR-033).</param>
     /// <param name="timeProvider">Time source of the quiet delay between library changes.</param>
     /// <param name="logger">Logger.</param>
     public SectionCacheInvalidationListener(
@@ -53,6 +55,7 @@ public sealed class SectionCacheInvalidationListener : IHostedService, IDisposab
         IWidgetRegistry registry,
         ITaskManager taskManager,
         ScoringService scoring,
+        StoredHomeScreens stored,
         TimeProvider timeProvider,
         ILogger<SectionCacheInvalidationListener> logger)
     {
@@ -62,6 +65,7 @@ public sealed class SectionCacheInvalidationListener : IHostedService, IDisposab
         _registry = registry;
         _taskManager = taskManager;
         _scoring = scoring;
+        _stored = stored;
         _logger = logger;
         _libraryChanges = new LibraryChangeBatcher(cache.ClearSources, timeProvider, logger);
     }
@@ -127,7 +131,13 @@ public sealed class SectionCacheInvalidationListener : IHostedService, IDisposab
     /// served stale.
     /// </summary>
     private void OnSnapshotStored(object? sender, Guid userId) =>
-        EventHandlerGuard.Run(_logger, nameof(OnSnapshotStored), () => _cache.MarkStale(userId, _ => false));
+        EventHandlerGuard.Run(_logger, nameof(OnSnapshotStored), () =>
+        {
+            _cache.MarkStale(userId, _ => false);
+
+            // The personalized rows were stored from the former scores: computed again in the background (DR-033).
+            _stored.MarkUserStale(userId);
+        });
 
     private void OnLibraryItemRemoved(object? sender, ItemChangeEventArgs e) =>
         EventHandlerGuard.Run(_logger, nameof(OnLibraryItemRemoved), () =>

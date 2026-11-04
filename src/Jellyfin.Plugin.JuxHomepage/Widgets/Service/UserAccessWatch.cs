@@ -25,6 +25,7 @@ public sealed class UserAccessWatch : IUserAccessWatch
     private readonly IUserManager _userManager;
     private readonly SessionCache _sessionCache;
     private readonly ScoringService _scoringService;
+    private readonly StoredHomeScreens _stored;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<UserAccessWatch> _logger;
 
@@ -34,13 +35,15 @@ public sealed class UserAccessWatch : IUserAccessWatch
     /// <param name="userManager">Jellyfin user manager.</param>
     /// <param name="sessionCache">The layout cache; invalidating a user also drops their section pages.</param>
     /// <param name="scoringService">The scores computed from the items the user could see.</param>
+    /// <param name="stored">The stored home screens, read with the former access until computed again (DR-033).</param>
     /// <param name="logger">Logger.</param>
     /// <param name="timeProvider">Time source. Defaults to <see cref="TimeProvider.System"/>.</param>
-    public UserAccessWatch(IUserManager userManager, SessionCache sessionCache, ScoringService scoringService, ILogger<UserAccessWatch> logger, TimeProvider? timeProvider = null)
+    public UserAccessWatch(IUserManager userManager, SessionCache sessionCache, ScoringService scoringService, StoredHomeScreens stored, ILogger<UserAccessWatch> logger, TimeProvider? timeProvider = null)
     {
         _userManager = userManager;
         _sessionCache = sessionCache;
         _scoringService = scoringService;
+        _stored = stored;
         _logger = logger;
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
@@ -78,6 +81,9 @@ public sealed class UserAccessWatch : IUserAccessWatch
             // Scores first: the layout rebuilt after the invalidation must not read the former ones.
             _scoringService.Forget(userId);
             _sessionCache.Invalidate(userId);
+
+            // The stored orders were read with the former access: computed again, the hidden titles left out meanwhile.
+            _stored.MarkUserStale(userId);
         }
     }
 
