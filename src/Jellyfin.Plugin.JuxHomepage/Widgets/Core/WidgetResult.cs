@@ -32,12 +32,13 @@ public sealed class WidgetResult
         TotalRecordCount = totalRecordCount;
     }
 
-    private WidgetResult(int itemCount, int totalRecordCount, Func<IReadOnlyList<BaseItemDto>> project)
+    private WidgetResult(int itemCount, int totalRecordCount, Func<IReadOnlyList<BaseItemDto>> project, IReadOnlyList<Guid>? itemIds)
     {
         // A failed projection is not kept: the next read projects again.
         _items = new Lazy<IReadOnlyList<BaseItemDto>>(project, LazyThreadSafetyMode.PublicationOnly);
         ItemCount = itemCount;
         TotalRecordCount = totalRecordCount;
+        ItemIds = itemIds;
     }
 
     /// <summary>Gets the page of items for this result, projected to DTOs on the first read.</summary>
@@ -52,6 +53,14 @@ public sealed class WidgetResult
     /// <summary>Gets the number of items in the page, without projecting them.</summary>
     [JsonIgnore]
     public int ItemCount { get; }
+
+    /// <summary>
+    /// Gets the library ids of the page's items, in the page's order, when the page was projected from library
+    /// items (<see cref="Project"/>, <see cref="FeaturedItems.Project"/>); null for a page built otherwise, which
+    /// cannot be stored as an order and read again (DR-033).
+    /// </summary>
+    [JsonIgnore]
+    public IReadOnlyList<Guid>? ItemIds { get; }
 
     /// <summary>Gets an empty result with no items and a count of zero.</summary>
     public static WidgetResult Empty { get; } = new WidgetResult([], 0);
@@ -71,7 +80,7 @@ public sealed class WidgetResult
         DtoOptions dtoOptions,
         User user,
         int? totalRecordCount = null) =>
-        Defer(items.Count, totalRecordCount ?? items.Count, () => dtoService.GetBaseItemDtos(items, dtoOptions, user));
+        Defer(items.Count, totalRecordCount ?? items.Count, () => dtoService.GetBaseItemDtos(items, dtoOptions, user), IdsOf(items));
 
     /// <summary>
     /// Returns a page of <paramref name="itemCount"/> items whose DTOs <paramref name="project"/>
@@ -80,7 +89,13 @@ public sealed class WidgetResult
     /// <param name="itemCount">The number of items in the page.</param>
     /// <param name="totalRecordCount">The total before pagination.</param>
     /// <param name="project">Builds the page's DTOs.</param>
+    /// <param name="itemIds">The library ids of the page's items, in order; null when they are not library items.</param>
     /// <returns>The result.</returns>
-    public static WidgetResult Defer(int itemCount, int totalRecordCount, Func<IReadOnlyList<BaseItemDto>> project) =>
-        new(itemCount, totalRecordCount, project);
+    public static WidgetResult Defer(int itemCount, int totalRecordCount, Func<IReadOnlyList<BaseItemDto>> project, IReadOnlyList<Guid>? itemIds = null) =>
+        new(itemCount, totalRecordCount, project, itemIds);
+
+    /// <summary>Returns the ids of <paramref name="items"/>, in order.</summary>
+    /// <param name="items">Library items.</param>
+    /// <returns>Their ids.</returns>
+    internal static IReadOnlyList<Guid> IdsOf(IReadOnlyList<BaseItem> items) => [.. items.Select(item => item.Id)];
 }

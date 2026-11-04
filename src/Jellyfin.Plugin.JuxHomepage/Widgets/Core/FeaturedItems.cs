@@ -107,7 +107,8 @@ public static class FeaturedItems
             [
                 .. dtoService.GetBaseItemDtos(items.Take(slides).ToList(), WidgetDtoOptions.Featured(), user),
                 .. dtoService.GetBaseItemDtos(items.Skip(slides).ToList(), WidgetDtoOptions.Standard(), user)
-            ]);
+            ],
+            WidgetResult.IdsOf(items));
     }
 
     private static bool HasBackdrop(BaseItem item) => item.HasImage(ImageType.Backdrop, 0);

@@ -35,6 +35,28 @@ public sealed class WidgetResultTests
         Assert.Equal(1, calls);
     }
 
+    // DR-033: the ids of a projected page are kept, in order and without projecting it, so the page can be
+    // stored as an order and read again; a page built without library items has none.
+    [Fact]
+    public void Project_KeepsTheItemIdsInOrderWithoutProjecting_DeferWithoutIdsHasNone()
+    {
+        var calls = 0;
+        var dto = new Mock<IDtoService>();
+        dto.StubBaseItemDtos((items, _) =>
+        {
+            calls++;
+            return [];
+        });
+        BaseItem[] page = [new Movie { Id = Guid.NewGuid() }, new Movie { Id = Guid.NewGuid() }];
+
+        var result = WidgetResult.Project(dto.Object, page, new DtoOptions(), TestMocks.DefaultUser());
+
+        Assert.Equal(page.Select(i => i.Id), result.ItemIds!);
+        Assert.Equal(0, calls);
+        Assert.Null(WidgetResult.Defer(1, 1, () => [new BaseItemDto()]).ItemIds);
+        Assert.Null(new WidgetResult([new BaseItemDto()], 1).ItemIds);
+    }
+
     [Fact]
     public void FailedProjection_IsNotKept_TheNextReadProjectsAgain()
     {

@@ -105,6 +105,7 @@ public sealed class FeaturedItemsTests
 
         var result = FeaturedItems.Project(dto.Object, items, new WidgetPayload { Featured = true, StartIndex = startIndex }, TestMocks.DefaultUser(), 40);
 
+        Assert.Equal(items.Select(i => i.Id), result.ItemIds!);
         Assert.Equal(items.Select(i => i.Id), result.Items.Select(d => d.Id));
         Assert.Equal(40, result.TotalRecordCount);
         Assert.Equal(enriched, calls.Where(c => c.Slides).Sum(c => c.Count));
