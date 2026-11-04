@@ -9,7 +9,9 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets.Tasks;
 /// scoring first, then their layout, its deferred rows stored, in the language of their last home screen. The
 /// personalized, admin, TMDb, award and seasonal sections then keep that order through the day, their titles'
 /// watched state staying live, so no scoring nor probe runs while the server is used. One user at a time, behind the
-/// gate of the layout rebuilds; a user that fails is logged and the others are still computed.
+/// gate of the layout rebuilds, one probe at a time, and a pause as long as the last user took before the next one, so
+/// the task never holds the server more than half the time (phase 14 bench: p95 <c>/Items/Latest</c> 30 -> 274 ms
+/// during an unpaced task); a user that fails is logged and the others are still computed.
 /// </summary>
 public sealed class HomeSectionsRefreshTask : IScheduledTask
 {
@@ -63,9 +65,16 @@ public sealed class HomeSectionsRefreshTask : IScheduledTask
         var users = _activeUsers.MostRecent(int.MaxValue);
         var computed = 0;
         var kept = _activeUsers.KeptBound;
+        var lastUserTook = TimeSpan.Zero;
         for (var i = 0; i < users.Count; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (i > 0)
+            {
+                await Task.Delay(lastUserTook, _timeProvider, cancellationToken).ConfigureAwait(false);
+            }
+
+            var userStarted = _timeProvider.GetUtcNow();
 
             // Only the most recent users, as many as the memory bound of the warmup, keep their pages in memory (R11).
             if (await ComputeUserAsync(users[i], keepInMemory: i < kept, cancellationToken).ConfigureAwait(false))
@@ -73,6 +82,9 @@ public sealed class HomeSectionsRefreshTask : IScheduledTask
                 computed++;
             }
 
+            // A clock set back mid-user gives a negative duration: no pause then.
+            var took = _timeProvider.GetUtcNow() - userStarted;
+            lastUserTook = took > TimeSpan.Zero ? took : TimeSpan.Zero;
             progress.Report(100.0 * (i + 1) / users.Count);
         }
 

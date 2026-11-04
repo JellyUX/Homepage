@@ -30,6 +30,7 @@ public sealed class HomeSectionsRefreshTaskTests : IDisposable
     private readonly List<User> _users = [];
     private readonly Dictionary<Guid, UserConfiguration> _settings = [];
     private readonly HashSet<Guid> _failingLanguage = [];
+    private Action _onScoring = () => { };
     private readonly ScoringService _scoring;
     private readonly StoredHomeScreens _stored;
 
@@ -41,7 +42,11 @@ public sealed class HomeSectionsRefreshTaskTests : IDisposable
         var film = new Movie { Id = Guid.NewGuid(), Name = "Film", Genres = ["Drama"] };
         var library = new Mock<ILibraryManager>();
         library.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>()))
-            .Returns((InternalItemsQuery q) => q.IsPlayed == true ? [film.Id] : []);
+            .Returns((InternalItemsQuery q) =>
+            {
+                _onScoring();
+                return q.IsPlayed == true ? [film.Id] : [];
+            });
         library.Setup(m => m.GetItemList(It.IsAny<InternalItemsQuery>()))
             .Returns((InternalItemsQuery q) => q.IsFavorite != true && q.IncludeItemTypes.Contains(BaseItemKind.Movie) ? [film] : []);
         library.Setup(m => m.GetPeople(It.IsAny<BaseItem>())).Returns([]);
@@ -112,6 +117,33 @@ public sealed class HomeSectionsRefreshTaskTests : IDisposable
         Assert.True(Stored(first, "de") && Stored(second, "de"));
         Assert.True(_sessionCache.TryGet(first.Id, "de", TimeSpan.FromMinutes(15), out _, out _));
         Assert.False(_sessionCache.TryGet(second.Id, "de", TimeSpan.FromMinutes(15), out _, out _));
+    }
+
+    // Phase 14: between two users the task waits as long as the last one took, so it never holds the server more than
+    // half the time (p95 /Items/Latest 30 -> 274 ms during an unpaced task).
+    [Fact]
+    public async Task Execute_WaitsBetweenTwoUsers_AsLongAsTheLastOneTook()
+    {
+        var first = AddUser(TimeSpan.FromHours(1));
+        var second = AddUser(TimeSpan.FromHours(2));
+        var scored = 0;
+        _onScoring = () =>
+        {
+            if (Interlocked.Exchange(ref scored, 1) == 0)
+            {
+                _clock.UtcNowValue += TimeSpan.FromSeconds(2);
+            }
+        };
+
+        var run = Build().ExecuteAsync(new SyncProgress([]), CancellationToken.None);
+        var waited = SpinWait.SpinUntil(() => _clock.ActiveTimers == 1 || run.IsCompleted, TimeSpan.FromSeconds(10));
+        _clock.Advance(TimeSpan.FromSeconds(1));
+        var stillWaiting = !run.IsCompleted && !Stored(second, "de");
+        _clock.Advance(TimeSpan.FromSeconds(1));
+        await run.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.True(waited && stillWaiting, "The task did not wait between the two users.");
+        Assert.True(Stored(first, "de") && Stored(second, "de"));
     }
 
     [Fact]

@@ -106,6 +106,8 @@ public sealed class WidgetLayoutResolver
     /// <param name="onProbed">Receives each kept section, the page size the client reads and its first page.</param>
     /// <param name="stored">The stored layout to read again, or null to compute one.</param>
     /// <param name="reader">Reads a page of a deferred section from its stored ids.</param>
+    /// <param name="oneProbeAtATime">Whether the rows are built one after the other, whatever the processors (the nightly
+    /// task, so its probes never take the CPU from the server's own requests).</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>The layout, the layout to store when one was computed, and whether a stored row is due again.</returns>
     public Task<LayoutBuild> BuildAsync(
@@ -114,8 +116,9 @@ public sealed class WidgetLayoutResolver
         Action<WidgetDescriptor, int, WidgetResult>? onProbed,
         StoredLayout? stored,
         StoredSectionReader reader,
+        bool oneProbeAtATime,
         CancellationToken cancellationToken) =>
-        BuildCore(userId, lang, onProbed, new StoreAccess(stored, reader), cancellationToken);
+        BuildCore(userId, lang, onProbed, new StoreAccess(stored, reader, oneProbeAtATime), cancellationToken);
 
     private async Task<LayoutBuild> BuildCore(
         Guid userId,
@@ -158,7 +161,7 @@ public sealed class WidgetLayoutResolver
         var results = new RowOutcome[effectiveConfigs.Count];
         await Parallel.ForEachAsync(
             Enumerable.Range(0, effectiveConfigs.Count),
-            new ParallelOptions { MaxDegreeOfParallelism = _concurrentProbes, CancellationToken = cancellationToken },
+            new ParallelOptions { MaxDegreeOfParallelism = store?.OneProbeAtATime == true ? 1 : _concurrentProbes, CancellationToken = cancellationToken },
             async (i, token) =>
             {
                 var (config, key) = effectiveConfigs[i];
@@ -621,7 +624,7 @@ public sealed class WidgetLayoutResolver
     private readonly record struct RowOutcome(WidgetDescriptor? Descriptor, StoredRow? Row, bool Due);
 
     /// <summary>The stored layout a build reads again (null: one is computed) and the reader of its sections.</summary>
-    private sealed record StoreAccess(StoredLayout? Stored, StoredSectionReader Reader);
+    private sealed record StoreAccess(StoredLayout? Stored, StoredSectionReader Reader, bool OneProbeAtATime);
 }
 
 /// <summary>A layout built with the deferred level kept on disk (DR-033).</summary>

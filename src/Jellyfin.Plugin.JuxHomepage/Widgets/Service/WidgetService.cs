@@ -209,7 +209,7 @@ public sealed class WidgetService
     /// served before the scoring finished, so it leaves the pending flag of a visit's build alone (R11). Without
     /// <paramref name="keepInMemory"/>, the layout is stored only, not cached (the nightly task past the kept users).
     /// </summary>
-    private async Task<IReadOnlyList<WidgetDescriptor>> BuildAndStore((Guid UserId, string Lang) key, string? lang, long version, bool compute, bool keepInMemory)
+    private async Task<IReadOnlyList<WidgetDescriptor>> BuildAndStore((Guid UserId, string Lang) key, string? lang, long version, bool compute, bool keepInMemory, bool oneProbeAtATime = false)
     {
         if (compute && !await _personalizationState.WarmAsync(key.UserId, CancellationToken.None).ConfigureAwait(false))
         {
@@ -227,7 +227,7 @@ public sealed class WidgetService
             : null;
         var discriminant = _layoutResolver.DiscriminantOf(key.UserId);
         var stored = compute ? null : _stored.Read(key.UserId, key.Lang, discriminant, DeferredFreshness);
-        var build = await _layoutResolver.BuildAsync(key.UserId, lang, keepProbedPage, stored?.Layout, _storedReader, CancellationToken.None).ConfigureAwait(false);
+        var build = await _layoutResolver.BuildAsync(key.UserId, lang, keepProbedPage, stored?.Layout, _storedReader, oneProbeAtATime, CancellationToken.None).ConfigureAwait(false);
 
         // A layout built before the user's first scoring finished is served, never cached nor stored, so an
         // expired one is never served in its place either (Sections_PendingScoring_IsNotCachedNorServedStale).
@@ -331,7 +331,7 @@ public sealed class WidgetService
         await _rebuildGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await BuildAndStore((userId, SessionCache.NormalizeKey(lang)), lang, _sessionCache.VersionOf(userId), compute: true, keepInMemory).ConfigureAwait(false);
+            await BuildAndStore((userId, SessionCache.NormalizeKey(lang)), lang, _sessionCache.VersionOf(userId), compute: true, keepInMemory, oneProbeAtATime: true).ConfigureAwait(false);
         }
         finally
         {

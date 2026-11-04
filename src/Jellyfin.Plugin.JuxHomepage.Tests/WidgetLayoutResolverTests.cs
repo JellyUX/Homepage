@@ -195,6 +195,41 @@ public sealed class WidgetLayoutResolverTests
         Assert.Same(row, resolved);
     }
 
+    // Phase 14: the nightly task computes with one probe at a time, whatever the processors, so its probes never take
+    // the CPU from the server's own requests (p95 /Items/Latest 30 -> 274 ms during the task with 3 at a time).
+    [Fact]
+    public async Task BuildAsync_OneProbeAtATime_RunsTheProbesOneAfterTheOther()
+    {
+        var library = new TestMocks.CountingLibraryManager();
+        library.Inner.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>()))
+            .Returns(() =>
+            {
+                Thread.Sleep(20);
+                return [];
+            });
+        var registry = new WidgetRegistry();
+        var rows = new List<WidgetConfig>();
+        for (var i = 0; i < 6; i++)
+        {
+            var widgetType = $"jux.test.slow-{i}";
+            registry.Register(MakeSynchronousLibraryWidget(widgetType, library.Object));
+            rows.Add(new WidgetConfig { WidgetType = widgetType, Enabled = true, MinItems = 1, Order = i });
+        }
+
+        var build = await BuildResolver(registry, [.. rows], 4).BuildAsync(
+            Guid.NewGuid(),
+            "en",
+            onProbed: null,
+            stored: null,
+            new StoredSectionReader(Mock.Of<ILibraryManager>(), Mock.Of<IUserManager>(), Mock.Of<IDtoService>()),
+            oneProbeAtATime: true,
+            CancellationToken.None);
+
+        Assert.Equal(rows.Select(r => r.WidgetType), build.Descriptors.Select(d => d.WidgetType));
+        Assert.Equal(6, library.Count("GetItemIds"));
+        Assert.Equal(1, library.MaxInFlight);
+    }
+
     [Theory]
     [InlineData(16, 4)]
     [InlineData(4, 4)]
