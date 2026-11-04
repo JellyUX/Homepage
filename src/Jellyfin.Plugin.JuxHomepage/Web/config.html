@@ -106,7 +106,11 @@
                     <div class="inputContainer">
                         <label class="inputLabel inputLabelUnfocused" for="numSessionTtl" data-i18n="admin.cache.sessionttl.label">Session cache TTL (minutes)</label>
                         <input id="numSessionTtl" type="number" min="1" class="emby-input" />
-                        <div class="fieldDescription" data-i18n="admin.cache.sessionttl.help">How long a user's home screen layout is kept before it is rebuilt, counted from when it was built. The first visit after that still shows the previous layout while the new one is built in the background. Saving this page applies changes at once. Personalized picks are recomputed once a day and after a title is finished, not on this schedule.</div>
+                        <div class="fieldDescription" data-i18n="admin.cache.sessionttl.help">How long a user's home screen layout is kept before it is rebuilt, counted from when it was built. The first visit after that still shows the previous layout while the new one is built in the background. Saving this page applies changes at once. The order of the personalized, admin, TMDb, award and seasonal sections follows the deferred sections freshness instead.</div>
+                    </div>
+                    <div class="inputContainer">
+                        <label class="inputLabel inputLabelUnfocused" for="numDeferredFreshness" data-i18n="admin.cache.deferredfreshness.label">Deferred sections freshness (hours)</label>
+                        <input id="numDeferredFreshness" type="number" min="6" max="168" class="emby-input" />
                     </div>
                 </div>
             </div>

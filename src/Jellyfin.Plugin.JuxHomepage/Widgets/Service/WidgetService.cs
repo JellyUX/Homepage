@@ -151,7 +151,7 @@ public sealed class WidgetService
     private TimeSpan SessionTtl => TimeSpan.FromMinutes(_getConfiguration()?.Cache?.SessionTtlMinutes ?? 15);
 
     /// <summary>Gets how long a stored layout is read again before it is computed again (DR-033).</summary>
-    private static TimeSpan DeferredFreshness => TimeSpan.FromHours(24);
+    private TimeSpan DeferredFreshness => TimeSpan.FromHours(_getConfiguration()?.Cache?.DeferredFreshnessHours ?? 24);
 
     /// <summary>
     /// Builds the user's layout, or joins the build already running for the same user and language,

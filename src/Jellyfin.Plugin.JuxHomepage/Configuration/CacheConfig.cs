@@ -19,4 +19,18 @@ public sealed class CacheConfig
     /// <c>TMDbRefreshIntervalHours_72h_DailyTaskSkipsFreshLists</c>); "Refresh now" refreshes all.
     /// </summary>
     public int TMDbRefreshIntervalHours { get; set; } = 24;
+
+    /// <summary>The shortest deferred sections freshness, in hours.</summary>
+    public const int MinDeferredFreshnessHours = 6;
+
+    /// <summary>The longest deferred sections freshness, in hours (a week).</summary>
+    public const int MaxDeferredFreshnessHours = 168;
+
+    /// <summary>
+    /// Gets or sets how long the stored order of the deferred sections is read again before it is computed again, in
+    /// hours (DR-033): personalized, admin, local, TMDb, award and seasonal sections keep their order this long, their
+    /// titles' watched state staying live; a new scoring, a library scan or a refreshed list computes them sooner.
+    /// Clamped to <see cref="MinDeferredFreshnessHours"/>..<see cref="MaxDeferredFreshnessHours"/>.
+    /// </summary>
+    public int DeferredFreshnessHours { get; set; } = 24;
 }

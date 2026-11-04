@@ -192,6 +192,7 @@ describe('tabSnapshot and changedTabs (ADM-01.c)', () => {
     it('names only the tab a field belongs to', () => {
         expect(changedTabs(tabSnapshot(base), tabSnapshot(base))).toEqual([]);
         expect(changedTabs(tabSnapshot(base), edit((c) => { c.Cache.SessionTtlMinutes = 5; }))).toEqual(['settings']);
+        expect(changedTabs(tabSnapshot(base), edit((c) => { c.Cache.DeferredFreshnessHours = 48; }))).toEqual(['settings']);
         expect(changedTabs(tabSnapshot(base), edit((c) => { c.Cache.TMDbRefreshIntervalHours = 6; }))).toEqual(['sources']);
         expect(changedTabs(tabSnapshot(base), edit((c) => { c.Widgets[0].Order = 10; }))).toEqual(['sections']);
         expect(changedTabs(tabSnapshot(base), edit((c) => { c.ApiKeys.TMDb = 'k'; c.Modules.Tabs = false; }))).toEqual(['settings', 'sources']);
@@ -1059,6 +1060,20 @@ describe('configuration page controller (F-33)', () => {
         view.querySelector('.juxConfigForm').dispatchEvent(new Event('submit', { cancelable: true }));
         await settle();
         expect(window.ApiClient.updatePluginConfiguration.mock.calls[0][1].TMDbLists.TrendingMoviesPages).toBe(3);
+    });
+
+    it('shows the deferred sections freshness and saves the hours typed (DR-033)', async () => {
+        await open();
+        const freshness = view.querySelector('#numDeferredFreshness');
+        expect(freshness.value).toBe('24');
+
+        type(freshness, '48');
+        window.ApiClient.updatePluginConfiguration = vi.fn(() => Promise.resolve({}));
+        window.Dashboard.processPluginConfigurationUpdateResult = vi.fn();
+        view.querySelector('.juxConfigForm').dispatchEvent(new Event('submit', { cancelable: true }));
+        await settle();
+
+        expect(window.ApiClient.updatePluginConfiguration.mock.calls[0][1].Cache.DeferredFreshnessHours).toBe(48);
     });
 
     it('keeps no TMDb key in the kept changes (R11)', async () => {

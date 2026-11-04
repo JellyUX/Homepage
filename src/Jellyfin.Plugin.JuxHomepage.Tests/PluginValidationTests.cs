@@ -33,6 +33,20 @@ public sealed class PluginValidationTests
         Assert.Equal(1, config.Cache.TMDbRefreshIntervalHours);
     }
 
+    [Theory]
+    [InlineData(0, 6)]
+    [InlineData(5, 6)]
+    [InlineData(48, 48)]
+    [InlineData(500, 168)]
+    public void ValidateConfiguration_ClampsTheDeferredFreshnessToSixHoursAWeek(int hours, int expected)
+    {
+        var config = new PluginConfiguration { Cache = new CacheConfig { DeferredFreshnessHours = hours } };
+
+        Plugin.ValidateConfiguration(config);
+
+        Assert.Equal(expected, config.Cache.DeferredFreshnessHours);
+    }
+
     [Fact]
     public void ValidateConfiguration_ClampsWidgetItemAndInstanceRanges()
     {

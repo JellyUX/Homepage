@@ -38,6 +38,7 @@ setting to never change the list automatically.
 | Field | Default | Description |
 |---|---|---|
 | Session cache TTL (minutes) | 15 | How long a user's home screen is cached, counted from when it was built: the layout, the items of each section and the user's liked titles. The first visit after that still shows the previous layout while the new one is built in the background. Saving the configuration clears the layout and the section items at once. The sections a library scan changes are refreshed when the scan ends, and a finished title refreshes the user's sections in the background, so a lower value is not needed to see new content; increase it to lower server load. |
+| Deferred sections freshness (hours) | 24 | How long the order of the deferred sections (personalized, admin, local, TMDb, award and seasonal) is kept on disk, under the plugin's data folder, and read again before it is computed again, 6 to 168. Each read applies the user's live watched state and rights, so a title watched since leaves a section that hides watched titles at once. A new scoring after a finished title, a change of the user's access, a library scan or a refreshed list computes the order again sooner, in the background; saving the configuration computes it again at the next visit. The stored files can be deleted at any time: they are computed again. |
 
 ## Sections
 

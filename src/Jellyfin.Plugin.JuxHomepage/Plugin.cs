@@ -608,6 +608,10 @@ public class Plugin : BasePlugin<PluginConfiguration>, IHasPluginConfiguration, 
         {
             config.Cache.SessionTtlMinutes = Math.Max(1, config.Cache.SessionTtlMinutes);
             config.Cache.TMDbRefreshIntervalHours = Math.Max(1, config.Cache.TMDbRefreshIntervalHours);
+            config.Cache.DeferredFreshnessHours = Math.Clamp(
+                config.Cache.DeferredFreshnessHours,
+                CacheConfig.MinDeferredFreshnessHours,
+                CacheConfig.MaxDeferredFreshnessHours);
         }
 
         foreach (var widget in config.Widgets)

@@ -96,6 +96,23 @@ public sealed class StoredHomeScreensTests : IDisposable
         Assert.Equal((0, 0), (again.Widget.Resolves, again.Widget.Reads));
     }
 
+    // R10: the deferred sections freshness is the age past which a stored layout is computed again.
+    [Theory]
+    [InlineData(24, 0)]
+    [InlineData(6, 1)]
+    public async Task DeferredFreshnessHours_SetsTheAgeAtWhichAStoredLayoutIsComputedAgain(int freshnessHours, int computes)
+    {
+        await Start().Service.GetWidgetsForUser(_userId, 0, "en", CancellationToken.None);
+        _clock.Advance(TimeSpan.FromHours(7));
+        _config.Cache.DeferredFreshnessHours = freshnessHours;
+
+        var after = Start();
+        await after.Service.GetWidgetsForUser(_userId, 0, "en", CancellationToken.None);
+        await after.Service.WhenIdleForTesting();
+
+        Assert.Equal((computes, computes), (after.Widget.Resolves, after.Widget.Reads));
+    }
+
     [Fact]
     public async Task ALayoutBuiltBeforeTheFirstScoring_IsNotStored()
     {

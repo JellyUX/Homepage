@@ -39,7 +39,7 @@ export function tabSnapshot(config) {
     var cache = config.Cache || {};
     var lists = config.TMDbLists || {};
     return {
-        settings: JSON.stringify([config.Enabled, config.WatchlistAutoRemove, config.Modules || {}, cache.SessionTtlMinutes]),
+        settings: JSON.stringify([config.Enabled, config.WatchlistAutoRemove, config.Modules || {}, cache.SessionTtlMinutes, cache.DeferredFreshnessHours]),
         sections: JSON.stringify(config.Widgets || []),
         sources: JSON.stringify([
             (config.ApiKeys || {}).TMDb || null,
@@ -332,6 +332,7 @@ function createConfigPage(view) {
                 el.checked = modules[el.getAttribute('data-module')] !== false;
             });
             byId('numSessionTtl').value = (config.Cache && config.Cache.SessionTtlMinutes) || 15;
+            byId('numDeferredFreshness').value = (config.Cache && config.Cache.DeferredFreshnessHours) || 24;
         },
 
         // Reads the Settings tab's fields into the configuration the page would save (formConfig).
@@ -344,6 +345,7 @@ function createConfigPage(view) {
             });
             if (!config.Cache) { config.Cache = {}; }
             config.Cache.SessionTtlMinutes = Math.max(1, parseInt(byId('numSessionTtl').value, 10) || 15);
+            config.Cache.DeferredFreshnessHours = Math.min(168, Math.max(6, parseInt(byId('numDeferredFreshness').value, 10) || 24));
         },
 
         // Shows a configuration in the form. The rows are copies, so reading the form never changes the
