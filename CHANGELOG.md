@@ -1,3 +1,27 @@
+## [2.19.0](https://github.com/JellyUX/Homepage/compare/v2.18.3...v2.19.0) (2026-11-04)
+
+### Features
+
+* **configuration:** add the deferred sections freshness setting ([f9c0e8d](https://github.com/JellyUX/Homepage/commit/f9c0e8d25d05fd7aa6e7683405975efb02d37a2d))
+* **widgets:** compute the stored home screens of active users every night ([7823e29](https://github.com/JellyUX/Homepage/commit/7823e29755f465a0cd3f738d0bbf356b1ace09d8))
+* **widgets:** serve the deferred sections from a stored order with live user data ([de3b802](https://github.com/JellyUX/Homepage/commit/de3b80252904bd39904f80c2e9874b4c0211005c))
+
+### Bug Fixes
+
+* **configuration:** drop the help sentence the deferred freshness added to the session TTL ([c1cf991](https://github.com/JellyUX/Homepage/commit/c1cf9912c8d5a6e09dae4f35bad7bd1e7e65a717))
+* **widgets:** forget the stored home screen on an access change and keep early marks ([5559917](https://github.com/JellyUX/Homepage/commit/55599170eb0c5f7e7b0638d28a4417310c9c224d))
+* **widgets:** keep a margin in the daily random draw of a section ([28af8ed](https://github.com/JellyUX/Homepage/commit/28af8ed67fcf58f7dd4a4119d5652fed18ecb495))
+* **widgets:** keep background computes apart from visits and bound what they cache ([64cb1b0](https://github.com/JellyUX/Homepage/commit/64cb1b099e81246ca9d72c333e36018f9f3f7ebb))
+* **widgets:** keep the probed page of a deferred row that has no library ids ([44876f0](https://github.com/JellyUX/Homepage/commit/44876f0f4f0f34513a1bb29913c26e9aba54a951))
+* **widgets:** pace the nightly home sections task so it never starves native requests ([1ed4fbb](https://github.com/JellyUX/Homepage/commit/1ed4fbb89c48c236c6ac9afbbc6f1eccc0c3646a))
+* **widgets:** probe at most one row per processor on small servers ([0941dc9](https://github.com/JellyUX/Homepage/commit/0941dc933809216469ce2f4d630c0aa8eb5534f6))
+* **widgets:** reach the stored home sections from every cache invalidation ([cdea100](https://github.com/JellyUX/Homepage/commit/cdea100a83b5e47f8b675527fb73195af458e6ac))
+* **widgets:** read a failing stored row live and keep featured rows ranked ([2dfa929](https://github.com/JellyUX/Homepage/commit/2dfa9293ced828ed8515e968ef21d742ea8f2eef))
+* **widgets:** read the stored home screens and computed pages without extra calls ([78d4ff6](https://github.com/JellyUX/Homepage/commit/78d4ff6ba8bf604e49756b1e193c3cfcc88e9a25))
+* **widgets:** recompute a damaged stored home screen instead of serving it ([6bb5efe](https://github.com/JellyUX/Homepage/commit/6bb5efe94f3938469993e8d313ae2a0f497f60c6))
+* **widgets:** recompute the active users' home screens after a library scan ([b2917ee](https://github.com/JellyUX/Homepage/commit/b2917eea0302077f4e6db8d695808298d3bf96f7))
+* **widgets:** warm the home screens from their stored order after a start ([71a5443](https://github.com/JellyUX/Homepage/commit/71a5443fd71a19a79cb3d3bf93a364682f3a1268))
+
 ## [2.18.3](https://github.com/JellyUX/Homepage/compare/v2.18.2...v2.18.3) (2026-11-03)
 
 ### Bug Fixes
