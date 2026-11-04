@@ -191,6 +191,35 @@ public sealed class StoredHomeScreensTests : IDisposable
         Assert.Equal((0, 0), (after.Widget.Resolves, after.Widget.Reads));
     }
 
+    // R11: a mark taken before the user has any stored file (during their first computation) is kept.
+    [Fact]
+    public void AMarkTakenBeforeTheFirstStoredFile_KeepsTheFirstLayoutDue()
+    {
+        var store = TestWidgetServices.NewStore(_disk, _clock);
+        var startedAt = store.UtcNow;
+        _clock.Advance(TimeSpan.FromSeconds(1));
+        store.MarkUserStale(_userId);
+        store.Write(_userId, "en", new StoredLayout { ComputedAtUtc = startedAt, Discriminant = "d", Rows = [] });
+
+        Assert.False(store.Read(_userId, "en", "d", TimeSpan.FromHours(24))!.Value.Fresh);
+    }
+
+    // R11: the language of the user's last home screen changes when they open it in another language; each language has
+    // its own stored layout, which that change leaves fresh.
+    [Fact]
+    public async Task AChangeOfTheUsersLastLanguage_LeavesTheStoredLayoutsFresh()
+    {
+        _userConfig = new UserConfiguration { HomeLanguage = "fr" };
+        await Start().Service.GetWidgetsForUser(_userId, 0, "en", CancellationToken.None);
+
+        _userConfig = new UserConfiguration { HomeLanguage = "en" };
+        var after = Start();
+        await after.Service.GetWidgetsForUser(_userId, 0, "en", CancellationToken.None);
+        await after.Service.WhenIdleForTesting();
+
+        Assert.Equal((0, 0), (after.Widget.Resolves, after.Widget.Reads));
+    }
+
     // A mark taken while a layout is computed is not cleared by the write that ends the computation.
     [Fact]
     public void AMarkTakenDuringTheComputation_KeepsTheLayoutWrittenAfterItDue()

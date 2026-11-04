@@ -301,7 +301,7 @@ public sealed class PerfBudgetTests : IDisposable
         return client.Object;
     }
 
-    private void DeleteStoredHomeScreens() => _provider.GetRequiredService<StoredHomeScreens>().ForgetForTesting(_user.Id);
+    private void DeleteStoredHomeScreens() => _provider.GetRequiredService<StoredHomeScreens>().Forget(_user.Id);
 
     private async Task WarmBackgroundCaches(JuxHomepageController controller)
     {

@@ -35,7 +35,7 @@ public sealed class UserAccessWatch : IUserAccessWatch
     /// <param name="userManager">Jellyfin user manager.</param>
     /// <param name="sessionCache">The layout cache; invalidating a user also drops their section pages.</param>
     /// <param name="scoringService">The scores computed from the items the user could see.</param>
-    /// <param name="stored">The stored home screens, read with the former access until computed again (DR-033).</param>
+    /// <param name="stored">The stored home screens, forgotten when the access changes (DR-033).</param>
     /// <param name="logger">Logger.</param>
     /// <param name="timeProvider">Time source. Defaults to <see cref="TimeProvider.System"/>.</param>
     public UserAccessWatch(IUserManager userManager, SessionCache sessionCache, ScoringService scoringService, StoredHomeScreens stored, ILogger<UserAccessWatch> logger, TimeProvider? timeProvider = null)
@@ -82,8 +82,9 @@ public sealed class UserAccessWatch : IUserAccessWatch
             _scoringService.Forget(userId);
             _sessionCache.Invalidate(userId);
 
-            // The stored orders were read with the former access: computed again, the hidden titles left out meanwhile.
-            _stored.MarkUserStale(userId);
+            // The stored layouts were computed with the former access, their section names included: forgotten, so the
+            // next home screen is computed with the new one.
+            _stored.Forget(userId);
         }
     }
 

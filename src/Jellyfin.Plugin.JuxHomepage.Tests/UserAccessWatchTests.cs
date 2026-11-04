@@ -101,8 +101,8 @@ public sealed class UserAccessWatchTests : IDisposable
 
         Assert.False(Cached());
 
-        // The stored orders were read with the former access: computed again (DR-033).
-        Assert.False(StoredHomes.Read(_user.Id, "en", "d", TimeSpan.FromDays(1))!.Value.Fresh);
+        // The stored layouts were computed with the former access, their section names included: forgotten (DR-033).
+        Assert.Null(StoredHomes.Read(_user.Id, "en", "d", TimeSpan.FromDays(1)));
     }
 
     [Fact]

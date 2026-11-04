@@ -57,7 +57,6 @@
         "Widgets/Service/SectionCacheInvalidationListener.cs:StopAsync": "IHostedService member, called by the host at shutdown",
         "Widgets/Service/SectionResultCache.cs:CountForTesting": "test seam (ForTesting suffix), called by the tests only",
         "Widgets/Service/SessionCache.cs:SetLastAccessedForTesting": "test seam (ForTesting suffix), called by the tests only",
-        "Widgets/Service/StoredHomeScreens.cs:ForgetForTesting": "test seam (ForTesting suffix), called by the tests only",
         "Widgets/Service/WidgetItemFetcher.cs:DrawCountForTesting": "test seam (ForTesting suffix), called by the tests only",
         "Widgets/Service/WidgetLayoutResolver.cs:BuildDescriptors": "test seam, called by the tests only: production builds the layout with BuildAsync (WidgetService, DR-033)",
         "Widgets/Service/WidgetService.cs:WhenIdleForTesting": "test seam (ForTesting suffix), called by the tests only",

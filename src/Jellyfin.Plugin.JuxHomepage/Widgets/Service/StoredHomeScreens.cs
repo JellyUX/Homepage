@@ -56,15 +56,18 @@ public sealed class StoredHomeScreens
     public DateTime UtcNow => _timeProvider.GetUtcNow().UtcDateTime;
 
     /// <summary>
-    /// Returns the discriminant of a stored layout: the whole plugin configuration and the user's own settings, so that
-    /// any save of either, a row, a list filter or a module switch alike, makes a layout stored before computed again.
+    /// Returns the discriminant of a stored layout: the whole plugin configuration and the user's own settings that
+    /// shape the layout (JellyUX on or off, hidden sections), so that any admin save, a row, a list filter or a module
+    /// switch alike, or a change of those settings makes a layout stored before computed again. The language of the
+    /// user's last home screen is left out: it changes whenever the user opens the home screen in another language,
+    /// and each language has its own stored layout (R11 of phase 14).
     /// </summary>
     /// <param name="configuration">The plugin configuration.</param>
     /// <param name="user">The user's own configuration, or null.</param>
     /// <returns>The discriminant.</returns>
     public static string Discriminant(PluginConfiguration? configuration, UserConfiguration? user)
     {
-        var json = JsonSerializer.Serialize(new { Configuration = configuration, User = user });
+        var json = JsonSerializer.Serialize(new { Configuration = configuration, UserEnabled = user?.Enabled, Hidden = user?.HiddenSections });
         return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(json)));
     }
 
@@ -142,19 +145,15 @@ public sealed class StoredHomeScreens
 
     /// <summary>
     /// Marks every stored layout of the user computed until now as due: it is still served, then computed again in
-    /// the background (a new scoring, a change of what the user may see).
+    /// the background (a new scoring). A user without a stored file yet gets one holding the mark, so a layout whose
+    /// computation started before it is due once written (R11 of phase 14).
     /// </summary>
     /// <param name="userId">The user.</param>
     public void MarkUserStale(Guid userId)
     {
         lock (_lock)
         {
-            var file = ReadFile(userId);
-            if (file is null)
-            {
-                return;
-            }
-
+            var file = ReadFile(userId) ?? new StoredHomeFile();
             file.StaleSinceUtc = UtcNow;
             WriteUserFile(userId, file);
         }
@@ -180,9 +179,13 @@ public sealed class StoredHomeScreens
         }
     }
 
-    /// <summary>Test-only seam: forgets the user's stored layouts, on disk and in memory, as a first visit finds them.</summary>
+    /// <summary>
+    /// Forgets the user's stored layouts, on disk and in memory, so the next home screen is computed as at a first visit:
+    /// after a change of what the user may see, a stored section name (a title, a person) is never shown again (R11 of
+    /// phase 14). A mark the user had goes with it: the next computation starts after it.
+    /// </summary>
     /// <param name="userId">The user.</param>
-    internal void ForgetForTesting(Guid userId)
+    public void Forget(Guid userId)
     {
         lock (_lock)
         {
