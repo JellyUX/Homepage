@@ -195,26 +195,30 @@ public sealed class WidgetLayoutResolverTests
         Assert.Same(row, resolved);
     }
 
-    [Fact]
-    public async Task BuildDescriptors_SlowSynchronousProbes_OverlapUpToTheBound()
+    [Theory]
+    [InlineData(16, 4)]
+    [InlineData(4, 4)]
+    [InlineData(2, 2)]
+    [InlineData(1, 1)]
+    public async Task BuildDescriptors_SlowSynchronousProbes_OverlapUpToTheBound(int processors, int bound)
     {
         // PERF-02: widget probes do their library reads synchronously and return a completed task,
-        // so Task.WhenAll alone runs them one after another. Each of the first four probes holds its
-        // library call until four are inside at once: they must overlap, and the two others can only
-        // start once one of them has left, so the peak is exactly the fan-out bound of 4.
+        // so Task.WhenAll alone runs them one after another. Each of the first probes holds its library
+        // call until the bound is inside at once: they must overlap, and the others can only start once
+        // one of them has left, so the peak is exactly the bound: one per processor, 4 at most (PERF-07).
         var library = new TestMocks.CountingLibraryManager();
         var arrived = 0;
         var timedOut = false;
-        using var fourInside = new ManualResetEventSlim();
+        using var allInside = new ManualResetEventSlim();
         library.Inner.Setup(m => m.GetItemIds(It.IsAny<InternalItemsQuery>()))
             .Returns(() =>
             {
-                if (Interlocked.Increment(ref arrived) == 4)
+                if (Interlocked.Increment(ref arrived) == bound)
                 {
-                    fourInside.Set();
+                    allInside.Set();
                 }
 
-                timedOut |= !fourInside.Wait(TimeSpan.FromSeconds(10));
+                timedOut |= !allInside.Wait(TimeSpan.FromSeconds(10));
                 return [];
             });
         var registry = new WidgetRegistry();
@@ -226,14 +230,14 @@ public sealed class WidgetLayoutResolverTests
             rows.Add(new WidgetConfig { WidgetType = widgetType, Enabled = true, MinItems = 1, Order = i });
         }
 
-        var resolver = BuildResolver(registry, [.. rows]);
+        var resolver = BuildResolver(registry, [.. rows], processors);
 
         var descriptors = await resolver.BuildDescriptors(Guid.NewGuid(), "en", CancellationToken.None);
 
-        Assert.False(timedOut, "Four probes never ran at the same time.");
+        Assert.False(timedOut, "The bound of probes never ran at the same time.");
         Assert.Equal(rows.Select(r => r.WidgetType), descriptors.Select(d => d.WidgetType));
         Assert.Equal(6, library.Count("GetItemIds"));
-        Assert.Equal(4, library.MaxInFlight);
+        Assert.Equal(bound, library.MaxInFlight);
     }
 
     [Fact]
@@ -292,7 +296,7 @@ public sealed class WidgetLayoutResolverTests
             NullLogger<WidgetLayoutResolver>.Instance);
     }
 
-    private static WidgetLayoutResolver BuildResolver(IWidgetRegistry registry, WidgetConfig[] widgets)
+    private static WidgetLayoutResolver BuildResolver(IWidgetRegistry registry, WidgetConfig[] widgets, int processors = 16)
     {
         var userConfigStoreMock = new Mock<IUserConfigurationStore>();
         userConfigStoreMock
@@ -304,7 +308,8 @@ public sealed class WidgetLayoutResolverTests
             userConfigStoreMock.Object,
             new LocalizationService(new Dictionary<string, IReadOnlyDictionary<string, string>>()),
             () => new PluginConfiguration { Widgets = widgets },
-            NullLogger<WidgetLayoutResolver>.Instance);
+            NullLogger<WidgetLayoutResolver>.Instance,
+            processorCount: processors);
     }
 
     private static FavoriteGenreWidget BuildFavoriteGenreWidget(User user, IReadOnlyList<BaseItem> watched)

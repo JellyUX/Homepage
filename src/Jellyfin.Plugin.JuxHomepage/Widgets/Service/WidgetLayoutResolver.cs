@@ -14,7 +14,7 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets;
 /// </summary>
 public sealed class WidgetLayoutResolver
 {
-    /// <summary>Maximum number of rows resolved and probed at the same time during a layout build.</summary>
+    /// <summary>Maximum number of rows resolved and probed at the same time during a layout build, on any machine.</summary>
     private const int MaxConcurrentProbes = 4;
 
     private readonly IWidgetRegistry _registry;
@@ -23,6 +23,7 @@ public sealed class WidgetLayoutResolver
     private readonly Func<PluginConfiguration?> _getConfiguration;
     private readonly ILogger<WidgetLayoutResolver> _logger;
     private readonly BinaryMismatchReporter? _mismatchReporter;
+    private readonly int _concurrentProbes;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="WidgetLayoutResolver"/> class.
@@ -39,13 +40,15 @@ public sealed class WidgetLayoutResolver
     /// Tells the administrator when a widget fails the layout probe because the plugin build does not match
     /// the server, so the section left out of the layout is not silent (COMPAT-01.a). Null only logs it.
     /// </param>
+    /// <param name="processorCount">The machine's processor count; <see cref="Environment.ProcessorCount"/> when null.</param>
     public WidgetLayoutResolver(
         IWidgetRegistry registry,
         IUserConfigurationStore userConfigStore,
         ILocalizationService localizationService,
         Func<PluginConfiguration?> getConfiguration,
         ILogger<WidgetLayoutResolver> logger,
-        BinaryMismatchReporter? mismatchReporter = null)
+        BinaryMismatchReporter? mismatchReporter = null,
+        int? processorCount = null)
     {
         _registry = registry;
         _userConfigStore = userConfigStore;
@@ -53,6 +56,10 @@ public sealed class WidgetLayoutResolver
         _getConfiguration = getConfiguration;
         _logger = logger;
         _mismatchReporter = mismatchReporter;
+
+        // One row per processor on a small server, so a computation does not hold every pool thread the
+        // requests need: on 1 vCPU, the p95 of the concurrent native requests went 89 -> 68 ms (PERF-07, DR-006).
+        _concurrentProbes = Math.Clamp(processorCount ?? Environment.ProcessorCount, 1, MaxConcurrentProbes);
     }
 
     /// <summary>
@@ -143,13 +150,15 @@ public sealed class WidgetLayoutResolver
 
         // Resolve a widget instance for each enabled config entry. Resolve (which can wait for the
         // first scoring) and the probes read the library synchronously, so each row runs on the
-        // thread pool, at most MaxConcurrentProbes at a time (PERF-02): a slow row overlaps the others
-        // instead of delaying them (BuildDescriptors_SlowSynchronousProbes_OverlapUpToTheBound,
-        // BuildDescriptors_ResolveWaitingForScoring_OverlapsTheOtherProbes).
+        // thread pool, at most one per processor and MaxConcurrentProbes at a time (PERF-02, PERF-07): a slow
+        // row overlaps the others instead of delaying them (BuildDescriptors_SlowSynchronousProbes_OverlapUpToTheBound,
+        // BuildDescriptors_ResolveWaitingForScoring_OverlapsTheOtherProbes). Since DR-033 the probes and the
+        // scoring run only when a layout is computed (first visit, nightly task, a stored layout due again); a
+        // stored deferred row is read again without them.
         var results = new RowOutcome[effectiveConfigs.Count];
         await Parallel.ForEachAsync(
             Enumerable.Range(0, effectiveConfigs.Count),
-            new ParallelOptions { MaxDegreeOfParallelism = MaxConcurrentProbes, CancellationToken = cancellationToken },
+            new ParallelOptions { MaxDegreeOfParallelism = _concurrentProbes, CancellationToken = cancellationToken },
             async (i, token) =>
             {
                 var (config, key) = effectiveConfigs[i];
