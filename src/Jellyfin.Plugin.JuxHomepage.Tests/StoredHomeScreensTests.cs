@@ -7,6 +7,7 @@ using MediaBrowser.Controller.Dto;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using MediaBrowser.Model.Dto;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Xunit;
@@ -201,12 +202,63 @@ public sealed class StoredHomeScreensTests : IDisposable
         Assert.False(store.Read(_userId, "en", "d", TimeSpan.FromHours(24))!.Value.Fresh);
     }
 
+    // S1.c, failure class "memory state against disk" (CONTRIBUTING.md "Failure Paths"): a stored file cut, made
+    // invalid, of another format or with a null field is logged and computed again, never served as an empty section.
+    [Theory]
+    [InlineData("cut")]
+    [InlineData("invalid")]
+    [InlineData("format")]
+    [InlineData("null ids")]
+    [InlineData("null rows")]
+    public async Task ADamagedStoredFile_IsLoggedAndComputedAgain_NeverServedEmpty(string damage)
+    {
+        await Start().Service.GetWidgetsForUser(_userId, 0, "en", CancellationToken.None);
+        var path = _disk.Paths.Single(p => p.EndsWith(_userId.ToString("N") + ".json", StringComparison.Ordinal));
+        var json = _disk.ReadAllText(path);
+        _disk.WriteAllText(path, damage switch
+        {
+            "cut" => json[..(json.Length / 2)],
+            "invalid" => "{ not json",
+            "format" => json.Replace("\"Format\":1", "\"Format\":99", StringComparison.Ordinal),
+            "null ids" => System.Text.RegularExpressions.Regex.Replace(json, "\"Ids\":\\[[^\\]]*\\]", "\"Ids\":null"),
+            _ => json.Replace("\"Rows\":[", "\"Rows\":null,\"Unused\":[", StringComparison.Ordinal)
+        });
+        Assert.NotEqual(json, _disk.ReadAllText(path));
+
+        var logger = new RecordingLogger();
+        var after = Start(storeLogger: logger);
+        var layout = await after.Service.GetWidgetsForUser(_userId, 0, "en", CancellationToken.None);
+        var section = await ReadSection(after, layout.Sections.Single());
+
+        Assert.Equal(MaxItems, section!.Items.Count);
+        Assert.Equal((1, 1), (after.Widget.Resolves, after.Widget.Reads));
+        Assert.Contains(logger.Warnings, w => w.Contains("computing it again", StringComparison.Ordinal));
+    }
+
     public void Dispose() => _disposables.ForEach(d => d.Dispose());
+
+    private sealed class RecordingLogger : ILogger<StoredHomeScreens>
+    {
+        public List<string> Warnings { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            if (logLevel == LogLevel.Warning)
+            {
+                Warnings.Add(formatter(state, exception));
+            }
+        }
+    }
 
     private static Task<WidgetResult?> ReadSection(Server server, WidgetDescriptor section) =>
         server.Service.GetWidgetItems(server.UserId, section.WidgetType, section.AdditionalData, section.SectionKey, 0, section.MaxItems, CancellationToken.None);
 
-    private Server Start(bool pendingScoring = false)
+    private Server Start(bool pendingScoring = false, ILogger<StoredHomeScreens>? storeLogger = null)
     {
         var widget = new OrderedWidget(this);
         var registry = new WidgetRegistry();
@@ -224,7 +276,7 @@ public sealed class StoredHomeScreensTests : IDisposable
             .Returns((InternalItemsQuery query) => [.. _movies.Where(m => query.ItemIds.Contains(m.Id) && (query.IsPlayed != false || !_played.Contains(m.Id)))]);
         var dto = new Mock<IDtoService>();
         dto.StubBaseItemDtos((items, _) => [.. items.Select(i => new BaseItemDto { Id = i.Id })]);
-        var store = TestWidgetServices.NewStore(_disk, _clock);
+        var store = TestWidgetServices.NewStore(_disk, _clock, storeLogger);
         var sessions = new SessionCache(_clock);
         var pages = new SectionResultCache(sessions, _clock);
         _disposables.Add(sessions);

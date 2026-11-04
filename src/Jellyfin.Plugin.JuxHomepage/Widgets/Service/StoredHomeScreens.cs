@@ -234,10 +234,22 @@ public sealed class StoredHomeScreens
             _logger.LogWarning("The stored home screen of user {UserId} has format {Format}, not {Expected}; computing it again.", userId, file.Format, FormatVersion);
             file = null;
         }
+        else if (file is not null && !IsWhole(file))
+        {
+            // Valid JSON with a field left out or null (a file cut or edited by hand) would fail the layout build.
+            _logger.LogWarning("The stored home screen of user {UserId} lacks a layout, a row key, ids or a section type; computing it again.", userId);
+            file = null;
+        }
 
         _files[userId] = (writtenAt, file);
         return file;
     }
+
+    private static bool IsWhole(StoredHomeFile file) =>
+        file.Layouts?.Values.All(layout => layout?.Rows is not null
+            && layout.Discriminant is not null
+            && layout.Rows.All(row => row is { Key: not null, Ids: not null }
+                && (row.Section is null || row.Section is { WidgetType: not null, DisplayName: not null }))) != false;
 
     private T? TryRead<T>(string path)
         where T : class
