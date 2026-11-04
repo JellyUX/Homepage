@@ -96,33 +96,43 @@ public sealed class StoredHomeScreens
                 return null;
             }
 
-            var fresh = UtcNow - layout.ComputedAtUtc < freshness
-                && layout.ComputedAtUtc > file.StaleSinceUtc
-                && !layout.Rows.Any(row => row.Sources?.Any(source => SourceMarks().GetValueOrDefault(source) >= layout.ComputedAtUtc) == true);
-            return (layout, fresh);
+            return (layout, IsFresh(file, layout, freshness));
         }
     }
 
     /// <summary>
     /// Returns the stored ids of a section of the user, from any of their layouts computed for the current
-    /// configuration (the ids do not depend on the language), fresh or not; null when none holds it.
+    /// configuration (the ids do not depend on the language), with that layout's language and whether it is still
+    /// fresh; null when none holds it.
     /// </summary>
     /// <param name="userId">The user.</param>
     /// <param name="discriminant">The current discriminant.</param>
     /// <param name="section">The section.</param>
-    /// <returns>The ordered ids, or null.</returns>
-    public IReadOnlyList<Guid>? IdsOf(Guid userId, string discriminant, SectionId section)
+    /// <param name="freshness">How long a stored layout is served before it is computed again.</param>
+    /// <returns>The ordered ids, the layout's language and freshness, or null.</returns>
+    public (IReadOnlyList<Guid> Ids, string Lang, bool Fresh)? IdsOf(Guid userId, string discriminant, SectionId section, TimeSpan freshness)
     {
         lock (_lock)
         {
-            IEnumerable<StoredLayout> layouts = ReadFile(userId)?.Layouts?.Values ?? Enumerable.Empty<StoredLayout>();
-            return layouts
-                .Where(layout => layout?.Rows is not null && layout.Discriminant == discriminant)
-                .SelectMany(layout => layout.Rows)
-                .FirstOrDefault(row => row.Section is { } stored
+            var file = ReadFile(userId);
+            foreach (var (lang, layout) in file?.Layouts ?? [])
+            {
+                if (layout?.Rows is null || layout.Discriminant != discriminant)
+                {
+                    continue;
+                }
+
+                var row = layout.Rows.FirstOrDefault(row => row.Section is { } stored
                     && stored.WidgetType == section.WidgetType
                     && (string.IsNullOrEmpty(stored.AdditionalData) ? null : stored.AdditionalData) == section.AdditionalData
-                    && (section.SectionKey is null || row.Key == section.SectionKey))?.Ids;
+                    && (section.SectionKey is null || row.Key == section.SectionKey));
+                if (row is not null)
+                {
+                    return (row.Ids, lang, IsFresh(file!, layout, freshness));
+                }
+            }
+
+            return null;
         }
     }
 
@@ -196,6 +206,11 @@ public sealed class StoredHomeScreens
             }
         }
     }
+
+    private bool IsFresh(StoredHomeFile file, StoredLayout layout, TimeSpan freshness) =>
+        UtcNow - layout.ComputedAtUtc < freshness
+        && layout.ComputedAtUtc > file.StaleSinceUtc
+        && !layout.Rows.Any(row => row.Sources?.Any(source => SourceMarks().GetValueOrDefault(source) >= layout.ComputedAtUtc) == true);
 
     private void WriteUserFile(Guid userId, StoredHomeFile file)
     {

@@ -353,6 +353,41 @@ public sealed class StoredHomeScreensTests : IDisposable
         Assert.Equal(limit, server.Widget.LastLimit);
     }
 
+    // R11: a computation warms the scores first and never reads the pending flag a visit's build set; one whose scoring
+    // cannot start stores nothing.
+    [Theory]
+    [InlineData(true, 1)]
+    [InlineData(false, 0)]
+    public async Task AComputation_WarmsTheScoresFirst_AndLeavesTheVisitsPendingFlagAlone(bool warmed, int reads)
+    {
+        var personalization = new Mock<IPersonalizationState>();
+        personalization.Setup(p => p.WarmAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>())).ReturnsAsync(warmed);
+        var server = Start(personalization: personalization.Object);
+
+        await server.Service.ComputeAsync(_userId, "en", keepInMemory: true, CancellationToken.None);
+
+        Assert.Equal(reads, server.Widget.Reads);
+        personalization.Verify(p => p.TakePendingServed(It.IsAny<Guid>()), Times.Never);
+        Assert.Equal(warmed, TestWidgetServices.NewStore(_disk, _clock).Read(_userId, "en", StoredHomeScreens.Discriminant(_config, null), TimeSpan.FromDays(1)) is not null);
+    }
+
+    // R11: a section read from a stored order that is no longer fresh (a scan, a new scoring) is served, and the layout is
+    // computed again in the background.
+    [Fact]
+    public async Task ASectionReadFromAnOrderNoLongerFresh_IsServed_ThenComputedAgain()
+    {
+        await Start().Service.GetWidgetsForUser(_userId, 0, "en", CancellationToken.None);
+        _clock.Advance(TimeSpan.FromSeconds(1));
+        TestWidgetServices.NewStore(_disk, _clock).MarkUserStale(_userId);
+
+        var after = Start();
+        var section = await after.Service.GetWidgetItems(_userId, Ordered, null, $"{Ordered}#1", 0, MaxItems, CancellationToken.None);
+        Assert.Equal(MaxItems, section!.Items.Count);
+        await after.Service.WhenIdleForTesting();
+
+        Assert.Equal((1, 1), (after.Widget.Resolves, after.Widget.Reads));
+    }
+
     public void Dispose() => _disposables.ForEach(d => d.Dispose());
 
     private sealed class RecordingLogger : ILogger<StoredHomeScreens>
@@ -376,7 +411,7 @@ public sealed class StoredHomeScreensTests : IDisposable
     private static Task<WidgetResult?> ReadSection(Server server, WidgetDescriptor section) =>
         server.Service.GetWidgetItems(server.UserId, section.WidgetType, section.AdditionalData, section.SectionKey, 0, section.MaxItems, CancellationToken.None);
 
-    private Server Start(bool pendingScoring = false, ILogger<StoredHomeScreens>? storeLogger = null, IWidget? extraWidget = null)
+    private Server Start(bool pendingScoring = false, ILogger<StoredHomeScreens>? storeLogger = null, IWidget? extraWidget = null, IPersonalizationState? personalization = null)
     {
         var widget = new OrderedWidget(this);
         var registry = new WidgetRegistry();
@@ -409,7 +444,7 @@ public sealed class StoredHomeScreensTests : IDisposable
             sessions,
             resolver,
             () => _config,
-            pendingScoring ? new AlwaysPending() : null,
+            personalization ?? (pendingScoring ? new AlwaysPending() : null),
             pages,
             stored: store,
             storedReader: new StoredSectionReader(library.Object, TestMocks.UserManagerReturning(_user).Object, _dto.Object));
@@ -426,6 +461,8 @@ public sealed class StoredHomeScreensTests : IDisposable
     private sealed class AlwaysPending : IPersonalizationState
     {
         public bool TakePendingServed(Guid userId) => true;
+
+        public Task<bool> WarmAsync(Guid userId, CancellationToken cancellationToken) => Task.FromResult(true);
     }
 
     /// <summary>A deferred widget that hides played titles and reads the unplayed movies in library order.</summary>

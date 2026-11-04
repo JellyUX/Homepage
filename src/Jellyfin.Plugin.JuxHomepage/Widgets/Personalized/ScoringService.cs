@@ -236,7 +236,7 @@ public sealed class ScoringService : IPersonalizationState, IDisposable
     /// <param name="userId">The user.</param>
     /// <param name="cancellationToken">Stops waiting; the computation itself goes on.</param>
     /// <returns>True when a fresh snapshot is held for the user.</returns>
-    internal async Task<bool> WarmAsync(Guid userId, CancellationToken cancellationToken)
+    public async Task<bool> WarmAsync(Guid userId, CancellationToken cancellationToken)
     {
         // At most the partial pass, then the full one it chains (RunCompute).
         for (var pass = 0; pass < 2; pass++)

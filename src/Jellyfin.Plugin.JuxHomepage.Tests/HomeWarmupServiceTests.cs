@@ -97,8 +97,8 @@ public sealed class HomeWarmupServiceTests : IDisposable
         _clock.Advance(warmup.Delay);
         await warmup.RunningForTesting!;
 
-        Assert.All(users.Take(HomeWarmupService.MaxUsers), u => Assert.True(Cached(u, "de")));
-        Assert.All(users.Skip(HomeWarmupService.MaxUsers), u => Assert.False(Cached(u, "de")));
+        Assert.All(users.Take(ActiveHomeUsers.MaxKeptUsers), u => Assert.True(Cached(u, "de")));
+        Assert.All(users.Skip(ActiveHomeUsers.MaxKeptUsers), u => Assert.False(Cached(u, "de")));
     }
 
     [Fact]
@@ -260,13 +260,12 @@ public sealed class HomeWarmupServiceTests : IDisposable
 
         return new HomeWarmupService(
             lifetime ?? _lifetime,
-            new ActiveHomeUsers(UserManager, new HomeLanguageMemory(store.Object), server.Object, localization, _clock),
+            new ActiveHomeUsers(UserManager, new HomeLanguageMemory(store.Object), server.Object, localization, _clock, memory),
             _scoring,
             widgets,
             pages,
             _clock,
             NullLogger<HomeWarmupService>.Instance,
-            processors,
-            memory);
+            processors);
     }
 }

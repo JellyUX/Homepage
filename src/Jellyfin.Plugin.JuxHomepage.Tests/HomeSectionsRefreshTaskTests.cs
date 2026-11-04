@@ -100,6 +100,20 @@ public sealed class HomeSectionsRefreshTaskTests : IDisposable
         Assert.True(Stored(other, "de"));
     }
 
+    // R11: past the memory bound of the warmup, a user's home screen is stored only, not kept in memory.
+    [Fact]
+    public async Task Execute_KeepsInMemoryOnlyTheUsersTheMemoryBoundAllows()
+    {
+        var first = AddUser(TimeSpan.FromHours(1));
+        var second = AddUser(TimeSpan.FromHours(2));
+
+        await Build(memory: 64L * 1024 * 1024).ExecuteAsync(new SyncProgress([]), CancellationToken.None);
+
+        Assert.True(Stored(first, "de") && Stored(second, "de"));
+        Assert.True(_sessionCache.TryGet(first.Id, "de", TimeSpan.FromMinutes(15), out _, out _));
+        Assert.False(_sessionCache.TryGet(second.Id, "de", TimeSpan.FromMinutes(15), out _, out _));
+    }
+
     [Fact]
     public async Task Execute_Cancelled_StopsBeforeTheNextUser()
     {
@@ -123,7 +137,7 @@ public sealed class HomeSectionsRefreshTaskTests : IDisposable
     private bool Stored(User user, string language) =>
         _stored.Read(user.Id, language, StoredHomeScreens.Discriminant(new PluginConfiguration(), _settings.GetValueOrDefault(user.Id)), TimeSpan.FromDays(1)) is { Fresh: true };
 
-    private HomeSectionsRefreshTask Build()
+    private HomeSectionsRefreshTask Build(long memory = 16L * 1024 * 1024 * 1024)
     {
         var store = new Mock<IUserConfigurationStore>();
         store.Setup(s => s.GetUserConfiguration(It.IsAny<Guid>())).Returns((Guid id) => _settings.GetValueOrDefault(id));
@@ -143,7 +157,7 @@ public sealed class HomeSectionsRefreshTaskTests : IDisposable
         server.Setup(s => s.Configuration).Returns(new MediaBrowser.Model.Configuration.ServerConfiguration { UICulture = "de-DE" });
 
         return new HomeSectionsRefreshTask(
-            new ActiveHomeUsers(UserManager, new HomeLanguageMemory(languages.Object), server.Object, localization, _clock),
+            new ActiveHomeUsers(UserManager, new HomeLanguageMemory(languages.Object), server.Object, localization, _clock, memory),
             _scoring,
             widgets,
             _clock,

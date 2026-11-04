@@ -27,6 +27,12 @@ public sealed class WidgetService
     /// <summary>Maximum number of expired layouts waiting for their background rebuild.</summary>
     private const int MaxQueuedRebuilds = 8;
 
+    /// <summary>
+    /// Maximum number of stored layouts waiting to be computed again in the background: at least the users kept ahead
+    /// after a scan (<see cref="ActiveHomeUsers.MaxKeptUsers"/>), so none of them is dropped (R11 of phase 14).
+    /// </summary>
+    private const int MaxQueuedComputes = ActiveHomeUsers.MaxKeptUsers;
+
     private readonly ConcurrentDictionary<(Guid UserId, string Lang), (long Version, Lazy<Task<IReadOnlyList<WidgetDescriptor>>> Build)> _builds = new();
     private readonly ConcurrentDictionary<(Guid UserId, string Lang), byte> _queuedRebuilds = new();
     private readonly ConcurrentDictionary<(Guid UserId, string Lang), byte> _queuedComputes = new();
@@ -170,58 +176,82 @@ public sealed class WidgetService
             (_, running) => running.Version == version ? running : NewBuild(key, lang, version)).Build.Value;
     }
 
-    private (long Version, Lazy<Task<IReadOnlyList<WidgetDescriptor>>> Build) NewBuild((Guid UserId, string Lang) key, string? lang, long version) =>
-        (version, new Lazy<Task<IReadOnlyList<WidgetDescriptor>>>(() => BuildAndStore(key, lang, version, compute: false)));
+    private (long Version, Lazy<Task<IReadOnlyList<WidgetDescriptor>>> Build) NewBuild((Guid UserId, string Lang) key, string? lang, long version)
+    {
+        Lazy<Task<IReadOnlyList<WidgetDescriptor>>>? build = null;
+        build = new Lazy<Task<IReadOnlyList<WidgetDescriptor>>>(() => RunBuild(key, lang, version, build!));
+        return (version, build);
+    }
+
+    // A build leaves the joinable builds when it ends, and only itself: never a later build of the same key (R11).
+    private async Task<IReadOnlyList<WidgetDescriptor>> RunBuild((Guid UserId, string Lang) key, string? lang, long version, Lazy<Task<IReadOnlyList<WidgetDescriptor>>> self)
+    {
+        try
+        {
+            return await BuildAndStore(key, lang, version, compute: false, keepInMemory: true).ConfigureAwait(false);
+        }
+        finally
+        {
+            if (_builds.TryGetValue(key, out var current) && ReferenceEquals(current.Build, self))
+            {
+                _builds.TryRemove(KeyValuePair.Create(key, current));
+            }
+        }
+    }
 
     /// <summary>
     /// Builds the layout and caches it. Unless <paramref name="compute"/> is set, a stored layout of the current
     /// configuration is read again (DR-033): its deferred rows are projected from their stored order with live user
     /// data, without scoring nor probing them; when it is older than the deferred freshness, marked due, or a row ran
     /// short, it is still served and computed again in the background. Otherwise every row is computed and the
-    /// deferred ones are stored, unless the layout was built before the user's first scoring finished.
+    /// deferred ones are stored, unless the layout was built before the user's first scoring finished. A computation
+    /// (<paramref name="compute"/>) warms the user's scores first and stops when it cannot: it never builds a layout
+    /// served before the scoring finished, so it leaves the pending flag of a visit's build alone (R11). Without
+    /// <paramref name="keepInMemory"/>, the layout is stored only, not cached (the nightly task past the kept users).
     /// </summary>
-    private async Task<IReadOnlyList<WidgetDescriptor>> BuildAndStore((Guid UserId, string Lang) key, string? lang, long version, bool compute)
+    private async Task<IReadOnlyList<WidgetDescriptor>> BuildAndStore((Guid UserId, string Lang) key, string? lang, long version, bool compute, bool keepInMemory)
     {
-        try
+        if (compute && !await _personalizationState.WarmAsync(key.UserId, CancellationToken.None).ConfigureAwait(false))
         {
-            // Read before the probes, so a page probed before the user's data changed is not kept.
-            var stamp = _sectionResults.StampOf(key.UserId);
-            var startedAt = _stored.UtcNow;
-            var ttl = SessionTtl;
-            Action<WidgetDescriptor, int, WidgetResult> keepProbedPage =
-                (descriptor, limit, page) => _sectionResults.Set(
-                    SectionOf(key.UserId, descriptor), 0, limit, page, stamp, ttl, _registry.GetByType(descriptor.WidgetType)?.Sources);
-            var discriminant = _layoutResolver.DiscriminantOf(key.UserId);
-            var stored = compute ? null : _stored.Read(key.UserId, key.Lang, discriminant, DeferredFreshness);
-            var build = await _layoutResolver.BuildAsync(key.UserId, lang, keepProbedPage, stored?.Layout, _storedReader, CancellationToken.None).ConfigureAwait(false);
+            _logger.LogDebug("Scoring queue full; the home screen of user {UserId} is computed at a later visit.", key.UserId);
+            return [];
+        }
 
-            // A layout built before the user's first scoring finished is served, never cached nor stored, so an
-            // expired one is never served in its place either (Sections_PendingScoring_IsNotCachedNorServedStale).
-            if (!_personalizationState.TakePendingServed(key.UserId))
+        // Read before the probes, so a page probed before the user's data changed is not kept.
+        var stamp = _sectionResults.StampOf(key.UserId);
+        var startedAt = _stored.UtcNow;
+        var ttl = SessionTtl;
+        Action<WidgetDescriptor, int, WidgetResult>? keepProbedPage = keepInMemory
+            ? (descriptor, limit, page) => _sectionResults.Set(
+                SectionOf(key.UserId, descriptor), 0, limit, page, stamp, ttl, _registry.GetByType(descriptor.WidgetType)?.Sources)
+            : null;
+        var discriminant = _layoutResolver.DiscriminantOf(key.UserId);
+        var stored = compute ? null : _stored.Read(key.UserId, key.Lang, discriminant, DeferredFreshness);
+        var build = await _layoutResolver.BuildAsync(key.UserId, lang, keepProbedPage, stored?.Layout, _storedReader, CancellationToken.None).ConfigureAwait(false);
+
+        // A layout built before the user's first scoring finished is served, never cached nor stored, so an
+        // expired one is never served in its place either (Sections_PendingScoring_IsNotCachedNorServedStale).
+        if (compute || !_personalizationState.TakePendingServed(key.UserId))
+        {
+            if (keepInMemory)
             {
                 _sessionCache.Set(key.UserId, lang, build.Descriptors, version);
-                if (build.Computed is { } computed)
-                {
-                    computed.ComputedAtUtc = startedAt;
-                    computed.Discriminant = discriminant;
-                    _stored.Write(key.UserId, key.Lang, computed);
-                }
             }
 
-            if (stored is { } read && (!read.Fresh || build.Due))
+            if (build.Computed is { } computed)
             {
-                QueueBackgroundCompute(key.UserId, lang);
+                computed.ComputedAtUtc = startedAt;
+                computed.Discriminant = discriminant;
+                _stored.Write(key.UserId, key.Lang, computed);
             }
-
-            return build.Descriptors;
         }
-        finally
+
+        if (stored is { } read && (!read.Fresh || build.Due))
         {
-            if (_builds.TryGetValue(key, out var current) && current.Version == version)
-            {
-                _builds.TryRemove(KeyValuePair.Create(key, current));
-            }
+            QueueBackgroundCompute(key.UserId, lang);
         }
+
+        return build.Descriptors;
     }
 
     /// <summary>
@@ -293,14 +323,15 @@ public sealed class WidgetService
     /// </summary>
     /// <param name="userId">The user.</param>
     /// <param name="lang">The language of the layout.</param>
+    /// <param name="keepInMemory">Whether the layout and its first pages are cached too, or only stored.</param>
     /// <param name="cancellationToken">Cancels the wait for the gate; a computation once started runs to its end.</param>
     /// <returns>A task that completes once the layout is stored.</returns>
-    public async Task ComputeAsync(Guid userId, string? lang, CancellationToken cancellationToken)
+    public async Task ComputeAsync(Guid userId, string? lang, bool keepInMemory, CancellationToken cancellationToken)
     {
         await _rebuildGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            await BuildAndStore((userId, SessionCache.NormalizeKey(lang)), lang, _sessionCache.VersionOf(userId), compute: true).ConfigureAwait(false);
+            await BuildAndStore((userId, SessionCache.NormalizeKey(lang)), lang, _sessionCache.VersionOf(userId), compute: true, keepInMemory).ConfigureAwait(false);
         }
         finally
         {
@@ -310,7 +341,7 @@ public sealed class WidgetService
 
     /// <summary>
     /// Computes the user's layout in <paramref name="lang"/> again in the background, its deferred rows stored (S5: the
-    /// active users after a library scan): one build at a time server-wide, at most <see cref="MaxQueuedRebuilds"/>
+    /// active users after a library scan): one build at a time server-wide, at most <see cref="MaxQueuedComputes"/>
     /// queued; a full queue leaves the user to their next visit.
     /// </summary>
     /// <param name="userId">The user.</param>
@@ -319,7 +350,7 @@ public sealed class WidgetService
 
     /// <summary>
     /// Computes a stored layout again in the background (DR-033): one build at a time server-wide, behind the same gate
-    /// as the expired layouts, at most <see cref="MaxQueuedRebuilds"/> queued; the stored layout is served meanwhile.
+    /// as the expired layouts, at most <see cref="MaxQueuedComputes"/> queued; the stored layout is served meanwhile.
     /// </summary>
     private void QueueBackgroundCompute(Guid userId, string? lang)
     {
@@ -329,7 +360,7 @@ public sealed class WidgetService
             return;
         }
 
-        if (Interlocked.Increment(ref _queuedComputeCount) > MaxQueuedRebuilds)
+        if (Interlocked.Increment(ref _queuedComputeCount) > MaxQueuedComputes)
         {
             Interlocked.Decrement(ref _queuedComputeCount);
             _queuedComputes.TryRemove(key, out _);
@@ -344,7 +375,7 @@ public sealed class WidgetService
                 await _rebuildGate.WaitAsync().ConfigureAwait(false);
                 try
                 {
-                    await BuildAndStore(key, lang, _sessionCache.VersionOf(userId), compute: true).ConfigureAwait(false);
+                    await BuildAndStore(key, lang, _sessionCache.VersionOf(userId), compute: true, keepInMemory: true).ConfigureAwait(false);
                 }
                 finally
                 {
@@ -515,9 +546,15 @@ public sealed class WidgetService
     {
         if (widget.Freshness == FreshnessLevel.Deferred
             && payload.StartIndex == 0
-            && _stored.IdsOf(section.UserId, _layoutResolver.DiscriminantOf(section.UserId), section) is { } ids)
+            && _stored.IdsOf(section.UserId, _layoutResolver.DiscriminantOf(section.UserId), section, DeferredFreshness) is { } stored)
         {
-            return Task.FromResult(_storedReader.Read(widget, payload, ids).Page);
+            // An order no longer fresh (a scan, a new scoring) is still served, and computed again (R11).
+            if (!stored.Fresh)
+            {
+                QueueBackgroundCompute(section.UserId, stored.Lang);
+            }
+
+            return Task.FromResult(_storedReader.Read(widget, payload, stored.Ids).Page);
         }
 
         return widget.GetItemsAsync(payload, cancellationToken);

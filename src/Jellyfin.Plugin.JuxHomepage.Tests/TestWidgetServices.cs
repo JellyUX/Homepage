@@ -48,6 +48,8 @@ internal static class TestWidgetServices
     internal sealed class NoPendingPersonalization : IPersonalizationState
     {
         public bool TakePendingServed(Guid userId) => false;
+
+        public Task<bool> WarmAsync(Guid userId, CancellationToken cancellationToken) => Task.FromResult(true);
     }
 
     /// <summary>An access watch that never sees a change.</summary>

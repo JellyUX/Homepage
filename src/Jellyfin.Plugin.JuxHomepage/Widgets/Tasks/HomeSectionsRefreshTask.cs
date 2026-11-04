@@ -62,10 +62,13 @@ public sealed class HomeSectionsRefreshTask : IScheduledTask
         var started = _timeProvider.GetTimestamp();
         var users = _activeUsers.MostRecent(int.MaxValue);
         var computed = 0;
+        var kept = _activeUsers.KeptBound;
         for (var i = 0; i < users.Count; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (await ComputeUserAsync(users[i], cancellationToken).ConfigureAwait(false))
+
+            // Only the most recent users, as many as the memory bound of the warmup, keep their pages in memory (R11).
+            if (await ComputeUserAsync(users[i], keepInMemory: i < kept, cancellationToken).ConfigureAwait(false))
             {
                 computed++;
             }
@@ -90,7 +93,7 @@ public sealed class HomeSectionsRefreshTask : IScheduledTask
         };
     }
 
-    private async Task<bool> ComputeUserAsync(Guid userId, CancellationToken cancellationToken)
+    private async Task<bool> ComputeUserAsync(Guid userId, bool keepInMemory, CancellationToken cancellationToken)
     {
         if (!_widgets.IsEnabledFor(userId))
         {
@@ -106,7 +109,7 @@ public sealed class HomeSectionsRefreshTask : IScheduledTask
                 return false;
             }
 
-            await _widgets.ComputeAsync(userId, _activeUsers.LanguageOf(userId), cancellationToken).ConfigureAwait(false);
+            await _widgets.ComputeAsync(userId, _activeUsers.LanguageOf(userId), keepInMemory, cancellationToken).ConfigureAwait(false);
             return true;
         }
         catch (Exception ex) when (!cancellationToken.IsCancellationRequested)

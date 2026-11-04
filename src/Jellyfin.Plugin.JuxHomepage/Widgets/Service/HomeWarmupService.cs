@@ -19,12 +19,6 @@ namespace Jellyfin.Plugin.JuxHomepage.Widgets;
 /// </summary>
 public sealed class HomeWarmupService : IHostedService, IDisposable
 {
-    /// <summary>The most users warmed after a start.</summary>
-    internal const int MaxUsers = 10;
-
-    /// <summary>The memory a warmed user keeps, measured on the large library (DR-011: ~48 MiB for 5 users).</summary>
-    internal const long BytesPerUser = 10L * 1024 * 1024;
-
     private readonly IHostApplicationLifetime _lifetime;
     private readonly ActiveHomeUsers _activeUsers;
     private readonly ScoringService _scoring;
@@ -33,7 +27,6 @@ public sealed class HomeWarmupService : IHostedService, IDisposable
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<HomeWarmupService> _logger;
     private readonly int _processorCount;
-    private readonly long _availableMemory;
     private readonly ServerStartedRun _afterStart = new();
 
     /// <summary>
@@ -47,9 +40,6 @@ public sealed class HomeWarmupService : IHostedService, IDisposable
     /// <param name="timeProvider">Time source of the delay.</param>
     /// <param name="logger">Logger.</param>
     /// <param name="processorCount">The machine's processor count; <see cref="Environment.ProcessorCount"/> when null.</param>
-    /// <param name="availableMemoryBytes">
-    /// The memory available to the server; <see cref="GCMemoryInfo.TotalAvailableMemoryBytes"/> when null.
-    /// </param>
     public HomeWarmupService(
         IHostApplicationLifetime lifetime,
         ActiveHomeUsers activeUsers,
@@ -58,8 +48,7 @@ public sealed class HomeWarmupService : IHostedService, IDisposable
         SectionResultCache sectionResults,
         TimeProvider timeProvider,
         ILogger<HomeWarmupService> logger,
-        int? processorCount = null,
-        long? availableMemoryBytes = null)
+        int? processorCount = null)
     {
         _lifetime = lifetime;
         _activeUsers = activeUsers;
@@ -69,11 +58,10 @@ public sealed class HomeWarmupService : IHostedService, IDisposable
         _timeProvider = timeProvider;
         _logger = logger;
         _processorCount = processorCount ?? Environment.ProcessorCount;
-        _availableMemory = availableMemoryBytes ?? GC.GetGCMemoryInfo().TotalAvailableMemoryBytes;
     }
 
-    /// <summary>Gets the most users warmed: 5 % of the available memory at <see cref="BytesPerUser"/> each, 1 to 10.</summary>
-    internal int UserBound => (int)Math.Clamp(_availableMemory / 20 / BytesPerUser, 1, MaxUsers);
+    /// <summary>Gets the most users warmed: <see cref="ActiveHomeUsers.KeptBound"/>.</summary>
+    internal int UserBound => _activeUsers.KeptBound;
 
     /// <summary>Gets the delay between the server start and the warmup.</summary>
     internal TimeSpan Delay => TimeSpan.FromSeconds(_processorCount <= 2 ? 90 : 30);
